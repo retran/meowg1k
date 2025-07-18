@@ -1,0 +1,65 @@
+version: '3'
+
+vars:
+  PROJECT_NAME: meowtools
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
+  LDFLAGS: >-
+    -ldflags "-X github.com/retran/meowtools/internal/version.Version={{.VERSION}}
+    -X github.com/retran/meowtools/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
+    -X github.com/retran/meowtools/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+
+tasks:
+  build:
+    desc: Build all binaries
+    aliases: [build]
+    cmds:
+      - task: clean
+      - mkdir -p bin
+      - |
+        for cmd in cmd/*; do
+          [ -d "$cmd" ] || continue
+          name=$(basename "$cmd")
+          echo "Building $name..."
+          go build {{.LDFLAGS}} -o "bin/$name" "./$cmd"
+        done
+
+  install:
+    desc: Install binaries to $GOPATH/bin
+    cmds:
+      - |
+        for cmd in cmd/*; do
+          [ -d "$cmd" ] || continue
+          name=$(basename "$cmd")
+          go install {{.LDFLAGS}} "./$cmd"
+        done
+
+  test:
+    desc: Run tests with coverage
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin coverage.out coverage.html
+
+  check:
+    desc: Run all checks
+    cmds:
+      - go fmt ./...
+      - go vet ./...
+      - go test ./...
+
+  setup:
+    desc: Setup development environment
+    cmds:
+      - go mod download && go mod tidy
+      - echo "🐱 Setup complete!"
+
+  info:
+    desc: Show build information
+    cmds:
+      - echo "Project{{":"}} {{.PROJECT_NAME}} v{{.VERSION}}"
+      - go version
