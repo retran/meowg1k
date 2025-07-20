@@ -1,4 +1,4 @@
-module github.com/retran/meowtools
+module github.com/retran/meowg1k
 
 go 1.24.5
 

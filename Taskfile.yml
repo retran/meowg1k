@@ -1,13 +1,13 @@
 version: '3'
 
 vars:
-  PROJECT_NAME: meowtools
+  PROJECT_NAME: meowg1k
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
   LDFLAGS: >-
-    -ldflags "-X github.com/retran/meowtools/internal/version.Version={{.VERSION}}
-    -X github.com/retran/meowtools/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
-    -X github.com/retran/meowtools/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    -ldflags "-X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
+    -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
+    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 
 tasks:
   build:
