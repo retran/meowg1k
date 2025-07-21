@@ -14,11 +14,19 @@ tasks:
     desc: Build all binaries
     aliases: [build]
     cmds:
-      - task: clean
       - mkdir -p bin
       - |
         echo "Building meowg1k..."
         go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
+
+  install:
+    desc: Build and install the binary to $GOPATH/bin
+    deps: [build]
+    cmds:
+      - |
+        echo "Installing meow to $(go env GOPATH)/bin..."
+        cp bin/meow $(go env GOPATH)/bin/
+        echo "✅ meow installed!"
 
   check:
     desc: Run all checks

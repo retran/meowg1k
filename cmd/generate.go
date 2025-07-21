@@ -76,7 +76,7 @@ Environment Variables:
 )
 
 func init() {
-	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(generateCmd)	
 
 	generateCmd.Aliases = []string{"gen", "g"}
 
