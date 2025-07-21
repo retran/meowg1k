@@ -17,33 +17,8 @@ tasks:
       - task: clean
       - mkdir -p bin
       - |
-        for cmd in cmd/*; do
-          [ -d "$cmd" ] || continue
-          name=$(basename "$cmd")
-          echo "Building $name..."
-          go build {{.LDFLAGS}} -o "bin/$name" "./$cmd"
-        done
-
-  install:
-    desc: Install binaries to $GOPATH/bin
-    cmds:
-      - |
-        for cmd in cmd/*; do
-          [ -d "$cmd" ] || continue
-          name=$(basename "$cmd")
-          go install {{.LDFLAGS}} "./$cmd"
-        done
-
-  test:
-    desc: Run tests with coverage
-    cmds:
-      - go test -v -race -coverprofile=coverage.out ./...
-      - go tool cover -html=coverage.out -o coverage.html
-
-  clean:
-    desc: Clean build artifacts
-    cmds:
-      - rm -rf bin coverage.out coverage.html
+        echo "Building meowg1k..."
+        go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
 
   check:
     desc: Run all checks
