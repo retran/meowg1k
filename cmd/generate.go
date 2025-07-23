@@ -36,8 +36,10 @@ const (
 )
 
 var (
-	model       string
-	userPrompt  string
+	model        string
+	userPrompt   string
+	systemPrompt string
+
 	generateCmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generate content using Google Gemini AI",
@@ -66,7 +68,7 @@ Examples:
 Environment Variables:
   MEOW_GEMINI_API_KEY    Required. Your Google Gemini API key.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := run(model, userPrompt, defaultTimeout)
+			err := run(model, systemPrompt, userPrompt, defaultTimeout)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
@@ -76,18 +78,29 @@ Environment Variables:
 )
 
 func init() {
-	rootCmd.AddCommand(generateCmd)	
+	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Aliases = []string{"gen", "g"}
 
 	generateCmd.Flags().StringVarP(&model, "model", "m", defaultModel, "The model to use for generation")
+	generateCmd.Flags().StringVarP(&systemPrompt, "systemPrompt", "s", "", "The system prompt to provide context for the generation")
 	generateCmd.Flags().StringVarP(&userPrompt, "userPrompt", "p", "", "The user prompt to generate content for")
 
 	// TODO config via viper
 }
 
-func generateContent(ctx context.Context, client *genai.Client, model, userPrompt string) (string, error) {
-	result, err := client.Models.GenerateContent(ctx, model, genai.Text(userPrompt), nil)
+func generateContent(ctx context.Context, client *genai.Client, model, systemPrompt, userPrompt string) (string, error) {
+	generationConfig := &genai.GenerateContentConfig{
+		SystemInstruction: &genai.Content{
+			Parts: []*genai.Part{
+				{
+					Text: systemPrompt,
+				},
+			},
+		},
+	}
+
+	result, err := client.Models.GenerateContent(ctx, model, genai.Text(userPrompt), generationConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch response from Gemini API: %w", err)
 	}
@@ -106,7 +119,7 @@ func formatOutput(content string) string {
 	return strings.TrimSpace(content) + getSystemLineEnding()
 }
 
-func run(model, userPrompt string, timeout time.Duration) error {
+func run(model, systemPrompt, userPrompt string, timeout time.Duration) error {
 	apiKey := os.Getenv(apiKeyEnvVar)
 	if apiKey == "" {
 		return fmt.Errorf("the MEOW_GEMINI_API_KEY environment variable is not set")
@@ -152,7 +165,7 @@ func run(model, userPrompt string, timeout time.Duration) error {
 	}
 
 	// TODO spinner
-	content, err := generateContent(ctx, client, model, finalPrompt)
+	content, err := generateContent(ctx, client, model, systemPrompt, finalPrompt)
 	if err != nil {
 		return err
 	}
