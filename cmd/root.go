@@ -17,14 +17,11 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
-
-var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:   "meow",
@@ -44,20 +41,27 @@ func init() {
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
 
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".meowg1k")
+	home, err := os.UserHomeDir()
+	cobra.CheckErr(err)
+	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
+		viper.AddConfigPath(xdgConfigHome + "/meowg1k")
+	} else {
+		viper.AddConfigPath(home + "/.config/meowg1k")
 	}
 
-	viper.AutomaticEnv()
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			cobra.CheckErr(err)
+		}
+	}
 
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	viper.AddConfigPath("./.meowg1k")
+	if err := viper.MergeInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			cobra.CheckErr(err)
+		}
 	}
 }

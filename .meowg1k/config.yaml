@@ -1,0 +1,13 @@
+---
+generate:
+  defaultModel: "gemini-2.5-flash"
+  defaultSystemPrompt: "You are helpful assistant."
+  tasks:
+    review:
+      model: "gemini-2.5-pro"
+      systemPrompt: "You are helpful senior Go software developer."
+      userPrompt: "Review code:"
+    commit:
+      model: "gemini-2.5-pro"
+      systemPrompt: "You are helpful senior Go software developer."
+      userPrompt: "Generate good conventional git commit message for changes:"
