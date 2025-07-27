@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Andrew Vasilyev (me@retran.me)
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,10 +25,12 @@ import (
 
 var _ GenerationGateway = (*GeminiGenerationGateway)(nil)
 
+// GeminiGenerationGateway is an implementation of GenerationGateway that uses the Google Gemini API.
 type GeminiGenerationGateway struct {
 	client *genai.Client
 }
 
+// NewGeminiGenerationGateway creates and initializes a new GeminiGenerationGateway.
 func NewGeminiGenerationGateway(ctx context.Context, apiKey string) (*GeminiGenerationGateway, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
@@ -43,6 +45,7 @@ func NewGeminiGenerationGateway(ctx context.Context, apiKey string) (*GeminiGene
 	}, nil
 }
 
+// GenerateContent sends a content generation request to the Google Gemini API.
 func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	systemPrompt := genai.Text(request.systemPrompt)[0]
 

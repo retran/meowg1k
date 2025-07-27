@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Andrew Vasilyev (me@retran.me)
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,8 +25,10 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "meow",
-	Short: "🐱 Your purr-fect AI coding companion",
-	Long:  `TODO`,
+	Short: "A command-line AI programming assistance tool.",
+	Long: `Meowg1k is a project that provides 'meow', a command-line interface (CLI)
+that leverages Large Language Models to offer AI-powered assistance for
+programming tasks.`,
 }
 
 func Execute() {

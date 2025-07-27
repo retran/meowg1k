@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Andrew Vasilyev (me@retran.me)
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,20 +20,24 @@ import (
 	"context"
 )
 
+// GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
-	model string
+	model        string
 	systemPrompt string
-	userPrompt string
+	userPrompt   string
 }
 
+// NewGenerateContentRequest creates a new GenerateContentRequest.
 func NewGenerateContentRequest(model, systemPrompt, userPrompt string) *GenerateContentRequest {
 	return &GenerateContentRequest{
-		model: model,
+		model:        model,
 		systemPrompt: systemPrompt,
-		userPrompt: userPrompt,
+		userPrompt:   userPrompt,
 	}
 }
 
+// GenerationGateway defines the interface for interacting with a Large Language Model (LLM).
 type GenerationGateway interface {
-	 GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
+	// GenerateContent sends a request to the LLM and returns the generated content.
+	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
 }

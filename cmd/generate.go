@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 Andrew Vasilyev (me@retran.me)
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,32 +54,73 @@ var (
 	commandLineArgs CommandLineArgs
 
 	generateCmd = &cobra.Command{
-		Use:   "generate",
-		Short: "Generate content using Google Gemini AI",
-		Long: `Generate content using Google Gemini AI models.
+		Use:   "generate [flags]",
+		Short: "Generate, refactor, or explain code with an AI prompt.",
+		Long: `The 'generate' command is the core of meowg1k, providing a direct
+interface to the AI model for a wide range of programming tasks.
 
-This command accepts input via the --userPrompt flag and/or from stdin.
-If both are provided, stdin content is wrapped in markdown code blocks.
-The generated content is written to stdout.
+INPUT METHODS:
+You can provide input to the model in three primary ways:
 
-Examples:
-  # Generate content with a direct prompt
-  meow generate --userPrompt "Write a haiku about cats"
-  
-  # Generate content using a different model
-  meow generate --model gemini-pro --userPrompt "Explain quantum computing"
-  
-  # Generate content from stdin only
-  echo "Summarize this text" | meow generate
-  
-  # Combine prompt and stdin input (stdin will be wrapped in code blocks)
-  cat document.txt | meow generate --userPrompt "Please summarize the following text:"
-  
-  # Another combination example
-  echo "console.log('hello')" | meow generate --userPrompt "Explain this JavaScript code:"
+  1. Prompt Flag: Use the '-p' or '--userPrompt' flag for direct questions.
+     $ meow generate -p "Create a boilerplate for a Go CLI using Cobra."
 
-Environment Variables:
-  MEOW_GEMINI_API_KEY    Required. Your Google Gemini API key.`,
+  2. Piped from stdin: Pipe code or text directly into the command. This is
+     ideal for asking a general question about an entire file.
+     $ cat main.go | meow generate -p "Explain this code."
+
+  3. Combined: Use a prompt flag and piped stdin together to ask a specific
+     question about the provided code. The stdin content is appended to your prompt.
+     $ cat main.go | meow generate -p "Refactor this code to be more idiomatic."
+
+CONFIGURABLE TASKS:
+For reusable workflows, you can define tasks in your config file
+(e.g., ~/.config/meowg1k/config.yaml). A task is a named preset that can
+specify its own model, system prompt, and user prompt. This is useful for
+creating custom tools like a 'documenter', 'refactorer', or 'tester'.
+
+Example 'config.yaml':
+  generate:
+    tasks:
+      doc:
+        systemPrompt: "You are a senior Go developer. Write clear and concise documentation."
+        userPrompt: "Write a complete godoc comment for the following code. Do not include the code itself in the output, only the doc comment."
+      refactor:
+        model: "gemini-2.5-pro"
+        systemPrompt: "You are an expert in code refactoring."
+        userPrompt: "Refactor the following code to improve performance and readability. Explain your changes briefly."
+
+DEFAULT CONFIGURATION:
+You can override the application's built-in defaults by setting 'default'
+parameters in your config file. This is useful for setting a preferred model
+or a global system prompt for all your interactions.
+
+Example 'config.yaml' with defaults:
+  generate:
+    defaultModel: "gemini-2.5-pro"
+    defaultSystemPrompt: "You are a helpful coding assistant that provides answers in markdown format."
+    tasks:
+      # ... your tasks here ...
+
+These settings are overridden by more specific ones in the following order of priority:
+  1. Command-line flag (e.g., --model)
+  2. Task-specific setting
+  3. Default setting in config.yaml
+  4. Application default`,
+		Example: `  # Generate a Python function from a description
+  meow generate -p "Write a python function to find prime numbers up to n"
+
+  # Explain a code file by piping it to the command
+  cat main.go | meow generate -p "Explain this Go code and point out potential bugs"
+
+  # Refactor a React component using a prompt and piped code
+  cat component.js | meow generate -p "Refactor this to use React Hooks and functional components"
+
+  # Write documentation and redirect output to a new file
+  cat api.py | meow generate -p "Write a standard PEP 257 docstring for this script" > api_with_docs.py
+
+  # Use the pre-configured 'doc' task (from the example above) on a local file
+  cat my_file.go | meow generate -t doc`,
 		Run: func(cmd *cobra.Command, args []string) {
 			err := run()
 			if err != nil {
@@ -95,14 +136,13 @@ func init() {
 
 	generateCmd.Aliases = []string{"gen", "g"}
 
-	generateCmd.Flags().StringVarP(&commandLineArgs.task, "task", "t", "", "The generation task to execute")
-	generateCmd.Flags().StringVarP(&commandLineArgs.model, "model", "m", "", "The model to use for generation")
-	generateCmd.Flags().StringVarP(&commandLineArgs.systemPrompt, "systemPrompt", "s", "", "The system prompt to provide context for the generation")
-	generateCmd.Flags().StringVarP(&commandLineArgs.userPrompt, "userPrompt", "p", "", "The user prompt to generate content for")
-
-	// TODO config via viper
+	generateCmd.Flags().StringVarP(&commandLineArgs.task, "task", "t", "", "The generation task to execute from the config file")
+	generateCmd.Flags().StringVarP(&commandLineArgs.model, "model", "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
+	generateCmd.Flags().StringVarP(&commandLineArgs.systemPrompt, "systemPrompt", "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
+	generateCmd.Flags().StringVarP(&commandLineArgs.userPrompt, "userPrompt", "p", "", "The user prompt for which to generate content")
 }
 
+// getSystemLineEnding returns the appropriate line ending for the host operating system.
 func getSystemLineEnding() string {
 	if runtime.GOOS == "windows" {
 		return "\r\n"
@@ -110,10 +150,12 @@ func getSystemLineEnding() string {
 	return "\n"
 }
 
+// formatOutput trims leading/trailing whitespace and appends a system-specific line ending.
 func formatOutput(content string) string {
 	return strings.TrimSpace(content) + getSystemLineEnding()
 }
 
+// getApiKey retrieves the Gemini API key from the MEOW_GEMINI_API_KEY environment variable.
 func getApiKey() (string, error) {
 	apiKey := os.Getenv(apiKeyEnvVar)
 	if apiKey == "" {
@@ -122,6 +164,8 @@ func getApiKey() (string, error) {
 	return apiKey, nil
 }
 
+// readUserPromptFromStdin reads from stdin if data is being piped to the command.
+// It returns an empty string if stdin is not being used.
 func readUserPromptFromStdin() (string, error) {
 	stat, err := os.Stdin.Stat()
 	if err != nil {
@@ -137,11 +181,11 @@ func readUserPromptFromStdin() (string, error) {
 	return "", nil
 }
 
+// readTask retrieves a predefined task configuration from Viper.
 func readTask(taskName string) (*Task, error) {
 	key := "generate.tasks." + taskName
 
-	task := viper.Get(key)
-	if task == nil {
+	if !viper.IsSet(key) {
 		return nil, fmt.Errorf("task '%s' not found in configuration", taskName)
 	}
 
@@ -157,11 +201,15 @@ func readTask(taskName string) (*Task, error) {
 	}, nil
 }
 
+// buildModel determines the LLM to use based on a hierarchy:
+// 1. --model command-line flag
+// 2. Task-specific model from config
+// 3. Global default model from config
+// 4. Hardcoded default model
 func buildModel(task *Task) (string, error) {
 	model := defaultModel
 
-	modelFromConfig := strings.TrimSpace(viper.GetString("generate.defaultModel"))
-	if modelFromConfig != "" {
+	if modelFromConfig := strings.TrimSpace(viper.GetString("generate.defaultModel")); modelFromConfig != "" {
 		model = modelFromConfig
 	}
 
@@ -169,20 +217,21 @@ func buildModel(task *Task) (string, error) {
 		model = task.model
 	}
 
-	modelFromArgs := strings.TrimSpace(commandLineArgs.model)
-
-	if modelFromArgs != "" {
+	if modelFromArgs := strings.TrimSpace(commandLineArgs.model); modelFromArgs != "" {
 		model = modelFromArgs
 	}
 
 	return model, nil
 }
 
+// buildSystemPrompt determines the system prompt to use based on a hierarchy:
+// 1. --systemPrompt command-line flag
+// 2. Task-specific system prompt from config
+// 3. Global default system prompt from config
 func buildSystemPrompt(task *Task) (string, error) {
 	systemPrompt := ""
 
-	systemPromptFromConfig := strings.TrimSpace(viper.GetString("generate.defaultSystemPrompt"))
-	if systemPromptFromConfig != "" {
+	if systemPromptFromConfig := strings.TrimSpace(viper.GetString("generate.defaultSystemPrompt")); systemPromptFromConfig != "" {
 		systemPrompt = systemPromptFromConfig
 	}
 
@@ -190,14 +239,16 @@ func buildSystemPrompt(task *Task) (string, error) {
 		systemPrompt = task.systemPrompt
 	}
 
-	systemPromptFromArgs := strings.TrimSpace(commandLineArgs.systemPrompt)
-	if systemPromptFromArgs != "" {
+	if systemPromptFromArgs := strings.TrimSpace(commandLineArgs.systemPrompt); systemPromptFromArgs != "" {
 		systemPrompt = systemPromptFromArgs
 	}
 
 	return systemPrompt, nil
 }
 
+// buildUserPrompt constructs the final user prompt by combining inputs.
+// It prioritizes the --userPrompt flag, then a task-specific prompt,
+// and appends any content from stdin.
 func buildUserPrompt(task *Task) (string, error) {
 	mainUserPrompt := ""
 
@@ -205,8 +256,7 @@ func buildUserPrompt(task *Task) (string, error) {
 		mainUserPrompt = task.userPrompt
 	}
 
-	mainUserPromptFromArgs := strings.TrimSpace(commandLineArgs.userPrompt)
-	if mainUserPromptFromArgs != "" {
+	if mainUserPromptFromArgs := strings.TrimSpace(commandLineArgs.userPrompt); mainUserPromptFromArgs != "" {
 		mainUserPrompt = mainUserPromptFromArgs
 	}
 
@@ -225,12 +275,14 @@ func buildUserPrompt(task *Task) (string, error) {
 	}
 
 	if userPrompt == "" {
-		return "", fmt.Errorf("no user prompt provided via --userPrompt flag, stdin or config file")
+		return "", fmt.Errorf("no user prompt provided via the --userPrompt flag, stdin, or a task configuration")
 	}
 
 	return userPrompt, nil
 }
 
+// buildGenerateContentRequest assembles the complete content generation request
+// from command-line arguments, configuration files, and stdin.
 func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
 	var task *Task
 	if commandLineArgs.task != "" {
@@ -238,7 +290,6 @@ func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
 		if err != nil {
 			return nil, err
 		}
-
 		task = taskFromConfig
 	}
 
@@ -260,6 +311,7 @@ func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
 	return llm.NewGenerateContentRequest(model, systemPrompt, userPrompt), nil
 }
 
+// run executes the main logic of the generate command.
 func run() error {
 	apiKey, err := getApiKey()
 	if err != nil {
@@ -279,7 +331,6 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	// TODO spinner
 	content, err := gateway.GenerateContent(ctx, request)
 	if err != nil {
 		return err
