@@ -213,7 +213,9 @@ func buildModel(cmd *cobra.Command, task *Task) (string, error) {
 	}
 
 	cmdModel, err := cmd.Flags().GetString("model")
-	cobra.CheckErr(err)
+	if err != nil {
+		return "", err
+	}
 
 	model := resolveString(
 		cmdModel,
@@ -236,7 +238,9 @@ func buildSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	}
 
 	cmdSystemPrompt, err := cmd.Flags().GetString("system-prompt")
-	cobra.CheckErr(err)
+	if err != nil {
+		return "", err
+	}
 
 	systemPrompt := resolveString(
 		cmdSystemPrompt,
@@ -253,9 +257,11 @@ func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	var sb strings.Builder
 
 	mainUserPrompt, err := cmd.Flags().GetString("user-prompt")
-	cobra.CheckErr(err)
+	if err != nil {
+		return "", err
+	}
 
-	if mainUserPrompt == "" && task != nil {
+	if !cmd.Flags().Changed("user-prompt") && task != nil {
 		mainUserPrompt = task.userPrompt
 	}
 
@@ -290,8 +296,11 @@ func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentRequest, error) {
 	var task *Task
 	taskName, err := cmd.Flags().GetString("task")
-	cobra.CheckErr(err)
-	if taskName != "" {
+	if err != nil {
+		return nil, err
+	}
+
+	if cmd.Flags().Changed("user-prompt") {
 		taskFromConfig, err := readTask(taskName)
 		if err != nil {
 			return nil, err
