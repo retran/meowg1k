@@ -16,7 +16,7 @@ generate:
     go:commit:
       model: "gemini-2.5-pro"
       systemPrompt: *go_dev_prompt
-      userPrompt: "Generate a concise conventional commit message for the following code changes. The format must be `<type>(<scope>): <subject>`. Do not include the code changes in your response, only the commit message."
+      userPrompt: "Generate a concise conventional commit message for the following code changes:"
 
     go:doc:
       model: "gemini-2.5-pro"
