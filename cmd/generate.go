@@ -113,12 +113,8 @@ These settings are overridden by more specific ones in the following order of pr
 
   # Use the pre-configured 'doc' task (from the example above) on a local file
   cat my_file.go | meow generate -t doc`,
-		Run: func(cmd *cobra.Command, args []string) {
-			err := run(cmd)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
-			}
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return run(cmd)
 		},
 	}
 )
@@ -216,7 +212,8 @@ func buildModel(cmd *cobra.Command, task *Task) (string, error) {
 		taskModel = task.model
 	}
 
-	cmdModel, _ := cmd.Flags().GetString("model")
+	cmdModel, err := cmd.Flags().GetString("model")
+	cobra.CheckErr(err)
 
 	model := resolveString(
 		cmdModel,
@@ -238,7 +235,8 @@ func buildSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 		taskSystemPrompt = task.systemPrompt
 	}
 
-	cmdSystemPrompt, _ := cmd.Flags().GetString("system-prompt")
+	cmdSystemPrompt, err := cmd.Flags().GetString("system-prompt")
+	cobra.CheckErr(err)
 
 	systemPrompt := resolveString(
 		cmdSystemPrompt,
@@ -254,7 +252,9 @@ func buildSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	var sb strings.Builder
 
-	mainUserPrompt, _ := cmd.Flags().GetString("user-prompt")
+	mainUserPrompt, err := cmd.Flags().GetString("user-prompt")
+	cobra.CheckErr(err)
+
 	if mainUserPrompt == "" && task != nil {
 		mainUserPrompt = task.userPrompt
 	}
@@ -289,7 +289,8 @@ func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 // from command-line arguments, configuration files, and stdin.
 func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentRequest, error) {
 	var task *Task
-	taskName, _ := cmd.Flags().GetString("task")
+	taskName, err := cmd.Flags().GetString("task")
+	cobra.CheckErr(err)
 	if taskName != "" {
 		taskFromConfig, err := readTask(taskName)
 		if err != nil {

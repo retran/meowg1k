@@ -61,14 +61,13 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 		return "", fmt.Errorf("failed to fetch response from Gemini API: %w", err)
 	}
 
-	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("gemini API returned an empty response")
-
+	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
+		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
+		return "", fmt.Errorf("generation stopped for reason: %s", result.Candidates[0].FinishReason)
 	}
 
-	candidate := result.Candidates[0]
-	if candidate.FinishReason != genai.FinishReasonStop && candidate.FinishReason != genai.FinishReasonMaxTokens {
-		return "", fmt.Errorf("generation stopped for reason: %s", candidate.FinishReason)
+	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("gemini API returned an empty response")
 	}
 
 	return result.Text(), nil
