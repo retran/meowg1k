@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/llm"
+	"github.com/retran/meowg1k/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -331,7 +332,9 @@ func run() error {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
 
-	content, err := gateway.GenerateContent(ctx, request)
+	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {
+		return gateway.GenerateContent(ctx, request)
+	}, "Generating content...")
 	if err != nil {
 		return err
 	}

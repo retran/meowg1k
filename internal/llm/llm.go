@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package llm provides an interface for interacting with Large Language Models (LLMs).
 package llm
 
 import (
@@ -36,7 +37,7 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string) *Generate
 	}
 }
 
-// GenerationGateway defines the interface for interacting with a Large Language Model (LLM).
+// GenerationGateway defines the interface for content generation with a Large Language Model (LLM).
 type GenerationGateway interface {
 	// GenerateContent sends a request to the LLM and returns the generated content.
 	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
