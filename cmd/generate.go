@@ -281,6 +281,8 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 
 	if userPromptFromStdin != "" {
 		if sb.Len() > 0 {
+			// Wrap stdin content in markdown backticks to clearly separate
+			// the instruction (from the -p flag) from the code/text context.
 			sb.WriteString("\n\n```\n")
 			sb.WriteString(userPromptFromStdin)
 			sb.WriteString("\n```")
@@ -336,8 +338,8 @@ func run(cmd *cobra.Command) error {
 	if timeoutStr := viper.GetString(keyGenerateDefaultTimeout); timeoutStr != "" {
 		parsedTimeout, err := time.ParseDuration(timeoutStr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: invalid timeout value '%s' in config; using default %s\n", timeoutStr,
-				defaultTimeout)
+			fmt.Fprintf(os.Stderr, "Warning: invalid timeout value '%s' in config (e.g., '5m', '10s'); using default %s\n",
+				timeoutStr, defaultTimeout)
 		} else {
 			timeout = parsedTimeout
 		}

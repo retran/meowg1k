@@ -67,6 +67,12 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
+			return "", fmt.Errorf(
+				"request was blocked by the API for reason: %s",
+				result.PromptFeedback.BlockReason,
+			)
+		}
 		return "", fmt.Errorf("gemini API returned an empty response")
 	}
 

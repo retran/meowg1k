@@ -18,6 +18,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -58,14 +59,18 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			cobra.CheckErr(err)
+			// It's not a "file not found" error, so we should report it.
+			fmt.Fprintf(os.Stderr, "Error reading user config file: %v\n", err)
+			// No need to os.Exit(1) here, as the program can often continue
+			// with defaults or project-level config.
 		}
 	}
 
 	viper.AddConfigPath(".meowg1k")
+
 	if err := viper.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			cobra.CheckErr(err)
+			fmt.Fprintf(os.Stderr, "Error reading project config file: %v\n", err)
 		}
 	}
 }
