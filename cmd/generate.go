@@ -55,8 +55,9 @@ type Task struct {
 }
 
 var generateCmd = &cobra.Command{
-	Use:   "generate [flags]",
-	Short: "Generate, refactor, or explain code with an AI prompt.",
+	Use:     "generate [flags]",
+	Aliases: []string{"gen", "g"},
+	Short:   "Generate, refactor, or explain code with an AI prompt.",
 	Long: `The 'generate' command is the core of meowg1k, providing a direct
 interface to the AI model for a wide range of programming tasks.
 
@@ -129,8 +130,6 @@ These settings are overridden by more specific ones in the following order of pr
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
-
-	generateCmd.Aliases = []string{"gen", "g"}
 
 	generateCmd.Flags().StringP(flagTask, "t", "", "The generation task to execute from the config file")
 	generateCmd.Flags().StringP(flagModel, "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
@@ -209,6 +208,22 @@ func resolveString(values ...string) string {
 	return ""
 }
 
+// resolveConfigString abstracts the logic for resolving a string value from
+// a command-line flag, a task definition, a viper config key, and a final default value.
+func resolveConfigString(cmd *cobra.Command, flagName, taskVal, viperKey, defaultVal string) (string, error) {
+	cmdVal, err := cmd.Flags().GetString(flagName)
+	if err != nil {
+		return "", fmt.Errorf("could not read flag %s: %w", flagName, err)
+	}
+
+	// Only use the flag value if it was explicitly set by the user.
+	if !cmd.Flags().Changed(flagName) {
+		cmdVal = ""
+	}
+
+	return resolveString(cmdVal, taskVal, viper.GetString(viperKey), defaultVal), nil
+}
+
 // resolveModel determines the LLM to use based on a hierarchy:
 // 1. --model command-line flag
 // 2. Task-specific model from config
@@ -219,20 +234,7 @@ func resolveModel(cmd *cobra.Command, task *Task) (string, error) {
 	if task != nil {
 		taskModel = task.model
 	}
-
-	cmdModel, err := cmd.Flags().GetString(flagModel)
-	if err != nil {
-		return "", err
-	}
-
-	model := resolveString(
-		cmdModel,
-		taskModel,
-		viper.GetString(keyGenerateDefaultModel),
-		defaultModel,
-	)
-
-	return model, nil
+	return resolveConfigString(cmd, flagModel, taskModel, keyGenerateDefaultModel, defaultModel)
 }
 
 // resolveSystemPrompt determines the system prompt to use based on a hierarchy:
@@ -244,18 +246,7 @@ func resolveSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	if task != nil {
 		taskSystemPrompt = task.systemPrompt
 	}
-
-	cmdSystemPrompt, err := cmd.Flags().GetString(flagSystemPrompt)
-	if err != nil {
-		return "", err
-	}
-
-	systemPrompt := resolveString(
-		cmdSystemPrompt,
-		taskSystemPrompt,
-		viper.GetString(keyGenerateDefaultSystemPrompt),
-	)
-	return systemPrompt, nil
+	return resolveConfigString(cmd, flagSystemPrompt, taskSystemPrompt, keyGenerateDefaultSystemPrompt, "")
 }
 
 // resolveUserPrompt constructs the user prompt from various sources:
