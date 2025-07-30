@@ -85,12 +85,14 @@ func readConfiguration() error {
 	}
 	viper.AddConfigPath(userConfigDir)
 
+	// Read the user configuration file first, if it exists.
 	if err := ignoreConfigFileNotFound(viper.ReadInConfig(), "user"); err != nil {
 			return err
 	}
 
 	viper.AddConfigPath(projectConfigDir)
 
+	// Merge the project configuration file, if it exists.
 	if err := ignoreConfigFileNotFound(viper.MergeInConfig(), "project"); err != nil {
 		return err
 	}

@@ -147,8 +147,9 @@ func getSystemLineEnding() string {
 	return "\n"
 }
 
-// formatOutput trims leading/trailing whitespace and appends a system-specific line ending.
-func formatOutput(content string) string {
+// finalizeOutput formats the generated content by trimming whitespace and ensuring
+// the correct line ending for the current operating system.
+func finalizeOutput(content string) string {
 	return strings.TrimSpace(content) + getSystemLineEnding()
 }
 
@@ -370,7 +371,7 @@ func run(cmd *cobra.Command) error {
 		return err
 	}
 
-	_, err = io.WriteString(os.Stdout, formatOutput(content))
+	_, err = io.WriteString(os.Stdout, finalizeOutput(content))
 	if err != nil {
 		return fmt.Errorf("failed to write response to stdout: %w", err)
 	}
