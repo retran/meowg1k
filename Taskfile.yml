@@ -12,7 +12,7 @@ vars:
 tasks:
   build:
     desc: Build the binary
-    aliases: [build]
+    deps: [clean]
     cmds:
       - mkdir -p bin
       - |

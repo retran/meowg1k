@@ -47,11 +47,11 @@ func NewGeminiGenerationGateway(ctx context.Context, apiKey string) (*GeminiGene
 
 // GenerateContent sends a content generation request to the Google Gemini API.
 func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
-  // A SystemInstruction must be a single ContentPart
-	systemPrompt := genai.Text(request.SystemPrompt())[0]
+	generationConfig := &genai.GenerateContentConfig{}
 
-	generationConfig := &genai.GenerateContentConfig{
-		SystemInstruction: systemPrompt,
+	if request.SystemPrompt() != "" {
+		// A SystemInstruction must be a single ContentPart
+		generationConfig.SystemInstruction = genai.Text(request.SystemPrompt())[0]
 	}
 
 	userPrompt := genai.Text(request.UserPrompt())

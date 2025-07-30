@@ -37,13 +37,6 @@ const (
 	defaultTimeout = 5 * time.Minute
 )
 
-type CommandLineArgs struct {
-	task         string
-	model        string
-	userPrompt   string
-	systemPrompt string
-}
-
 type Task struct {
 	name         string
 	model        string
@@ -52,8 +45,6 @@ type Task struct {
 }
 
 var (
-	commandLineArgs CommandLineArgs
-
 	generateCmd = &cobra.Command{
 		Use:   "generate [flags]",
 		Short: "Generate, refactor, or explain code with an AI prompt.",
@@ -137,10 +128,10 @@ func init() {
 
 	generateCmd.Aliases = []string{"gen", "g"}
 
-	generateCmd.Flags().StringVarP(&commandLineArgs.task, "task", "t", "", "The generation task to execute from the config file")
-	generateCmd.Flags().StringVarP(&commandLineArgs.model, "model", "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
-	generateCmd.Flags().StringVarP(&commandLineArgs.systemPrompt, "system-prompt", "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
-	generateCmd.Flags().StringVarP(&commandLineArgs.userPrompt, "user-prompt", "p", "", "The user prompt for which to generate content")
+	generateCmd.Flags().StringP("task", "t", "", "The generation task to execute from the config file")
+	generateCmd.Flags().StringP("model", "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
+	generateCmd.Flags().StringP("system-prompt", "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
+	generateCmd.Flags().StringP("user-prompt", "p", "", "The user prompt for which to generate content")
 }
 
 // getSystemLineEnding returns the appropriate line ending for the host operating system.
@@ -219,20 +210,20 @@ func resolveString(values ...string) string {
 // 2. Task-specific model from config
 // 3. Global default model from config
 // 4. Hardcoded default model
-func buildModel(task *Task) (string, error) {
-	model := defaultModel
-
-	if modelFromConfig := strings.TrimSpace(viper.GetString("generate.defaultModel")); modelFromConfig != "" {
-		model = modelFromConfig
+func buildModel(cmd *cobra.Command, task *Task) (string, error) {
+	taskModel := ""
+	if task != nil {
+		taskModel = task.model
 	}
 
-	if task != nil && task.model != "" {
-		model = task.model
-	}
+	cmdModel, _ := cmd.Flags().GetString("model")
 
-	if modelFromArgs := strings.TrimSpace(commandLineArgs.model); modelFromArgs != "" {
-		model = modelFromArgs
-	}
+	model := resolveString(
+		cmdModel,
+		taskModel,
+		viper.GetString("generate.defaultModel"),
+		defaultModel,
+	)
 
 	return model, nil
 }
@@ -241,14 +232,16 @@ func buildModel(task *Task) (string, error) {
 // 1. --systemPrompt command-line flag
 // 2. Task-specific system prompt from config
 // 3. Global default system prompt from config
-func buildSystemPrompt(task *Task) (string, error) {
+func buildSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	taskSystemPrompt := ""
 	if task != nil {
 		taskSystemPrompt = task.systemPrompt
 	}
 
+	cmdSystemPrompt, _ := cmd.Flags().GetString("system-prompt")
+
 	systemPrompt := resolveString(
-		commandLineArgs.systemPrompt,
+		cmdSystemPrompt,
 		taskSystemPrompt,
 		viper.GetString("generate.defaultSystemPrompt"),
 	)
@@ -258,10 +251,10 @@ func buildSystemPrompt(task *Task) (string, error) {
 // buildUserPrompt constructs the final user prompt by combining inputs.
 // It prioritizes the --userPrompt flag, then a task-specific prompt,
 // and appends any content from stdin.
-func buildUserPrompt(task *Task) (string, error) {
+func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	var sb strings.Builder
 
-	mainUserPrompt := commandLineArgs.userPrompt
+	mainUserPrompt, _ := cmd.Flags().GetString("user-prompt")
 	if mainUserPrompt == "" && task != nil {
 		mainUserPrompt = task.userPrompt
 	}
@@ -294,27 +287,28 @@ func buildUserPrompt(task *Task) (string, error) {
 
 // buildGenerateContentRequest assembles the complete content generation request
 // from command-line arguments, configuration files, and stdin.
-func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
+func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentRequest, error) {
 	var task *Task
-	if commandLineArgs.task != "" {
-		taskFromConfig, err := readTask(commandLineArgs.task)
+	taskName, _ := cmd.Flags().GetString("task")
+	if taskName != "" {
+		taskFromConfig, err := readTask(taskName)
 		if err != nil {
 			return nil, err
 		}
 		task = taskFromConfig
 	}
 
-	model, err := buildModel(task)
+	model, err := buildModel(cmd, task)
 	if err != nil {
 		return nil, err
 	}
 
-	systemPrompt, err := buildSystemPrompt(task)
+	systemPrompt, err := buildSystemPrompt(cmd, task)
 	if err != nil {
 		return nil, err
 	}
 
-	userPrompt, err := buildUserPrompt(task)
+	userPrompt, err := buildUserPrompt(cmd, task)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +318,14 @@ func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
 
 // run executes the main logic of the generate command.
 func run(cmd *cobra.Command) error {
+	timeout := defaultTimeout
+	if timeoutStr := viper.GetString("generate.defaultTimeout"); timeoutStr != "" {
+		parsedTimeout, err := time.ParseDuration(timeoutStr)
+		if err == nil {
+			timeout = parsedTimeout
+		}
+	}
+
 	apiKey, err := getAPIKey()
 	if err != nil {
 		return err
@@ -334,12 +336,12 @@ func run(cmd *cobra.Command) error {
 		return err
 	}
 
-	request, err := buildGenerateContentRequest()
+	request, err := buildGenerateContentRequest(cmd)
 	if err != nil {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(cmd.Context(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 
 	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {

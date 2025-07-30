@@ -4,6 +4,7 @@ prompts:
 
 generate:
   defaultModel: "gemini-2.5-flash"
+  defaultTimeout: "10m"
   defaultSystemPrompt: "You are a helpful AI programming assistant. Your responses should be clear and formatted in markdown."
 
   tasks:
