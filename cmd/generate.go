@@ -139,8 +139,8 @@ func init() {
 
 	generateCmd.Flags().StringVarP(&commandLineArgs.task, "task", "t", "", "The generation task to execute from the config file")
 	generateCmd.Flags().StringVarP(&commandLineArgs.model, "model", "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
-	generateCmd.Flags().StringVarP(&commandLineArgs.systemPrompt, "systemPrompt", "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
-	generateCmd.Flags().StringVarP(&commandLineArgs.userPrompt, "userPrompt", "p", "", "The user prompt for which to generate content")
+	generateCmd.Flags().StringVarP(&commandLineArgs.systemPrompt, "system-prompt", "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
+	generateCmd.Flags().StringVarP(&commandLineArgs.userPrompt, "user-prompt", "p", "", "The user prompt for which to generate content")
 }
 
 // getSystemLineEnding returns the appropriate line ending for the host operating system.
@@ -251,14 +251,15 @@ func buildSystemPrompt(task *Task) (string, error) {
 // It prioritizes the --userPrompt flag, then a task-specific prompt,
 // and appends any content from stdin.
 func buildUserPrompt(task *Task) (string, error) {
-	mainUserPrompt := ""
+	var sb strings.Builder
 
-	if task != nil && task.userPrompt != "" {
+	mainUserPrompt := commandLineArgs.userPrompt
+	if mainUserPrompt == "" && task != nil {
 		mainUserPrompt = task.userPrompt
 	}
 
-	if mainUserPromptFromArgs := strings.TrimSpace(commandLineArgs.userPrompt); mainUserPromptFromArgs != "" {
-		mainUserPrompt = mainUserPromptFromArgs
+	if mainUserPrompt != "" {
+		sb.WriteString(mainUserPrompt)
 	}
 
 	userPromptFromStdin, err := readUserPromptFromStdin()
@@ -266,20 +267,21 @@ func buildUserPrompt(task *Task) (string, error) {
 		return "", err
 	}
 
-	userPrompt := mainUserPrompt
 	if userPromptFromStdin != "" {
-		if userPrompt == "" {
-			userPrompt = userPromptFromStdin
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n```\n")
+			sb.WriteString(userPromptFromStdin)
+			sb.WriteString("\n```")
 		} else {
-			userPrompt += "\n\n```\n" + userPromptFromStdin + "\n```"
+			sb.WriteString(userPromptFromStdin)
 		}
 	}
 
-	if userPrompt == "" {
+	if sb.Len() == 0 {
 		return "", fmt.Errorf("no user prompt provided via the --userPrompt flag, stdin, or a task configuration")
 	}
 
-	return userPrompt, nil
+	return sb.String(), nil
 }
 
 // buildGenerateContentRequest assembles the complete content generation request

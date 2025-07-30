@@ -47,15 +47,16 @@ func NewGeminiGenerationGateway(ctx context.Context, apiKey string) (*GeminiGene
 
 // GenerateContent sends a content generation request to the Google Gemini API.
 func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
-	systemPrompt := genai.Text(request.systemPrompt)[0]
+  // A SystemInstruction must be a single ContentPart
+	systemPrompt := genai.Text(request.SystemPrompt())[0]
 
 	generationConfig := &genai.GenerateContentConfig{
 		SystemInstruction: systemPrompt,
 	}
 
-	userPrompt := genai.Text(request.userPrompt)
+	userPrompt := genai.Text(request.UserPrompt())
 
-	result, err := g.client.Models.GenerateContent(ctx, request.model, userPrompt, generationConfig)
+	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch response from Gemini API: %w", err)
 	}

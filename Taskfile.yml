@@ -24,9 +24,9 @@ tasks:
     deps: [build]
     cmds:
       - |
-        echo "Installing meow to $(go env GOPATH)/bin..."
-        cp bin/meow $(go env GOPATH)/bin/
-        echo "✅ meow installed!"
+        echo "Installing meow..."
+        go install {{.LDFLAGS}} ./main.go
+        echo "✅ meow installed to $(go env GOPATH)/bin!"
 
   check:
     desc: Run all checks
@@ -34,6 +34,18 @@ tasks:
       - go fmt ./...
       - go vet ./...
       - go test ./...
+
+
+  test:
+    desc: Run tests with coverage
+    cmds:
+      - go test -v -race -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin coverage.out coverage.html
 
   setup:
     desc: Setup development environment

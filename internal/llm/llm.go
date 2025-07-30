@@ -37,6 +37,21 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string) *Generate
 	}
 }
 
+// Model returns the model name for the content generation request.
+func (r *GenerateContentRequest) Model() string {
+	return r.model
+}
+
+// SystemPrompt returns the system prompt for the content generation request.
+func (r *GenerateContentRequest) SystemPrompt() string {
+	return r.systemPrompt
+}
+
+// UserPrompt returns the user prompt for the content generation request.
+func (r *GenerateContentRequest) UserPrompt() string {
+	return r.userPrompt
+}
+
 // GenerationGateway defines the interface for content generation with a Large Language Model (LLM).
 type GenerationGateway interface {
 	// GenerateContent sends a request to the LLM and returns the generated content.
