@@ -236,7 +236,7 @@ func resolveModel(cmd *cobra.Command, task *Task) (string, error) {
 }
 
 // resolveSystemPrompt determines the system prompt to use based on a hierarchy:
-// 1. --systemPrompt command-line flag
+// 1. --system-prompt command-line flag
 // 2. Task-specific system prompt from config
 // 3. Global default system prompt from config
 func resolveSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
@@ -258,23 +258,26 @@ func resolveSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	return systemPrompt, nil
 }
 
-// buildUserPrompt constructs the final user prompt by combining inputs.
-// It prioritizes the --userPrompt flag, then a task-specific prompt,
-// and appends any content from stdin.
-func buildUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
+// resolveUserPrompt constructs the user prompt from various sources:
+// 1. --user-prompt command-line flag
+// 2. Task-specific user prompt from config
+// 3. User input from stdin
+// If no user prompt is provided, it returns an error.
+func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	var sb strings.Builder
 
-	cmdUserPrompt, err := cmd.Flags().GetString(flagUserPrompt) // TODO проверить что параметр задан
-	if err != nil {
-		return "", err
-	}
-
-	taskUserPrompt := ""
+	mainUserPrompt := ""
 	if task != nil {
-		taskUserPrompt = task.userPrompt
+		mainUserPrompt = task.userPrompt
 	}
 
-	mainUserPrompt := resolveString(cmdUserPrompt, taskUserPrompt)
+	if cmd.Flags().Changed(flagUserPrompt) {
+		cmdUserPrompt, err := cmd.Flags().GetString(flagUserPrompt)
+		if err != nil {
+			return "", err
+		}
+		mainUserPrompt = cmdUserPrompt
+	}
 
 	if mainUserPrompt != "" {
 		sb.WriteString(mainUserPrompt)
@@ -312,11 +315,10 @@ func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentReques
 	}
 
 	if cmd.Flags().Changed(flagTask) {
-		taskFromConfig, err := readTask(taskName)
+		task, err = readTask(taskName)
 		if err != nil {
 			return nil, err
 		}
-		task = taskFromConfig
 	}
 
 	model, err := resolveModel(cmd, task)
@@ -329,7 +331,7 @@ func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentReques
 		return nil, err
 	}
 
-	userPrompt, err := buildUserPrompt(cmd, task)
+	userPrompt, err := resolveUserPrompt(cmd, task)
 	if err != nil {
 		return nil, err
 	}

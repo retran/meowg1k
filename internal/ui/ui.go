@@ -25,12 +25,14 @@ import (
 	"github.com/briandowns/spinner"
 )
 
-const spinnerCharset = 11 // ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
-const spinnerDelay = 100 * time.Millisecond
-const spinnerColor = "yellow"
-const spinnerPrefix = " "
-const spinnerSuffix = " "
-const spinnerMessage = "Processing..."
+const (
+	spinnerCharset = 11 // ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+	spinnerDelay   = 100 * time.Millisecond
+	spinnerColor   = "yellow"
+	spinnerPrefix  = " "
+	spinnerSuffix  = " "
+	spinnerMessage = "Processing..."
+)
 
 // RunWithSpinner executes the provided action function with a spinner displayed in the terminal.
 func RunWithSpinner[T any](action func() (T, error)) (T, error) {
@@ -43,7 +45,7 @@ func RunWithSpinnerWithMessage[T any](action func() (T, error), message string) 
 	s := spinner.New(spinner.CharSets[spinnerCharset], spinnerDelay, spinner.WithWriter(os.Stderr))
 
 	if err := s.Color(spinnerColor); err != nil {
-		return *new(T), fmt.Errorf("internal ui error: invalid spinner color: %w", err) 
+		return *new(T), fmt.Errorf("internal ui error: invalid spinner color: %w", err)
 	}
 
 	s.Prefix = spinnerPrefix

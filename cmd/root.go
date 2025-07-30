@@ -18,7 +18,6 @@ limitations under the License.
 package cmd
 
 import (
-	"filepath"
 	"os"
 	"path/filepath"
 
@@ -63,7 +62,7 @@ func initConfig() {
 		}
 	}
 
-	viper.AddConfigPath(filepath.Join(".", ".meowg1k"))
+	viper.AddConfigPath(".meowg1k")
 	if err := viper.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			cobra.CheckErr(err)
