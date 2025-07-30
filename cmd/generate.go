@@ -36,7 +36,7 @@ const (
 	apiKeyEnvVar   = "MEOW_GEMINI_API_KEY"
 	defaultTimeout = 5 * time.Minute
 
-	keyGenerateTasks               = "generate.tasks."
+	keyGenerateTasks               = "generate.tasks"
 	keyGenerateDefaultModel        = "generate.defaultModel"
 	keyGenerateDefaultSystemPrompt = "generate.defaultSystemPrompt"
 	keyGenerateDefaultTimeout      = "generate.defaultTimeout"
@@ -45,6 +45,8 @@ const (
 	flagModel        = "model"
 	flagSystemPrompt = "system-prompt"
 	flagUserPrompt   = "user-prompt"
+
+	stdinContextWrapper = "\n\n```\n%s\n```"
 )
 
 type Task struct {
@@ -178,7 +180,7 @@ func readUserPromptFromStdin() (string, error) {
 
 // readTask retrieves a predefined task configuration from Viper.
 func readTask(taskName string) (*Task, error) {
-	key := keyGenerateTasks + taskName
+	key := fmt.Sprintf("%s.%s", keyGenerateTasks, taskName)
 
 	if !viper.IsSet(key) {
 		return nil, fmt.Errorf("task '%s' not found in configuration", taskName)
@@ -283,9 +285,7 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 		if sb.Len() > 0 {
 			// Wrap stdin content in markdown backticks to clearly separate
 			// the instruction (from the -p flag) from the code/text context.
-			sb.WriteString("\n\n```\n")
-			sb.WriteString(userPromptFromStdin)
-			sb.WriteString("\n```")
+			sb.WriteString(fmt.Sprintf(stdinContextWrapper, userPromptFromStdin))
 		} else {
 			sb.WriteString(userPromptFromStdin)
 		}
@@ -338,8 +338,8 @@ func run(cmd *cobra.Command) error {
 	if timeoutStr := viper.GetString(keyGenerateDefaultTimeout); timeoutStr != "" {
 		parsedTimeout, err := time.ParseDuration(timeoutStr)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: invalid timeout value '%s' in config (e.g., '5m', '10s'); using default %s\n",
-				timeoutStr, defaultTimeout)
+			fmt.Fprintf(os.Stderr, "Warning: invalid timeout value '%s' in config: %v. Using default %s\n",
+				timeoutStr, err, defaultTimeout)
 		} else {
 			timeout = parsedTimeout
 		}

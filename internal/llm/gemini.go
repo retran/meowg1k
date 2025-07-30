@@ -51,7 +51,10 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 
 	if request.SystemPrompt() != "" {
 		// The genai.Text helper returns a slice of parts; system instructions expect a single part.
-		generationConfig.SystemInstruction = genai.Text(request.SystemPrompt())[0]
+		parts := genai.Text(request.SystemPrompt())
+		if len(parts) > 0 {
+			generationConfig.SystemInstruction = parts[0]
+		}
 	}
 
 	userPrompt := genai.Text(request.UserPrompt())
