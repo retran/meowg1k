@@ -50,7 +50,7 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 	generationConfig := &genai.GenerateContentConfig{}
 
 	if request.SystemPrompt() != "" {
-		// A SystemInstruction must be a single ContentPart
+		// The genai.Text helper returns a slice of parts; system instructions expect a single part.
 		generationConfig.SystemInstruction = genai.Text(request.SystemPrompt())[0]
 	}
 
@@ -59,6 +59,16 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch response from Gemini API: %w", err)
+	}
+
+	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
+		return "", fmt.Errorf("gemini API returned an empty response")
+
+	}
+
+	candidate := result.Candidates[0]
+	if candidate.FinishReason != genai.FinishReasonStop && candidate.FinishReason != genai.FinishReasonMaxTokens {
+		return "", fmt.Errorf("generation stopped for reason: %s", candidate.FinishReason)
 	}
 
 	return result.Text(), nil

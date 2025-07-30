@@ -15,17 +15,15 @@ tasks:
     deps: [clean]
     cmds:
       - mkdir -p bin
-      - |
-        echo "Building meowg1k..."
-        go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
+      - echo "Building meowg1k..."
+      - go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
 
   install:
     desc: Build and install the binary
     cmds:
-      - |
-        echo "Installing meow..."
-        go install {{.LDFLAGS}} .
-        echo "✅ meow installed to $(go env GOPATH)/bin!"
+      - echo "Installing meow..."
+      - go install {{.LDFLAGS}} .
+      - echo "✅ meow installed to $(go env GOPATH)/bin!"
 
   check:
     desc: Run all checks

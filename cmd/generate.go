@@ -321,7 +321,10 @@ func run(cmd *cobra.Command) error {
 	timeout := defaultTimeout
 	if timeoutStr := viper.GetString("generate.defaultTimeout"); timeoutStr != "" {
 		parsedTimeout, err := time.ParseDuration(timeoutStr)
-		if err == nil {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: invalid timeout value '%s' in config; using default %s\n", timeoutStr,
+				defaultTimeout)
+		} else {
 			timeout = parsedTimeout
 		}
 	}
