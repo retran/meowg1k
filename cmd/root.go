@@ -18,7 +18,9 @@ limitations under the License.
 package cmd
 
 import (
+	"filepath"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -50,9 +52,9 @@ func initConfig() {
 	home, err := os.UserHomeDir()
 	cobra.CheckErr(err)
 	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
-		viper.AddConfigPath(xdgConfigHome + "/meowg1k")
+		viper.AddConfigPath(filepath.Join(xdgConfigHome, "meowg1k"))
 	} else {
-		viper.AddConfigPath(home + "/.config/meowg1k")
+		viper.AddConfigPath(filepath.Join(home, ".config", "meowg1k"))
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
@@ -61,7 +63,7 @@ func initConfig() {
 		}
 	}
 
-	viper.AddConfigPath("./.meowg1k")
+	viper.AddConfigPath(filepath.Join(".", ".meowg1k"))
 	if err := viper.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			cobra.CheckErr(err)

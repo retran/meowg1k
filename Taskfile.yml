@@ -32,7 +32,6 @@ tasks:
       - go vet ./...
       - go test ./...
 
-
   test:
     desc: Run tests with coverage
     cmds:

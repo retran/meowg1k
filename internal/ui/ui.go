@@ -43,9 +43,7 @@ func RunWithSpinnerWithMessage[T any](action func() (T, error), message string) 
 	s := spinner.New(spinner.CharSets[spinnerCharset], spinnerDelay, spinner.WithWriter(os.Stderr))
 
 	if err := s.Color(spinnerColor); err != nil {
-		// This should not happen with a valid hardcoded color.
-		fmt.Fprintf(os.Stderr, "Internal UI Error: invalid spinner color: %v\n", err)
-		os.Exit(1)
+		return *new(T), fmt.Errorf("internal ui error: invalid spinner color: %w", err) 
 	}
 
 	s.Prefix = spinnerPrefix
