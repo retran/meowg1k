@@ -139,18 +139,10 @@ func init() {
 	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "The user prompt for which to generate content")
 }
 
-// getSystemLineEnding returns the appropriate line ending for the host operating system.
-func getSystemLineEnding() string {
-	if runtime.GOOS == "windows" {
-		return "\r\n"
-	}
-	return "\n"
-}
-
 // finalizeOutput formats the generated content by trimming whitespace and ensuring
 // the correct line ending for the current operating system.
 func finalizeOutput(content string) string {
-	return strings.TrimSpace(content) + getSystemLineEnding()
+	return strings.TrimSpace(content) + "\n"
 }
 
 // getAPIKey retrieves the Gemini API key from the MEOW_GEMINI_API_KEY environment variable.
