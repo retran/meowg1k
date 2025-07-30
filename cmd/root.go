@@ -26,51 +26,74 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	projectName = "meowg1k"
+	projectConfigDir = "." + projectName
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "A command-line AI programming assistance tool.",
 	Long: `Meowg1k is a project that provides 'meow', a command-line interface (CLI)
 that leverages Large Language Models to offer AI-powered assistance for
 programming tasks.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return readConfiguration()
+	},
 }
 
-func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
+func Execute() error {
+	return rootCmd.Execute()
+}
+
+// resolveUserConfigDir determines the user configuration directory based on the XDG Base Directory Specification.
+func resolveUserConfigDir() (string, error) {
+	var configPath string
+	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
+		configPath = filepath.Join(xdgConfigHome, projectName)
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(home, ".config", projectName)
 	}
+	return configPath, nil
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
+// ignoreConfigFileNotFound checks if the error is a ConfigFileNotFoundError and returns nil if it is
+// or wraps the error with a message if it is a different error.
+func ignoreConfigFileNotFound(err error, configSource string) error {
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		return fmt.Errorf("failed to load %s configuration: %w", configSource, err)
+	}
+
+	return nil
 }
 
-func initConfig() {
+func readConfiguration() error {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
-	home, err := os.UserHomeDir()
-	cobra.CheckErr(err)
-	if xdgConfigHome := os.Getenv("XDG_CONFIG_HOME"); xdgConfigHome != "" {
-		viper.AddConfigPath(filepath.Join(xdgConfigHome, "meowg1k"))
-	} else {
-		viper.AddConfigPath(filepath.Join(home, ".config", "meowg1k"))
+	userConfigDir, err := resolveUserConfigDir()
+	if err != nil {
+		return err
+	}
+	viper.AddConfigPath(userConfigDir)
+
+	if err := ignoreConfigFileNotFound(viper.ReadInConfig(), "user"); err != nil {
+			return err
 	}
 
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// It's not a "file not found" error, so we should report it.
-			fmt.Fprintf(os.Stderr, "Error reading user config file: %v\n", err)
-			// No need to os.Exit(1) here, as the program can often continue
-			// with defaults or project-level config.
-		}
+	viper.AddConfigPath(projectConfigDir)
+
+	if err := ignoreConfigFileNotFound(viper.MergeInConfig(), "project"); err != nil {
+		return err
 	}
 
-	viper.AddConfigPath(".meowg1k")
-
-	if err := viper.MergeInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			fmt.Fprintf(os.Stderr, "Error reading project config file: %v\n", err)
-		}
-	}
+	return nil
 }
