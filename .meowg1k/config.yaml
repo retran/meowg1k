@@ -1,0 +1,34 @@
+---
+prompts:
+  go_developer_persona: &go_dev_prompt "You are a helpful senior Go software developer. Your feedback should be clear, concise, and actionable. Write clean, idiomatic, and production-ready code."
+
+generate:
+  defaultModel: "gemini-2.5-flash"
+  defaultTimeout: "10m"
+  defaultSystemPrompt: "You are a helpful AI programming assistant. Your responses should be clear and formatted in markdown."
+
+  tasks:
+    go:review:
+      model: "gemini-2.5-pro"
+      systemPrompt: *go_dev_prompt
+      userPrompt: "Perform a thorough code review of the following Go code. Check for potential bugs, style guide violations (Go conventions), performance issues, and suggest improvements for clarity and readability. Present your findings as a list of actionable points."
+
+    go:commit:
+      model: "gemini-2.5-pro"
+      systemPrompt: *go_dev_prompt
+      userPrompt: "Generate a concise conventional commit message for the following code changes:"
+
+    go:doc:
+      model: "gemini-2.5-pro"
+      systemPrompt: *go_dev_prompt
+      userPrompt: "Write a complete GoDoc comment for the following function or type. Follow standard Go documentation conventions. Do not include the code itself in your output, only the complete doc comment."
+
+    go:test:
+      model: "gemini-2.5-pro"
+      systemPrompt: *go_dev_prompt
+      userPrompt: "Write a comprehensive set of unit tests for the following Go code using the standard `testing` package. Cover edge cases and common scenarios."
+
+    go:refactor:
+      model: "gemini-2.5-pro"
+      systemPrompt: *go_dev_prompt
+      userPrompt: "Refactor the following Go code to improve its performance, readability, and maintainability. Apply idiomatic Go patterns. In your response, first provide the refactored code block, then add a brief bulleted list explaining the key changes you made."

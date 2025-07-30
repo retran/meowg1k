@@ -1,38 +1,36 @@
 version: '3'
 
 vars:
-  PROJECT_NAME: meowtools
+  PROJECT_NAME: meowg1k
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
   LDFLAGS: >-
-    -ldflags "-X github.com/retran/meowtools/internal/version.Version={{.VERSION}}
-    -X github.com/retran/meowtools/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
-    -X github.com/retran/meowtools/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    -ldflags "-X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
+    -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
+    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 
 tasks:
   build:
-    desc: Build all binaries
-    aliases: [build]
+    desc: Build the binary
+    deps: [clean]
     cmds:
-      - task: clean
       - mkdir -p bin
-      - |
-        for cmd in cmd/*; do
-          [ -d "$cmd" ] || continue
-          name=$(basename "$cmd")
-          echo "Building $name..."
-          go build {{.LDFLAGS}} -o "bin/$name" "./$cmd"
-        done
+      - echo "Building meowg1k..."
+      - go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
 
   install:
-    desc: Install binaries to $GOPATH/bin
+    desc: Build and install the binary
     cmds:
-      - |
-        for cmd in cmd/*; do
-          [ -d "$cmd" ] || continue
-          name=$(basename "$cmd")
-          go install {{.LDFLAGS}} "./$cmd"
-        done
+      - echo "Installing meow..."
+      - go build {{.LDFLAGS}} -o "$(go env GOPATH)/bin/meow" "./main.go"
+      - echo "✅ meow installed to $(go env GOPATH)/bin!"
+
+  check:
+    desc: Run all checks
+    cmds:
+      - go fmt ./...
+      - go vet ./...
+      - go test ./...
 
   test:
     desc: Run tests with coverage
@@ -44,13 +42,6 @@ tasks:
     desc: Clean build artifacts
     cmds:
       - rm -rf bin coverage.out coverage.html
-
-  check:
-    desc: Run all checks
-    cmds:
-      - go fmt ./...
-      - go vet ./...
-      - go test ./...
 
   setup:
     desc: Setup development environment
