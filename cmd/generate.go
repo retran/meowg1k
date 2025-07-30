@@ -44,11 +44,10 @@ type Task struct {
 	systemPrompt string
 }
 
-var (
-	generateCmd = &cobra.Command{
-		Use:   "generate [flags]",
-		Short: "Generate, refactor, or explain code with an AI prompt.",
-		Long: `The 'generate' command is the core of meowg1k, providing a direct
+var generateCmd = &cobra.Command{
+	Use:   "generate [flags]",
+	Short: "Generate, refactor, or explain code with an AI prompt.",
+	Long: `The 'generate' command is the core of meowg1k, providing a direct
 interface to the AI model for a wide range of programming tasks.
 
 INPUT METHODS:
@@ -99,7 +98,7 @@ These settings are overridden by more specific ones in the following order of pr
   2. Task-specific setting
   3. Default setting in config.yaml
   4. Application default`,
-		Example: `  # Generate a Python function from a description
+	Example: `  # Generate a Python function from a description
   meow generate -p "Write a python function to find prime numbers up to n"
 
   # Explain a code file by piping it to the command
@@ -113,11 +112,10 @@ These settings are overridden by more specific ones in the following order of pr
 
   # Use the pre-configured 'doc' task (from the example above) on a local file
   cat my_file.go | meow generate -t doc`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(cmd)
-		},
-	}
-)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return run(cmd)
+	},
+}
 
 func init() {
 	rootCmd.AddCommand(generateCmd)

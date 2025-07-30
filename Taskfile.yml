@@ -22,7 +22,7 @@ tasks:
     desc: Build and install the binary
     cmds:
       - echo "Installing meow..."
-      - go install {{.LDFLAGS}} .
+      - go build {{.LDFLAGS}} -o "$(go env GOPATH)/bin/meow" "./main.go"
       - echo "✅ meow installed to $(go env GOPATH)/bin!"
 
   check:

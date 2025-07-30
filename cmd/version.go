@@ -23,11 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(versionCmd)
-
-}
-
 var versionCmd = &cobra.Command{
 	Use: "version",
 	Short: "Print the version number of meow",
@@ -37,3 +32,8 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("Git Commit: %s\n", version.GitCommit)
 	},
 }
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
+}
+
