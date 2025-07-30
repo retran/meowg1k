@@ -11,7 +11,7 @@ vars:
 
 tasks:
   build:
-    desc: Build all binaries
+    desc: Build the binary
     aliases: [build]
     cmds:
       - mkdir -p bin
@@ -20,12 +20,11 @@ tasks:
         go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
 
   install:
-    desc: Build and install the binary to $GOPATH/bin
-    deps: [build]
+    desc: Build and install the binary
     cmds:
       - |
         echo "Installing meow..."
-        go install {{.LDFLAGS}} ./main.go
+        go install {{.LDFLAGS}} .
         echo "✅ meow installed to $(go env GOPATH)/bin!"
 
   check:

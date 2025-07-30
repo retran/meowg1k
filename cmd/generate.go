@@ -123,7 +123,7 @@ These settings are overridden by more specific ones in the following order of pr
   # Use the pre-configured 'doc' task (from the example above) on a local file
   cat my_file.go | meow generate -t doc`,
 		Run: func(cmd *cobra.Command, args []string) {
-			err := run()
+			err := run(cmd)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
@@ -156,11 +156,11 @@ func formatOutput(content string) string {
 	return strings.TrimSpace(content) + getSystemLineEnding()
 }
 
-// getApiKey retrieves the Gemini API key from the MEOW_GEMINI_API_KEY environment variable.
-func getApiKey() (string, error) {
+// getAPIKey retrieves the Gemini API key from the MEOW_GEMINI_API_KEY environment variable.
+func getAPIKey() (string, error) {
 	apiKey := os.Getenv(apiKeyEnvVar)
 	if apiKey == "" {
-		return "", fmt.Errorf("the %s environment variable is not set", apiKeyEnvVar)
+		return "", fmt.Errorf("the %s environment variable is not set. Please set it to your Gemini API key", apiKeyEnvVar)
 	}
 	return apiKey, nil
 }
@@ -202,6 +202,18 @@ func readTask(taskName string) (*Task, error) {
 	}, nil
 }
 
+// resolveString returns the first non-empty string from the provided arguments,
+// implementing a fallback-based configuration strategy.
+// Priority is from left to right.
+func resolveString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 // buildModel determines the LLM to use based on a hierarchy:
 // 1. --model command-line flag
 // 2. Task-specific model from config
@@ -230,20 +242,16 @@ func buildModel(task *Task) (string, error) {
 // 2. Task-specific system prompt from config
 // 3. Global default system prompt from config
 func buildSystemPrompt(task *Task) (string, error) {
-	systemPrompt := ""
-
-	if systemPromptFromConfig := strings.TrimSpace(viper.GetString("generate.defaultSystemPrompt")); systemPromptFromConfig != "" {
-		systemPrompt = systemPromptFromConfig
+	taskSystemPrompt := ""
+	if task != nil {
+		taskSystemPrompt = task.systemPrompt
 	}
 
-	if task != nil && task.systemPrompt != "" {
-		systemPrompt = task.systemPrompt
-	}
-
-	if systemPromptFromArgs := strings.TrimSpace(commandLineArgs.systemPrompt); systemPromptFromArgs != "" {
-		systemPrompt = systemPromptFromArgs
-	}
-
+	systemPrompt := resolveString(
+		commandLineArgs.systemPrompt,
+		taskSystemPrompt,
+		viper.GetString("generate.defaultSystemPrompt"),
+	)
 	return systemPrompt, nil
 }
 
@@ -315,8 +323,8 @@ func buildGenerateContentRequest() (*llm.GenerateContentRequest, error) {
 }
 
 // run executes the main logic of the generate command.
-func run() error {
-	apiKey, err := getApiKey()
+func run(cmd *cobra.Command) error {
+	apiKey, err := getAPIKey()
 	if err != nil {
 		return err
 	}
@@ -331,7 +339,7 @@ func run() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	ctx, cancel := context.WithTimeout(cmd.Context(), defaultTimeout)
 	defer cancel()
 
 	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {
