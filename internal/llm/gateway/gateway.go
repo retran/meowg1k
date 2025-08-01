@@ -14,12 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package llm provides an interface for interacting with Large Language Models (LLMs).
-package llm
+// Package gateway provides an interface for content generation with Large Language Models (LLMs).
+package gateway
 
 import (
 	"context"
 )
+
+type Provider string
+
+const (
+	Llama Provider = "llama"
+	Gemini Provider = "gemini"
+)
+
+// GenerationGateway defines the interface for content generation with a Large Language Model (LLM).
+type GenerationGateway interface {
+	// GenerateContent sends a request to the LLM and returns the generated content.
+	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
+}
 
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
@@ -52,8 +65,3 @@ func (r *GenerateContentRequest) UserPrompt() string {
 	return r.userPrompt
 }
 
-// GenerationGateway defines the interface for content generation with a Large Language Model (LLM).
-type GenerationGateway interface {
-	// GenerateContent sends a request to the LLM and returns the generated content.
-	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
-}
