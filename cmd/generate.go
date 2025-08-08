@@ -9,11 +9,12 @@ You may obtain a copy of the License at
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+WITHOUTHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cmd contains the command-line interface for meowg1k.
 package cmd
 
 import (
@@ -24,106 +25,112 @@ import (
 	"strings"
 	"time"
 
-	"github.com/retran/meowg1k/internal/llm"
+	"github.com/retran/meowg1k/internal/llm/gateway"
 	"github.com/retran/meowg1k/internal/ui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	defaultModel   = "gemini-2.5-flash"
-	apiKeyEnvVar   = "MEOW_GEMINI_API_KEY"
-	defaultTimeout = 5 * time.Minute
+	defaultModel    = "gemini-1.5-flash"
+	apiKeyEnvVar    = "MEOW_GEMINI_API_KEY"
+	defaultTimeout  = 5 * time.Minute
+	defaultProvider = "gemini"
 
 	keyGenerateTasks               = "generate.tasks"
 	keyGenerateDefaultModel        = "generate.defaultModel"
 	keyGenerateDefaultSystemPrompt = "generate.defaultSystemPrompt"
+	keyGenerateDefaultProvider     = "generate.defaultProvider"
+	keyGenerateLlamaBaseURL        = "generate.defaultLlamaBaseURL"
 	keyGenerateDefaultTimeout      = "generate.defaultTimeout"
 
 	flagTask         = "task"
 	flagModel        = "model"
 	flagSystemPrompt = "system-prompt"
 	flagUserPrompt   = "user-prompt"
+	flagProvider     = "provider"
+	flagLlamaBaseURL = "llama-base-url"
 
 	stdinContextWrapper = "\n\n```\n%s\n```"
 )
 
+// Task holds configuration for a predefined generation task.
 type Task struct {
 	name         string
 	model        string
 	userPrompt   string
 	systemPrompt string
+	provider     string
+	llamaBaseURL string
+}
+
+// generationParams holds all the resolved parameters for a generation request.
+type generationParams struct {
+	Provider     gateway.Provider
+	Model        string
+	SystemPrompt string
+	UserPrompt   string
+	LlamaBaseURL string
 }
 
 var generateCmd = &cobra.Command{
-	Use:     "generate [flags]",
+	Use:     "generate",
 	Aliases: []string{"gen", "g"},
 	Short:   "Generate, refactor, or explain code with an AI prompt.",
-	Long: `The 'generate' command is the core of meowg1k, providing a direct
-interface to the AI model for a wide range of programming tasks.
+	Long: `The 'generate' command provides a direct interface to AI models.
+You can provide input via the '-p' flag, by piping from stdin, or both.
 
-INPUT METHODS:
-You can provide input to the model in three primary ways:
+$ meowg1k g -p "Explain this code" < main.go
 
-  1. Prompt Flag: Use the '-p' or '--userPrompt' flag for direct questions.
-     $ meow generate -p "Create a boilerplate for a Go CLI using Cobra."
+---
+## Providers
+- **gemini** (default): Uses Google Gemini. Requires the **MEOW_GEMINI_API_KEY**
+  environment variable. Use the **--model** flag to choose a model like
+  "gemini-1.5-pro".
 
-  2. Piped from stdin: Pipe code or text directly into the command. This is
-     ideal for asking a general question about an entire file.
-     $ cat main.go | meow generate -p "Explain this code."
+- **llama**: Connects to a local llama.cpp server. Requires the
+  **--llama-base-url** flag. The **--model** flag is ignored, as the model
+  is determined when you start the server. For server setup, see
+  https://github.com/ggml-org/llama.cpp.
 
-  3. Combined: Use a prompt flag and piped stdin together to ask a specific
-     question about the provided code. The stdin content is appended to your prompt.
-     $ cat main.go | meow generate -p "Refactor this code to be more idiomatic."
+---
+## Configuration
+You can create reusable tasks and set defaults in a config file. Settings
+from a project-specific config will override global settings.
 
-CONFIGURABLE TASKS:
-For reusable workflows, you can define tasks in your config file
-(e.g., ~/.config/meowg1k/config.yaml). A task is a named preset that can
-specify its own model, system prompt, and user prompt. This is useful for
-creating custom tools like a 'documenter', 'refactorer', or 'tester'.
+  - Project Config: **./.meowg1k/config.yaml**
+  - User Config:    **~/.config/meowg1k/config.yaml**
 
-Example 'config.yaml':
+Command-line flags always take the highest priority.
+
+Example configuration:
   generate:
+    defaultProvider: "gemini"
+    defaultModel: "gemini-1.5-flash"
+    defaultTimeout: "5m"
     tasks:
-      doc:
-        systemPrompt: "You are a senior Go developer. Write clear and concise documentation."
-        userPrompt: "Write a complete godoc comment for the following code. Do not include the code itself in the output, only the doc comment."
-      refactor:
-        model: "gemini-2.5-pro"
-        systemPrompt: "You are an expert in code refactoring."
-        userPrompt: "Refactor the following code to improve performance and readability. Explain your changes briefly."
+      pytest-gemini:
+        provider: "gemini"
+        model: "gemini-1.5-pro"
+        systemPrompt: "You are an expert Python TDD developer."
+        userPrompt: "Write a complete pytest test file for the following code."
+      refactor-llama:
+        provider: "llama"
+        llamaBaseURL: "http://127.0.0.1:8080"
+        systemPrompt: "You are an expert in writing clean, performant code."
+        userPrompt: "Refactor the following code."`,
+	Example: `  # Get an explanation from the Gemini provider
+  cat main.go | meowg1k g -p "Explain this Go code" --model gemini-1.5-pro
 
-DEFAULT CONFIGURATION:
-You can override the application's built-in defaults by setting 'default'
-parameters in your config file. This is useful for setting a preferred model
-or a global system prompt for all your interactions.
+  # Use a local model via the llama.cpp server
+  # (In another terminal, run: ./server -m ./models/your-model.gguf)
+  cat main.go | meowg1k g -p "Refactor this Go code" -P llama -u http://127.0.0.1:8080
 
-Example 'config.yaml' with defaults:
-  generate:
-    defaultModel: "gemini-2.5-pro"
-    defaultSystemPrompt: "You are a helpful coding assistant that provides answers in markdown format."
-    tasks:
-      # ... your tasks here ...
+  # Use a pre-configured 'pytest-gemini' task from your config file
+  cat my_script.py | meowg1k g -t pytest-gemini
 
-These settings are overridden by more specific ones in the following order of priority:
-  1. Command-line flag (e.g., --model)
-  2. Task-specific setting
-  3. Default setting in config.yaml
-  4. Application default`,
-	Example: `  # Generate a Python function from a description
-  meow generate -p "Write a python function to find prime numbers up to n"
-
-  # Explain a code file by piping it to the command
-  cat main.go | meow generate -p "Explain this Go code and point out potential bugs"
-
-  # Refactor a React component using a prompt and piped code
-  cat component.js | meow generate -p "Refactor this to use React Hooks and functional components"
-
-  # Write documentation and redirect output to a new file
-  cat api.py | meow generate -p "Write a standard PEP 257 docstring for this script" > api_with_docs.py
-
-  # Use the pre-configured 'doc' task (from the example above) on a local file
-  cat my_file.go | meow generate -t doc`,
+  # Use a pre-configured 'refactor-llama' task from your config file
+  cat component.js | meowg1k g -t refactor-llama`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return run(cmd)
 	},
@@ -133,18 +140,20 @@ func init() {
 	rootCmd.AddCommand(generateCmd)
 
 	generateCmd.Flags().StringP(flagTask, "t", "", "The generation task to execute from the config file")
-	generateCmd.Flags().StringP(flagModel, "m", "", "The model to use for generation (e.g., gemini-2.5-pro)")
+	generateCmd.Flags().StringP(flagModel, "m", "", "The model to use for generation (e.g., gemini-1.5-pro)")
 	generateCmd.Flags().StringP(flagSystemPrompt, "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
 	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "The user prompt for which to generate content")
+	generateCmd.Flags().StringP(flagProvider, "P", "", "The LLM provider to use (gemini or llama)")
+	generateCmd.Flags().StringP(flagLlamaBaseURL, "u", "", "LLaMA base URL (required when using --provider llama)")
 }
 
 // finalizeOutput formats the generated content by trimming whitespace and ensuring
-// the correct line ending for the current operating system.
+// it ends with a newline.
 func finalizeOutput(content string) string {
 	return strings.TrimSpace(content) + "\n"
 }
 
-// getAPIKey retrieves the Gemini API key from the MEOW_GEMINI_API_KEY environment variable.
+// getAPIKey retrieves the Gemini API key from the environment.
 func getAPIKey() (string, error) {
 	apiKey := os.Getenv(apiKeyEnvVar)
 	if apiKey == "" {
@@ -154,7 +163,6 @@ func getAPIKey() (string, error) {
 }
 
 // readUserPromptFromStdin reads from stdin if data is being piped to the command.
-// It returns an empty string if stdin is not being used.
 func readUserPromptFromStdin() (string, error) {
 	stat, err := os.Stdin.Stat()
 	if err != nil {
@@ -178,76 +186,55 @@ func readTask(taskName string) (*Task, error) {
 		return nil, fmt.Errorf("task '%s' not found in configuration", taskName)
 	}
 
-	model := strings.TrimSpace(viper.GetString(key + ".model"))
-	systemPrompt := strings.TrimSpace(viper.GetString(key + ".systemPrompt"))
-	userPrompt := strings.TrimSpace(viper.GetString(key + ".userPrompt"))
-
 	return &Task{
 		name:         taskName,
-		model:        model,
-		systemPrompt: systemPrompt,
-		userPrompt:   userPrompt,
+		model:        viper.GetString(key + ".model"),
+		systemPrompt: viper.GetString(key + ".systemPrompt"),
+		userPrompt:   viper.GetString(key + ".userPrompt"),
+		provider:     viper.GetString(key + ".provider"),
+		llamaBaseURL: viper.GetString(key + ".llamaBaseURL"),
 	}, nil
 }
 
-// resolveString returns the first non-empty string from the provided arguments,
-// implementing a fallback-based configuration strategy.
-// Priority is from left to right.
-func resolveString(values ...string) string {
-	for _, v := range values {
-		if strings.TrimSpace(v) != "" {
-			return v
+// getValueFromFlag returns the flag's value if it was set by the user, otherwise returns an empty string.
+func getValueFromFlag(cmd *cobra.Command, flagName string) (string, error) {
+	if !cmd.Flags().Changed(flagName) {
+		return "", nil
+	}
+	val, err := cmd.Flags().GetString(flagName)
+	if err != nil {
+		return "", fmt.Errorf("could not read flag %q: %w", flagName, err)
+	}
+	return val, nil
+}
+
+// resolveString provides a generic way to resolve configuration values.
+// It checks sources in order: command-line flag, task-specific config,
+// global config (via viperKey), and finally a hardcoded default value.
+func resolveString(cmd *cobra.Command, flagName, taskVal, viperKey, defaultVal string) (string, error) {
+	flagVal, err := getValueFromFlag(cmd, flagName)
+	if err != nil {
+		return "", err
+	}
+
+	sources := []string{
+		flagVal,
+		taskVal,
+		viper.GetString(viperKey),
+		defaultVal,
+	}
+
+	for _, v := range sources {
+		trimmed := strings.TrimSpace(v)
+		if trimmed != "" {
+			return trimmed, nil
 		}
 	}
-	return ""
+	return "", nil
 }
 
-// resolveConfigString abstracts the logic for resolving a string value from
-// a command-line flag, a task definition, a viper config key, and a final default value.
-func resolveConfigString(cmd *cobra.Command, flagName, taskVal, viperKey, defaultVal string) (string, error) {
-	cmdVal, err := cmd.Flags().GetString(flagName)
-	if err != nil {
-		return "", fmt.Errorf("could not read flag %s: %w", flagName, err)
-	}
-
-	// Only use the flag value if it was explicitly set by the user.
-	if !cmd.Flags().Changed(flagName) {
-		cmdVal = ""
-	}
-
-	return resolveString(cmdVal, taskVal, viper.GetString(viperKey), defaultVal), nil
-}
-
-// resolveModel determines the LLM to use based on a hierarchy:
-// 1. --model command-line flag
-// 2. Task-specific model from config
-// 3. Global default model from config
-// 4. Hardcoded default model
-func resolveModel(cmd *cobra.Command, task *Task) (string, error) {
-	taskModel := ""
-	if task != nil {
-		taskModel = task.model
-	}
-	return resolveConfigString(cmd, flagModel, taskModel, keyGenerateDefaultModel, defaultModel)
-}
-
-// resolveSystemPrompt determines the system prompt to use based on a hierarchy:
-// 1. --system-prompt command-line flag
-// 2. Task-specific system prompt from config
-// 3. Global default system prompt from config
-func resolveSystemPrompt(cmd *cobra.Command, task *Task) (string, error) {
-	taskSystemPrompt := ""
-	if task != nil {
-		taskSystemPrompt = task.systemPrompt
-	}
-	return resolveConfigString(cmd, flagSystemPrompt, taskSystemPrompt, keyGenerateDefaultSystemPrompt, "")
-}
-
-// resolveUserPrompt constructs the user prompt from various sources:
-// 1. --user-prompt command-line flag
-// 2. Task-specific user prompt from config
-// 3. User input from stdin
-// If no user prompt is provided, it returns an error.
+// resolveUserPrompt constructs the final user prompt from the --user-prompt flag,
+// a task configuration, and stdin.
 func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	var sb strings.Builder
 
@@ -255,7 +242,6 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	if task != nil {
 		mainUserPrompt = task.userPrompt
 	}
-
 	if cmd.Flags().Changed(flagUserPrompt) {
 		cmdUserPrompt, err := cmd.Flags().GetString(flagUserPrompt)
 		if err != nil {
@@ -275,8 +261,6 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 
 	if userPromptFromStdin != "" {
 		if sb.Len() > 0 {
-			// Wrap stdin content in markdown backticks to clearly separate
-			// the instruction (from the -p flag) from the code/text context.
 			sb.WriteString(fmt.Sprintf(stdinContextWrapper, userPromptFromStdin))
 		} else {
 			sb.WriteString(userPromptFromStdin)
@@ -284,34 +268,68 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	}
 
 	if sb.Len() == 0 {
-		return "", fmt.Errorf("no user prompt provided via the --userPrompt flag, stdin, or a task configuration")
+		return "", fmt.Errorf("no user prompt provided via the --user-prompt flag, stdin, or a task configuration")
 	}
 
 	return sb.String(), nil
 }
 
-// buildGenerateContentRequest assembles the complete content generation request
-// from command-line arguments, configuration files, and stdin.
-func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentRequest, error) {
-	var task *Task
-	taskName, err := cmd.Flags().GetString(flagTask)
-	if err != nil {
-		return nil, err
+// createGateway creates the appropriate gateway based on provider configuration.
+func createGateway(ctx context.Context, provider gateway.Provider, llamaBaseURL string) (gateway.GenerationGateway, error) {
+	switch provider {
+	case gateway.Gemini:
+		apiKey, err := getAPIKey()
+		if err != nil {
+			return nil, err
+		}
+		return gateway.NewGeminiGenerationGateway(ctx, apiKey)
+	case gateway.Llama:
+		return gateway.NewLlamaGenerationGateway(llamaBaseURL)
+	default:
+		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}
+}
 
+// resolveParams consolidates all configuration resolution into a single struct.
+// It determines the final parameters for the generation request by checking flags,
+// task configurations, global settings, and defaults.
+func resolveParams(cmd *cobra.Command) (*generationParams, error) {
+	var task *Task
 	if cmd.Flags().Changed(flagTask) {
+		taskName, err := cmd.Flags().GetString(flagTask)
+		if err != nil {
+			return nil, err
+		}
 		task, err = readTask(taskName)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	model, err := resolveModel(cmd, task)
+	var taskProvider, taskModel, taskSystemPrompt, taskLlamaBaseURL string
+	if task != nil {
+		taskProvider = task.provider
+		taskModel = task.model
+		taskSystemPrompt = task.systemPrompt
+		taskLlamaBaseURL = task.llamaBaseURL
+	}
+
+	providerStr, err := resolveString(cmd, flagProvider, taskProvider, keyGenerateDefaultProvider, defaultProvider)
 	if err != nil {
 		return nil, err
 	}
 
-	systemPrompt, err := resolveSystemPrompt(cmd, task)
+	model, err := resolveString(cmd, flagModel, taskModel, keyGenerateDefaultModel, defaultModel)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt, err := resolveString(cmd, flagSystemPrompt, taskSystemPrompt, keyGenerateDefaultSystemPrompt, "")
+	if err != nil {
+		return nil, err
+	}
+
+	llamaBaseURL, err := resolveString(cmd, flagLlamaBaseURL, taskLlamaBaseURL, keyGenerateLlamaBaseURL, "")
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +339,24 @@ func buildGenerateContentRequest(cmd *cobra.Command) (*llm.GenerateContentReques
 		return nil, err
 	}
 
-	return llm.NewGenerateContentRequest(model, systemPrompt, userPrompt), nil
+	provider := gateway.Provider(providerStr)
+	switch provider {
+	case gateway.Gemini, gateway.Llama:
+	default:
+		return nil, fmt.Errorf("unknown provider: %s", providerStr)
+	}
+
+	if provider == gateway.Llama && llamaBaseURL == "" {
+		return nil, fmt.Errorf("llama provider requires a base URL, set it with the -u flag or the 'generate.defaultLlamaBaseURL' key in your config")
+	}
+
+	return &generationParams{
+		Provider:     provider,
+		Model:        model,
+		SystemPrompt: systemPrompt,
+		UserPrompt:   userPrompt,
+		LlamaBaseURL: llamaBaseURL,
+	}, nil
 }
 
 // run executes the main logic of the generate command.
@@ -337,26 +372,23 @@ func run(cmd *cobra.Command) error {
 		}
 	}
 
-	apiKey, err := getAPIKey()
+	params, err := resolveParams(cmd)
 	if err != nil {
 		return err
 	}
 
-	gateway, err := llm.NewGeminiGenerationGateway(context.Background(), apiKey)
+	gw, err := createGateway(cmd.Context(), params.Provider, params.LlamaBaseURL)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize gateway: %w", err)
 	}
 
-	request, err := buildGenerateContentRequest(cmd)
-	if err != nil {
-		return err
-	}
+	request := gateway.NewGenerateContentRequest(params.Model, params.SystemPrompt, params.UserPrompt)
 
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 
 	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {
-		return gateway.GenerateContent(ctx, request)
+		return gw.GenerateContent(ctx, request)
 	}, "Generating content...")
 	if err != nil {
 		return err
