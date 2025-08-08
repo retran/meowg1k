@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package llm
+package gateway
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 )
 
 var _ GenerationGateway = (*GeminiGenerationGateway)(nil)
+
 
 // GeminiGenerationGateway is an implementation of GenerationGateway that uses the Google Gemini API.
 type GeminiGenerationGateway struct {
@@ -81,3 +82,4 @@ func (g *GeminiGenerationGateway) GenerateContent(ctx context.Context, request *
 
 	return result.Text(), nil
 }
+
