@@ -27,16 +27,13 @@ import (
 )
 
 const (
-	projectName = "meowg1k"
+	projectName      = "meowg1k"
 	projectConfigDir = "." + projectName
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "meow",
-	Short: "A command-line AI programming assistance tool.",
-	Long: `Meowg1k is a project that provides 'meow', a command-line interface (CLI)
-that leverages Large Language Models to offer AI-powered assistance for
-programming tasks.`,
+	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return readConfiguration()
 	},
@@ -87,7 +84,7 @@ func readConfiguration() error {
 
 	// Read the user configuration file first, if it exists.
 	if err := ignoreConfigFileNotFound(viper.ReadInConfig(), "user"); err != nil {
-			return err
+		return err
 	}
 
 	viper.AddConfigPath(projectConfigDir)

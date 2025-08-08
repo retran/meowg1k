@@ -1,0 +1,17 @@
+{
+  "name": "Litterbox (Go/Neovim)",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "litterbox",
+  "workspaceFolder": "/home/meow/workspace",
+  "remoteUser": "meow",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+
+  "forwardPorts": [9001]
+}

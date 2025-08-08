@@ -4,26 +4,38 @@ vars:
   PROJECT_NAME: meowg1k
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
-  LDFLAGS: >-
-    -ldflags "-X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
+  LDFLAGS: >
+    -s -w
+    -X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
     -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
-    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+  GOFLAGS: -trimpath -buildvcs=false
 
 tasks:
+  setup:
+    desc: Setup development environment
+    cmds:
+      - go mod download
+      - go mod tidy
+      - echo "🐱 Setup complete!"
+
   build:
     desc: Build the binary
-    deps: [clean]
     cmds:
+      - task: clean
       - mkdir -p bin
-      - echo "Building meowg1k..."
-      - go build {{.LDFLAGS}} -o "bin/meow" "./main.go"
+      - echo "Building {{.PROJECT_NAME}} v{{.VERSION}}..."
+      - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" .
 
   install:
     desc: Build and install the binary
+    deps: [setup]
     cmds:
       - echo "Installing meow..."
-      - go build {{.LDFLAGS}} -o "$(go env GOPATH)/bin/meow" "./main.go"
-      - echo "✅ meow installed to $(go env GOPATH)/bin!"
+      - |
+        BIN_DIR="$(go env GOBIN)"; [ -z "$BIN_DIR" ] && BIN_DIR="$(go env GOPATH)/bin"
+        CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" .
+        echo "✅ meow installed to $BIN_DIR!"
 
   check:
     desc: Run all checks
@@ -41,16 +53,133 @@ tasks:
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -rf bin coverage.out coverage.html
-
-  setup:
-    desc: Setup development environment
-    cmds:
-      - go mod download && go mod tidy
-      - echo "🐱 Setup complete!"
+      - rm -rf bin coverage.out coverage.html dist
 
   info:
     desc: Show build information
     cmds:
-      - echo "Project{{":"}} {{.PROJECT_NAME}} v{{.VERSION}}"
+      - echo "Project {{.PROJECT_NAME}} v{{.VERSION}}"
       - go version
+
+  completion:generate:
+    desc: Generate shell completion scripts (bash zsh fish PowerShell) into dist/completions
+    deps: [build]
+    cmds:
+      - mkdir -p dist/completions/bash dist/completions/zsh dist/completions/fish dist/completions/powershell
+      - ./bin/meow completion bash > dist/completions/bash/meow
+      - ./bin/meow completion zsh > dist/completions/zsh/_meow
+      - ./bin/meow completion fish > dist/completions/fish/meow.fish
+      - ./bin/meow completion powershell > dist/completions/powershell/meow.ps1
+      - echo "🐾 Completions written to dist/completions"
+
+  completion:install:linux:
+    desc: Install bash and fish completions for current user on Linux
+    cmds:
+      - bash -lc 'mkdir -p ~/.local/share/bash-completion/completions && cp dist/completions/bash/meow ~/.local/share/bash-completion/completions/meow || true'
+      - bash -lc 'mkdir -p ~/.config/fish/completions && cp dist/completions/fish/meow.fish ~/.config/fish/completions/meow.fish || true'
+      - echo "✅ Installed bash and fish completions for current user"
+      - |
+        echo "Zsh hint -> copy dist/completions/zsh/_meow to a dir in \$fpath, e.g."
+        echo "  mkdir -p ~/.zsh/completions"
+        echo "  cp dist/completions/zsh/_meow ~/.zsh/completions/"
+        echo "  add to ~/.zshrc:"
+        echo "    fpath+=(~/.zsh/completions)"
+        echo "    autoload -Uz compinit"
+        echo "    compinit"
+
+  completion:tips:
+    desc: Show instructions to enable completions in common shells
+    cmds:
+      - |
+        echo "Bash user-scope:"
+        echo "  mkdir -p ~/.local/share/bash-completion/completions"
+        echo "  cp dist/completions/bash/meow ~/.local/share/bash-completion/completions/meow"
+        echo
+        echo "Zsh:"
+        echo "  mkdir -p ~/.zsh/completions"
+        echo "  cp dist/completions/zsh/_meow ~/.zsh/completions/"
+        echo "  add to ~/.zshrc:"
+        echo "    fpath+=(~/.zsh/completions)"
+        echo "    autoload -Uz compinit"
+        echo "    compinit"
+        echo
+        echo "Fish:"
+        echo "  mkdir -p ~/.config/fish/completions"
+        echo "  cp dist/completions/fish/meow.fish ~/.config/fish/completions/meow.fish"
+        echo
+        echo "PowerShell:"
+        echo "  meow completion powershell | Out-String | Set-Content -Path $PROFILE"
+        echo "  restart terminal"
+
+  man:check:
+    desc: Validate man pages with groff
+    cmds:
+      - bash -lc 'for f in docs/man/*.?; do echo "Checking $f"; groff -Tutf8 -man "$f" >/dev/null; done'
+      - echo "✅ Man pages validated"
+
+  man:preview:
+    desc: Preview all man pages in terminal rendered via groff
+    cmds:
+      - bash -lc 'for f in docs/man/*.?; do echo "----- $f -----"; groff -Tutf8 -man "$f" | sed -e "s/.\x08//g"; echo; done'
+
+  man:install:user:
+    desc: Install man pages to user scope at ~/.local/share/man
+    cmds:
+      - bash -lc 'mkdir -p ~/.local/share/man/man1 ~/.local/share/man/man5 ~/.local/share/man/man7'
+      - bash -lc 'cp docs/man/meow.1 ~/.local/share/man/man1/meow.1'
+      - bash -lc 'cp docs/man/meow-generate.1 ~/.local/share/man/man1/meow-generate.1'
+      - bash -lc 'cp docs/man/meow-version.1 ~/.local/share/man/man1/meow-version.1'
+      - bash -lc 'cp docs/man/meow-config.5 ~/.local/share/man/man5/meow-config.5'
+      - bash -lc 'cp docs/man/meow-security.7 ~/.local/share/man/man7/meow-security.7'
+      - bash -lc 'command -v mandb >/dev/null 2>&1 && mandb || true'
+      - echo "✅ Man pages installed to ~/.local/share/man (run 'man meow')"
+
+  pre-commit:
+    desc: Fast checks before committing (fmt vet tests man completions)
+    cmds:
+      - echo "🧹 go fmt"
+      - go fmt ./...
+      - echo "🔎 go vet"
+      - go vet ./...
+      - echo "✅ short tests"
+      - go test -race -run . -count=1 ./...
+      - echo "📄 man check"
+      - task: man:check
+      - echo "🧩 generate completions"
+      - task: completion:generate
+      - echo "✔ pre-commit OK"
+
+  pre-commit:install-hook:
+    desc: Install a git pre-commit hook to run task pre-commit
+    cmds:
+      - mkdir -p .git/hooks
+      - |
+        cat > .git/hooks/pre-commit <<'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if command -v task >/dev/null 2>&1; then
+          echo "→ Running task pre-commit ..."
+          task pre-commit
+        else
+          echo "⚠ task not found; install go-task: https://taskfile.dev"
+          exit 1
+        fi
+        EOF
+      - chmod +x .git/hooks/pre-commit
+      - echo "✅ Git pre-commit hook installed"
+
+  release:
+    desc: Create a clean release with GoReleaser requires GITHUB_TOKEN
+    deps: [completion:generate, man:check]
+    cmds:
+      - echo "📦 Releasing {{.PROJECT_NAME}} v{{.VERSION}}..."
+      - goreleaser release --clean
+      - echo "✅ Release finished"
+
+  release:snapshot:
+    desc: Build snapshot artifacts locally no publish
+    deps: [completion:generate, man:check]
+    cmds:
+      - echo "🧪 Building snapshot for {{.PROJECT_NAME}} v{{.VERSION}}..."
+      - goreleaser release --snapshot --clean
+      - echo "✅ Snapshot artifacts in ./dist"
