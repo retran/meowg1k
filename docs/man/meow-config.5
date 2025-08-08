@@ -1,0 +1,116 @@
+.\" docs/man/meow-config.5
+.TH MEOW-CONFIG 5 "2025-08-08" "meowg1k" "File Formats"
+.SH NAME
+meow-config \- configuration for the \fBmeow\fR CLI (YAML)
+.SH SYNOPSIS
+Configuration is read from YAML files with the following precedence:
+.IP "1." 3
+Project config: \fB./.meowg1k/config.yaml\fR
+.IP "2."
+User config: \fB~/.config/meowg1k/config.yaml\fR
+.PP
+Command-line flags always override configuration values.
+.SH DESCRIPTION
+The \fBmeow\fR CLI uses layered YAML configuration to define defaults and reusable tasks
+for AI generation. Settings can be declared at project and/or user level and are merged
+in the order described above (project overrides user).
+.SH FORMAT
+YAML, UTF-8.
+.PP
+Top-level section for generation:
+.PP
+.nf
+generate:
+  defaultProvider: "gemini"          # "gemini" (cloud) or "llama" (local llama.cpp)
+  defaultModel: "gemini-2.5-flash"   # default model for Gemini (ignored for llama)
+  defaultTimeout: "5m"               # Go duration, e.g. "30s", "2m", "1h"
+  tasks:                             # reusable commands invoked via -t/--task
+    <task-name>:
+      provider: "gemini" | "llama"
+      model: "gemini-2.5-pro"        # optional; ignored when provider=llama
+      llamaBaseURL: "http://127.0.0.1:8080"  # required when provider=llama
+      systemPrompt: "High-level instruction"
+      userPrompt: "Main prompt; stdin may be appended"
+.fi
+.SH KEYS
+.TP
+.B generate.defaultProvider
+Provider for generation: \fBgemini\fR (cloud) or \fBllama\fR (local). Default: \fBgemini\fR.
+.TP
+.B generate.defaultModel
+Model for Gemini provider (e.g. \fBgemini-2.5-flash\fR or \fBgemini-2.5-pro\fR). Ignored for \fBllama\fR.
+.TP
+.B generate.defaultTimeout
+Timeout as Go duration (e.g. \fB5m\fR). Applies to the whole request.
+.TP
+.B generate.tasks
+A map of reusable tasks. Each task supports:
+.RS
+.IP \[bu] 2
+\fBprovider\fR: \fBgemini\fR or \fBllama\fR
+.IP \[bu]
+\fBmodel\fR: Gemini model (ignored for llama)
+.IP \[bu]
+\fBllamaBaseURL\fR: base URL for llama.cpp (required for llama)
+.IP \[bu]
+\fBsystemPrompt\fR: system instruction
+.IP \[bu]
+\fBuserPrompt\fR: user prompt (stdin may be appended)
+.RE
+.SH ENVIRONMENT
+.TP
+.B MEOW_GEMINI_API_KEY
+API key for the Gemini provider (required when provider is \fBgemini\fR).
+.SH MERGE RULES
+Configs are merged with project taking precedence over user. Absent keys inherit
+from lower precedence or built-in defaults. Flags always win over config.
+.SH EXAMPLES
+Minimal user config:
+.PP
+.nf
+generate:
+  defaultProvider: "gemini"
+  defaultModel: "gemini-2.5-flash"
+  defaultTimeout: "5m"
+.fi
+.PP
+Project config with tasks:
+.PP
+.nf
+generate:
+  tasks:
+    pytest-gemini:
+      provider: "gemini"
+      model: "gemini-2.5-pro"
+      systemPrompt: "You are an expert Python TDD developer."
+      userPrompt: "Write a complete pytest test file for the following code."
+    security-audit:
+      provider: "gemini"
+      model: "gemini-2.5-pro"
+      systemPrompt: "You are a senior security auditor."
+      userPrompt: "Identify vulnerabilities and risky patterns."
+    refactor-llama:
+      provider: "llama"
+      llamaBaseURL: "http://127.0.0.1:8080"
+      systemPrompt: "You write clean, performant Rust."
+      userPrompt: "Refactor for clarity and speed."
+.fi
+.PP
+Usage:
+.PP
+.nf
+cat app.py   | meow g -t pytest-gemini
+cat server.js| meow g -t security-audit
+meow g -P llama -u http://127.0.0.1:8080 -p "Summarize"
+.fi
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-generate (1),
+.BR meow\-version (1),
+.BR meow\-security (7)
+.SH AUTHORS
+Andrew Vasilyev <me@retran.me>
+.SH COPYRIGHT
+Copyright (c) 2025 Andrew Vasilyev.
+Licensed under the Apache License, Version 2.0.
+Project page: https://github.com/retran/meowg1k

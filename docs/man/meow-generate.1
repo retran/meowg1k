@@ -1,0 +1,86 @@
+.\" docs/man/meow-generate.1
+.TH MEOW-GENERATE 1 "2025-08-08" "meowg1k" "User Commands"
+.SH NAME
+meow-generate \- generate any content based on input — code, text, or docs
+.SH SYNOPSIS
+.B meow generate
+[\fIflags\fR] [\fIarguments...\fR]
+.br
+.B meow g
+[\fIflags\fR] [\fIarguments...\fR]
+.SH DESCRIPTION
+Send a prompt (and optionally stdin) to an AI model and print the result.
+Supports cloud models (Gemini 2.5: Pro & Flash) and local inference (llama.cpp).
+.SH OPTIONS
+.TP
+.BR \-t ", " \-\-task " " \fINAME\fR
+Run a predefined task from config (project or user config).
+.TP
+.BR \-m ", " \-\-model " " \fINAME\fR
+Model name (e.g. \fBgemini-2.5-pro\fR or \fBgemini-2.5-flash\fR). Ignored when \fB--provider=llama\fR.
+.TP
+.BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
+System prompt (high-level instruction, e.g. "You are a senior Go engineer").
+.TP
+.BR \-p ", " \-\-user\-prompt " " \fITEXT\fR
+User prompt for generation (can be combined with stdin).
+.TP
+.BR \-P ", " \-\-provider " " \fINAME\fR
+LLM provider: \fBgemini\fR (cloud) or \fBllama\fR (local llama.cpp).
+.TP
+.BR \-u ", " \-\-llama\-base\-url " " \fIURL\fR
+Base URL for llama.cpp (required when \fB--provider=llama\fR).
+.TP
+.BR \-h ", " \-\-help
+Show command help.
+.SH PROVIDERS
+.TP
+.B gemini  (default)
+Google Gemini 2.5 (Pro/Flash). Requires \fBMEOW_GEMINI_API_KEY\fR in environment.
+.TP
+.B llama
+Local \fBllama.cpp\fR HTTP server. The model is chosen by the server; \fB--model\fR is ignored.
+Use \fB--llama-base-url\fR to connect.
+.SH CONFIGURATION
+Configuration files are read with the following precedence:
+.IP "1." 3
+Project: \fB./.meowg1k/config.yaml\fR
+.IP "2."
+User: \fB~/.config/meowg1k/config.yaml\fR
+.PP
+Flags always override configuration values.
+.SH EXAMPLES
+Explain Go code (Gemini Pro):
+.br
+.B cat main.go | meow g \-m gemini\-2.5\-pro \-p "Explain this code"
+.PP
+Refactor for performance (Gemini Flash):
+.br
+.B cat component.js | meow g \-m gemini\-2.5\-flash \-p "Refactor for performance"
+.PP
+Strict system prompt for review:
+.br
+.B cat utils.go | meow g \-m gemini\-2.5\-pro \-s "You are a senior Go engineer focusing on concurrency and safety" \-p "Review this for race conditions"
+.PP
+Use local llama.cpp:
+.br
+.B meow g \-P llama \-u http://127.0.0.1:8080 \-p "Summarize this code"
+.PP
+Run a task from config (Gemini):
+.br
+.B cat app.py | meow g \-t pytest\-gemini
+.PP
+Run a task from config (llama.cpp):
+.br
+.B cat main.rs | meow g \-t refactor\-llama
+.SH ENVIRONMENT
+.TP
+.B MEOW_GEMINI_API_KEY
+API key for the Gemini provider.
+.SH EXIT STATUS
+Returns 0 on success, non-zero on error.
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-version (1),
+.BR meow\-config (5),
+.BR meow\-security (7)

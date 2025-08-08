@@ -1,0 +1,112 @@
+.\" docs/man/meow.1
+.TH MEOW 1 "2025-08-08" "meowg1k" "User Commands"
+.SH NAME
+meow \- your purr-sonal AI sidekick for the terminal
+.SH SYNOPSIS
+.B meow
+[\fIcommand\fR] [\fIflags\fR] [\fIarguments...\fR]
+.br
+For command\-specific flags, run:
+.B meow
+\fIcommand\fR \-\-help
+.SH DESCRIPTION
+.B meow
+is a fast, script\-friendly AI CLI. It talks to cloud models
+(Gemini 2.5: Pro & Flash) and local inference (llama.cpp), supports reusable
+tasks, and uses layered configuration for reproducible workflows.
+.br
+Input can be provided via flags and/or piped through stdin.
+
+.SH COMMANDS
+.TP
+.B generate
+Generate any content based on input \- code, text, or docs. Works with Gemini or llama.cpp.
+.TP
+.B version
+Show version info.
+.TP
+.B completion
+Generate shell completion scripts.
+
+.SH OPTIONS
+Global options:
+.TP
+.BR \-h , " \-\-help"
+Show help for
+.B meow
+or a specific command.
+
+.SH PROVIDERS
+.TP
+.B gemini  (default)
+Google Gemini 2.5 (Pro/Flash). Requires
+.B MEOW_GEMINI_API_KEY
+in environment.
+.TP
+.B llama
+Local
+.BR llama.cpp
+HTTP server. The model is chosen by the server; use
+.B \-\-llama\-base\-url
+to connect.
+
+.SH ENVIRONMENT
+.TP
+.B MEOW_GEMINI_API_KEY
+API key for the Gemini provider.
+
+.SH CONFIGURATION
+Configuration files are read with the following precedence:
+.IP "1." 3
+Project config:
+.B ./.meowg1k/config.yaml
+.IP "2."
+User config:
+.B ~/.config/meowg1k/config.yaml
+.PP
+Flags always override configuration values.
+
+.SH EXAMPLES
+Explain Go code with Gemini Pro:
+.br
+.B cat main.go | meow g \-m gemini\-2.5\-pro \-p "Explain this code"
+.PP
+Refactor with Gemini Flash:
+.br
+.B cat component.js | meow g \-m gemini\-2.5\-flash \-p "Refactor for performance"
+.PP
+Use a strict system prompt:
+.br
+.B cat utils.go | meow g \-m gemini\-2.5\-pro \-s "You are a senior Go engineer focusing on concurrency and safety" \-p "Review this for race conditions"
+.PP
+Local llama.cpp server (model chosen by server):
+.br
+.B meow g \-P llama \-u http://127.0.0.1:8080 \-p "Summarize this code"
+.PP
+Run a reusable task from config:
+.br
+.B cat app.py | meow g \-t pytest\-gemini
+
+.SH FILES
+.B ~/.config/meowg1k/config.yaml
+\- user configuration
+.br
+.B ./.meowg1k/config.yaml
+\- project configuration
+
+.SH EXIT STATUS
+Returns 0 on success, non\-zero on error.
+
+.SH SEE ALSO
+.BR meow\-generate (1),
+.BR meow\-version (1),
+.BR meow\-config (5),
+.BR meow\-security (7)
+
+.SH AUTHORS
+Andrew Vasilyev <me@retran.me>
+
+.SH COPYRIGHT
+Copyright (c) 2025 Andrew Vasilyev.
+Licensed under the Apache License, Version 2.0.
+Project page: https://github.com/retran/meowg1k
