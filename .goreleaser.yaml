@@ -1,0 +1,177 @@
+version: 1
+project_name: meowg1k
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: meow
+    main: .
+    binary: meow
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags:
+      - >
+        -s -w
+        -X github.com/retran/meowg1k/internal/version.Version={{ .Version }}
+        -X github.com/retran/meowg1k/internal/version.BuildDate={{ .Date }}
+        -X github.com/retran/meowg1k/internal/version.GitCommit={{ .ShortCommit }}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README*.md
+      - docs/man/meow.1
+      - docs/man/meow-generate.1
+      - docs/man/meow-version.1
+      - docs/man/meow-config.5
+      - docs/man/meow-security.7
+
+checksum:
+  name_template: checksums.txt
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    artifacts: all
+    args:
+      - sign-blob
+      - --yes
+      - --output-signature=${signature}
+      - --output-certificate=${certificate}
+      - ${artifact}
+    env:
+      - COSIGN_EXPERIMENTAL=1
+
+brews:
+  - name: meow
+    ids: [default]
+    repository:
+      owner: retran
+      name: homebrew-meow-tap
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
+    homepage: "https://github.com/retran/meowg1k"
+    url_template: "https://github.com/retran/meowg1k/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    install: |
+      bin.install "meow"
+      man1.install "docs/man/meow.1"
+      man1.install "docs/man/meow-generate.1"
+      man1.install "docs/man/meow-version.1"
+      man5.install "docs/man/meow-config.5"
+      man7.install "docs/man/meow-security.7"
+    caveats: |
+      🐾 Configuration & Providers
+      ----------------------------
+      • Gemini 2.5 (cloud):
+          Set API key:
+            export MEOW_GEMINI_API_KEY="your_api_key"
+
+          Quick start:
+            cat main.go | meow generate -m gemini-2.5-pro -p "Explain this code"
+            cat component.js | meow g -m gemini-2.5-flash -p "Refactor for performance"
+            cat utils.go | meow g -m gemini-2.5-pro -s "You are a senior Go engineer reviewing code for concurrency issues" -p "Check this code for potential race conditions"
+
+          Defaults via config:
+            generate:
+              defaultProvider: "gemini"
+              defaultModel: "gemini-2.5-flash"
+              defaultTimeout: "5m"
+
+      • LLaMA (local llama.cpp):
+          Start server separately, then connect (model is chosen by server):
+            meow g -P llama -u http://127.0.0.1:8080 -p "Summarize this code"
+
+      🧱 Tasks (reusable prompts)
+      ---------------------------
+        Example user config (~/.config/meowg1k/config.yaml):
+          generate:
+            tasks:
+              pytest-gemini:
+                provider: "gemini"
+                model: "gemini-2.5-pro"
+                systemPrompt: "You are an expert Python TDD developer."
+                userPrompt: "Write a complete pytest test file for the following code."
+              refactor-llama:
+                provider: "llama"
+                llamaBaseURL: "http://127.0.0.1:8080"
+                systemPrompt: "You write clean, performant Rust."
+                userPrompt: "Refactor for clarity and speed."
+
+        Run:
+          cat app.py | meow g -t pytest-gemini
+          cat main.rs | meow g -t refactor-llama
+
+      📂 Config files (override order)
+      --------------------------------
+        1) Project: ./.meowg1k/config.yaml
+        2) User:    ~/.config/meowg1k/config.yaml
+
+      📖 Man pages
+      -----------
+        man meow
+        man meow-generate
+        man 5 meow-config
+        man 7 meow-security
+
+scoops:
+  - name: meow
+    repository:
+      owner: retran
+      name: scoop-meow-bucket
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    homepage: "https://github.com/retran/meowg1k"
+    description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
+    license: Apache-2.0
+    persist: []
+    url_template: "https://github.com/retran/meowg1k/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+
+nfpms:
+  - id: packages
+    formats: [deb, rpm]
+    package_name: meow
+    builds: [meow]
+    bindir: /usr/bin
+    vendor: "retran"
+    maintainer: "Andrew Vasilyev <me@retran.me>"
+    homepage: "https://github.com/retran/meowg1k"
+    description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
+    license: "Apache-2.0"
+    section: "utils"
+    priority: "optional"
+    contents:
+      - src: docs/man/meow.1
+        dst: /usr/share/man/man1/meow.1
+      - src: docs/man/meow-generate.1
+        dst: /usr/share/man/man1/meow-generate.1
+      - src: docs/man/meow-version.1
+        dst: /usr/share/man/man1/meow-version.1
+      - src: docs/man/meow-config.5
+        dst: /usr/share/man/man5/meow-config.5
+      - src: docs/man/meow-security.7
+        dst: /usr/share/man/man7/meow-security.7
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs?:"
+      - "^test:"
+
+release:
+  draft: false
