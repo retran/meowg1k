@@ -24,8 +24,8 @@ import (
 )
 
 var versionCmd = &cobra.Command{
-	Use: "version",
-	Short: "Print the version number of meow",
+	Use:   "version",
+	Short: "Show version info",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("meow version %s\n", version.Version)
 		fmt.Printf("Build Date: %s\n", version.BuildDate)
@@ -36,4 +36,3 @@ var versionCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(versionCmd)
 }
-

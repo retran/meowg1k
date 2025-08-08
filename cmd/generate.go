@@ -1,17 +1,17 @@
 /*
-Copyright © 2025 Andrew Vasilyev <me@retran.me>
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUTHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+// Copyright © 2025 Andrew Vasilyev <me@retran.me>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 */
 
 // Package cmd contains the command-line interface for meowg1k.
@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	defaultModel    = "gemini-1.5-flash"
+	defaultModel    = "gemini-2.5-flash"
 	apiKeyEnvVar    = "MEOW_GEMINI_API_KEY"
 	defaultTimeout  = 5 * time.Minute
 	defaultProvider = "gemini"
@@ -76,61 +76,7 @@ type generationParams struct {
 var generateCmd = &cobra.Command{
 	Use:     "generate",
 	Aliases: []string{"gen", "g"},
-	Short:   "Generate, refactor, or explain code with an AI prompt.",
-	Long: `The 'generate' command provides a direct interface to AI models.
-You can provide input via the '-p' flag, by piping from stdin, or both.
-
-$ meowg1k g -p "Explain this code" < main.go
-
----
-## Providers
-- **gemini** (default): Uses Google Gemini. Requires the **MEOW_GEMINI_API_KEY**
-  environment variable. Use the **--model** flag to choose a model like
-  "gemini-1.5-pro".
-
-- **llama**: Connects to a local llama.cpp server. Requires the
-  **--llama-base-url** flag. The **--model** flag is ignored, as the model
-  is determined when you start the server. For server setup, see
-  https://github.com/ggml-org/llama.cpp.
-
----
-## Configuration
-You can create reusable tasks and set defaults in a config file. Settings
-from a project-specific config will override global settings.
-
-  - Project Config: **./.meowg1k/config.yaml**
-  - User Config:    **~/.config/meowg1k/config.yaml**
-
-Command-line flags always take the highest priority.
-
-Example configuration:
-  generate:
-    defaultProvider: "gemini"
-    defaultModel: "gemini-1.5-flash"
-    defaultTimeout: "5m"
-    tasks:
-      pytest-gemini:
-        provider: "gemini"
-        model: "gemini-1.5-pro"
-        systemPrompt: "You are an expert Python TDD developer."
-        userPrompt: "Write a complete pytest test file for the following code."
-      refactor-llama:
-        provider: "llama"
-        llamaBaseURL: "http://127.0.0.1:8080"
-        systemPrompt: "You are an expert in writing clean, performant code."
-        userPrompt: "Refactor the following code."`,
-	Example: `  # Get an explanation from the Gemini provider
-  cat main.go | meowg1k g -p "Explain this Go code" --model gemini-1.5-pro
-
-  # Use a local model via the llama.cpp server
-  # (In another terminal, run: ./server -m ./models/your-model.gguf)
-  cat main.go | meowg1k g -p "Refactor this Go code" -P llama -u http://127.0.0.1:8080
-
-  # Use a pre-configured 'pytest-gemini' task from your config file
-  cat my_script.py | meowg1k g -t pytest-gemini
-
-  # Use a pre-configured 'refactor-llama' task from your config file
-  cat component.js | meowg1k g -t refactor-llama`,
+	Short:   "Generate any content based on input — code, text, or docs",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return run(cmd)
 	},
@@ -139,12 +85,13 @@ Example configuration:
 func init() {
 	rootCmd.AddCommand(generateCmd)
 
-	generateCmd.Flags().StringP(flagTask, "t", "", "The generation task to execute from the config file")
-	generateCmd.Flags().StringP(flagModel, "m", "", "The model to use for generation (e.g., gemini-1.5-pro)")
-	generateCmd.Flags().StringP(flagSystemPrompt, "s", "", "Set a system-level instruction for the AI (e.g., 'You are a senior Go developer')")
-	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "The user prompt for which to generate content")
-	generateCmd.Flags().StringP(flagProvider, "P", "", "The LLM provider to use (gemini or llama)")
-	generateCmd.Flags().StringP(flagLlamaBaseURL, "u", "", "LLaMA base URL (required when using --provider llama)")
+	// Flags — concise, professional help texts
+	generateCmd.Flags().StringP(flagTask, "t", "", "Run a predefined task from config (./.meowg1k/config.yaml or ~/.config/meowg1k/config.yaml).")
+	generateCmd.Flags().StringP(flagModel, "m", "", "Model name (e.g., gemini-2.5-pro or gemini-2.5-flash). Ignored when --provider=llama.")
+	generateCmd.Flags().StringP(flagSystemPrompt, "s", "", "System prompt: high-level instruction for the AI (e.g., 'You are a senior Go engineer').")
+	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "User prompt for generation. Can be combined with stdin.")
+	generateCmd.Flags().StringP(flagProvider, "P", "", "LLM provider: 'gemini' (cloud) or 'llama' (local llama.cpp).")
+	generateCmd.Flags().StringP(flagLlamaBaseURL, "u", "", "Base URL for llama.cpp (required when --provider=llama).")
 }
 
 // finalizeOutput formats the generated content by trimming whitespace and ensuring

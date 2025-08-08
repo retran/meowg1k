@@ -19,7 +19,7 @@ package version
 
 // These variables are populated by the Go linker during the build process.
 var (
-	Version = "dev"
+	Version   = "dev"
 	BuildDate = "unknown"
 	GitCommit = "unknown"
 )
