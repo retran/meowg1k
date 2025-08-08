@@ -1,10 +1,8 @@
 ---
-prompts:
-  go_developer_persona: &go_dev_prompt ""
-
 generate:
-  defaultProvider: "llama"
-  defaultLlamaBaseUrl: "http://localhost:8080"
+#  defaultProvider: "llama"
+#  defaultLlamaBaseUrl: "http://localhost:8080"
+  defaultProvider: "gemini"
   defaultTimeout: "10m"
   defaultSystemPrompt: "You are a helpful senior Go software developer. Your feedback should be clear, concise, and actionable. Write clean, idiomatic, and production-ready code."
   tasks:
@@ -14,6 +12,7 @@ generate:
       userPrompt: "Perform a thorough code review of the following Go code. Check for potential bugs, style guide violations (Go conventions), performance issues, and suggest improvements for clarity and readability. Present your findings as a list of actionable points."
 
     go:commit:
+      model: "gemini-2.5-pro"
       userPrompt: "Generate a concise conventional commit message for the following code changes:"
 
     go:doc:
