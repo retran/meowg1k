@@ -84,7 +84,7 @@ generate:
 
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
-    pr:describe:
+    go:pr:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-
