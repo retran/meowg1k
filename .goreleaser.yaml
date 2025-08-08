@@ -66,6 +66,9 @@ brews:
     description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
     homepage: "https://github.com/retran/meowg1k"
     url_template: "https://github.com/retran/meowg1k/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    license: "Apache-2.0"
+    test: |
+      system "#{bin}/meow", "version"
     install: |
       bin.install "meow"
       man1.install "docs/man/meow.1"
