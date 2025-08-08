@@ -1,0 +1,15 @@
+services:
+  litterbox:
+    image: retran/meow-litterbox-go-neovim:wip
+    container_name: litterbox
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "5222:22"
+      - "5201:9001"
+      - "5202:9002"
+    volumes:
+      - .:/home/meow/workspace/
+      - ~/.ssh:/home/meow/.ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
