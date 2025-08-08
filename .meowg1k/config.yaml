@@ -1,25 +1,124 @@
 ---
 generate:
-#  defaultProvider: "llama"
-#  defaultLlamaBaseUrl: "http://localhost:8080"
   defaultProvider: "gemini"
+  defaultModel: "gemini-2.5-flash"
   defaultTimeout: "10m"
-  defaultSystemPrompt: "You are a helpful senior Go software developer. Your feedback should be clear, concise, and actionable. Write clean, idiomatic, and production-ready code."
+  defaultSystemPrompt: >-
+    You are a helpful senior Go software developer and reviewer.
+    Prefer clear, concise, and actionable feedback.
+    When suggesting code, write clean, idiomatic, production-ready Go 1.24+.
+
   tasks:
     go:review:
       provider: "gemini"
       model: "gemini-2.5-pro"
-      userPrompt: "Perform a thorough code review of the following Go code. Check for potential bugs, style guide violations (Go conventions), performance issues, and suggest improvements for clarity and readability. Present your findings as a list of actionable points."
+      userPrompt: >-
+        Perform a thorough code review of the following Go code.
+
+        Focus areas:
+          - Correctness (nil/zero handling, error wrapping, context usage, concurrency, race conditions)
+          - API design (naming, visibility, package layout), maintainability, readability
+          - Performance (allocations, copies, sync primitives, I/O), hot paths
+          - Testing gaps (missing cases, edge/error paths)
+
+        Output format:
+          1) Summary — 2–4 bullets.
+          2) Findings — numbered list with short, actionable suggestions. Reference lines/functions when possible.
+          3) Quick wins — checklist of small fixes.
+          4) Optional patch — minimal unified diff for one or two key fixes.
+
+        If the code is fine, state so concisely and suggest minor polish only.
 
     go:commit:
+      provider: "gemini"
       model: "gemini-2.5-pro"
-      userPrompt: "Generate a concise conventional commit message for the following code changes:"
+      userPrompt: >-
+        Generate a Conventional Commit message for the provided changes.
+
+        Rules:
+          - Use one of: feat, fix, refactor, perf, docs, test, chore, build, ci.
+          - Subject: imperative, ≤72 chars, no trailing period; include scope if inferable (e.g., core, http, cli).
+          - Body: wrap at ~72 cols; explain motivation and user impact.
+          - Footer: add "BREAKING CHANGE:" only if truly breaking.
+
+        Output:
+          - Single-line header
+          - Optional body
+          - Optional footers
 
     go:doc:
-      userPrompt: "Write a complete GoDoc comment for the following function or type. Follow standard Go documentation conventions. Do not include the code itself in your output, only the complete doc comment."
+      provider: "gemini"
+      model: "gemini-2.5-flash"
+      userPrompt: >-
+        Write a complete GoDoc comment for the following exported function or type.
+        Requirements:
+          - Start with the identifier's name.
+          - Be concise, precise, and helpful for IDE hovers.
+          - Mention side effects, error cases, and concurrency expectations if relevant.
+          - Do NOT include code; only the comment block.
 
     go:test:
-      userPrompt: "Write a comprehensive set of unit tests for the following Go code using the standard `testing` package. Cover edge cases and common scenarios."
+      provider: "gemini"
+      model: "gemini-2.5-pro"
+      userPrompt: >-
+        Write comprehensive table-driven unit tests using the standard "testing" package (no third-party deps).
+        Requirements:
+          - Use subtests with t.Run.
+          - Cover happy path, edge cases, and error scenarios.
+          - If I/O or time is involved, show how to inject fakes; avoid global state.
+          - Ensure tests are deterministic and parallelizable where safe (t.Parallel()).
+          - Include minimal example-based test if useful (ExampleXxx).
+
+        Return only compilable *_test.go code.
 
     go:refactor:
-      userPrompt: "Refactor the following Go code to improve its performance, readability, and maintainability. Apply idiomatic Go patterns. In your response, first provide the refactored code block, then add a brief bulleted list explaining the key changes you made."
+      provider: "gemini"
+      model: "gemini-2.5-pro"
+      userPrompt: >-
+        Refactor the following Go code to improve readability, maintainability, and performance,
+        while preserving behavior and public API.
+
+        Output:
+          1) A single code block with the refactored code.
+          2) A short bullet list explaining key changes (naming, structure, error handling, allocations, etc).
+
+        Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
+
+    go:pr:
+      provider: "gemini"
+      model: "gemini-2.5-pro"
+      userPrompt: >-
+        Create a clear and actionable Pull Request description from the provided diff.
+
+        Produce Markdown in this structure:
+          ## Summary
+          - 1–3 bullets describing the problem and outcome.
+
+          ## Motivation
+          - What was wrong or missing before? Why now?
+
+          ## Changes
+          - Concise list of key changes (group related items).
+
+          ## Technical Notes
+          - Important implementation details, trade-offs, risks.
+
+          ## Tests
+          - What is covered by tests? Note missing cases if any.
+
+          ## Backward Compatibility
+          - State if breaking changes exist (and migration if needed).
+
+          ## Rollback Plan
+          - How to revert safely if needed.
+
+          ## Checklist
+          - [ ] Unit tests
+          - [ ] Docs updated
+          - [ ] No breaking changes OR migration described
+          - [ ] Performance considerations reviewed
+
+          ## Labels (suggestions)
+          - comma-separated labels (e.g., area/cli, type/refactor, perf)
+
+        Keep it concise and high-signal. Infer scope/labels where reasonable.

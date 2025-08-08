@@ -24,7 +24,7 @@ import (
 type Provider string
 
 const (
-	Llama Provider = "llama"
+	Llama  Provider = "llama"
 	Gemini Provider = "gemini"
 )
 
@@ -64,4 +64,3 @@ func (r *GenerateContentRequest) SystemPrompt() string {
 func (r *GenerateContentRequest) UserPrompt() string {
 	return r.userPrompt
 }
-
