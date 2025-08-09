@@ -45,5 +45,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.GORELEASER_TAP_TOKEN }}
           COSIGN_EXPERIMENTAL: "true"
