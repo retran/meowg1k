@@ -60,6 +60,7 @@ homebrew_casks:
     repository:
       owner: retran
       name: homebrew-meow-tap
+      token: "{{ .Env.TAP_TOKEN }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
@@ -132,6 +133,7 @@ scoops:
     repository:
       owner: retran
       name: scoop-meow-bucket
+      token: "{{ .Env.TAP_TOKEN }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
