@@ -1,4 +1,4 @@
-version: 1
+version: 2
 project_name: meowg1k
 
 before:
@@ -22,11 +22,11 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats: [ 'tar.gz' ]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ 'zip' ]
     files:
       - LICENSE
       - README*.md
@@ -54,8 +54,8 @@ signs:
     env:
       - COSIGN_EXPERIMENTAL=1
 
-brews:
-  - name: meow
+homebrew_casks:
+  - name: meowg1k
     ids: [default]
     repository:
       owner: retran
@@ -65,21 +65,18 @@ brews:
       email: bot@goreleaser.com
     description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
     homepage: "https://github.com/retran/meowg1k"
-    url_template: "https://github.com/retran/meowg1k/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     license: "Apache-2.0"
-    test: |
-      system "#{bin}/meow", "version"
-    install: |
-      bin.install "meow"
-      man1.install "docs/man/meow.1"
-      man1.install "docs/man/meow-generate.1"
-      man1.install "docs/man/meow-version.1"
-      man5.install "docs/man/meow-config.5"
-      man7.install "docs/man/meow-security.7"
+    binary: "meow"
+    manpages:
+      - "docs/man/meow.1"
+      - "docs/man/meow-generate.1"
+      - "docs/man/meow-version.1"
+      - "docs/man/meow-config.5"
+      - "docs/man/meow-security.7"
     caveats: |
       🐾 Configuration & Providers
       ----------------------------
-      • Gemini 2.5 (cloud):
+      • Gemini (cloud):
           Set API key:
             export MEOW_GEMINI_API_KEY="your_api_key"
 
@@ -131,7 +128,7 @@ brews:
         man 7 meow-security
 
 scoops:
-  - name: meow
+  - name: meowg1k
     repository:
       owner: retran
       name: scoop-meow-bucket
@@ -142,13 +139,11 @@ scoops:
     description: "Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal."
     license: Apache-2.0
     persist: []
-    url_template: "https://github.com/retran/meowg1k/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
 
 nfpms:
   - id: packages
     formats: [deb, rpm]
-    package_name: meow
-    builds: [meow]
+    package_name: meowg1k
     bindir: /usr/bin
     vendor: "retran"
     maintainer: "Andrew Vasilyev <me@retran.me>"
