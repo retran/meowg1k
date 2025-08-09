@@ -12,7 +12,7 @@
 </div>
 
 <div align="center">
-<img src="https://raw.githubusercontent.com/retran/meow/main/assets/icon_small.png" alt="Meow Logo" width="200">
+<img src="https://github.com/retran/meow/raw/dev/assets/icon_small.png" alt="Meow Logo" width="200">
 <br>
 <strong>meowg1k — AI Programming Assistance Tool</strong>
 </div>
@@ -333,6 +333,7 @@ And of course, thanks to the broader developer community for libraries, tools, a
 ---
 
 <div align="center">
+
 **Happy coding with `project meow`! 🐱**
 
 Made with ❤️ by Andrew Vasilyev and feline assistants
@@ -340,4 +341,3 @@ Made with ❤️ by Andrew Vasilyev and feline assistants
 [Report Bug](https://github.com/retran/meowg1k/issues) · [Request Feature](https://github.com/retran/meowg1k/issues) · [Contribute](https://github.com/retran/meowg1k/pulls)
 
 </div>
-```
