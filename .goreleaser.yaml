@@ -22,11 +22,11 @@ builds:
 
 archives:
   - id: default
-    formats: [ "tar.gz" ]
+    formats: ["tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        formats: [ "zip" ]
+        formats: ["zip"]
     files:
       - LICENSE
       - README*.md
@@ -74,6 +74,13 @@ homebrew_casks:
       - "docs/man/meow-version.1"
       - "docs/man/meow-config.5"
       - "docs/man/meow-security.7"
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr",
+              args: ["-dr", "com.apple.quarantine", "#{staged_path}/meow"]
+          end
     caveats: |
       🐾 Configuration & Providers
       ----------------------------
