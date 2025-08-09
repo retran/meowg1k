@@ -26,15 +26,20 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5.5.0
         with:
           go-version: "1.24"
 
       - name: Install cosign (for keyless signing)
-        uses: sigstore/cosign-installer@v3.6.0
+        uses: sigstore/cosign-installer@v3.9.2
+        with:
+          cosign-release: 'v2.5.3'
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0.20.4
 
       - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v6.3.0
         with:
           version: latest
           args: release --clean
