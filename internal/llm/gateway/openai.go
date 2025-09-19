@@ -42,7 +42,7 @@ func NewOpenAIGateway(baseURL string, apiKey string) (*OpenAIGateway, error) {
 		option.WithBaseURL(baseURL),
 	)
 
-	return &OpenAIGateway{client: &client}, nil
+	return &OpenAIGateway{client: client}, nil
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
