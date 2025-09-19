@@ -26,10 +26,9 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	projectName      = "meowg1k"
-	projectConfigDir = "." + projectName
-)
+func Execute() error {
+	return rootCmd.Execute()
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "meow",
@@ -39,9 +38,10 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func Execute() error {
-	return rootCmd.Execute()
-}
+const (
+	projectName      = "meowg1k"
+	projectConfigDir = "." + projectName
+)
 
 // resolveUserConfigDir determines the user configuration directory based on the XDG Base Directory Specification.
 func resolveUserConfigDir() (string, error) {
