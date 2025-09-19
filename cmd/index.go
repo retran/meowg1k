@@ -18,10 +18,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/retran/meowg1k/internal/index"
-	"github.com/retran/meowg1k/internal/llm/gateway"
 	"github.com/spf13/cobra"
 )
 
@@ -40,32 +36,6 @@ func init() {
 
 // runIndex executes the main logic of the index command.
 func runIndex(cmd *cobra.Command) error {
-	embeddingGateway, err := gateway.NewEmbeddingGateway(
-		cmd.Context(),
-		gateway.WithProvider(gateway.Gemini))
-	if err != nil {
-		return err
-	}
-
-	request := gateway.NewComputeEmbeddingRequest(
-		"gemini-embedding-001",
-		[]string{"Isaac Newton", "Isaac"},
-		gateway.SemanticSimilarity,
-	)
-
-	embeddings, err := embeddingGateway.ComputeEmbeddings(cmd.Context(), request)
-	if err != nil {
-		return err
-	}
-
-	similarity, err := embeddingGateway.ComputeDistance(embeddings[0], embeddings[1])
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(similarity)
-
-	index.Index(cmd.Context(), ".")
-
+	// not implemented
 	return nil
 }

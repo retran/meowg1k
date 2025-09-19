@@ -24,7 +24,7 @@ import (
 
 const (
 	workers = 32
-	buffer = 1024
+	buffer  = 1024
 )
 
 func Index(ctx context.Context, root string) {
@@ -41,7 +41,7 @@ func process(in <-chan string) {
 	for file := range in {
 
 		content, err := os.ReadFile(file)
-		if (err != nil) {
+		if err != nil {
 			fmt.Println(err)
 		} else {
 			fmt.Println(string(content))
