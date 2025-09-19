@@ -92,12 +92,20 @@ func (g *GeminiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeE
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
 	}
 
+	config := &genai.EmbedContentConfig{
+		TaskType: string(request.TaskType()),
+	}
+
+	// Set output dimensionality if specified
+	if request.Dimensions() > 0 {
+		dims := int32(request.Dimensions())
+		config.OutputDimensionality = &dims
+	}
+
 	response, err := g.client.Models.EmbedContent(ctx,
 		request.Model(),
 		contents,
-		&genai.EmbedContentConfig{
-			TaskType: string(request.TaskType()),
-		},
+		config,
 	)
 	if err != nil {
 		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)

@@ -35,15 +35,14 @@ type OpenAIGateway struct {
 }
 
 // NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
-func NewOpenAIGateway(ctx context.Context, baseURL string, apiKey string) (*OpenAIGateway, error) {
+// It sets up the OpenAI client with the given base URL and API key.
+func NewOpenAIGateway(baseURL string, apiKey string) (*OpenAIGateway, error) {
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),
 	)
 
-	return &OpenAIGateway{
-		client: client,
-	}, nil
+	return &OpenAIGateway{client: client}, nil
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
@@ -53,7 +52,8 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 			openai.SystemMessage(request.SystemPrompt()),
 			openai.UserMessage(request.UserPrompt()),
 		},
-		Model: request.Model(),
+		Model:     request.Model(),
+		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)
@@ -68,12 +68,19 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
 func (g *OpenAIGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
-	response, err := g.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
+	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.chunks,
 		},
 		Model: request.model,
-	})
+	}
+
+	// Set dimensions if specified
+	if request.Dimensions() > 0 {
+		params.Dimensions = openai.Int(int64(request.Dimensions()))
+	}
+
+	response, err := g.client.Embeddings.New(ctx, params)
 
 	if err != nil {
 		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
