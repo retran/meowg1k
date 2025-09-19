@@ -17,9 +17,9 @@ limitations under the License.
 package storage
 
 type TextChunk struct {
-	filePath  string
-	embedding []float32 `lance:"vector"`
-	content   string    // TODO replace with reading chunks from separate table
-	firstLine int
-	lastLine  int
+	FilePath  string
+	Embedding []float32 `lance:"vector"`
+	Content   string    // TODO replace with reading chunks from separate table
+	FirstLine int
+	LastLine  int
 }
