@@ -10,86 +10,90 @@ or docs
 .B meow g
 [\fIflags\fR] [\fIarguments...\fR]
 .SH DESCRIPTION
-Send a prompt (and optionally stdin) to an AI model and print the result.
-Supports cloud models (Gemini 2.5: Pro & Flash, Nebius AI Studio) and local
-inference (llama.cpp).
+Generate content using configured profiles and tasks. Supports all available
+providers through the profile system with smart defaults and minimal
+configuration. Input can be provided via stdin and/or user prompt flags.
 .SH OPTIONS
 .TP
 .BR \-t ", " \-\-task " " \fINAME\fR
-Run a predefined task from config (project or user config).
-.TP
-.BR \-m ", " \-\-model " " \fINAME\fR
-Model name (e.g. \fBgemini-2.5-pro\fR or \fBgemini-2.5-flash\fR).
-Ignored when \fB--provider=llama\fR.
-.TP
-.BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
-System prompt (high-level instruction, e.g. "You are a senior Go engineer").
+Run a predefined task from configuration. Tasks are defined in the
+.B generate.tasks
+section of config files.
 .TP
 .BR \-p ", " \-\-user\-prompt " " \fITEXT\fR
-User prompt for generation (can be combined with stdin).
-.TP
-.BR \-P ", " \-\-provider " " \fINAME\fR
-LLM provider: \fBgemini\fR (cloud), \fBnebius\fR (cloud), or \fBllama\fR
-(local llama.cpp).
-.TP
-.BR \-u ", " \-\-llama\-base\-url " " \fIURL\fR
-Base URL for llama.cpp (required when \fB--provider=llama\fR).
+User prompt for generation. Can be combined with stdin for context.
 .TP
 .BR \-h ", " \-\-help
 Show command help.
-.SH PROVIDERS
-.TP
-.B gemini
-Google Gemini 2.5 (Pro/Flash).
-Requires \fBMEOW_GEMINI_API_KEY\fR in environment.
-.TP
-.B nebius
-Nebius AI Studio. Requires \fBMEOW_NEBIUS_API_KEY\fR in environment.
-.TP
-.B llama
-Local \fBllama.cpp\fR HTTP server. The model is chosen by the server;
+
+.SH CONFIGURATION
+Uses the profile system defined in
+.BR meow\-config (5).
+Profiles specify provider, model, and other settings with smart defaults.
+
+Tasks can override the default profile and add custom prompts:
+
+.nf
+generate:
+  default:
+    profile: "fast"
+  tasks:
+    review:
+      profile: "smart"
+      userPrompt: "Review this code thoroughly"
+.fi
 \fB--model\fR is ignored. Use \fB--llama-base-url\fR to connect.
 .SH CONFIGURATION
 Configuration files are read with the following precedence:
 .IP "1." 3
 Project: \fB./.meowg1k/config.yaml\fR
-.IP "2."
-User: \fB~/.config/meowg1k/config.yaml\fR
-.PP
-Flags always override configuration values.
 .SH EXAMPLES
-Explain Go code (Gemini Pro):
+Use a predefined task:
 .br
-.B cat main.go | meow g \-m gemini\-2.5\-pro \-p "Explain this code"
+.B cat main.go | meow generate \-t review
 .PP
-Refactor for performance (Gemini Flash):
+Direct prompt with stdin:
 .br
-.B cat component.js | meow g \-m gemini\-2.5\-flash \-p "Refactor for performance"
+.B cat service.py | meow generate \-p "Add comprehensive error handling"
 .PP
-Strict system prompt for review:
+Simple prompt without stdin:
 .br
-.B cat utils.go | meow g \-m gemini\-2.5\-pro \-s "You are a senior Go engineer focusing on concurrency and safety" \-p "Review this for race conditions"
+.B echo "Create a REST API" | meow generate \-p "Write Go code"
 .PP
-Use local llama.cpp:
+Project-specific task:
 .br
-.B meow g \-P llama \-u http://127.0.0.1:8080 \-p "Summarize this code"
-.PP
-Run a task from config (Gemini):
-.br
-.B cat app.py | meow g \-t pytest\-gemini
-.PP
-Run a task from config (llama.cpp):
-.br
-.B cat main.rs | meow g \-t refactor\-llama
+.B cat auth.go | meow generate \-t security
+
 .SH ENVIRONMENT
+Providers use these environment variables for API keys:
 .TP
 .B MEOW_GEMINI_API_KEY
-API key for the Gemini provider.
+API key for Gemini provider.
+.TP
+.B MEOW_OPENAI_API_KEY
+API key for OpenAI provider.
+.TP
+.B MEOW_OPENROUTER_API_KEY
+API key for OpenRouter provider.
 .TP
 .B MEOW_NEBIUS_API_KEY
-API key for the Nebius AI Studio provider.
+API key for Nebius provider.
+.TP
+.B MEOW_ANTHROPIC_API_KEY
+API key for Anthropic provider.
+.TP
+.B MEOW_VOYAGE_API_KEY
+API key for Voyage AI provider (embeddings only).
+.TP
+.B MEOW_LLAMA_API_KEY
+Optional API key for llama provider.
+.TP
+.B MEOW_OPENAI_COMPATIBLE_API_KEY
+API key for OpenAI-compatible providers.
+
 .SH EXIT STATUS
 Returns 0 on success, non-zero on error.
+
 .SH SEE ALSO
 .BR meow (1),
 .BR meow\-version (1),

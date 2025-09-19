@@ -3,6 +3,7 @@ module github.com/retran/meowg1k
 go 1.24.5
 
 require (
+	github.com/anthropics/anthropic-sdk-go v1.12.0
 	github.com/briandowns/spinner v1.23.2
 	github.com/openai/openai-go/v2 v2.5.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
