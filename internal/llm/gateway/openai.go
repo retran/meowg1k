@@ -35,15 +35,14 @@ type OpenAIGateway struct {
 }
 
 // NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
+// It sets up the OpenAI client with the given base URL and API key.
 func NewOpenAIGateway(baseURL string, apiKey string) (*OpenAIGateway, error) {
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),
 	)
 
-	return &OpenAIGateway{
-		client: &client,
-	}, nil
+	return &OpenAIGateway{client: &client}, nil
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
@@ -53,7 +52,8 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 			openai.SystemMessage(request.SystemPrompt()),
 			openai.UserMessage(request.UserPrompt()),
 		},
-		Model: request.Model(),
+		Model:     request.Model(),
+		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content: %w", err)

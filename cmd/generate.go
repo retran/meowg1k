@@ -50,11 +50,11 @@ const (
 	stdinContextWrapper = "\n\n```\n%s\n```"
 )
 
-// GenerationParams holds all the resolved parameters for a generation request.
-type GenerationParams struct {
-	Profile      *config.ResolvedProfile
-	SystemPrompt string
-	UserPrompt   string
+// generationParams holds all the resolved parameters for a generation request.
+type generationParams struct {
+	Profile      *config.ResolvedProfile // Resolved configuration profile for the LLM
+	SystemPrompt string                  // System-level instruction for the LLM
+	UserPrompt   string                  // User's main prompt, potentially combined with stdin
 }
 
 // finalizeOutput formats the generated content by trimming whitespace and ensuring
@@ -80,7 +80,9 @@ func readUserPromptFromStdin() (string, error) {
 }
 
 // resolveParams consolidates all configuration resolution into a single struct.
-func resolveParams(cmd *cobra.Command, cfg *config.Config) (*GenerationParams, error) {
+// It determines the final parameters for the generation request by checking flags,
+// task configurations, and defaults from the loaded configuration.
+func resolveParams(cmd *cobra.Command, cfg *config.Config) (*generationParams, error) {
 	var task *config.GenerateTask
 	var profileName string
 	var systemPrompt string
@@ -140,7 +142,7 @@ func resolveParams(cmd *cobra.Command, cfg *config.Config) (*GenerationParams, e
 		return nil, err
 	}
 
-	return &GenerationParams{
+	return &generationParams{
 		Profile:      profile,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
@@ -174,7 +176,7 @@ func runGenerate(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to initialize gateway: %w", err)
 	}
 
-	request := gateway.NewGenerateContentRequest(params.Profile.Model, params.SystemPrompt, params.UserPrompt)
+	request := gateway.NewGenerateContentRequest(params.Profile.Model, params.SystemPrompt, params.UserPrompt, params.Profile.MaxOutputTokens)
 
 	ctx, cancel := context.WithTimeout(cmd.Context(), params.Profile.Timeout)
 	defer cancel()

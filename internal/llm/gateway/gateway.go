@@ -57,17 +57,19 @@ type GenerationGateway interface {
 
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
-	model        string
-	systemPrompt string
-	userPrompt   string
+	model           string
+	systemPrompt    string
+	userPrompt      string
+	maxOutputTokens int
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
-func NewGenerateContentRequest(model, systemPrompt, userPrompt string) *GenerateContentRequest {
+func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutputTokens int) *GenerateContentRequest {
 	return &GenerateContentRequest{
-		model:        model,
-		systemPrompt: systemPrompt,
-		userPrompt:   userPrompt,
+		model:           model,
+		systemPrompt:    systemPrompt,
+		userPrompt:      userPrompt,
+		maxOutputTokens: maxOutputTokens,
 	}
 }
 
@@ -84,6 +86,11 @@ func (r *GenerateContentRequest) SystemPrompt() string {
 // UserPrompt returns the user prompt for the content generation request.
 func (r *GenerateContentRequest) UserPrompt() string {
 	return r.userPrompt
+}
+
+// MaxOutputTokens returns the maximum output tokens for the content generation request.
+func (r *GenerateContentRequest) MaxOutputTokens() int {
+	return r.maxOutputTokens
 }
 
 // EmbeddingGateway defines the contract for a client that computes text embeddings

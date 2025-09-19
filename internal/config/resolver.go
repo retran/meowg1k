@@ -27,13 +27,14 @@ import (
 
 // ResolvedProfile represents a profile with all values resolved.
 type ResolvedProfile struct {
-	Provider       gateway.Provider
-	Model          string
-	MaxInputTokens int
-	Timeout        time.Duration
-	BaseURL        string
-	APIKey         string
-	TokenizerType  models.TokenizerType
+	Provider        gateway.Provider
+	Model           string
+	MaxInputTokens  int
+	MaxOutputTokens int
+	Timeout         time.Duration
+	BaseURL         string
+	APIKey          string
+	TokenizerType   models.TokenizerType
 }
 
 // ResolveProfile resolves a profile by name, applying defaults if necessary.
@@ -49,11 +50,12 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 
 	// Apply defaults for missing values
 	resolved := &ResolvedProfile{
-		Model:          profile.Model,
-		MaxInputTokens: profile.MaxInputTokens,
-		Timeout:        profile.Timeout,
-		BaseURL:        profile.BaseURL,
-		TokenizerType:  profile.TokenizerType,
+		Model:           profile.Model,
+		MaxInputTokens:  profile.MaxInputTokens,
+		MaxOutputTokens: profile.MaxOutputTokens,
+		Timeout:         profile.Timeout,
+		BaseURL:         profile.BaseURL,
+		TokenizerType:   profile.TokenizerType,
 	}
 
 	// Parse and validate provider
@@ -146,6 +148,18 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 	}
 	resolved.APIKey = os.Getenv(apiKeyEnv)
 
+	// Validate that required API keys are present
+	switch resolved.Provider {
+	case gateway.Gemini, gateway.Nebius, gateway.OpenAI, gateway.OpenRouter,
+		gateway.Anthropic, gateway.Voyage, gateway.OpenAICompatible:
+		if resolved.APIKey == "" {
+			return nil, fmt.Errorf("API key environment variable '%s' not set for %s provider in profile '%s'",
+				apiKeyEnv, resolved.Provider, profileName)
+		}
+	case gateway.Llama:
+		// Llama API key is optional, so no validation needed
+	}
+
 	// Apply default tokenizer if not specified
 	if resolved.TokenizerType == "" {
 		// First try to get tokenizer from model info
@@ -175,6 +189,17 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 
 	if resolved.MaxInputTokens == 0 {
 		resolved.MaxInputTokens = 8192
+	}
+
+	// Apply default MaxOutputTokens if not specified
+	if resolved.MaxOutputTokens == 0 {
+		if resolved.Model != "" {
+			// Get max output tokens from model registry
+			resolved.MaxOutputTokens = models.GetMaxOutputTokens(resolved.Model)
+		} else {
+			// Fallback to safe default
+			resolved.MaxOutputTokens = 4096
+		}
 	}
 
 	if resolved.Timeout == 0 {
