@@ -1,7 +1,7 @@
 ---
 generate:
-  defaultProvider: "gemini"
-  defaultModel: "gemini-2.5-flash"
+  defaultProvider: "nebius"
+  defaultModel: "Qwen/Qwen3-Coder-480B-A35B-Instruct"
   defaultTimeout: "10m"
   defaultSystemPrompt: >-
     You are a helpful senior Go software developer and reviewer.
@@ -10,8 +10,6 @@ generate:
 
   tasks:
     review:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
       userPrompt: >-
         Perform a thorough code review of the following Go code.
 
@@ -30,8 +28,6 @@ generate:
         If the code is fine, state so concisely and suggest minor polish only.
 
     commit:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
       userPrompt: >-
         Generate a Conventional Commit message for the provided changes.
 
@@ -47,8 +43,6 @@ generate:
           - Optional footers
 
     doc:
-      provider: "gemini"
-      model: "gemini-2.5-flash"
       userPrompt: >-
         Write a complete GoDoc comment for the following exported function or type.
         Requirements:
@@ -58,8 +52,6 @@ generate:
           - Do NOT include code; only the comment block.
 
     test:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
       userPrompt: >-
         Write comprehensive table-driven unit tests using the standard "testing" package (no third-party deps).
         Requirements:
@@ -72,8 +64,6 @@ generate:
         Return only compilable *_test.go code.
 
     refactor:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
       userPrompt: >-
         Refactor the following Go code to improve readability, maintainability, and performance,
         while preserving behavior and public API.
@@ -85,8 +75,6 @@ generate:
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
     pr:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
       userPrompt: >-
         Create a clear and actionable Pull Request description from the provided diff.
 
