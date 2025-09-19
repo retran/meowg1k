@@ -43,6 +43,7 @@ func NewVoyageGateway(apiKey string) (*VoyageGateway, error) {
 	}
 
 	return &VoyageGateway{
+		ComputeDistanceMixin: ComputeDistanceMixin{},
 		client: client,
 	}, nil
 }
