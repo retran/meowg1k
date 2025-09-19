@@ -96,7 +96,7 @@ const (
 	RetrievalDocument  TaskType = "RETRIEVAL_DOCUMENT"
 	RetrievalQuery     TaskType = "RETRIEVAL_QUERY"
 	CodeRetrievalQuery TaskType = "CODE_RETRIEVAL_QUERY"
-	QuestionAnswering  TaskType = "YoutubeING"
+	QuestionAnswering  TaskType = "QUESTION_ANSWERING"
 	FactVerification   TaskType = "FACT_VERIFICATION"
 )
 
