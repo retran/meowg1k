@@ -177,7 +177,16 @@ cat utils.go | meow g \
   -p "Check this code for potential race conditions"
 ```
 
-### 5. Use llama.cpp (local model)
+### 5. Use Nebius AI Studio
+
+```bash
+cat service.go | meow g \
+  -P nebius \
+  -m <your-nebius-model> \
+  -p "Translate this Go code to Python"
+```
+
+### 6. Use llama.cpp (local model)
 
 ```bash
 cat data_processor.rs | meow g \
@@ -186,7 +195,7 @@ cat data_processor.rs | meow g \
   -p "Explain the purpose of each function"
 ```
 
-### 6. Using predefined tasks from config
+### 7. Using predefined tasks from config
 
 **User config** (`~/.config/meowg1k/config.yaml`):
 
@@ -206,7 +215,7 @@ Run:
 cat app.py | meow g -t pytest-gemini
 ```
 
-### 7. Multiple tasks and switching between them
+### 8. Multiple tasks and switching between them
 
 ```yaml
 generate:
@@ -229,7 +238,7 @@ cat handler.js | meow g -t summarize-gemini
 cat main.rs | meow g -t refactor-llama
 ```
 
-### 8. Project-specific overrides
+### 9. Project-specific overrides
 
 If your project has `.meowg1k/config.yaml`, it will override the user config for that project:
 

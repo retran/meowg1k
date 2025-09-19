@@ -145,7 +145,7 @@ type Config struct {
 // It can return an error if an option is invalid.
 type Option func(c *Config) error
 
-// WithProvider sets the LLM provider (e.g., Llama, Gemini). This is a required option.
+// WithProvider sets the LLM provider (e.g., Llama, Gemini, Nebius). This is a required option.
 func WithProvider(p Provider) Option {
 	return func(c *Config) error {
 		switch p {
@@ -183,7 +183,7 @@ func WithGeminiAPIKey(key string) Option {
 	}
 }
 
-// WithNebiusAPIKey sets the API key for the Nebius provider.
+// WithNebiusAPIKey sets the API key for the Nebius AI Studio provider.
 // If the key is empty, it attempts to load it from the MEOW_NEBIUS_API_KEY environment variable.
 func WithNebiusAPIKey(key string) Option {
 	return func(c *Config) error {
@@ -193,7 +193,7 @@ func WithNebiusAPIKey(key string) Option {
 		}
 		envKey := os.Getenv("MEOW_NEBIUS_API_KEY")
 		if envKey == "" {
-			return fmt.Errorf("nebius API key is not provided and MEOW_NEBIUS_API_KEY environment variable is not set")
+			return fmt.Errorf("nebius AI Studio API key is not provided and MEOW_NEBIUS_API_KEY environment variable is not set")
 		}
 		c.APIKey = envKey
 		return nil
