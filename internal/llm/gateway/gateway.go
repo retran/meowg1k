@@ -32,6 +32,8 @@ const (
 	Llama Provider = "llama"
 	// Gemini identifies the Gemini provider.
 	Gemini Provider = "gemini"
+	// Nebius identifies the Nebius AI Studio provider.
+	Nebius Provider = "nebius"
 )
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
@@ -146,7 +148,7 @@ type Option func(c *Config) error
 func WithProvider(p Provider) Option {
 	return func(c *Config) error {
 		switch p {
-		case Llama, Gemini:
+		case Llama, Gemini, Nebius:
 			c.Provider = p
 		default:
 			return fmt.Errorf("unsupported provider: %s", p)
@@ -158,9 +160,6 @@ func WithProvider(p Provider) Option {
 // WithBaseURL sets the base URL for a local Llama-compatible server.
 func WithBaseURL(url string) Option {
 	return func(c *Config) error {
-		if url == "" {
-			return fmt.Errorf("base URL cannot be empty")
-		}
 		c.BaseURL = url
 		return nil
 	}
@@ -177,6 +176,23 @@ func WithGeminiAPIKey(key string) Option {
 		envKey := os.Getenv("MEOW_GEMINI_API_KEY")
 		if envKey == "" {
 			return fmt.Errorf("gemini API key is not provided and MEOW_GEMINI_API_KEY environment variable is not set")
+		}
+		c.APIKey = envKey
+		return nil
+	}
+}
+
+// WithNebiusAPIKey sets the API key for the Gemini provider.
+// If the key is empty, it attempts to load it from the MEOW_NEBIUS_API_KEY environment variable.
+func WithNebiusAPIKey(key string) Option {
+	return func(c *Config) error {
+		if key != "" {
+			c.APIKey = key
+			return nil
+		}
+		envKey := os.Getenv("MEOW_NEBIUS_API_KEY")
+		if envKey == "" {
+			return fmt.Errorf("nebius API key is not provided and MEOW_NEBIUS_API_KEY environment variable is not set")
 		}
 		c.APIKey = envKey
 		return nil
@@ -205,6 +221,13 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 			return nil, fmt.Errorf("llama provider requires a base URL")
 		}
 		return NewLlamaGateway(cfg.BaseURL)
+	case Nebius:
+		if cfg.APIKey == "" {
+			if err := WithNebiusAPIKey("")(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
@@ -229,6 +252,8 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 		return NewGeminiGateway(ctx, cfg.APIKey)
 	case Llama:
 		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
+	case Nebius:
+		return nil, fmt.Errorf("nebius embedding gateway is not yet implemented")
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
