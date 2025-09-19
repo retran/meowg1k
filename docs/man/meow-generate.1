@@ -1,7 +1,8 @@
 .\" docs/man/meow-generate.1
-.TH MEOW-GENERATE 1 "2025-08-08" "meowg1k" "User Commands"
+.TH MEOW-GENERATE 1 "2025-09-19" "meowg1k" "User Commands"
 .SH NAME
-meow-generate \- generate any content based on input — code, text, or docs
+meow-generate \- generate any content based on input — code, text,
+or docs
 .SH SYNOPSIS
 .B meow generate
 [\fIflags\fR] [\fIarguments...\fR]
@@ -10,14 +11,16 @@ meow-generate \- generate any content based on input — code, text, or docs
 [\fIflags\fR] [\fIarguments...\fR]
 .SH DESCRIPTION
 Send a prompt (and optionally stdin) to an AI model and print the result.
-Supports cloud models (Gemini 2.5: Pro & Flash) and local inference (llama.cpp).
+Supports cloud models (Gemini 2.5: Pro & Flash, Nebius AI Studio) and local
+inference (llama.cpp).
 .SH OPTIONS
 .TP
 .BR \-t ", " \-\-task " " \fINAME\fR
 Run a predefined task from config (project or user config).
 .TP
 .BR \-m ", " \-\-model " " \fINAME\fR
-Model name (e.g. \fBgemini-2.5-pro\fR or \fBgemini-2.5-flash\fR). Ignored when \fB--provider=llama\fR.
+Model name (e.g. \fBgemini-2.5-pro\fR or \fBgemini-2.5-flash\fR).
+Ignored when \fB--provider=llama\fR.
 .TP
 .BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
 System prompt (high-level instruction, e.g. "You are a senior Go engineer").
@@ -26,7 +29,8 @@ System prompt (high-level instruction, e.g. "You are a senior Go engineer").
 User prompt for generation (can be combined with stdin).
 .TP
 .BR \-P ", " \-\-provider " " \fINAME\fR
-LLM provider: \fBgemini\fR (cloud) or \fBllama\fR (local llama.cpp).
+LLM provider: \fBgemini\fR (cloud), \fBnebius\fR (cloud), or \fBllama\fR
+(local llama.cpp).
 .TP
 .BR \-u ", " \-\-llama\-base\-url " " \fIURL\fR
 Base URL for llama.cpp (required when \fB--provider=llama\fR).
@@ -35,12 +39,16 @@ Base URL for llama.cpp (required when \fB--provider=llama\fR).
 Show command help.
 .SH PROVIDERS
 .TP
-.B gemini  (default)
-Google Gemini 2.5 (Pro/Flash). Requires \fBMEOW_GEMINI_API_KEY\fR in environment.
+.B gemini
+Google Gemini 2.5 (Pro/Flash).
+Requires \fBMEOW_GEMINI_API_KEY\fR in environment.
+.TP
+.B nebius
+Nebius AI Studio. Requires \fBMEOW_NEBIUS_API_KEY\fR in environment.
 .TP
 .B llama
-Local \fBllama.cpp\fR HTTP server. The model is chosen by the server; \fB--model\fR is ignored.
-Use \fB--llama-base-url\fR to connect.
+Local \fBllama.cpp\fR HTTP server. The model is chosen by the server;
+\fB--model\fR is ignored. Use \fB--llama-base-url\fR to connect.
 .SH CONFIGURATION
 Configuration files are read with the following precedence:
 .IP "1." 3
@@ -77,6 +85,9 @@ Run a task from config (llama.cpp):
 .TP
 .B MEOW_GEMINI_API_KEY
 API key for the Gemini provider.
+.TP
+.B MEOW_NEBIUS_API_KEY
+API key for the Nebius AI Studio provider.
 .SH EXIT STATUS
 Returns 0 on success, non-zero on error.
 .SH SEE ALSO
