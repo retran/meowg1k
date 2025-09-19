@@ -4,6 +4,8 @@ go 1.24.5
 
 require (
 	github.com/briandowns/spinner v1.23.2
+	github.com/philippgille/chromem-go v0.7.0
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	google.golang.org/genai v1.17.0
