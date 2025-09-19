@@ -115,17 +115,19 @@ type TokenProb struct {
 // CompletionClient provides methods to interact with LLM completion API
 type CompletionClient struct {
 	baseURL    string
+	apiKey     string
 	httpClient *http.Client
 }
 
 // NewCompletionClient creates a new client for interacting with the LLM completion endpoint.
-func NewCompletionClient(baseURL string) (*CompletionClient, error) {
+func NewCompletionClient(baseURL string, apiKey string) (*CompletionClient, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL cannot be empty")
 	}
 
 	return &CompletionClient{
 		baseURL:    baseURL,
+		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 10 * time.Minute},
 	}, nil
 }
@@ -144,6 +146,9 @@ func (c *CompletionClient) Complete(ctx context.Context, req *CompletionRequest)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
