@@ -27,14 +27,15 @@ const (
 	buffer  = 1024
 )
 
-func Index(ctx context.Context, root string) {
+func Index(ctx context.Context, root string) error {
 	files := make(chan string, buffer)
 
 	for range workers {
 		go process(files)
 	}
 
-	traverse(ctx, root, files, withIgnorePatterns(".git/", ".devcontainer/", ".meowg1k/", "dist/"))
+	err := traverse(ctx, root, files, withIgnorePatterns(".git/", ".devcontainer/", ".meowg1k/", "dist/"))
+	return err
 }
 
 func process(in <-chan string) {
