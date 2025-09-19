@@ -275,7 +275,7 @@ func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) 
 		return 0, fmt.Errorf("vectors must have the same length")
 	}
 
-	if (len(a) == 0) || (len(b) == 0) {
+	if len(a) == 0 || len(b) == 0 {
 		return 0, fmt.Errorf("vectors must not be empty")
 	}
 
