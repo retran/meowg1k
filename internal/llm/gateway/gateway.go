@@ -224,7 +224,7 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		if cfg.BaseURL == "" {
 			return nil, fmt.Errorf("llama provider requires a base URL")
 		}
-		return NewLlamaGateway(cfg.BaseURL)
+		return NewLlamaGateway(cfg.BaseURL, cfg.APIKey)
 	case Nebius:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
@@ -241,7 +241,10 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		}
 		return NewOpenAIGateway(ctx, "https://openrouter.ai/api/v1", cfg.APIKey)
 	case Anthropic:
-		return nil, fmt.Errorf("anthropic provider does not support content generation gateway (use voyage provider for embeddings)")
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("anthropic provider requires an API key")
+		}
+		return NewAnthropicGateway(cfg.APIKey)
 	case Voyage:
 		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
 	case OpenAICompatible:
