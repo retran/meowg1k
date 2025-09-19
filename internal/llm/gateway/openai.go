@@ -42,7 +42,7 @@ func NewOpenAIGateway(ctx context.Context, baseURL string, apiKey string) (*Open
 	)
 
 	return &OpenAIGateway{
-		client: &client,
+		client: client,
 	}, nil
 }
 
