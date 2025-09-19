@@ -112,15 +112,15 @@ tasks:
         echo "  restart terminal"
 
   man:check:
-    desc: Validate man pages with groff
+    desc: Validate man pages with mandoc
     cmds:
-      - bash -lc 'for f in docs/man/*.?; do echo "Checking $f"; groff -Tutf8 -man "$f" >/dev/null; done'
+      - bash -lc 'for f in docs/man/*.?; do echo "Checking $f"; mandoc -Tlint "$f"; done'
       - echo "✅ Man pages validated"
 
   man:preview:
-    desc: Preview all man pages in terminal rendered via groff
+    desc: Preview all man pages in terminal rendered via mandoc
     cmds:
-      - bash -lc 'for f in docs/man/*.?; do echo "----- $f -----"; groff -Tutf8 -man "$f" | sed -e "s/.\x08//g"; echo; done'
+      - bash -lc 'for f in docs/man/*.?; do echo "----- $f -----"; mandoc "$f" | col -bx; echo; done'
 
   man:install:user:
     desc: Install man pages to user scope at ~/.local/share/man

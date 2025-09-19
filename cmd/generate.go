@@ -261,7 +261,7 @@ func resolveParams(cmd *cobra.Command) (*generationParams, error) {
 
 	provider := gateway.Provider(providerStr)
 	switch provider {
-	case gateway.Gemini, gateway.Llama:
+	case gateway.Gemini, gateway.Llama, gateway.Nebius:
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", providerStr)
 	}
