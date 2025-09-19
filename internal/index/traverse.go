@@ -42,10 +42,10 @@ func WithIgnorePatterns(patterns ...string) Option {
 	}
 }
 
-// traverse recursively walks the directory tree starting from the given root path.
+// Traverse recursively walks the directory tree starting from the given root path.
 // It sends the absolute path of each found file to the provided 'out' channel,
 // respecting the ignore patterns.
-func traverse(ctx context.Context, root string, out chan<- string, options ...Option) error {
+func Traverse(ctx context.Context, root string, out chan<- string, options ...Option) error {
 	defer close(out)
 
 	opts := &traverseOptions{}
