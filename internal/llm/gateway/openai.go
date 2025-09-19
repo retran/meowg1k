@@ -30,6 +30,7 @@ var _ GenerationGateway = (*OpenAIGateway)(nil)
 var _ EmbeddingGateway = (*OpenAIGateway)(nil)
 
 type OpenAIGateway struct {
+	ComputeDistanceMixin
 	client *openai.Client
 }
 
@@ -48,7 +49,7 @@ func NewOpenAIGateway(ctx context.Context, baseURL string, apiKey string) (*Open
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
 func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
-	completion, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
 			openai.UserMessage(request.UserPrompt()),
@@ -59,20 +60,30 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
-	if len(completion.Choices) == 0 {
-		return "", errors.New("failed to generate content: no choices returned from OpenAI API")
+	if len(response.Choices) == 0 {
+		return "", errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
 	}
 
-	return completion.Choices[0].Message.Content, nil
+	return response.Choices[0].Message.Content, nil
 }
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
 func (g *OpenAIGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
-	return []Embedding{}, errors.New("not implemented")
-}
+	response, err := g.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfArrayOfStrings: request.chunks,
+		},
+		Model: request.model,
+	})
 
-// ComputeDistance calculates the cosine similarity between two embeddings.
-// It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
-func (g *OpenAIGateway) ComputeDistance(a, b Embedding) (float64, error) {
-	return 0, errors.New("not implemented")
+	if err != nil {
+		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+	}
+
+	embeddings := make([]Embedding, 0, len(response.Data))
+	for _, value := range response.Data {
+		embeddings = append(embeddings, Embedding(value.Embedding))
+	}
+
+	return embeddings, nil
 }

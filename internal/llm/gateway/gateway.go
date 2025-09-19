@@ -21,6 +21,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 )
 
@@ -85,7 +86,7 @@ type EmbeddingGateway interface {
 }
 
 // Embedding represents a text embedding as a vector of floating-point numbers.
-type Embedding []float32
+type Embedding []float64
 
 // TaskType specifies the intended use case for the text embedding. This allows the model
 // to produce higher-quality embeddings tailored to the specific task.
@@ -253,8 +254,37 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 	case Llama:
 		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
 	case Nebius:
-		return nil, fmt.Errorf("nebius embedding gateway is not yet implemented")
+		if cfg.APIKey == "" {
+			if err := WithNebiusAPIKey("")(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
+}
+
+type ComputeDistanceMixin struct {
+}
+
+// ComputeDistance calculates the cosine similarity between two embeddings.
+// It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
+func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) {
+	if len(a) != len(b) {
+		return 0, fmt.Errorf("vectors must have the same length")
+	}
+
+	var dotProduct, aMagnitude, bMagnitude float64
+	for i := range a {
+		dotProduct += float64(a[i]) * float64(b[i])
+		aMagnitude += float64(a[i]) * float64(a[i])
+		bMagnitude += float64(b[i]) * float64(b[i])
+	}
+
+	if aMagnitude == 0 || bMagnitude == 0 {
+		return 0, nil
+	}
+
+	return dotProduct / (math.Sqrt(aMagnitude) * math.Sqrt(bMagnitude)), nil
 }
