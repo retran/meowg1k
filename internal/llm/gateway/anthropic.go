@@ -24,13 +24,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-const (
-	// DefaultMaxTokens is the default maximum tokens for Anthropic responses.
-	// This is a reasonable default that balances response length with API costs.
-	// In the future, this could be made configurable via ResolvedProfile.MaxOutputTokens.
-	DefaultMaxTokens = 4096
-)
-
 // AnthropicGateway wraps the Anthropic SDK client for content generation.
 type AnthropicGateway struct {
 	client anthropic.Client
