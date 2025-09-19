@@ -5,110 +5,178 @@ meow-config \- configuration for the \fBmeow\fR CLI (YAML)
 .SH SYNOPSIS
 Configuration is read from YAML files with the following precedence:
 .IP "1." 3
-Project config: \fB./.meowg1k/config.yaml\fR
+Explicit config: specified via \fB\-\-config\fR flag (overrides all)
 .IP "2."
+Project config: \fB./.meowg1k/config.yaml\fR
+.IP "3."
 User config: \fB~/.config/meowg1k/config.yaml\fR
 .PP
-Command-line flags always override configuration values.
+When \fB\-\-config\fR is used, only that file is loaded, ignoring project and user configs completely.
 .SH DESCRIPTION
-The \fBmeow\fR CLI uses layered YAML configuration to define defaults
-and reusable tasks for AI generation. Settings can be declared at project
-and/or user level and are merged in the order described above
-(project overrides user).
+The \fBmeow\fR CLI uses a profile\-based YAML configuration system to define
+reusable provider configurations and tasks. Supports Anthropic Claude, Voyage AI embeddings,
+and comprehensive model registry with automatic tokenizer detection.
 .SH FORMAT
 YAML, UTF-8.
 .PP
-Top-level section for generation:
+Configuration structure:
 .PP
 .nf
+profiles:
+  <profile-name>:
+    provider: "gemini" | "openai" | "openrouter" | "nebius" | "anthropic" | "voyage" | "llama" | "openai-compatible"
+    model: "model-name"              # optional, uses smart defaults
+    baseURL: "https://api.url"       # required for llama/openai-compatible
+    apiKeyEnv: "ENV_VAR_NAME"        # optional, uses smart defaults
+    maxInputTokens: 8192             # optional, default 8192
+    timeout: "5m"                    # optional, default 5m
+
 generate:
-  defaultProvider: "gemini"          # "gemini", "nebius", or "llama"
-  defaultModel: "gemini-2.5-flash"   # default model for Gemini/Nebius
-  defaultTimeout: "5m"               # Go duration, e.g. "30s", "2m", "1h"
-  tasks:                             # reusable commands invoked via -t/--task
+  default:
+    profile: "profile-name"          # default profile to use
+    systemPrompt: "System instruction"
+  tasks:
     <task-name>:
-      provider: "gemini" | "nebius" | "llama"
-      model: "gemini-2.5-pro"        # optional; ignored when provider=llama
-      llamaBaseURL: "http://127.0.0.1:8080"  # required when provider=llama
-      systemPrompt: "High-level instruction"
-      userPrompt: "Main prompt; stdin may be appended"
+      profile: "profile-name"        # optional, uses default
+      systemPrompt: "Task-specific system prompt"
+      userPrompt: "Task-specific user prompt"
 .fi
 .SH KEYS
 .TP
-.B generate.defaultProvider
-Provider for generation: \fBgemini\fR, \fBnebius\fR (cloud), or \fBllama\fR
-(local). Default: \fBgemini\fR.
-.TP
-.B generate.defaultModel
-Model for Gemini/Nebius AI Studio provider (e.g. \fBgemini-2.5-flash\fR).
-Ignored for \fBllama\fR.
-.TP
-.B generate.defaultTimeout
-Timeout as Go duration (e.g. \fB5m\fR). Applies to the whole request.
-.TP
-.B generate.tasks
-A map of reusable tasks. Each task supports:
+.B profiles
+Map of reusable provider configurations. Each profile defines:
 .RS
 .IP \[bu] 2
-\fBprovider\fR: \fBgemini\fR, \fBnebius\fR, or \fBllama\fR
+\fBprovider\fR: Provider type (required)
 .IP \[bu]
-\fBmodel\fR: Gemini/Nebius AI Studio model (ignored for llama)
+\fBmodel\fR: Model name (optional, uses smart defaults)
 .IP \[bu]
-\fBllamaBaseURL\fR: base URL for llama.cpp (required for llama)
+\fBbaseURL\fR: Base URL (required for llama/openai-compatible)
 .IP \[bu]
-\fBsystemPrompt\fR: system instruction
+\fBapiKeyEnv\fR: Environment variable name (optional, uses smart defaults)
 .IP \[bu]
-\fBuserPrompt\fR: user prompt (stdin may be appended)
+\fBmaxInputTokens\fR: Token limit (optional, default 8192)
+.IP \[bu]
+\fBtimeout\fR: Request timeout (optional, default 5m)
 .RE
-.SH ENVIRONMENT
 .TP
-.B MEOW_GEMINI_API_KEY
-API key for the Gemini provider.
+.B generate.default
+Default settings for generation:
+.RS
+.IP \[bu] 2
+\fBprofile\fR: Default profile name to use
+.IP \[bu]
+\fBsystemPrompt\fR: Default system instruction
+.RE
 .TP
-.B MEOW_NEBIUS_API_KEY
-API key for the Nebius AI Studio provider.
-.SH MERGE RULES
-Configs are merged with project taking precedence over user. Absent keys inherit
-from lower precedence or built-in defaults. Flags always win over config.
+.B generate.tasks
+Map of predefined tasks. Each task can override:
+.RS
+.IP \[bu] 2
+\fBprofile\fR: Profile to use (optional, uses default)
+.IP \[bu]
+\fBsystemPrompt\fR: Task-specific system instruction
+.IP \[bu]
+\fBuserPrompt\fR: Task-specific user prompt
+.RE
+
+.SH PROVIDER DEFAULTS
+Each provider has smart defaults:
+.TP
+.B gemini
+Model: \fBgemini-2.5-flash\fR, API key: \fBMEOW_GEMINI_API_KEY\fR
+.TP
+.B openai
+Model: \fBgpt-5-mini\fR, API key: \fBMEOW_OPENAI_API_KEY\fR
+.TP
+.B openrouter
+Model: \fBmeta-llama/llama-3.2-3b-instruct:free\fR, API key: \fBMEOW_OPENROUTER_API_KEY\fR
+.TP
+.B nebius
+Model: \fBQwen2.5-Coder-7B\fR, API key: \fBMEOW_NEBIUS_API_KEY\fR
+.TP
+.B anthropic
+Model: \fBclaude-3-5-haiku-20241022\fR, API key: \fBMEOW_ANTHROPIC_API_KEY\fR
+.TP
+.B voyage
+Model: \fBvoyage-3.5\fR, API key: \fBMEOW_VOYAGE_API_KEY\fR (embeddings only)
+.TP
+.B llama
+API key: \fBMEOW_LLAMA_API_KEY\fR (requires explicit baseURL)
+.TP
+.B openai-compatible
+API key: \fBMEOW_OPENAI_COMPATIBLE_API_KEY\fR (requires explicit baseURL)
+
 .SH EXAMPLES
-Minimal user config:
+Minimal profile-based config:
 .PP
 .nf
+profiles:
+  fast:
+    provider: "gemini"
+  smart:
+    provider: "openai"
+    model: "gpt-4o"
+
 generate:
-  defaultProvider: "gemini"
-  defaultModel: "gemini-2.5-flash"
-  defaultTimeout: "5m"
+  default:
+    profile: "fast"
 .fi
 .PP
-Project config with tasks:
+Full project config with tasks:
 .PP
 .nf
+profiles:
+  review:
+    provider: "openai"
+    model: "gpt-4o"
+    maxInputTokens: 32768
+  local:
+    provider: "llama"
+    baseURL: "http://localhost:8080"
+
 generate:
+  default:
+    profile: "review"
   tasks:
-    pytest-gemini:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
-      systemPrompt: "You are an expert Python TDD developer."
-      userPrompt: "Write a complete pytest test file for the following code."
-    security-audit:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
-      systemPrompt: "You are a senior security auditor."
-      userPrompt: "Identify vulnerabilities and risky patterns."
-    refactor-llama:
-      provider: "llama"
-      llamaBaseURL: "http://127.0.0.1:8080"
-      systemPrompt: "You write clean, performant Rust."
-      userPrompt: "Refactor for clarity and speed."
+    security:
+      profile: "review"
+      userPrompt: "Review for security vulnerabilities"
+    test:
+      profile: "local"
+      userPrompt: "Write comprehensive tests"
 .fi
 .PP
-Usage:
+Advanced configuration with additional providers:
 .PP
 .nf
-cat app.py   | meow g -t pytest-gemini
-cat server.js| meow g -t security-audit
-meow g -P llama -u http://127.0.0.1:8080 -p "Summarize"
+profiles:
+  anthropic-smart:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    maxInputTokens: 32000
+    timeout: "10m"
+
+  voyage-embeddings:
+    provider: "voyage"
+    model: "voyage-3.5"
+    # Note: Voyage is embeddings-only
+
+  custom-api:
+    provider: "openai-compatible"
+    baseURL: "https://api.custom-llm.com/v1"
+    model: "custom-model-70b"
+    apiKeyEnv: "CUSTOM_API_KEY"
+
+generate:
+  default:
+    profile: "anthropic-smart"
+  tasks:
+    deep-review:
+      profile: "anthropic-smart"
+      userPrompt: "Perform comprehensive code analysis"
 .fi
+
 .SH SEE ALSO
 .BR meow (1),
 .BR meow\-generate (1),

@@ -44,20 +44,33 @@ Part of the `project meow` ecosystem, `meowg1k` is the **AI counterpart** to [`m
 - **Generate code** from a prompt or from stdin
 - **Refactor** existing code automatically
 - **Explain** code in plain language
-- **Reusable tasks**: Predefine prompts and providers in config files
+- **Reusable tasks**: Predefine prompts and profiles in config files
+- **Profile-based configuration**: Clean, hierarchical config system with smart defaults
 - **Project + user configs**: Override defaults per project or globally
-- **Local + cloud**: llama.cpp (local), Gemini (cloud), and Nebius AI Studio (cloud)
+- **Comprehensive AI provider support**:
+  - **Content Generation**: Gemini, OpenAI, OpenRouter, Nebius AI Studio, Anthropic Claude, llama.cpp (local), and OpenAI-compatible APIs
+  - **Embeddings**: Gemini, Voyage AI (recommended by Anthropic), Nebius, OpenAI/OpenRouter, and OpenAI-compatible APIs
+- **Smart defaults**: Minimal configuration required - just specify the provider and API key
+- **Environment-based API keys**: Secure credential management via environment variables
+- **Extensive model registry**: 100+ supported models with automatic tokenizer detection
 
 ---
 
 ## 📋 Prerequisites
 
 - **Go**: version 1.24 or newer
-- **Internet connection** for cloud models (Gemini, Nebius AI Studio)
-- **API key** for Gemini (`MEOW_GEMINI_API_KEY`) or Nebius (`MEOW_NEBIUS_API_KEY`)
+- **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter, Nebius AI Studio)
+- **API key** for your chosen provider:
+  - Gemini: `MEOW_GEMINI_API_KEY`
+  - OpenAI: `MEOW_OPENAI_API_KEY`
+  - OpenRouter: `MEOW_OPENROUTER_API_KEY`
+  - Nebius: `MEOW_NEBIUS_API_KEY`
+  - Anthropic: `MEOW_ANTHROPIC_API_KEY`
+  - Voyage AI: `MEOW_VOYAGE_API_KEY`
+  - Llama (local): `MEOW_LLAMA_API_KEY` (optional)
 - For llama.cpp:
   - A running local server
-  - Base URL to connect (`--llama-base-url`)
+  - Base URL to connect (e.g., `http://localhost:8080`)
 
 ---
 
@@ -109,14 +122,14 @@ sudo rpm -i meow-<version>-1.aarch64.rpm
 ## ⚡ Quick Start
 
 ```bash
-# Explain code
-cat main.go | meow generate -m gemini-2.5-pro -p "Explain this code"
+# Explain code using a predefined task
+cat main.go | meow generate -t review
 
-# Refactor code
-cat component.js | meow g -m gemini-2.5-flash -p "Refactor for performance"
+# Direct prompt with stdin
+cat component.js | meow g -p "Refactor for performance"
 
 # Use a predefined task
-cat app.py | meow g -t pytest-gemini
+cat app.py | meow g -t test
 ```
 
 > 🐾 Docs are available via `man meow`, `man meow-generate`, `man 5 meow-config`, and `man 7 meow-security`.
@@ -125,140 +138,247 @@ cat app.py | meow g -t pytest-gemini
 
 ## 🔧 Configuration
 
-`meow` reads two config files, in this order of precedence:
+`meow` uses a powerful profile-based configuration system for maximum flexibility. Configuration files are read in this order of precedence:
 
-1. **Project config**: `./.meowg1k/config.yaml`
-2. **User config**: `~/.config/meowg1k/config.yaml`
+1. **Explicit config**: `--config /path/to/config.yaml` (overrides all others)
+2. **Project config**: `./.meowg1k/config.yaml`
+3. **User config**: `~/.config/meowg1k/config.yaml`
 
-Example config (see more in [`.meowg1k/config.yaml`](.meowg1k/config.yaml)):
+**Important**: When `--config` is specified, only that file is used, completely ignoring project and user configs.
+
+### Profile-Based Configuration
+
+The architecture centers around **reusable profiles** that define provider configurations. Each profile encapsulates all the settings needed to connect to a specific AI provider:
 
 ```yaml
+profiles:
+  # Minimal configuration - uses smart defaults
+  fast:
+    provider: "gemini"
+    # model: gemini-2.5-flash (default)
+    # apiKeyEnv: MEOW_GEMINI_API_KEY (default)
+    # maxInputTokens: 8192 (default)
+    # timeout: 5m (default)
+
+  smart:
+    provider: "openai"
+    model: "gpt-4o"
+    maxInputTokens: 32768
+    timeout: "10m"
+
+  local:
+    provider: "llama"
+    baseURL: "http://localhost:8080"  # Required for llama
+    apiKeyEnv: "LLAMA_SERVER_KEY"     # Optional
+
+  anthropic-pro:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    maxInputTokens: 200000
+
 generate:
-  defaultProvider: "gemini"
-  defaultModel: "gemini-2.5-flash"
-  defaultTimeout: "5m"
+  default:
+    profile: "fast"
+    systemPrompt: "You are a helpful AI assistant."
   tasks:
-    pytest-gemini:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
-      systemPrompt: "You are an expert Python TDD developer."
-      userPrompt: "Write a complete pytest test file for the following code."
+    review:
+      profile: "smart"
+      userPrompt: "Perform a thorough code review."
+    security:
+      profile: "anthropic-pro"
+      userPrompt: "Analyze for security vulnerabilities."
+```
+
+### Supported Providers
+
+| Provider | Environment Variable | Default Model | Base URL | Capabilities |
+|----------|---------------------|---------------|----------|--------------|
+| `gemini` | `MEOW_GEMINI_API_KEY` | `gemini-2.5-flash` | *automatic* | Generation + Embeddings |
+| `openai` | `MEOW_OPENAI_API_KEY` | `gpt-5-mini` | `https://api.openai.com/v1` | Generation + Embeddings |
+| `openrouter` | `MEOW_OPENROUTER_API_KEY` | `meta-llama/llama-3.2-3b-instruct:free` | `https://openrouter.ai/api/v1` | Generation + Embeddings |
+| `nebius` | `MEOW_NEBIUS_API_KEY` | `Qwen2.5-Coder-7B` | `https://api.studio.nebius.ai/v1` | Generation + Embeddings |
+| `anthropic` | `MEOW_ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` | *automatic* | Generation only |
+| `voyage` | `MEOW_VOYAGE_API_KEY` | `voyage-3.5` | `https://api.voyageai.com/v1` | Embeddings only |
+| `llama` | `MEOW_LLAMA_API_KEY` | *server-defined* | *required* | Generation only |
+| `openai-compatible` | `MEOW_OPENAI_COMPATIBLE_API_KEY` | *server-defined* | *required* | Generation + Embeddings |
+
+### Advanced Configuration Examples
+
+```yaml
+profiles:
+  # Anthropic Claude for sophisticated reasoning
+  anthropic-smart:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    maxInputTokens: 200000
+    timeout: "10m"
+
+  # Voyage AI for high-quality embeddings (recommended by Anthropic)
+  voyage-embeddings:
+    provider: "voyage"
+    model: "voyage-3.5"
+    # Note: Voyage is embeddings-only, cannot generate text
+
+  # OpenRouter for accessing multiple models through one API
+  openrouter-smart:
+    provider: "openrouter"
+    model: "anthropic/claude-3.5-sonnet"
+    maxInputTokens: 200000
+
+  # Custom OpenAI-compatible provider (e.g., Ollama, local APIs)
+  custom-local:
+    provider: "openai-compatible"
+    baseURL: "http://localhost:11434/v1"  # Ollama default
+    model: "llama3.1:8b"
+    apiKeyEnv: "OLLAMA_API_KEY"  # Optional for Ollama
+
+generate:
+  default:
+    profile: "anthropic-smart"
+    systemPrompt: "You are an expert software engineer."
+
+  tasks:
+    security-review:
+      profile: "anthropic-smart"
+      userPrompt: "Perform a comprehensive security analysis of this code."
+
+    quick-fix:
+      profile: "openrouter-smart"
+      userPrompt: "Suggest a quick fix for this issue."
+
+    local-test:
+      profile: "custom-local"
+      userPrompt: "Write unit tests for this code."
 ```
 
 ---
 
 ## 🔍 Examples
 
-### 1. Explain code using Gemini 2.5 Pro
+### 1. Using predefined tasks
 
 ```bash
-cat main.go | meow g -m gemini-2.5-pro -p "Explain this Go code"
+# Use a predefined review task from config
+cat main.go | meow generate -t review
+
+# Use a predefined security analysis task
+cat auth.go | meow generate -t security-review
+
+# Use a quick fix task
+cat buggy.py | meow g -t quick-fix
 ```
 
-### 2. Refactor with Gemini 2.5 Flash for performance
+### 2. Direct prompts with profiles
 
 ```bash
-cat component.js | meow g -m gemini-2.5-flash -p "Refactor for performance and readability"
+# Quick generation with default profile
+echo "Create a REST API handler" | meow generate -p "Write Go code"
+
+# Direct prompt (uses default profile from config)
+cat service.py | meow g -p "Add comprehensive error handling"
+
+# Combine user prompt with stdin context
+cat legacy_code.js | meow g -p "Modernize this code to use ES2023 features"
 ```
 
-### 3. Combine stdin and custom prompt
+### 3. Working with different providers through profiles
 
-```bash
-# Adds your code as context inside the prompt
-cat service.py | meow g -m gemini-2.5-pro -p "Add logging to all functions"
-```
-
-### 4. Override the system prompt
-
-```bash
-cat utils.go | meow g \
-  -m gemini-2.5-pro \
-  -s "You are a senior Go engineer reviewing code for concurrency issues" \
-  -p "Check this code for potential race conditions"
-```
-
-### 5. Use Nebius AI Studio
-
-```bash
-cat service.go | meow g \
-  -P nebius \
-  -m <your-nebius-model> \
-  -p "Translate this Go code to Python"
-```
-
-### 6. Use llama.cpp (local model)
-
-```bash
-cat data_processor.rs | meow g \
-  -P llama \
-  -u http://127.0.0.1:8080 \
-  -p "Explain the purpose of each function"
-```
-
-### 7. Using predefined tasks from config
-
-**User config** (`~/.config/meowg1k/config.yaml`):
+Configure profiles in your config, then use them via tasks:
 
 ```yaml
+# .meowg1k/config.yaml
+profiles:
+  fast:
+    provider: "openrouter"
+    model: "meta-llama/llama-3.2-3b-instruct:free"
+  smart:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+  local:
+    provider: "llama"
+    baseURL: "http://localhost:8080"
+
 generate:
+  default:
+    profile: "fast"
   tasks:
-    pytest-gemini:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
-      systemPrompt: "You are an expert Python TDD developer."
-      userPrompt: "Write a complete pytest test file for the following code."
+    analyze:
+      profile: "smart"
+      userPrompt: "Analyze the architecture and suggest improvements"
+    optimize:
+      profile: "local"
+      userPrompt: "Optimize this code for performance"
 ```
 
-Run:
+Then use:
 
 ```bash
-cat app.py | meow g -t pytest-gemini
+# Uses fast profile (default)
+cat utils.go | meow g -p "Add error handling"
+
+# Uses smart profile via task
+cat microservice.go | meow g -t analyze
+
+# Uses local profile via task
+cat algorithm.py | meow g -t optimize
 ```
 
-### 8. Multiple tasks and switching between them
+### 4. Project-specific configuration
+
+Create `.meowg1k/config.yaml` in your project root:
 
 ```yaml
+profiles:
+  project-review:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    maxInputTokens: 200000
+
+  project-test:
+    provider: "openai"
+    model: "gpt-4o"
+
 generate:
+  default:
+    profile: "project-review"
   tasks:
-    summarize-gemini:
-      provider: "gemini"
-      model: "gemini-2.5-flash"
-      userPrompt: "Summarize the following code in 5 bullet points."
-    refactor-llama:
-      provider: "llama"
-      llamaBaseURL: "http://127.0.0.1:8080"
-      systemPrompt: "You are an expert in writing clean, performant Rust code."
-      userPrompt: "Refactor the following Rust code for clarity and performance."
+    security:
+      profile: "project-review"
+      userPrompt: "Review this code for security vulnerabilities"
+    test:
+      profile: "project-test"
+      userPrompt: "Generate comprehensive unit tests"
 ```
 
-Run either:
+Then use it:
 
 ```bash
-cat handler.js | meow g -t summarize-gemini
-cat main.rs | meow g -t refactor-llama
+# Uses project-review profile (default)
+cat auth.go | meow g -p "Review authentication logic"
+
+# Uses project-review profile via task
+cat auth.go | meow g -t security
+
+# Uses project-test profile via task
+cat handler.go | meow g -t test
 ```
 
-### 9. Project-specific overrides
+### 5. Working with embedding models
 
-If your project has `.meowg1k/config.yaml`, it will override the user config for that project:
+Configure embedding-specific profiles:
 
 ```yaml
-generate:
-  defaultProvider: "gemini"
-  defaultModel: "gemini-2.5-pro"
-  defaultTimeout: "10m"
-  tasks:
-    security-audit:
-      provider: "gemini"
-      model: "gemini-2.5-pro"
-      systemPrompt: "You are a senior security auditor."
-      userPrompt: "Identify any security vulnerabilities in the following code."
-```
+profiles:
+  voyage-embed:
+    provider: "voyage"
+    model: "voyage-3.5"
 
-Run:
+  gemini-embed:
+    provider: "gemini"
+    model: "text-embedding-004"
 
-```bash
-cat server.js | meow g -t security-audit
+# Note: Current CLI focuses on generation
+# Embedding functionality available via API
 ```
 
 ---

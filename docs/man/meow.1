@@ -11,19 +11,18 @@ For command\-specific flags, run:
 \fIcommand\fR \-\-help
 .SH DESCRIPTION
 .B meow
-tasks, and uses layered configuration for reproducible workflows.
-is a fast, script\-friendly AI CLI. It talks to cloud models
-(Gemini 2.5, Nebius AI Studio)
-and local inference (llama.cpp), supports reusable tasks,
-and uses layered configuration for reproducible workflows.
+is a fast, script\-friendly AI CLI that supports multiple LLM providers through a
+configuration\-driven approach. It uses reusable profiles to simplify working with
+cloud models (Gemini, OpenAI, OpenRouter, Nebius AI Studio) and local inference
+(llama.cpp, OpenAI\-compatible APIs).
 .br
 Input can be provided via flags and/or piped through stdin.
 
 .SH COMMANDS
 .TP
 .B generate
-Generate any content based on input \- code, text, or docs.
-Works with Gemini, Nebius, or llama.cpp.
+Generate content using configured profiles. Supports predefined tasks
+and custom prompts. Works with all supported providers.
 .TP
 .B version
 Show version info.
@@ -34,6 +33,10 @@ Generate shell completion scripts.
 .SH OPTIONS
 Global options:
 .TP
+.BR \-c , " \-\-config " \fIFILE\fR
+Use specific configuration file. When specified, ignores project and user
+configuration files completely.
+.TP
 .BR \-h , " \-\-help"
 Show help for
 .B meow
@@ -42,61 +45,109 @@ or a specific command.
 .SH PROVIDERS
 .TP
 .B gemini
-Google Gemini 2.5 (Pro/Flash). Requires
+Google Gemini models. Requires
 .B MEOW_GEMINI_API_KEY
-in environment.
+environment variable.
+.TP
+.B openai
+OpenAI models (GPT\-4, GPT\-3.5, etc.). Requires
+.B MEOW_OPENAI_API_KEY
+environment variable.
+.TP
+.B openrouter
+OpenRouter aggregated models. Requires
+.B MEOW_OPENROUTER_API_KEY
+environment variable.
 .TP
 .B nebius
 Nebius AI Studio. Requires
 .B MEOW_NEBIUS_API_KEY
-in environment.
+environment variable.
+.TP
+.B anthropic
+Anthropic Claude models. Requires
+.B MEOW_ANTHROPIC_API_KEY
+environment variable.
+.TP
+.B voyage
+Voyage AI embeddings (recommended by Anthropic). Requires
+.B MEOW_VOYAGE_API_KEY
+environment variable. Embeddings only.
 .TP
 .B llama
-Local
-.BR llama.cpp
-HTTP server. The model is chosen by the server; use
-.B \-\-llama\-base\-url
-to connect.
+Local llama.cpp HTTP server. Optionally uses
+.B MEOW_LLAMA_API_KEY
+environment variable. Requires explicit baseURL in profile.
+.TP
+.B openai\-compatible
+Custom OpenAI\-compatible APIs. Requires
+.B MEOW_OPENAI_COMPATIBLE_API_KEY
+environment variable and explicit baseURL.
 
 .SH ENVIRONMENT
 .TP
 .B MEOW_GEMINI_API_KEY
 API key for the Gemini provider.
 .TP
+.B MEOW_OPENAI_API_KEY
+API key for the OpenAI provider.
+.TP
+.B MEOW_OPENROUTER_API_KEY
+API key for the OpenRouter provider.
+.TP
 .B MEOW_NEBIUS_API_KEY
 API key for the Nebius AI Studio provider.
+.TP
+.B MEOW_ANTHROPIC_API_KEY
+API key for the Anthropic provider.
+.TP
+.B MEOW_VOYAGE_API_KEY
+API key for the Voyage AI provider (embeddings only).
+.TP
+.B MEOW_LLAMA_API_KEY
+Optional API key for the llama provider.
+.TP
+.B MEOW_OPENAI_COMPATIBLE_API_KEY
+API key for OpenAI\-compatible providers.
 
 .SH CONFIGURATION
-Configuration files are read with the following precedence:
+Configuration uses a profile\-based system. Files are read with this precedence:
 .IP "1." 3
+Explicit config via \fB\-\-config\fR flag (overrides all others)
+.IP "2."
 Project config:
 .B ./.meowg1k/config.yaml
-.IP "2."
+.IP "3."
 User config:
 .B ~/.config/meowg1k/config.yaml
 .PP
-Flags always override configuration values.
+Profiles define reusable provider configurations with smart defaults.
+See
+.BR meow\-config (5)
+for detailed configuration syntax.
 
 .SH EXAMPLES
-Explain Go code with Gemini Pro:
+Use a predefined task:
 .br
-.B cat main.go | meow g \-m gemini\-2.5\-pro \-p "Explain this code"
+.B cat main.go | meow generate \-t review
 .PP
-Refactor with Gemini Flash:
+Direct prompt generation:
 .br
-.B cat component.js | meow g \-m gemini\-2.5\-flash \-p "Refactor for performance"
+.B echo "Create a REST API" | meow generate \-p "Write Go code"
 .PP
-Use a strict system prompt:
+Use specific provider via environment:
 .br
-.B cat utils.go | meow g \-m gemini\-2.5\-pro \-s "You are a senior Go engineer focusing on concurrency and safety" \-p "Review this for race conditions"
+.B export MEOW_OPENAI_API_KEY="sk\-..."
+.br
+.B cat service.py | meow generate \-p "Add error handling"
 .PP
-Local llama.cpp server (model chosen by server):
+Project\-specific configuration:
 .br
-.B meow g \-P llama \-u http://127.0.0.1:8080 \-p "Summarize this code"
-.PP
-Run a reusable task from config:
+Create
+.B ./.meowg1k/config.yaml
+with custom profiles, then:
 .br
-.B cat app.py | meow g \-t pytest\-gemini
+.B cat auth.go | meow generate \-t security
 
 .SH FILES
 .B ~/.config/meowg1k/config.yaml

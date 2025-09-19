@@ -1,15 +1,23 @@
----
+profiles:
+  fast:
+    provider: "nebius"
+
+  smart:
+    provider: "nebius"
+    model: "Qwen3-30B-A3B-Instruct-2507"
+    timeout: "10m"
+
 generate:
-  defaultProvider: "nebius"
-  defaultModel: "Qwen/Qwen3-Coder-480B-A35B-Instruct"
-  defaultTimeout: "10m"
-  defaultSystemPrompt: >-
-    You are a helpful senior Go software developer and reviewer.
-    Prefer clear, concise, and actionable feedback.
-    When suggesting code, write clean, idiomatic, production-ready Go 1.24+.
+  default:
+    profile: "fast"
+    systemPrompt: >-
+      You are a helpful senior Go software developer and reviewer.
+      Prefer clear, concise, and actionable feedback.
+      When suggesting code, write clean, idiomatic, production-ready Go 1.24+.
 
   tasks:
     review:
+      profile: "smart"
       userPrompt: >-
         Perform a thorough code review of the following Go code.
 
@@ -28,6 +36,7 @@ generate:
         If the code is fine, state so concisely and suggest minor polish only.
 
     commit:
+      profile: "smart"
       userPrompt: >-
         Generate a Conventional Commit message for the provided changes.
 
@@ -43,6 +52,7 @@ generate:
           - Optional footers
 
     doc:
+      profile: "smart"
       userPrompt: >-
         Write a complete GoDoc comment for the following exported function or type.
         Requirements:
@@ -52,6 +62,7 @@ generate:
           - Do NOT include code; only the comment block.
 
     test:
+      profile: "smart"
       userPrompt: >-
         Write comprehensive table-driven unit tests using the standard "testing" package (no third-party deps).
         Requirements:
@@ -64,6 +75,7 @@ generate:
         Return only compilable *_test.go code.
 
     refactor:
+      profile: "smart"
       userPrompt: >-
         Refactor the following Go code to improve readability, maintainability, and performance,
         while preserving behavior and public API.
@@ -75,6 +87,7 @@ generate:
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
     pr:
+      profile: "smart"
       userPrompt: >-
         Create a clear and actionable Pull Request description from the provided diff.
 
@@ -110,3 +123,46 @@ generate:
           - comma-separated labels (e.g., area/cli, type/refactor, perf)
 
         Keep it concise and high-signal. Infer scope/labels where reasonable.
+
+filter:
+  ignore:
+    - "**/*.lock"
+    - "go.sum"
+    - "dist/**"
+    - "bin/**"
+    - ".git/**"
+
+summarize:
+  default:
+    profile: "fast"
+    strategy:
+      type: "plaintext"
+      sendFullFile: false
+    systemPrompt: "Briefly describe the main change in the following input."
+  rules:
+    - match: "*.go"
+      profile: "smart"
+      strategy:
+        type: "plaintext"
+        sendFullFile: true
+      systemPrompt: "Describe the changes in the following Go code."
+    - match: "LICENSE"
+      skip: true
+    - match: "*.md"
+      profile: "fast"
+      strategy:
+        type: "plaintext"
+        sendFullFile: false
+      systemPrompt: "Summarize the documentation changes."
+
+commit:
+  profile: "smart"
+  systemPrompt: |
+    You are an expert software engineer.
+    Write a commit message in the Conventional Commits format based on the user's input.
+
+pr:
+  profile: "smart"
+  systemPrompt: |
+    You are an AI assistant writing a Pull Request description.
+    Based on the user's input, write a clear and detailed PR description.

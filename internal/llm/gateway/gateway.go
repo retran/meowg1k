@@ -22,7 +22,8 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"os"
+
+	"github.com/retran/meowg1k/internal/models"
 )
 
 // Provider defines an enumeration for supported LLM providers.
@@ -35,6 +36,16 @@ const (
 	Gemini Provider = "gemini"
 	// Nebius identifies the Nebius AI Studio provider.
 	Nebius Provider = "nebius"
+	// OpenAI identifies the OpenAI provider.
+	OpenAI Provider = "openai"
+	// OpenRouter identifies the OpenRouter provider.
+	OpenRouter Provider = "openrouter"
+	// OpenAICompatible identifies OpenAI-compatible providers with custom base URLs.
+	OpenAICompatible Provider = "openai-compatible"
+	// Anthropic identifies the Anthropic provider.
+	Anthropic Provider = "anthropic"
+	// Voyage identifies the Voyage AI provider (embeddings only).
+	Voyage Provider = "voyage"
 )
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
@@ -105,17 +116,32 @@ const (
 
 // ComputeEmbeddingsRequest holds the parameters for a text embedding request.
 type ComputeEmbeddingsRequest struct {
-	model    string
-	chunks   []string
-	taskType TaskType
+	model      string
+	chunks     []string
+	taskType   TaskType
+	dimensions int // Output dimensionality (optional, uses model default if 0)
 }
 
 // NewComputeEmbeddingRequest creates and returns a new ComputeEmbeddingRequest.
+// If the model has a default embedding dimension in the registry, it will be automatically used.
 func NewComputeEmbeddingRequest(model string, chunks []string, taskType TaskType) *ComputeEmbeddingsRequest {
+	// Get the default embedding dimension from the model registry
+	defaultDim := models.GetDefaultEmbedDimension(model)
 	return &ComputeEmbeddingsRequest{
-		model:    model,
-		chunks:   chunks,
-		taskType: taskType,
+		model:      model,
+		chunks:     chunks,
+		taskType:   taskType,
+		dimensions: defaultDim,
+	}
+}
+
+// NewComputeEmbeddingRequestWithDimensions creates a new ComputeEmbeddingRequest with custom dimensions.
+func NewComputeEmbeddingRequestWithDimensions(model string, chunks []string, taskType TaskType, dimensions int) *ComputeEmbeddingsRequest {
+	return &ComputeEmbeddingsRequest{
+		model:      model,
+		chunks:     chunks,
+		taskType:   taskType,
+		dimensions: dimensions,
 	}
 }
 
@@ -134,6 +160,11 @@ func (r *ComputeEmbeddingsRequest) TaskType() TaskType {
 	return r.taskType
 }
 
+// Dimensions returns the output dimensionality for the embedding.
+func (r *ComputeEmbeddingsRequest) Dimensions() int {
+	return r.dimensions
+}
+
 // Config holds all possible configuration for any gateway provider.
 type Config struct {
 	Provider Provider
@@ -145,11 +176,11 @@ type Config struct {
 // It can return an error if an option is invalid.
 type Option func(c *Config) error
 
-// WithProvider sets the LLM provider (e.g., Llama, Gemini, Nebius). This is a required option.
+// WithProvider sets the LLM provider (e.g., Llama, Gemini, Nebius, OpenAI, OpenRouter, Anthropic, Voyage). This is a required option.
 func WithProvider(p Provider) Option {
 	return func(c *Config) error {
 		switch p {
-		case Llama, Gemini, Nebius:
+		case Llama, Gemini, Nebius, OpenAI, OpenRouter, Anthropic, OpenAICompatible, Voyage:
 			c.Provider = p
 		default:
 			return fmt.Errorf("unsupported provider: %s", p)
@@ -166,36 +197,10 @@ func WithBaseURL(url string) Option {
 	}
 }
 
-// WithGeminiAPIKey sets the API key for the Gemini provider.
-// If the key is empty, it attempts to load it from the MEOW_GEMINI_API_KEY environment variable.
-func WithGeminiAPIKey(key string) Option {
+// WithAPIKey sets the API key directly.
+func WithAPIKey(key string) Option {
 	return func(c *Config) error {
-		if key != "" {
-			c.APIKey = key
-			return nil
-		}
-		envKey := os.Getenv("MEOW_GEMINI_API_KEY")
-		if envKey == "" {
-			return fmt.Errorf("gemini API key is not provided and MEOW_GEMINI_API_KEY environment variable is not set")
-		}
-		c.APIKey = envKey
-		return nil
-	}
-}
-
-// WithNebiusAPIKey sets the API key for the Nebius AI Studio provider.
-// If the key is empty, it attempts to load it from the MEOW_NEBIUS_API_KEY environment variable.
-func WithNebiusAPIKey(key string) Option {
-	return func(c *Config) error {
-		if key != "" {
-			c.APIKey = key
-			return nil
-		}
-		envKey := os.Getenv("MEOW_NEBIUS_API_KEY")
-		if envKey == "" {
-			return fmt.Errorf("nebius AI Studio API key is not provided and MEOW_NEBIUS_API_KEY environment variable is not set")
-		}
-		c.APIKey = envKey
+		c.APIKey = key
 		return nil
 	}
 }
@@ -212,9 +217,7 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 	switch cfg.Provider {
 	case Gemini:
 		if cfg.APIKey == "" {
-			if err := WithGeminiAPIKey("")(cfg); err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("gemini provider requires an API key")
 		}
 		return NewGeminiGateway(ctx, cfg.APIKey)
 	case Llama:
@@ -224,11 +227,31 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		return NewLlamaGateway(cfg.BaseURL)
 	case Nebius:
 		if cfg.APIKey == "" {
-			if err := WithNebiusAPIKey("")(cfg); err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
 		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
+	case OpenAI:
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("openai provider requires an API key")
+		}
+		return NewOpenAIGateway(ctx, "https://api.openai.com/v1/", cfg.APIKey)
+	case OpenRouter:
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("openrouter provider requires an API key")
+		}
+		return NewOpenAIGateway(ctx, "https://openrouter.ai/api/v1", cfg.APIKey)
+	case Anthropic:
+		return nil, fmt.Errorf("anthropic provider does not support content generation gateway (use voyage provider for embeddings)")
+	case Voyage:
+		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
+	case OpenAICompatible:
+		if cfg.BaseURL == "" {
+			return nil, fmt.Errorf("openai-compatible provider requires a base URL")
+		}
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("openai-compatible provider requires an API key")
+		}
+		return NewOpenAIGateway(ctx, cfg.BaseURL, cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
@@ -246,18 +269,21 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 	switch cfg.Provider {
 	case Gemini:
 		if cfg.APIKey == "" {
-			if err := WithGeminiAPIKey("")(cfg); err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("gemini provider requires an API key")
 		}
 		return NewGeminiGateway(ctx, cfg.APIKey)
 	case Llama:
 		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
+	case Anthropic:
+		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
+	case Voyage:
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("voyage provider requires an API key")
+		}
+		return NewVoyageGateway(cfg.APIKey)
 	case Nebius:
 		if cfg.APIKey == "" {
-			if err := WithNebiusAPIKey("")(cfg); err != nil {
-				return nil, err
-			}
+			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
 		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
 	default:

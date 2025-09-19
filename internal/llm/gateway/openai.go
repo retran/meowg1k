@@ -42,7 +42,7 @@ func NewOpenAIGateway(ctx context.Context, baseURL string, apiKey string) (*Open
 	)
 
 	return &OpenAIGateway{
-		client: client,
+		client: &client,
 	}, nil
 }
 
@@ -68,12 +68,19 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
 func (g *OpenAIGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
-	response, err := g.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
+	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.chunks,
 		},
 		Model: request.model,
-	})
+	}
+
+	// Set dimensions if specified
+	if request.Dimensions() > 0 {
+		params.Dimensions = openai.Int(int64(request.Dimensions()))
+	}
+
+	response, err := g.client.Embeddings.New(ctx, params)
 
 	if err != nil {
 		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
