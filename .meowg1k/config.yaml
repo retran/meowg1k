@@ -7,6 +7,11 @@ profiles:
     model: "Qwen3-30B-A3B-Instruct-2507"
     timeout: "10m"
 
+  gemini:
+    provider: "gemini"
+    model: "gemini-2.5-pro"
+    timeout: "10m"
+
 generate:
   default:
     profile: "fast"
@@ -36,7 +41,7 @@ generate:
         If the code is fine, state so concisely and suggest minor polish only.
 
     commit:
-      profile: "smart"
+      profile: "gemini"
       userPrompt: >-
         Generate a Conventional Commit message for the provided changes.
 
@@ -87,11 +92,14 @@ generate:
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
     pr:
-      profile: "smart"
+      profile: "gemini"
       userPrompt: >-
         Create a clear and actionable Pull Request description from the provided diff.
 
         Produce Markdown in this structure:
+          # Title
+          - Good PR title describing intention of changes
+
           ## Summary
           - 1–3 bullets describing the problem and outcome.
 
@@ -104,25 +112,8 @@ generate:
           ## Technical Notes
           - Important implementation details, trade-offs, risks.
 
-          ## Tests
-          - What is covered by tests? Note missing cases if any.
-
           ## Backward Compatibility
           - State if breaking changes exist (and migration if needed).
-
-          ## Rollback Plan
-          - How to revert safely if needed.
-
-          ## Checklist
-          - [ ] Unit tests
-          - [ ] Docs updated
-          - [ ] No breaking changes OR migration described
-          - [ ] Performance considerations reviewed
-
-          ## Labels (suggestions)
-          - comma-separated labels (e.g., area/cli, type/refactor, perf)
-
-        Keep it concise and high-signal. Infer scope/labels where reasonable.
 
 filter:
   ignore:
