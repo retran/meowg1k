@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -33,10 +32,7 @@ type AnthropicGateway struct {
 // NewAnthropicGateway creates a new Anthropic gateway.
 func NewAnthropicGateway(apiKey string) (*AnthropicGateway, error) {
 	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-		if apiKey == "" {
-			return nil, fmt.Errorf("anthropic API key is required (set ANTHROPIC_API_KEY environment variable or provide explicitly)")
-		}
+		return nil, fmt.Errorf("anthropic API key is required")
 	}
 
 	client := anthropic.NewClient(

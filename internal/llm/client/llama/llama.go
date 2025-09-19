@@ -120,7 +120,7 @@ type CompletionClient struct {
 }
 
 // NewCompletionClient creates a new client for interacting with the LLM completion endpoint.
-func NewCompletionClient(baseURL, apiKey string) (*CompletionClient, error) {
+func NewCompletionClient(baseURL string, apiKey string) (*CompletionClient, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL cannot be empty")
 	}

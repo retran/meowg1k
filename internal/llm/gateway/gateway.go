@@ -229,17 +229,17 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
-		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway("https://api.studio.nebius.com/v1/", cfg.APIKey)
 	case OpenAI:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key")
 		}
-		return NewOpenAIGateway(ctx, "https://api.openai.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway("https://api.openai.com/v1/", cfg.APIKey)
 	case OpenRouter:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openrouter provider requires an API key")
 		}
-		return NewOpenAIGateway(ctx, "https://openrouter.ai/api/v1", cfg.APIKey)
+		return NewOpenAIGateway("https://openrouter.ai/api/v1", cfg.APIKey)
 	case Anthropic:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("anthropic provider requires an API key")
@@ -254,7 +254,7 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openai-compatible provider requires an API key")
 		}
-		return NewOpenAIGateway(ctx, cfg.BaseURL, cfg.APIKey)
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
@@ -288,7 +288,7 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
-		return NewOpenAIGateway(ctx, "https://api.studio.nebius.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway("https://api.studio.nebius.com/v1/", cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}

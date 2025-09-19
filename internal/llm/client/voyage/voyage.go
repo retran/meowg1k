@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -53,10 +52,7 @@ type Config struct {
 func NewClient(config Config) (*Client, error) {
 	apiKey := config.APIKey
 	if apiKey == "" {
-		apiKey = os.Getenv("VOYAGE_API_KEY")
-		if apiKey == "" {
-			return nil, fmt.Errorf("voyage API key is required (set VOYAGE_API_KEY environment variable or provide explicitly)")
-		}
+		return nil, fmt.Errorf("voyage API key is required")
 	}
 
 	baseURL := config.BaseURL
