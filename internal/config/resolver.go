@@ -112,7 +112,7 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 			// Gemini doesn't use baseURL, it has its own client configuration
 			resolved.BaseURL = ""
 		case gateway.Nebius:
-			resolved.BaseURL = "https://api.studio.nebius.ai/v1"
+			resolved.BaseURL = "https://api.studio.nebius.com/v1"
 		case gateway.Voyage:
 			resolved.BaseURL = "https://api.voyageai.com/v1"
 		case gateway.Llama:

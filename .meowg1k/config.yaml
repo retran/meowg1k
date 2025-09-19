@@ -4,12 +4,7 @@ profiles:
 
   smart:
     provider: "nebius"
-    model: "Qwen3-30B-A3B-Instruct-2507"
-    timeout: "10m"
-
-  gemini:
-    provider: "gemini"
-    model: "gemini-2.5-pro"
+    model: "Qwen/Qwen3-Coder-480B-A35B-Instruct"
     timeout: "10m"
 
 generate:
@@ -41,7 +36,7 @@ generate:
         If the code is fine, state so concisely and suggest minor polish only.
 
     commit:
-      profile: "gemini"
+      profile: "smart"
       userPrompt: >-
         Generate a Conventional Commit message for the provided changes.
 
@@ -92,7 +87,7 @@ generate:
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
     pr:
-      profile: "gemini"
+      profile: "smart"
       userPrompt: >-
         Create a clear and actionable Pull Request description from the provided diff.
 

@@ -196,7 +196,7 @@ generate:
 | `gemini` | `MEOW_GEMINI_API_KEY` | `gemini-2.5-flash` | *automatic* | Generation + Embeddings |
 | `openai` | `MEOW_OPENAI_API_KEY` | `gpt-5-mini` | `https://api.openai.com/v1` | Generation + Embeddings |
 | `openrouter` | `MEOW_OPENROUTER_API_KEY` | `meta-llama/llama-3.2-3b-instruct:free` | `https://openrouter.ai/api/v1` | Generation + Embeddings |
-| `nebius` | `MEOW_NEBIUS_API_KEY` | `Qwen2.5-Coder-7B` | `https://api.studio.nebius.ai/v1` | Generation + Embeddings |
+| `nebius` | `MEOW_NEBIUS_API_KEY` | `Qwen2.5-Coder-7B` | `https://api.studio.nebius.com/v1` | Generation + Embeddings |
 | `anthropic` | `MEOW_ANTHROPIC_API_KEY` | `claude-3-5-haiku-20241022` | *automatic* | Generation only |
 | `voyage` | `MEOW_VOYAGE_API_KEY` | `voyage-3.5` | `https://api.voyageai.com/v1` | Embeddings only |
 | `llama` | `MEOW_LLAMA_API_KEY` | *server-defined* | *required* | Generation only |
