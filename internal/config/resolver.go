@@ -134,6 +134,8 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 			apiKeyEnv = "MEOW_OPENAI_API_KEY"
 		case gateway.OpenRouter:
 			apiKeyEnv = "MEOW_OPENROUTER_API_KEY"
+		case gateway.Anthropic:
+			apiKeyEnv = "MEOW_ANTHROPIC_API_KEY"
 		case gateway.Llama:
 			apiKeyEnv = "MEOW_LLAMA_API_KEY"
 		case gateway.Voyage:

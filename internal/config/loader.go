@@ -43,7 +43,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	if configPath != "" {
 		v.SetConfigFile(configPath)
 		if err := v.ReadInConfig(); err != nil {
-			return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+			return nil, fmt.Errorf("failed to read config file '%s'. Ensure the file exists and is accessible. Error: %w", configPath, err)
 		}
 	} else {
 		// Set up standard configuration search paths

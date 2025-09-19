@@ -229,17 +229,17 @@ func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGatewa
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
-		return NewOpenAIGateway("https://api.studio.nebius.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	case OpenAI:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key")
 		}
-		return NewOpenAIGateway("https://api.openai.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	case OpenRouter:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openrouter provider requires an API key")
 		}
-		return NewOpenAIGateway("https://openrouter.ai/api/v1", cfg.APIKey)
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	case Anthropic:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("anthropic provider requires an API key")
@@ -279,6 +279,16 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
 	case Anthropic:
 		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
+	case OpenAI:
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("openai provider requires an API key")
+		}
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
+	case OpenRouter:
+		if cfg.APIKey == "" {
+			return nil, fmt.Errorf("openrouter provider requires an API key")
+		}
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	case Voyage:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("voyage provider requires an API key")
@@ -288,7 +298,7 @@ func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway,
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
-		return NewOpenAIGateway("https://api.studio.nebius.com/v1/", cfg.APIKey)
+		return NewOpenAIGateway(cfg.BaseURL, cfg.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}
