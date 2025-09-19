@@ -19,7 +19,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"math"
 
 	"google.golang.org/genai"
 )
@@ -31,6 +30,7 @@ var _ EmbeddingGateway = (*GeminiGateway)(nil)
 // GeminiGateway is a unified client for the Google Gemini API,
 // implementing both GenerationGateway and EmbeddingGateway.
 type GeminiGateway struct {
+	ComputeDistanceMixin
 	client *genai.Client
 }
 
@@ -64,22 +64,22 @@ func (g *GeminiGateway) GenerateContent(ctx context.Context, request *GenerateCo
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch response from Gemini API: %w", err)
+		return "", fmt.Errorf("failed to generate content: failed to fetch response from Gemini API: %w", err)
 	}
 
 	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
 		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
-		return "", fmt.Errorf("generation stopped for reason: %s", result.Candidates[0].FinishReason)
+		return "", fmt.Errorf("failed to generate content: generation stopped for reason: %s", result.Candidates[0].FinishReason)
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
 			return "", fmt.Errorf(
-				"request was blocked by the API for reason: %s",
+				"failed to generate content: request was blocked by the API for reason: %s",
 				result.PromptFeedback.BlockReason,
 			)
 		}
-		return "", fmt.Errorf("gemini API returned an empty response")
+		return "", fmt.Errorf("failed to generate content: gemini API returned an empty response")
 	}
 
 	return result.Text(), nil
@@ -100,34 +100,17 @@ func (g *GeminiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeE
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute embedding: %w", err)
+		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
 	embeddings := make([]Embedding, 0, len(response.Embeddings))
 	for _, value := range response.Embeddings {
-		embeddings = append(embeddings, Embedding(value.Values))
+		values := make([]float64, len(value.Values))
+		for i, v := range value.Values {
+			values[i] = float64(v)
+		}
+		embeddings = append(embeddings, Embedding(values))
 	}
 
 	return embeddings, nil
-}
-
-// ComputeDistance calculates the cosine similarity between two embeddings.
-// It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
-func (g *GeminiGateway) ComputeDistance(a, b Embedding) (float64, error) {
-	if len(a) != len(b) {
-		return 0, fmt.Errorf("vectors must have the same length")
-	}
-
-	var dotProduct, aMagnitude, bMagnitude float64
-	for i := range a {
-		dotProduct += float64(a[i]) * float64(b[i])
-		aMagnitude += float64(a[i]) * float64(a[i])
-		bMagnitude += float64(b[i]) * float64(b[i])
-	}
-
-	if aMagnitude == 0 || bMagnitude == 0 {
-		return 0, nil
-	}
-
-	return dotProduct / (math.Sqrt(aMagnitude) * math.Sqrt(bMagnitude)), nil
 }

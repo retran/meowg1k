@@ -1,4 +1,4 @@
-.TH MEOW-SECURITY 7 "February 2025" "meowg1k" "Security and Verification"
+.TH MEOW-SECURITY 7 "2025-09-19" "meowg1k" "Security and Verification"
 .SH NAME
 meow-security \- verify meowg1k releases and review security metadata
 .SH SYNOPSIS
@@ -7,18 +7,22 @@ meow-security \- verify meowg1k releases and review security metadata
 .br
 Review SBOM files distributed with each release.
 .SH DESCRIPTION
-The \fBmeowg1k\fR project publishes signed release artifacts and a software bill of materials (SBOM) for every release.
-This ensures supply-chain integrity and allows you to confirm that the binaries you download are exactly those produced by the project's build system.
+The \fBmeowg1k\fR project publishes signed release artifacts and a software
+bill of materials (SBOM) for every release. This ensures supply-chain
+integrity and allows you to confirm that the binaries you download are
+exactly those produced by the project's build system.
 
-Verification uses \fBcosign\fR in keyless mode, leveraging transparency logs and OIDC identity for trust.
-SBOM files are provided in SPDX JSON format.
+Verification uses \fBcosign\fR in keyless mode, leveraging transparency
+logs and OIDC identity for trust. SBOM files are provided in SPDX JSON
+format.
 
 .SH COSIGN KEYLESS VERIFICATION
 To verify a release artifact using cosign keyless:
 .IP "1." 4
 Install cosign (https://docs.sigstore.dev/cosign/installation)
 .IP "2." 4
-Download the release artifact (e.g., \fBmeowg1k_<version>_linux_amd64.tar.gz\fR) from:
+Download the release artifact (e.g.,
+\fBmeowg1k_<version>_linux_amd64.tar.gz\fR) from:
 .br
 \fIhttps://github.com/retran/meowg1k/releases\fR
 .IP "3." 4
@@ -31,14 +35,16 @@ cosign verify-blob \
   --signature <artifact>.sig \
   <artifact>
 .EE
-This confirms the artifact was built and signed in the official GitHub Actions workflow for the tagged release.
+This confirms the artifact was built and signed in the official GitHub
+Actions workflow for the tagged release.
 
 .SH SBOM
 Each release includes an SBOM file named:
 .br
 \fBsbom_<version>.spdx.json\fR
 .br
-This document lists all dependencies, their licenses, and checksums, allowing you to audit the build contents.
+This document lists all dependencies, their licenses, and checksums,
+allowing you to audit the build contents.
 
 View or process the SBOM with:
 .EX
@@ -47,7 +53,8 @@ cat sbom_<version>.spdx.json | jq .
 
 .SH NOTES
 Cosign keyless verification does not require you to manage signing keys.
-Trust is established via GitHub's OIDC identity and recorded in a public transparency log.
+Trust is established via GitHub's OIDC identity and recorded in a public
+transparency log.
 
 SBOM files follow the SPDX 2.3 specification.
 

@@ -75,7 +75,7 @@ func (g *LlamaGateway) GenerateContent(ctx context.Context, request *GenerateCon
 
 	resp, err := g.client.Complete(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch response from local LLM API: %w", err)
+		return "", fmt.Errorf("failed to generate content: failed to fetch response from local LLM API: %w", err)
 	}
 
 	return resp.Content, nil
