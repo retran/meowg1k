@@ -24,27 +24,30 @@ import (
 	"github.com/retran/meowg1k/internal/llm/client/llama"
 )
 
-var _ GenerationGateway = (*LlamaGenerationGateway)(nil)
+// Compile-time check for the LlamaGateway.
+var _ GenerationGateway = (*LlamaGateway)(nil)
 
-// LlamaGenerationGateway is an implementation of GenerationGateway that uses a local LLM server
-type LlamaGenerationGateway struct {
+// var _ EmbeddingGateway = (*LlamaGateway)(nil) // Uncomment when embedding is implemented
+
+// LlamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
+type LlamaGateway struct {
 	client *llama.CompletionClient
 }
 
-// NewLlamaGenerationGateway creates and initializes a new LlamaGenerationGateway.
-func NewLlamaGenerationGateway(baseURL string) (*LlamaGenerationGateway, error) {
+// NewLlamaGateway creates and initializes a new LlamaGateway.
+func NewLlamaGateway(baseURL string) (*LlamaGateway, error) {
 	client, err := llama.NewCompletionClient(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create local LLM client: %w", err)
 	}
 
-	return &LlamaGenerationGateway{
+	return &LlamaGateway{
 		client: client,
 	}, nil
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *LlamaGenerationGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *LlamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {

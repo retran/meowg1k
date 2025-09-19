@@ -1,6 +1,6 @@
 services:
   litterbox:
-    image: retran/meow-litterbox-go-neovim:wip
+    image: retran/meow-litterbox-go-neovim:retran-fixes-before-0.1-latest
     container_name: litterbox
     restart: unless-stopped
     tty: true
