@@ -34,7 +34,7 @@ func Index(ctx context.Context, root string) error {
 		go process(files)
 	}
 
-	err := traverse(ctx, root, files, withIgnorePatterns(".git/", ".devcontainer/", ".meowg1k/", "dist/"))
+	err := Traverse(ctx, root, files, WithIgnorePatterns(".git/", ".devcontainer/", ".meowg1k/", "dist/"))
 	return err
 }
 

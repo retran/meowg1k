@@ -46,15 +46,15 @@ Part of the `project meow` ecosystem, `meowg1k` is the **AI counterpart** to [`m
 - **Explain** code in plain language
 - **Reusable tasks**: Predefine prompts and providers in config files
 - **Project + user configs**: Override defaults per project or globally
-- **Local + cloud**: llama.cpp (local) and Gemini (cloud)
+- **Local + cloud**: llama.cpp (local), Gemini (cloud), and Nebius AI Studio (cloud)
 
 ---
 
 ## 📋 Prerequisites
 
 - **Go**: version 1.24 or newer
-- **Internet connection** for cloud models (Gemini)
-- **API key** for Gemini (`MEOW_GEMINI_API_KEY`)
+- **Internet connection** for cloud models (Gemini, Nebius AI Studio)
+- **API key** for Gemini (`MEOW_GEMINI_API_KEY`) or Nebius (`MEOW_NEBIUS_API_KEY`)
 - For llama.cpp:
   - A running local server
   - Base URL to connect (`--llama-base-url`)

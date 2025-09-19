@@ -1,5 +1,5 @@
 .\" docs/man/meow.1
-.TH MEOW 1 "2025-08-08" "meowg1k" "User Commands"
+.TH MEOW 1 "2025-09-19" "meowg1k" "User Commands"
 .SH NAME
 meow \- your purr-sonal AI sidekick for the terminal
 .SH SYNOPSIS
@@ -11,16 +11,19 @@ For command\-specific flags, run:
 \fIcommand\fR \-\-help
 .SH DESCRIPTION
 .B meow
-is a fast, script\-friendly AI CLI. It talks to cloud models
-(Gemini 2.5: Pro & Flash) and local inference (llama.cpp), supports reusable
 tasks, and uses layered configuration for reproducible workflows.
+is a fast, script\-friendly AI CLI. It talks to cloud models
+(Gemini 2.5, Nebius AI Studio)
+and local inference (llama.cpp), supports reusable tasks,
+and uses layered configuration for reproducible workflows.
 .br
 Input can be provided via flags and/or piped through stdin.
 
 .SH COMMANDS
 .TP
 .B generate
-Generate any content based on input \- code, text, or docs. Works with Gemini or llama.cpp.
+Generate any content based on input \- code, text, or docs.
+Works with Gemini, Nebius, or llama.cpp.
 .TP
 .B version
 Show version info.
@@ -38,9 +41,14 @@ or a specific command.
 
 .SH PROVIDERS
 .TP
-.B gemini  (default)
+.B gemini
 Google Gemini 2.5 (Pro/Flash). Requires
 .B MEOW_GEMINI_API_KEY
+in environment.
+.TP
+.B nebius
+Nebius AI Studio. Requires
+.B MEOW_NEBIUS_API_KEY
 in environment.
 .TP
 .B llama
@@ -54,6 +62,9 @@ to connect.
 .TP
 .B MEOW_GEMINI_API_KEY
 API key for the Gemini provider.
+.TP
+.B MEOW_NEBIUS_API_KEY
+API key for the Nebius AI Studio provider.
 
 .SH CONFIGURATION
 Configuration files are read with the following precedence:
