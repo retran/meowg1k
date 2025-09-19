@@ -34,9 +34,9 @@ type traverseOptions struct {
 // Option is a function that configures traverseOptions.
 type Option func(*traverseOptions)
 
-// withIgnorePatterns provides gitignore-style patterns to exclude files and directories.
+// WithIgnorePatterns provides gitignore-style patterns to exclude files and directories.
 // For example: "*.log", "dist/", "/tmp", "node_modules".
-func withIgnorePatterns(patterns ...string) Option {
+func WithIgnorePatterns(patterns ...string) Option {
 	return func(opts *traverseOptions) {
 		opts.ignorer = ignore.CompileIgnoreLines(patterns...)
 	}
