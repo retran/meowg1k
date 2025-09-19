@@ -36,7 +36,6 @@ type OpenAIGateway struct {
 
 // NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
 func NewOpenAIGateway(ctx context.Context, baseURL string, apiKey string) (*OpenAIGateway, error) {
-	fmt.Print(baseURL)
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),

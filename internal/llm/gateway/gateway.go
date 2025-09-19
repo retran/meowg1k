@@ -183,7 +183,7 @@ func WithGeminiAPIKey(key string) Option {
 	}
 }
 
-// WithNebiusAPIKey sets the API key for the Gemini provider.
+// WithNebiusAPIKey sets the API key for the Nebius provider.
 // If the key is empty, it attempts to load it from the MEOW_NEBIUS_API_KEY environment variable.
 func WithNebiusAPIKey(key string) Option {
 	return func(c *Config) error {
@@ -273,6 +273,10 @@ type ComputeDistanceMixin struct {
 func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) {
 	if len(a) != len(b) {
 		return 0, fmt.Errorf("vectors must have the same length")
+	}
+
+	if (len(a) == 0) || (len(b) == 0) {
+		return 0, fmt.Errorf("vectors must not be empty")
 	}
 
 	var dotProduct, aMagnitude, bMagnitude float64
