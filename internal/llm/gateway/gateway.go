@@ -14,23 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gateway provides an interface for content generation with Large Language Models (LLMs).
+// Package gateway provides a unified interface for interacting with various Large Language Models (LLMs),
+// supporting both content generation and text embedding computations.
 package gateway
 
 import (
 	"context"
+	"fmt"
+	"os"
 )
 
+// Provider defines an enumeration for supported LLM providers.
 type Provider string
 
 const (
-	Llama  Provider = "llama"
+	// Llama identifies the Llama provider.
+	Llama Provider = "llama"
+	// Gemini identifies the Gemini provider.
 	Gemini Provider = "gemini"
 )
 
-// GenerationGateway defines the interface for content generation with a Large Language Model (LLM).
+// GenerationGateway defines the contract for a client that generates content using an LLM.
 type GenerationGateway interface {
-	// GenerateContent sends a request to the LLM and returns the generated content.
+	// GenerateContent sends a content generation request to the LLM and returns the generated response.
+	// It returns an error if the generation process fails.
 	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
 }
 
@@ -41,7 +48,7 @@ type GenerateContentRequest struct {
 	userPrompt   string
 }
 
-// NewGenerateContentRequest creates a new GenerateContentRequest.
+// NewGenerateContentRequest creates and returns a new GenerateContentRequest.
 func NewGenerateContentRequest(model, systemPrompt, userPrompt string) *GenerateContentRequest {
 	return &GenerateContentRequest{
 		model:        model,
@@ -63,4 +70,166 @@ func (r *GenerateContentRequest) SystemPrompt() string {
 // UserPrompt returns the user prompt for the content generation request.
 func (r *GenerateContentRequest) UserPrompt() string {
 	return r.userPrompt
+}
+
+// EmbeddingGateway defines the contract for a client that computes text embeddings
+// and measures the distance between them.
+type EmbeddingGateway interface {
+	// ComputeEmbeddings computes the vector embedding for the given text.
+	ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error)
+	// ComputeDistance calculates a similarity or distance score between two embeddings.
+	// The exact metric (e.g., cosine similarity) depends on the implementation.
+	ComputeDistance(first, second Embedding) (float64, error)
+}
+
+// Embedding represents a text embedding as a vector of floating-point numbers.
+type Embedding []float32
+
+// TaskType specifies the intended use case for the text embedding. This allows the model
+// to produce higher-quality embeddings tailored to the specific task.
+type TaskType string
+
+const (
+	SemanticSimilarity TaskType = "SEMANTIC_SIMILARITY"
+	Classification     TaskType = "CLASSIFICATION"
+	Clustering         TaskType = "CLUSTERING"
+	RetrievalDocument  TaskType = "RETRIEVAL_DOCUMENT"
+	RetrievalQuery     TaskType = "RETRIEVAL_QUERY"
+	CodeRetrievalQuery TaskType = "CODE_RETRIEVAL_QUERY"
+	QuestionAnswering  TaskType = "QUESTION_ANSWERING"
+	FactVerification   TaskType = "FACT_VERIFICATION"
+)
+
+// ComputeEmbeddingsRequest holds the parameters for a text embedding request.
+type ComputeEmbeddingsRequest struct {
+	model    string
+	chunks   []string
+	taskType TaskType
+}
+
+// NewComputeEmbeddingRequest creates and returns a new ComputeEmbeddingRequest.
+func NewComputeEmbeddingRequest(model string, chunks []string, taskType TaskType) *ComputeEmbeddingsRequest {
+	return &ComputeEmbeddingsRequest{
+		model:    model,
+		chunks:   chunks,
+		taskType: taskType,
+	}
+}
+
+// Model returns the model name for the embedding request.
+func (r *ComputeEmbeddingsRequest) Model() string {
+	return r.model
+}
+
+// Chunks returns the text chunks to be embedded.
+func (r *ComputeEmbeddingsRequest) Chunks() []string {
+	return r.chunks
+}
+
+// TaskType returns the specified task type for the embedding.
+func (r *ComputeEmbeddingsRequest) TaskType() TaskType {
+	return r.taskType
+}
+
+// Config holds all possible configuration for any gateway provider.
+type Config struct {
+	Provider Provider
+	BaseURL  string // Used by Llama
+	APIKey   string // Used by Gemini
+}
+
+// Option defines a function that configures the gateway.
+// It can return an error if an option is invalid.
+type Option func(c *Config) error
+
+// WithProvider sets the LLM provider (e.g., Llama, Gemini). This is a required option.
+func WithProvider(p Provider) Option {
+	return func(c *Config) error {
+		switch p {
+		case Llama, Gemini:
+			c.Provider = p
+		default:
+			return fmt.Errorf("unsupported provider: %s", p)
+		}
+		return nil
+	}
+}
+
+// WithBaseURL sets the base URL for a local Llama-compatible server.
+func WithBaseURL(url string) Option {
+	return func(c *Config) error {
+		if url == "" {
+			return fmt.Errorf("base URL cannot be empty")
+		}
+		c.BaseURL = url
+		return nil
+	}
+}
+
+// WithGeminiAPIKey sets the API key for the Gemini provider.
+// If the key is empty, it attempts to load it from the MEOW_GEMINI_API_KEY environment variable.
+func WithGeminiAPIKey(key string) Option {
+	return func(c *Config) error {
+		if key != "" {
+			c.APIKey = key
+			return nil
+		}
+		envKey := os.Getenv("MEOW_GEMINI_API_KEY")
+		if envKey == "" {
+			return fmt.Errorf("gemini API key is not provided and MEOW_GEMINI_API_KEY environment variable is not set")
+		}
+		c.APIKey = envKey
+		return nil
+	}
+}
+
+// NewGenerationGateway creates a generation gateway based on the provided options.
+func NewGenerationGateway(ctx context.Context, opts ...Option) (GenerationGateway, error) {
+	cfg := &Config{}
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			return nil, err
+		}
+	}
+
+	switch cfg.Provider {
+	case Gemini:
+		if cfg.APIKey == "" {
+			if err := WithGeminiAPIKey("")(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return NewGeminiGateway(ctx, cfg.APIKey)
+	case Llama:
+		if cfg.BaseURL == "" {
+			return nil, fmt.Errorf("llama provider requires a base URL")
+		}
+		return NewLlamaGateway(cfg.BaseURL)
+	default:
+		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
+	}
+}
+
+// NewEmbeddingGateway creates an embedding gateway based on the provided options.
+func NewEmbeddingGateway(ctx context.Context, opts ...Option) (EmbeddingGateway, error) {
+	cfg := &Config{}
+	for _, opt := range opts {
+		if err := opt(cfg); err != nil {
+			return nil, err
+		}
+	}
+
+	switch cfg.Provider {
+	case Gemini:
+		if cfg.APIKey == "" {
+			if err := WithGeminiAPIKey("")(cfg); err != nil {
+				return nil, err
+			}
+		}
+		return NewGeminiGateway(ctx, cfg.APIKey)
+	case Llama:
+		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
+	default:
+		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
+	}
 }

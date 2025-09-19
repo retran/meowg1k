@@ -9,7 +9,7 @@ generate:
     When suggesting code, write clean, idiomatic, production-ready Go 1.24+.
 
   tasks:
-    go:review:
+    review:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-
@@ -29,7 +29,7 @@ generate:
 
         If the code is fine, state so concisely and suggest minor polish only.
 
-    go:commit:
+    commit:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-
@@ -46,7 +46,7 @@ generate:
           - Optional body
           - Optional footers
 
-    go:doc:
+    doc:
       provider: "gemini"
       model: "gemini-2.5-flash"
       userPrompt: >-
@@ -57,7 +57,7 @@ generate:
           - Mention side effects, error cases, and concurrency expectations if relevant.
           - Do NOT include code; only the comment block.
 
-    go:test:
+    test:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-
@@ -71,7 +71,7 @@ generate:
 
         Return only compilable *_test.go code.
 
-    go:refactor:
+    refactor:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-
@@ -84,7 +84,7 @@ generate:
 
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
-    go:pr:
+    pr:
       provider: "gemini"
       model: "gemini-2.5-pro"
       userPrompt: >-

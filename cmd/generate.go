@@ -31,9 +31,28 @@ import (
 	"github.com/spf13/viper"
 )
 
+var generateCmd = &cobra.Command{
+	Use:     "generate",
+	Aliases: []string{"gen", "g"},
+	Short:   "Generate any content based on input — code, text, or docs",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runGenerate(cmd)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(generateCmd)
+
+	generateCmd.Flags().StringP(flagTask, "t", "", "Run a predefined task from config (./.meowg1k/config.yaml or ~/.config/meowg1k/config.yaml).")
+	generateCmd.Flags().StringP(flagModel, "m", "", "Model name (e.g., gemini-2.5-pro or gemini-2.5-flash). Ignored when --provider=llama.")
+	generateCmd.Flags().StringP(flagSystemPrompt, "s", "", "System prompt: high-level instruction for the AI (e.g., 'You are a senior Go engineer').")
+	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "User prompt for generation. Can be combined with stdin.")
+	generateCmd.Flags().StringP(flagProvider, "P", "", "LLM provider: 'gemini' (cloud) or 'llama' (local llama.cpp).")
+	generateCmd.Flags().StringP(flagLlamaBaseURL, "u", "", "Base URL for llama.cpp (required when --provider=llama).")
+}
+
 const (
 	defaultModel    = "gemini-2.5-flash"
-	apiKeyEnvVar    = "MEOW_GEMINI_API_KEY"
 	defaultTimeout  = 5 * time.Minute
 	defaultProvider = "gemini"
 
@@ -73,40 +92,10 @@ type generationParams struct {
 	LlamaBaseURL string
 }
 
-var generateCmd = &cobra.Command{
-	Use:     "generate",
-	Aliases: []string{"gen", "g"},
-	Short:   "Generate any content based on input — code, text, or docs",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return run(cmd)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(generateCmd)
-
-	// Flags — concise, professional help texts
-	generateCmd.Flags().StringP(flagTask, "t", "", "Run a predefined task from config (./.meowg1k/config.yaml or ~/.config/meowg1k/config.yaml).")
-	generateCmd.Flags().StringP(flagModel, "m", "", "Model name (e.g., gemini-2.5-pro or gemini-2.5-flash). Ignored when --provider=llama.")
-	generateCmd.Flags().StringP(flagSystemPrompt, "s", "", "System prompt: high-level instruction for the AI (e.g., 'You are a senior Go engineer').")
-	generateCmd.Flags().StringP(flagUserPrompt, "p", "", "User prompt for generation. Can be combined with stdin.")
-	generateCmd.Flags().StringP(flagProvider, "P", "", "LLM provider: 'gemini' (cloud) or 'llama' (local llama.cpp).")
-	generateCmd.Flags().StringP(flagLlamaBaseURL, "u", "", "Base URL for llama.cpp (required when --provider=llama).")
-}
-
 // finalizeOutput formats the generated content by trimming whitespace and ensuring
 // it ends with a newline.
 func finalizeOutput(content string) string {
 	return strings.TrimSpace(content) + "\n"
-}
-
-// getAPIKey retrieves the Gemini API key from the environment.
-func getAPIKey() (string, error) {
-	apiKey := os.Getenv(apiKeyEnvVar)
-	if apiKey == "" {
-		return "", fmt.Errorf("the %s environment variable is not set. Please set it to your Gemini API key", apiKeyEnvVar)
-	}
-	return apiKey, nil
 }
 
 // readUserPromptFromStdin reads from stdin if data is being piped to the command.
@@ -221,22 +210,6 @@ func resolveUserPrompt(cmd *cobra.Command, task *Task) (string, error) {
 	return sb.String(), nil
 }
 
-// createGateway creates the appropriate gateway based on provider configuration.
-func createGateway(ctx context.Context, provider gateway.Provider, llamaBaseURL string) (gateway.GenerationGateway, error) {
-	switch provider {
-	case gateway.Gemini:
-		apiKey, err := getAPIKey()
-		if err != nil {
-			return nil, err
-		}
-		return gateway.NewGeminiGenerationGateway(ctx, apiKey)
-	case gateway.Llama:
-		return gateway.NewLlamaGenerationGateway(llamaBaseURL)
-	default:
-		return nil, fmt.Errorf("unsupported provider: %s", provider)
-	}
-}
-
 // resolveParams consolidates all configuration resolution into a single struct.
 // It determines the final parameters for the generation request by checking flags,
 // task configurations, global settings, and defaults.
@@ -306,8 +279,8 @@ func resolveParams(cmd *cobra.Command) (*generationParams, error) {
 	}, nil
 }
 
-// run executes the main logic of the generate command.
-func run(cmd *cobra.Command) error {
+// runGenerate executes the main logic of the generate command.
+func runGenerate(cmd *cobra.Command) error {
 	timeout := defaultTimeout
 	if timeoutStr := viper.GetString(keyGenerateDefaultTimeout); timeoutStr != "" {
 		parsedTimeout, err := time.ParseDuration(timeoutStr)
@@ -324,7 +297,11 @@ func run(cmd *cobra.Command) error {
 		return err
 	}
 
-	gw, err := createGateway(cmd.Context(), params.Provider, params.LlamaBaseURL)
+	gw, err := gateway.NewGenerationGateway(
+		cmd.Context(),
+		gateway.WithProvider(params.Provider),
+		gateway.WithBaseURL(params.LlamaBaseURL),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize gateway: %w", err)
 	}
