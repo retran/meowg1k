@@ -35,8 +35,8 @@ type LlamaGateway struct {
 }
 
 // NewLlamaGateway creates and initializes a new LlamaGateway.
-func NewLlamaGateway(baseURL string) (*LlamaGateway, error) {
-	client, err := llama.NewCompletionClient(baseURL)
+func NewLlamaGateway(baseURL, apiKey string) (*LlamaGateway, error) {
+	client, err := llama.NewCompletionClient(baseURL, apiKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create local LLM client: %w", err)
 	}
