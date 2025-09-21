@@ -21,9 +21,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/retran/meowg1k/internal/io"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/llm/registry"
+	"github.com/retran/meowg1k/internal/utils/io"
 	"github.com/spf13/cobra"
 )
 

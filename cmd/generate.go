@@ -24,7 +24,8 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/generate"
-	"github.com/retran/meowg1k/internal/ui"
+	utilsio "github.com/retran/meowg1k/internal/utils/io"
+	"github.com/retran/meowg1k/internal/utils/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -68,7 +69,7 @@ func runGenerate(cmd *cobra.Command) error {
 		return err
 	}
 
-	_, err = io.WriteString(os.Stdout, generate.FinalizeOutput(content))
+	_, err = io.WriteString(os.Stdout, utilsio.FinalizeOutput(content))
 	if err != nil {
 		return fmt.Errorf("failed to write response to stdout: %w", err)
 	}
