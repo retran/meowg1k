@@ -21,8 +21,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/retran/meowg1k/internal/llm/gateway"
-	"github.com/retran/meowg1k/internal/models"
+	"github.com/retran/meowg1k/internal/io"
+	"github.com/retran/meowg1k/internal/services/gateway"
+	"github.com/retran/meowg1k/internal/services/llm/registry"
+	"github.com/spf13/cobra"
 )
 
 // ResolvedProfile represents a profile with all values resolved.
@@ -34,7 +36,7 @@ type ResolvedProfile struct {
 	Timeout         time.Duration
 	BaseURL         string
 	APIKey          string
-	TokenizerType   models.TokenizerType
+	TokenizerType   registry.TokenizerType
 }
 
 // ResolveProfile resolves a profile by name, applying defaults if necessary.
@@ -164,8 +166,8 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 	if resolved.TokenizerType == "" {
 		// First try to get tokenizer from model info
 		if resolved.Model != "" {
-			modelTokenizer := models.GetTokenizerType(resolved.Model)
-			if modelTokenizer != models.TokenizerUnknown {
+			modelTokenizer := registry.DefaultService.GetTokenizerType(resolved.Model)
+			if modelTokenizer != registry.TokenizerUnknown {
 				resolved.TokenizerType = modelTokenizer
 			}
 		}
@@ -174,15 +176,15 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 		if resolved.TokenizerType == "" {
 			switch resolved.Provider {
 			case gateway.Gemini:
-				resolved.TokenizerType = models.TokenizerGemini
+				resolved.TokenizerType = registry.TokenizerGemini
 			case gateway.OpenAI, gateway.OpenRouter, gateway.Anthropic:
-				resolved.TokenizerType = models.TokenizerCL100K
+				resolved.TokenizerType = registry.TokenizerCL100K
 			case gateway.Nebius:
-				resolved.TokenizerType = models.TokenizerSentencePiece
+				resolved.TokenizerType = registry.TokenizerSentencePiece
 			case gateway.Llama:
-				resolved.TokenizerType = models.TokenizerLlama
+				resolved.TokenizerType = registry.TokenizerLlama
 			case gateway.OpenAICompatible:
-				resolved.TokenizerType = models.TokenizerUnknown
+				resolved.TokenizerType = registry.TokenizerUnknown
 			}
 		}
 	}
@@ -195,7 +197,7 @@ func (c *Config) ResolveProfile(profileName string) (*ResolvedProfile, error) {
 	if resolved.MaxOutputTokens == 0 {
 		if resolved.Model != "" {
 			// Get max output tokens from model registry
-			resolved.MaxOutputTokens = models.GetMaxOutputTokens(resolved.Model)
+			resolved.MaxOutputTokens = registry.DefaultService.GetMaxOutputTokens(resolved.Model)
 		} else {
 			// Fallback to safe default
 			resolved.MaxOutputTokens = 4096
@@ -237,4 +239,54 @@ func (c *Config) GetDefaultGenerateSystemPrompt() string {
 		return c.Generate.Default.SystemPrompt
 	}
 	return ""
+}
+
+// ProfileResolver provides common profile resolution utilities.
+type ProfileResolver struct {
+	config *Config
+}
+
+// NewProfileResolver creates a new profile resolver.
+func NewProfileResolver(cfg *Config) *ProfileResolver {
+	return &ProfileResolver{
+		config: cfg,
+	}
+}
+
+// ResolveProfile resolves a profile by name, using the default if not specified.
+func (r *ProfileResolver) ResolveProfile(profileName string) (*ResolvedProfile, error) {
+	if profileName == "" {
+		profileName = r.config.GetDefaultGenerateProfile()
+	}
+	return r.config.ResolveProfile(profileName)
+}
+
+// PromptResolver provides common prompt resolution utilities.
+type PromptResolver struct{}
+
+// NewPromptResolver creates a new prompt resolver.
+func NewPromptResolver() *PromptResolver {
+	return &PromptResolver{}
+}
+
+// ResolvePrompt combines user prompt from flags with stdin input.
+func (r *PromptResolver) ResolvePrompt(cmd *cobra.Command, flagName string, stdinWrapper string) (string, error) {
+	// Get prompt from flag
+	userPrompt, _ := cmd.Flags().GetString(flagName)
+
+	// Add stdin content if available
+	stdinContent, err := io.ReadFromStdin()
+	if err != nil {
+		return "", err
+	}
+
+	if stdinContent != "" {
+		if userPrompt != "" {
+			userPrompt = userPrompt + fmt.Sprintf(stdinWrapper, stdinContent)
+		} else {
+			userPrompt = stdinContent
+		}
+	}
+
+	return userPrompt, nil
 }

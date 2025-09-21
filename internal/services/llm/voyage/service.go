@@ -34,8 +34,13 @@ const (
 	DefaultModel = "voyage-3.5"
 )
 
-// Client represents a client for the Voyage AI API.
-type Client struct {
+// Service represents a client for the Voyage AI API.
+type Service interface {
+	CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error)
+}
+
+// serviceImpl represents a client for the Voyage AI API.
+type serviceImpl struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
@@ -48,8 +53,8 @@ type Config struct {
 	Timeout time.Duration
 }
 
-// NewClient creates a new Voyage AI client with the given configuration.
-func NewClient(config Config) (*Client, error) {
+// NewService creates a new Voyage AI client with the given configuration.
+func NewService(config Config) (Service, error) {
 	apiKey := config.APIKey
 	if apiKey == "" {
 		return nil, fmt.Errorf("voyage API key is required")
@@ -65,7 +70,7 @@ func NewClient(config Config) (*Client, error) {
 		timeout = 30 * time.Second
 	}
 
-	return &Client{
+	return &serviceImpl{
 		baseURL: baseURL,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
@@ -106,7 +111,7 @@ type ErrorResponse struct {
 }
 
 // CreateEmbeddings sends a request to create embeddings for the given input texts.
-func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error) {
+func (c *serviceImpl) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error) {
 	if req.Model == "" {
 		req.Model = DefaultModel
 	}

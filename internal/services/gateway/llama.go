@@ -21,46 +21,58 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/llm/client/llama"
+	"github.com/retran/meowg1k/internal/services/llm/llama"
 )
 
-// Compile-time check for the LlamaGateway.
-var _ GenerationGateway = (*LlamaGateway)(nil)
+// Compile-time check for the llamaGateway.
+var _ GenerationGateway = (*llamaGateway)(nil)
 
-// var _ EmbeddingGateway = (*LlamaGateway)(nil) // Uncomment when embedding is implemented
+// var _ EmbeddingGateway = (*llamaGateway)(nil) // Uncomment when embedding is implemented
 
-// LlamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
-type LlamaGateway struct {
-	client *llama.CompletionClient
+// llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
+type llamaGateway struct {
+	client llama.Service
 }
 
+const (
+	systemPromptStart = "<|im_start|>system\n"
+	systemPromptEnd   = "<|im_end|>\n"
+	userPromptStart   = "<|im_start|>user\n"
+	userPromptEnd     = "<|im_end|>\n"
+	assistantStart    = "<|im_start|>assistant\n"
+)
+
 // NewLlamaGateway creates and initializes a new LlamaGateway.
-func NewLlamaGateway(baseURL, apiKey string) (*LlamaGateway, error) {
-	client, err := llama.NewCompletionClient(baseURL, apiKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create local LLM client: %w", err)
+func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
+	if baseURL == "" {
+		return nil, fmt.Errorf("base URL is required")
 	}
 
-	return &LlamaGateway{
+	client, err := llama.NewService(baseURL, apiKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create llama client: %w", err)
+	}
+
+	return &llamaGateway{
 		client: client,
 	}, nil
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *LlamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {
-		promptBuilder.WriteString("<|im_start|>system\n")
+		promptBuilder.WriteString(systemPromptStart)
 		promptBuilder.WriteString(request.SystemPrompt())
-		promptBuilder.WriteString("<|im_end|>\n")
+		promptBuilder.WriteString(systemPromptEnd)
 	}
 
-	promptBuilder.WriteString("<|im_start|>user\n")
+	promptBuilder.WriteString(userPromptStart)
 	promptBuilder.WriteString(request.UserPrompt())
-	promptBuilder.WriteString("<|im_end|>\n")
+	promptBuilder.WriteString(userPromptEnd)
 
-	promptBuilder.WriteString("<|im_start|>assistant\n")
+	promptBuilder.WriteString(assistantStart)
 
 	prompt := promptBuilder.String()
 

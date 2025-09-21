@@ -112,20 +112,25 @@ type TokenProb struct {
 	TopLogprobs []TokenProb `json:"top_logprobs,omitempty"`
 }
 
-// CompletionClient provides methods to interact with LLM completion API
-type CompletionClient struct {
+// Service provides methods to interact with LLM completion API
+type Service interface {
+	Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error)
+}
+
+// serviceImpl provides methods to interact with LLM completion API
+type serviceImpl struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-// NewCompletionClient creates a new client for interacting with the LLM completion endpoint.
-func NewCompletionClient(baseURL string, apiKey string) (*CompletionClient, error) {
+// NewService creates a new client for interacting with the LLM completion endpoint.
+func NewService(baseURL string, apiKey string) (Service, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL cannot be empty")
 	}
 
-	return &CompletionClient{
+	return &serviceImpl{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 10 * time.Minute},
@@ -133,7 +138,7 @@ func NewCompletionClient(baseURL string, apiKey string) (*CompletionClient, erro
 }
 
 // Complete generates a completion based on the provided request.
-func (c *CompletionClient) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
+func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)

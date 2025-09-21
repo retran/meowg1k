@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package models provides information about supported AI models and their capabilities.
-package models
+package registry
 
 // TokenizerType represents the type of tokenizer used by a model.
 type TokenizerType string
@@ -47,8 +46,90 @@ type ModelInfo struct {
 	DefaultEmbedDimension int           // Default embedding dimension (0 if not applicable)
 }
 
-// ModelRegistry contains information about all known models.
-var ModelRegistry = map[string]ModelInfo{
+// Service defines the interface for model registry operations.
+type Service interface {
+	GetModelInfo(modelName string) ModelInfo
+	GetMaxContextTokens(modelName string) int
+	GetTokenizerType(modelName string) TokenizerType
+	GetDefaultEmbedDimension(modelName string) int
+	GetProvider(modelName string) string
+	GetMaxOutputTokens(modelName string) int
+	ListKnownModels() []string
+}
+
+// serviceImpl is the private implementation of the Service interface.
+type serviceImpl struct {
+	models map[string]ModelInfo
+}
+
+// NewService creates a new instance of the model registry service.
+func NewService() Service {
+	return &serviceImpl{
+		models: models,
+	}
+}
+
+// GetModelInfo returns information about a specific model.
+// If the model is not found, returns a default ModelInfo with unknown tokenizer.
+func (r *serviceImpl) GetModelInfo(modelName string) ModelInfo {
+	if info, exists := r.models[modelName]; exists {
+		return info
+	}
+
+	// Return sensible defaults for unknown models
+	return ModelInfo{
+		Provider:         "unknown",
+		MaxContextTokens: 8192,
+		TokenizerType:    TokenizerUnknown,
+		Description:      "Unknown model",
+	}
+}
+
+// GetMaxContextTokens returns the maximum context tokens for a model.
+// Returns a default value if the model is not found.
+func (r *serviceImpl) GetMaxContextTokens(modelName string) int {
+	return r.GetModelInfo(modelName).MaxContextTokens
+}
+
+// GetTokenizerType returns the tokenizer type for a model.
+// Returns TokenizerUnknown if the model is not found.
+func (r *serviceImpl) GetTokenizerType(modelName string) TokenizerType {
+	return r.GetModelInfo(modelName).TokenizerType
+}
+
+// GetDefaultEmbedDimension returns the default embedding dimension for a model.
+// Returns 0 if the model is not found or has no default dimension.
+func (r *serviceImpl) GetDefaultEmbedDimension(modelName string) int {
+	return r.GetModelInfo(modelName).DefaultEmbedDimension
+}
+
+// GetProvider returns the provider for a model.
+// Returns "unknown" if the model is not found.
+func (r *serviceImpl) GetProvider(modelName string) string {
+	return r.GetModelInfo(modelName).Provider
+}
+
+// GetMaxOutputTokens returns the maximum output tokens for a model.
+// Returns 4096 as a safe default if the model is not found or has no limit specified.
+func (r *serviceImpl) GetMaxOutputTokens(modelName string) int {
+	maxOutputTokens := r.GetModelInfo(modelName).MaxOutputTokens
+	if maxOutputTokens <= 0 {
+		return 4096 // Safe default
+	}
+	return maxOutputTokens
+}
+
+// ListKnownModels returns a list of all models in the registry.
+func (r *serviceImpl) ListKnownModels() []string {
+	models := make([]string, 0, len(r.models))
+	for model := range r.models {
+		models = append(models, model)
+	}
+	return models
+}
+
+// models contains information about all known models.
+var models = map[string]ModelInfo{
 	// OpenAI models (provider: openai)
 	"gpt-5": {
 		Provider:         "openai",
@@ -652,61 +733,5 @@ var ModelRegistry = map[string]ModelInfo{
 	},
 }
 
-// GetModelInfo returns information about a specific model.
-// If the model is not found, returns a default ModelInfo with unknown tokenizer.
-func GetModelInfo(modelName string) ModelInfo {
-	if info, exists := ModelRegistry[modelName]; exists {
-		return info
-	}
-
-	// Return sensible defaults for unknown models
-	return ModelInfo{
-		Provider:         "unknown",
-		MaxContextTokens: 8192,
-		TokenizerType:    TokenizerUnknown,
-		Description:      "Unknown model",
-	}
-}
-
-// GetMaxContextTokens returns the maximum context tokens for a model.
-// Returns a default value if the model is not found.
-func GetMaxContextTokens(modelName string) int {
-	return GetModelInfo(modelName).MaxContextTokens
-}
-
-// GetTokenizerType returns the tokenizer type for a model.
-// Returns TokenizerUnknown if the model is not found.
-func GetTokenizerType(modelName string) TokenizerType {
-	return GetModelInfo(modelName).TokenizerType
-}
-
-// GetDefaultEmbedDimension returns the default embedding dimension for a model.
-// Returns 0 if the model is not found or has no default dimension.
-func GetDefaultEmbedDimension(modelName string) int {
-	return GetModelInfo(modelName).DefaultEmbedDimension
-}
-
-// GetProvider returns the provider for a model.
-// Returns "unknown" if the model is not found.
-func GetProvider(modelName string) string {
-	return GetModelInfo(modelName).Provider
-}
-
-// GetMaxOutputTokens returns the maximum output tokens for a model.
-// Returns 4096 as a safe default if the model is not found or has no limit specified.
-func GetMaxOutputTokens(modelName string) int {
-	maxOutputTokens := GetModelInfo(modelName).MaxOutputTokens
-	if maxOutputTokens <= 0 {
-		return 4096 // Safe default
-	}
-	return maxOutputTokens
-}
-
-// ListKnownModels returns a list of all models in the registry.
-func ListKnownModels() []string {
-	models := make([]string, 0, len(ModelRegistry))
-	for model := range ModelRegistry {
-		models = append(models, model)
-	}
-	return models
-}
+// DefaultService is the global model registry service instance.
+var DefaultService = NewService()

@@ -23,19 +23,19 @@ import (
 	"google.golang.org/genai"
 )
 
-// Compile-time checks to ensure GeminiGateway implements both interfaces.
-var _ GenerationGateway = (*GeminiGateway)(nil)
-var _ EmbeddingGateway = (*GeminiGateway)(nil)
+// Compile-time checks to ensure geminiGateway implements both interfaces.
+var _ GenerationGateway = (*geminiGateway)(nil)
+var _ EmbeddingsGateway = (*geminiGateway)(nil)
 
-// GeminiGateway is a unified client for the Google Gemini API,
+// geminiGateway is a unified client for the Google Gemini API,
 // implementing both GenerationGateway and EmbeddingGateway.
-type GeminiGateway struct {
+type geminiGateway struct {
 	ComputeDistanceMixin
 	client *genai.Client
 }
 
 // NewGeminiGateway creates and initializes a new unified GeminiGateway.
-func NewGeminiGateway(ctx context.Context, apiKey string) (*GeminiGateway, error) {
+func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
@@ -44,13 +44,13 @@ func NewGeminiGateway(ctx context.Context, apiKey string) (*GeminiGateway, error
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
-	return &GeminiGateway{
+	return &geminiGateway{
 		client: client,
 	}, nil
 }
 
 // GenerateContent sends a content generation request to the Google Gemini API.
-func (g *GeminiGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *geminiGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	generationConfig := &genai.GenerateContentConfig{}
 
 	if request.SystemPrompt() != "" {
@@ -86,7 +86,7 @@ func (g *GeminiGateway) GenerateContent(ctx context.Context, request *GenerateCo
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
-func (g *GeminiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
+func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
 	var contents []*genai.Content
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))

@@ -24,13 +24,13 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-// AnthropicGateway wraps the Anthropic SDK client for content generation.
-type AnthropicGateway struct {
+// anthropicGateway wraps the Anthropic SDK client for content generation.
+type anthropicGateway struct {
 	client anthropic.Client
 }
 
 // NewAnthropicGateway creates a new Anthropic gateway.
-func NewAnthropicGateway(apiKey string) (*AnthropicGateway, error) {
+func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}
@@ -39,13 +39,13 @@ func NewAnthropicGateway(apiKey string) (*AnthropicGateway, error) {
 		option.WithAPIKey(apiKey),
 	)
 
-	return &AnthropicGateway{
+	return &anthropicGateway{
 		client: client,
 	}, nil
 }
 
 // GenerateContent generates content using Anthropic's API.
-func (g *AnthropicGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *anthropicGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	model := request.Model()
 	if model == "" {
 		return "", fmt.Errorf("model is required")

@@ -25,28 +25,28 @@ import (
 	"github.com/openai/openai-go/v2/option"
 )
 
-// Compile-time checks to ensure OpenAIGateway implements both interfaces.
-var _ GenerationGateway = (*OpenAIGateway)(nil)
-var _ EmbeddingGateway = (*OpenAIGateway)(nil)
+// Compile-time checks to ensure openaiGateway implements both interfaces.
+var _ GenerationGateway = (*openaiGateway)(nil)
+var _ EmbeddingsGateway = (*openaiGateway)(nil)
 
-type OpenAIGateway struct {
+type openaiGateway struct {
 	ComputeDistanceMixin
 	client *openai.Client
 }
 
 // NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
 // It sets up the OpenAI client with the given base URL and API key.
-func NewOpenAIGateway(baseURL string, apiKey string) (*OpenAIGateway, error) {
+func newOpenAIGateway(baseURL string, apiKey string) (Gateway, error) {
 	client := openai.NewClient(
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),
 	)
 
-	return &OpenAIGateway{client: &client}, nil
+	return &openaiGateway{client: &client}, nil
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
-func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *openaiGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
@@ -67,7 +67,7 @@ func (g *OpenAIGateway) GenerateContent(ctx context.Context, request *GenerateCo
 }
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
-func (g *OpenAIGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
+func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
 	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.chunks,

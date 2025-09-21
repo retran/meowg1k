@@ -20,29 +20,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/llm/client/voyage"
+	"github.com/retran/meowg1k/internal/services/llm/voyage"
 )
 
-// Compile-time check to ensure VoyageGateway implements EmbeddingGateway.
-var _ EmbeddingGateway = (*VoyageGateway)(nil)
+// Compile-time check to ensure voyageGateway implements EmbeddingGateway.
+var _ EmbeddingsGateway = (*voyageGateway)(nil)
 
-// VoyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.
+// voyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.
 // It only supports embeddings, not content generation.
-type VoyageGateway struct {
+type voyageGateway struct {
 	ComputeDistanceMixin
-	client *voyage.Client
+	client voyage.Service
 }
 
 // NewVoyageGateway creates and initializes a new VoyageGateway.
-func NewVoyageGateway(apiKey string) (*VoyageGateway, error) {
-	client, err := voyage.NewClient(voyage.Config{
+func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
+	client, err := voyage.NewService(voyage.Config{
 		APIKey: apiKey,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}
 
-	return &VoyageGateway{
+	return &voyageGateway{
 		ComputeDistanceMixin: ComputeDistanceMixin{},
 		client:               client,
 	}, nil
@@ -73,7 +73,7 @@ func mapTaskTypeToInputType(taskType TaskType) string {
 }
 
 // ComputeEmbeddings sends a request to the Voyage AI API to compute embeddings for the given text chunks.
-func (g *VoyageGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
+func (g *voyageGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
 	inputType := mapTaskTypeToInputType(request.TaskType())
 
 	req := voyage.EmbeddingRequest{

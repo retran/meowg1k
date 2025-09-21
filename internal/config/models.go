@@ -20,7 +20,7 @@ package config
 import (
 	"time"
 
-	"github.com/retran/meowg1k/internal/models"
+	"github.com/retran/meowg1k/internal/services/llm/registry"
 )
 
 // Config represents the complete meowg1k configuration.
@@ -46,14 +46,14 @@ type Config struct {
 
 // Profile defines a reusable LLM configuration that can be referenced by different commands.
 type Profile struct {
-	Provider        string               `yaml:"provider" mapstructure:"provider"`
-	Model           string               `yaml:"model" mapstructure:"model"`
-	MaxInputTokens  int                  `yaml:"maxInputTokens" mapstructure:"maxInputTokens"`
-	MaxOutputTokens int                  `yaml:"maxOutputTokens" mapstructure:"maxOutputTokens"`
-	Timeout         time.Duration        `yaml:"timeout" mapstructure:"timeout"`
-	BaseURL         string               `yaml:"baseURL" mapstructure:"baseURL"`
-	APIKeyEnv       string               `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
-	TokenizerType   models.TokenizerType `yaml:"tokenizerType" mapstructure:"tokenizerType"`
+	Provider        string                 `yaml:"provider" mapstructure:"provider"`
+	Model           string                 `yaml:"model" mapstructure:"model"`
+	MaxInputTokens  int                    `yaml:"maxInputTokens" mapstructure:"maxInputTokens"`
+	MaxOutputTokens int                    `yaml:"maxOutputTokens" mapstructure:"maxOutputTokens"`
+	Timeout         time.Duration          `yaml:"timeout" mapstructure:"timeout"`
+	BaseURL         string                 `yaml:"baseURL" mapstructure:"baseURL"`
+	APIKeyEnv       string                 `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
+	TokenizerType   registry.TokenizerType `yaml:"tokenizerType" mapstructure:"tokenizerType"`
 }
 
 // GenerateConfig holds configuration for the generate command.
