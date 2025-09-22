@@ -1,5 +1,4 @@
-/*package shutdown
-
+/*
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +18,8 @@ package shutdown
 
 import (
 	"context"
+	"log/slog"
+	"os"
 	"testing"
 	"time"
 )
@@ -435,5 +436,263 @@ func BenchmarkManager_Context(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = manager.Context()
+	}
+}
+
+// TestManager_WithLogger tests the WithLogger method
+func TestManager_WithLogger(t *testing.T) {
+	manager := NewManager(10 * time.Second)
+
+	// Create a custom logger
+	customLogger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	// Test WithLogger returns the manager for chaining
+	result := manager.WithLogger(customLogger)
+	if result != manager {
+		t.Error("WithLogger should return the same manager instance for chaining")
+	}
+
+	// Test that the logger was set
+	manager.mu.RLock()
+	if manager.logger != customLogger {
+		t.Error("WithLogger should set the custom logger")
+	}
+	manager.mu.RUnlock()
+}
+
+// TestManager_Shutdown tests the public Shutdown method
+func TestManager_Shutdown(t *testing.T) {
+	manager := NewManager(100 * time.Millisecond)
+
+	var callbackExecuted bool
+	manager.Register(func(ctx context.Context) error {
+		callbackExecuted = true
+		return nil
+	})
+
+	ctx := manager.Context()
+
+	// Context should not be done initially
+	select {
+	case <-ctx.Done():
+		t.Error("Context should not be done before Shutdown is called")
+	default:
+		// Good
+	}
+
+	// Call Shutdown
+	manager.Shutdown()
+
+	// Context should be done after Shutdown
+	select {
+	case <-ctx.Done():
+		// Good
+	case <-time.After(time.Second):
+		t.Error("Context should be done after Shutdown is called")
+	}
+
+	// Give some time for callback execution
+	time.Sleep(50 * time.Millisecond)
+
+	if !callbackExecuted {
+		t.Error("Shutdown callback should have been executed")
+	}
+}
+
+// TestManager_ShutdownWithError tests shutdown behavior when callbacks return errors
+func TestManager_ShutdownWithError(t *testing.T) {
+	manager := NewManager(100 * time.Millisecond)
+
+	var callOrder []int
+
+	// Register callback that returns an error
+	manager.Register(func(ctx context.Context) error {
+		callOrder = append(callOrder, 1)
+		return context.DeadlineExceeded // Return an error
+	})
+
+	// Register callback that succeeds
+	manager.Register(func(ctx context.Context) error {
+		callOrder = append(callOrder, 2)
+		return nil
+	})
+
+	// Call Shutdown
+	manager.Shutdown()
+
+	// Give some time for callback execution
+	time.Sleep(50 * time.Millisecond)
+
+	// Both callbacks should have been executed despite the error
+	expectedOrder := []int{1, 2}
+	if len(callOrder) != len(expectedOrder) {
+		t.Errorf("Expected %d callbacks executed, got %d", len(expectedOrder), len(callOrder))
+		return
+	}
+
+	for i, v := range callOrder {
+		if v != expectedOrder[i] {
+			t.Errorf("Expected execution order %v, got %v", expectedOrder, callOrder)
+			break
+		}
+	}
+}
+
+// TestManager_ShutdownTimeout tests shutdown behavior when callbacks take too long
+func TestManager_ShutdownTimeout(t *testing.T) {
+	manager := NewManager(50 * time.Millisecond) // Very short timeout
+
+	var callOrder []int
+
+	// Register callback that takes longer than timeout
+	manager.Register(func(ctx context.Context) error {
+		callOrder = append(callOrder, 1)
+		time.Sleep(100 * time.Millisecond) // Longer than timeout
+		return nil
+	})
+
+	// Register callback that should not be reached due to timeout
+	manager.Register(func(ctx context.Context) error {
+		callOrder = append(callOrder, 2)
+		return nil
+	})
+
+	start := time.Now()
+	manager.Shutdown()
+	duration := time.Since(start)
+
+	// Should not take much longer than the timeout
+	if duration > 150*time.Millisecond {
+		t.Errorf("Shutdown took too long: %v, expected around 50ms", duration)
+	}
+
+	// Only first callback should have been started
+	if len(callOrder) == 0 {
+		t.Error("At least the first callback should have been started")
+	}
+}
+
+// TestManager_CreateShutdownContext tests the CreateShutdownContext method
+func TestManager_CreateShutdownContext(t *testing.T) {
+	manager := NewManager(10 * time.Second)
+
+	parentCtx, parentCancel := context.WithCancel(context.Background())
+
+	// Create shutdown context
+	shutdownCtx := manager.CreateShutdownContext(parentCtx)
+
+	if shutdownCtx == nil {
+		t.Fatal("CreateShutdownContext should return a non-nil context")
+	}
+
+	// Context should not be done initially
+	select {
+	case <-shutdownCtx.Done():
+		t.Error("Shutdown context should not be done initially")
+	default:
+		// Good
+	}
+
+	// Cancel parent context
+	parentCancel()
+
+	// Shutdown context should be done when parent is cancelled
+	select {
+	case <-shutdownCtx.Done():
+		// Good
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Shutdown context should be done when parent context is cancelled")
+	}
+}
+
+// TestManager_CreateShutdownContextWithShutdown tests CreateShutdownContext when shutdown occurs
+func TestManager_CreateShutdownContextWithShutdown(t *testing.T) {
+	manager := NewManager(10 * time.Second)
+
+	parentCtx := context.Background()
+
+	// Create shutdown context
+	shutdownCtx := manager.CreateShutdownContext(parentCtx)
+
+	// Context should not be done initially
+	select {
+	case <-shutdownCtx.Done():
+		t.Error("Shutdown context should not be done initially")
+	default:
+		// Good
+	}
+
+	// Trigger shutdown
+	manager.Shutdown()
+
+	// Shutdown context should be done when shutdown occurs
+	select {
+	case <-shutdownCtx.Done():
+		// Good
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Shutdown context should be done when shutdown is triggered")
+	}
+}
+
+// TestManager_ListenForSignalsTimeout tests ListenForSignals with context timeout
+func TestManager_ListenForSignalsTimeout(t *testing.T) {
+	manager := NewManager(10 * time.Second)
+
+	// Create a context with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// Replace the manager's context with our timeout context for testing
+	manager.mu.Lock()
+	oldCtx := manager.ctx
+	oldCancel := manager.cancel
+	manager.ctx = ctx
+	manager.cancel = cancel
+	manager.mu.Unlock()
+
+	// Restore original context after test
+	defer func() {
+		manager.mu.Lock()
+		manager.ctx = oldCtx
+		manager.cancel = oldCancel
+		manager.mu.Unlock()
+	}()
+
+	start := time.Now()
+	result := manager.ListenForSignals()
+	duration := time.Since(start)
+
+	// Should return false (context cancelled, not signal)
+	if result {
+		t.Error("ListenForSignals should return false when context times out")
+	}
+
+	// Should return relatively quickly due to timeout
+	if duration > 100*time.Millisecond {
+		t.Errorf("ListenForSignals took too long: %v, expected around 50ms", duration)
+	}
+}
+
+// TestManager_ShutdownMultipleCalls tests that multiple shutdowns execute callbacks multiple times
+func TestManager_ShutdownMultipleCalls(t *testing.T) {
+	manager := NewManager(100 * time.Millisecond)
+
+	callCount := 0
+	manager.Register(func(ctx context.Context) error {
+		callCount++
+		return nil
+	})
+
+	// Call Shutdown multiple times
+	manager.Shutdown()
+	manager.Shutdown()
+	manager.Shutdown()
+
+	// Give some time for any potential callback execution
+	time.Sleep(50 * time.Millisecond)
+
+	// Each Shutdown call executes callbacks (current implementation behavior)
+	if callCount != 3 {
+		t.Errorf("Expected callback to be called 3 times, got %d calls", callCount)
 	}
 }

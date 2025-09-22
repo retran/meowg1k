@@ -92,12 +92,12 @@ func (s *serviceImpl) LoadFromSources(sources ...ConfigSource) (*config.Config, 
 		return nil, fmt.Errorf("no configuration sources provided")
 	}
 
-	// Sort sources by priority (higher priority first)
+	// Sort sources by priority (lower priority first)
 	sortedSources := make([]ConfigSource, len(sources))
 	copy(sortedSources, sources)
 
 	sort.Slice(sortedSources, func(i, j int) bool {
-		return sortedSources[i].Priority() > sortedSources[j].Priority()
+		return sortedSources[i].Priority() < sortedSources[j].Priority()
 	})
 
 	// Merge configurations from all sources
@@ -117,8 +117,9 @@ func (s *serviceImpl) LoadFromSources(sources ...ConfigSource) (*config.Config, 
 		if len(settings) > 0 {
 			foundConfig = true
 			// Merge settings into viper
-			for key, value := range settings {
-				v.Set(key, value)
+			if err := v.MergeConfigMap(settings); err != nil {
+				loadErrors = append(loadErrors, fmt.Errorf("source '%s': failed to merge config: %w", source.Name(), err))
+				continue
 			}
 		}
 	}

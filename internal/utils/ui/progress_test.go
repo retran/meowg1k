@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -537,4 +540,712 @@ func TestFlowProgressTracker_TimeBasedSorting(t *testing.T) {
 	if firstCompleted != -1 && firstRunning != -1 && firstCompleted > firstRunning {
 		t.Error("Completed tasks should appear before running tasks")
 	}
+}
+
+// TestFlowProgressTracker_GetTaskDetails tests the getTaskDetails function
+func TestFlowProgressTracker_GetTaskDetails(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		task     *TaskProgress
+		expected string
+	}{
+		{
+			name:     "nil task",
+			task:     nil,
+			expected: "",
+		},
+		{
+			name: "task with no metadata",
+			task: &TaskProgress{
+				ID:       "task1",
+				Name:     "Test Task",
+				Status:   "running",
+				Metadata: nil,
+			},
+			expected: "",
+		},
+		{
+			name: "task with progress",
+			task: &TaskProgress{
+				ID:     "task1",
+				Name:   "Test Task",
+				Status: "running",
+				Metadata: map[string]interface{}{
+					"progress": 0.75,
+				},
+			},
+			expected: "- 75%",
+		},
+		{
+			name: "task with step",
+			task: &TaskProgress{
+				ID:     "task1",
+				Name:   "Test Task",
+				Status: "running",
+				Metadata: map[string]interface{}{
+					"step": "processing files",
+				},
+			},
+			expected: "- processing files",
+		},
+		{
+			name: "task with model",
+			task: &TaskProgress{
+				ID:     "task1",
+				Name:   "Test Task",
+				Status: "running",
+				Metadata: map[string]interface{}{
+					"model": "gpt-4",
+				},
+			},
+			expected: "- (gpt-4)",
+		},
+		{
+			name: "task with progress priority over step",
+			task: &TaskProgress{
+				ID:     "task1",
+				Name:   "Test Task",
+				Status: "running",
+				Metadata: map[string]interface{}{
+					"progress": 0.5,
+					"step":     "processing",
+				},
+			},
+			expected: "- 50%",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.getTaskDetails(tt.task)
+			if result != tt.expected {
+				t.Errorf("getTaskDetails() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_GetTaskDuration tests the getTaskDuration function
+func TestFlowProgressTracker_GetTaskDuration(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		task     *TaskProgress
+		expected string
+	}{
+		{
+			name:     "nil task",
+			task:     nil,
+			expected: "",
+		},
+		{
+			name: "task with no end time",
+			task: &TaskProgress{
+				ID:        "task1",
+				StartTime: now,
+				EndTime:   nil,
+			},
+			expected: "",
+		},
+		{
+			name: "task with very short duration",
+			task: &TaskProgress{
+				ID:        "task1",
+				StartTime: now,
+				EndTime:   &now, // Same time - essentially 0 duration
+			},
+			expected: "",
+		},
+		{
+			name: "task with millisecond duration",
+			task: &TaskProgress{
+				ID:        "task1",
+				StartTime: now,
+				EndTime:   func() *time.Time { t := now.Add(500 * time.Millisecond); return &t }(),
+			},
+			expected: "(500ms)",
+		},
+		{
+			name: "task with second duration",
+			task: &TaskProgress{
+				ID:        "task1",
+				StartTime: now,
+				EndTime:   func() *time.Time { t := now.Add(2500 * time.Millisecond); return &t }(),
+			},
+			expected: "(2.5s)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.getTaskDuration(tt.task)
+			if result != tt.expected {
+				t.Errorf("getTaskDuration() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_GetTaskError tests the getTaskError function
+func TestFlowProgressTracker_GetTaskError(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		task     *TaskProgress
+		expected string
+	}{
+		{
+			name:     "nil task",
+			task:     nil,
+			expected: "",
+		},
+		{
+			name: "task with no metadata",
+			task: &TaskProgress{
+				ID:       "task1",
+				Metadata: nil,
+			},
+			expected: "",
+		},
+		{
+			name: "task with short error",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"error": "connection failed",
+				},
+			},
+			expected: "connection failed",
+		},
+		{
+			name: "task with long error",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"error": "this is a very long error message that should be truncated because it exceeds the limit",
+				},
+			},
+			expected: "this is a very long error message that should b...",
+		},
+		{
+			name: "task with no error in metadata",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"other": "value",
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.getTaskError(tt.task)
+			if result != tt.expected {
+				t.Errorf("getTaskError() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_GetRetryInfo tests the getRetryInfo function
+func TestFlowProgressTracker_GetRetryInfo(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		task     *TaskProgress
+		expected string
+	}{
+		{
+			name:     "nil task",
+			task:     nil,
+			expected: "",
+		},
+		{
+			name: "task with no metadata",
+			task: &TaskProgress{
+				ID:       "task1",
+				Metadata: nil,
+			},
+			expected: "",
+		},
+		{
+			name: "task with attempt",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"attempt": 3,
+				},
+			},
+			expected: "(attempt 3)",
+		},
+		{
+			name: "task with delay",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"delay": 5 * time.Second,
+				},
+			},
+			expected: "(in 5s)",
+		},
+		{
+			name: "task with attempt priority over delay",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"attempt": 2,
+					"delay":   3 * time.Second,
+				},
+			},
+			expected: "(attempt 2)",
+		},
+		{
+			name: "task with no retry info",
+			task: &TaskProgress{
+				ID: "task1",
+				Metadata: map[string]interface{}{
+					"other": "value",
+				},
+			},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.getRetryInfo(tt.task)
+			if result != tt.expected {
+				t.Errorf("getRetryInfo() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_FinishFlow tests the finishFlow function
+func TestFlowProgressTracker_FinishFlow(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow") // Silent mode to avoid race condition
+
+	// Use proper mutex locking when setting isRunning
+	tracker.mu.Lock()
+	tracker.isRunning = true
+	tracker.lastLines = 3 // Simulate some previous output
+	tracker.mu.Unlock()
+
+	// Test success case
+	tracker.finishFlow(true)
+
+	tracker.mu.RLock()
+	isRunning := tracker.isRunning
+	lastLines := tracker.lastLines
+	tracker.mu.RUnlock()
+
+	if isRunning {
+		t.Error("Tracker should not be running after finishFlow")
+	}
+
+	if lastLines != 0 {
+		t.Error("lastLines should be reset to 0 after finishFlow")
+	}
+
+	// Test failure case
+	tracker.mu.Lock()
+	tracker.isRunning = true
+	tracker.lastLines = 2
+	tracker.mu.Unlock()
+
+	tracker.finishFlow(false)
+
+	tracker.mu.RLock()
+	isRunning = tracker.isRunning
+	lastLines = tracker.lastLines
+	tracker.mu.RUnlock()
+
+	if isRunning {
+		t.Error("Tracker should not be running after finishFlow with failure")
+	}
+
+	if lastLines != 0 {
+		t.Error("lastLines should be reset to 0 after finishFlow with failure")
+	}
+} // TestFlowProgressTracker_SafeGetString tests the safeGetString function
+func TestFlowProgressTracker_SafeGetString(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		metadata map[string]interface{}
+		key      string
+		expected string
+	}{
+		{
+			name:     "nil metadata",
+			metadata: nil,
+			key:      "test",
+			expected: "",
+		},
+		{
+			name:     "key not found",
+			metadata: map[string]interface{}{"other": "value"},
+			key:      "test",
+			expected: "",
+		},
+		{
+			name:     "string value",
+			metadata: map[string]interface{}{"test": "hello"},
+			key:      "test",
+			expected: "hello",
+		},
+		{
+			name:     "int value",
+			metadata: map[string]interface{}{"test": 42},
+			key:      "test",
+			expected: "42",
+		},
+		{
+			name:     "float value",
+			metadata: map[string]interface{}{"test": 3.14},
+			key:      "test",
+			expected: "3.14",
+		},
+		{
+			name:     "bool value",
+			metadata: map[string]interface{}{"test": true},
+			key:      "test",
+			expected: "true",
+		},
+		{
+			name:     "unsupported type",
+			metadata: map[string]interface{}{"test": make(chan int)},
+			key:      "test",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.safeGetString(tt.metadata, tt.key)
+			if result != tt.expected {
+				t.Errorf("safeGetString() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_SafeGetFloat64 tests the safeGetFloat64 function
+func TestFlowProgressTracker_SafeGetFloat64(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		metadata map[string]interface{}
+		key      string
+		expected float64
+	}{
+		{
+			name:     "nil metadata",
+			metadata: nil,
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "key not found",
+			metadata: map[string]interface{}{"other": "value"},
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "float64 value",
+			metadata: map[string]interface{}{"test": 3.14},
+			key:      "test",
+			expected: 3.14,
+		},
+		{
+			name:     "float32 value",
+			metadata: map[string]interface{}{"test": float32(2.5)},
+			key:      "test",
+			expected: 2.5,
+		},
+		{
+			name:     "int value",
+			metadata: map[string]interface{}{"test": 42},
+			key:      "test",
+			expected: 42.0,
+		},
+		{
+			name:     "uint value",
+			metadata: map[string]interface{}{"test": uint(100)},
+			key:      "test",
+			expected: 100.0,
+		},
+		{
+			name:     "unsupported type",
+			metadata: map[string]interface{}{"test": "not a number"},
+			key:      "test",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.safeGetFloat64(tt.metadata, tt.key)
+			if result != tt.expected {
+				t.Errorf("safeGetFloat64() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_SafeGetInt tests the safeGetInt function
+func TestFlowProgressTracker_SafeGetInt(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		metadata map[string]interface{}
+		key      string
+		expected int
+	}{
+		{
+			name:     "nil metadata",
+			metadata: nil,
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "key not found",
+			metadata: map[string]interface{}{"other": "value"},
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "int value",
+			metadata: map[string]interface{}{"test": 42},
+			key:      "test",
+			expected: 42,
+		},
+		{
+			name:     "int8 value",
+			metadata: map[string]interface{}{"test": int8(10)},
+			key:      "test",
+			expected: 10,
+		},
+		{
+			name:     "float64 value",
+			metadata: map[string]interface{}{"test": 100.0},
+			key:      "test",
+			expected: 100,
+		},
+		{
+			name:     "uint value",
+			metadata: map[string]interface{}{"test": uint(200)},
+			key:      "test",
+			expected: 200,
+		},
+		{
+			name:     "unsupported type",
+			metadata: map[string]interface{}{"test": "not a number"},
+			key:      "test",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.safeGetInt(tt.metadata, tt.key)
+			if result != tt.expected {
+				t.Errorf("safeGetInt() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFlowProgressTracker_SafeGetDuration tests the safeGetDuration function
+func TestFlowProgressTracker_SafeGetDuration(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+
+	tests := []struct {
+		name     string
+		metadata map[string]interface{}
+		key      string
+		expected time.Duration
+	}{
+		{
+			name:     "nil metadata",
+			metadata: nil,
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "key not found",
+			metadata: map[string]interface{}{"other": "value"},
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "duration value",
+			metadata: map[string]interface{}{"test": 5 * time.Second},
+			key:      "test",
+			expected: 5 * time.Second,
+		},
+		{
+			name:     "int nanoseconds",
+			metadata: map[string]interface{}{"test": int(1000000000)}, // 1 second in nanoseconds
+			key:      "test",
+			expected: time.Second,
+		},
+		{
+			name:     "string duration",
+			metadata: map[string]interface{}{"test": "2m30s"},
+			key:      "test",
+			expected: 2*time.Minute + 30*time.Second,
+		},
+		{
+			name:     "invalid string",
+			metadata: map[string]interface{}{"test": "invalid"},
+			key:      "test",
+			expected: 0,
+		},
+		{
+			name:     "unsupported type",
+			metadata: map[string]interface{}{"test": make(chan int)},
+			key:      "test",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tracker.safeGetDuration(tt.metadata, tt.key)
+			if result != tt.expected {
+				t.Errorf("safeGetDuration() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestRunFlowWithProgress tests the RunFlowWithProgress function
+func TestRunFlowWithProgress(t *testing.T) {
+	t.Run("successful execution", func(t *testing.T) {
+		result, err := RunFlowWithProgress(true, "test-flow", func(tracker *FlowProgressTracker) (string, error) {
+			if tracker == nil {
+				return "", fmt.Errorf("tracker should not be nil")
+			}
+			return "success", nil
+		})
+
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+
+		if result != "success" {
+			t.Errorf("Expected 'success', got %q", result)
+		}
+	})
+
+	t.Run("error in action", func(t *testing.T) {
+		_, err := RunFlowWithProgress(true, "test-flow", func(tracker *FlowProgressTracker) (string, error) {
+			return "", fmt.Errorf("test error")
+		})
+
+		if err == nil {
+			t.Error("Expected error, got nil")
+		}
+
+		if err.Error() != "test error" {
+			t.Errorf("Expected 'test error', got %q", err.Error())
+		}
+	})
+}
+
+// TestRunFlowWithProgressAndContext tests the RunFlowWithProgressAndContext function
+func TestRunFlowWithProgressAndContext(t *testing.T) {
+	t.Run("successful execution", func(t *testing.T) {
+		ctx := context.Background()
+		result, err := RunFlowWithProgressAndContext(ctx, true, "test-flow", func(ctx context.Context, tracker *FlowProgressTracker) (int, error) {
+			if ctx == nil {
+				return 0, fmt.Errorf("context should not be nil")
+			}
+			if tracker == nil {
+				return 0, fmt.Errorf("tracker should not be nil")
+			}
+			return 42, nil
+		})
+
+		if err != nil {
+			t.Errorf("Expected no error, got %v", err)
+		}
+
+		if result != 42 {
+			t.Errorf("Expected 42, got %d", result)
+		}
+	})
+
+	t.Run("nil action", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := RunFlowWithProgressAndContext[string](ctx, true, "test-flow", nil)
+
+		if err == nil {
+			t.Error("Expected error for nil action, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "action function cannot be nil") {
+			t.Errorf("Expected 'action function cannot be nil' error, got %q", err.Error())
+		}
+	})
+
+	t.Run("nil context", func(t *testing.T) {
+		// Test the actual nil context handling in the function
+		var nilCtx context.Context = nil
+		_, err := RunFlowWithProgressAndContext[string](nilCtx, true, "test-flow", func(ctx context.Context, tracker *FlowProgressTracker) (string, error) {
+			return "test", nil
+		})
+
+		if err == nil {
+			t.Error("Expected error for nil context, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "context cannot be nil") {
+			t.Errorf("Expected 'context cannot be nil' error, got %q", err.Error())
+		}
+	})
+
+	t.Run("invalid flow name", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := RunFlowWithProgressAndContext(ctx, true, "invalid/flow*name", func(ctx context.Context, tracker *FlowProgressTracker) (string, error) {
+			return "test", nil
+		})
+
+		if err == nil {
+			t.Error("Expected error for invalid flow name, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "invalid flow name") {
+			t.Errorf("Expected 'invalid flow name' error, got %q", err.Error())
+		}
+	})
+
+	t.Run("cancelled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		_, err := RunFlowWithProgressAndContext(ctx, true, "test-flow", func(ctx context.Context, tracker *FlowProgressTracker) (string, error) {
+			return "test", nil
+		})
+
+		if err == nil {
+			t.Error("Expected error for cancelled context, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "operation cancelled before starting") {
+			t.Errorf("Expected 'operation cancelled before starting' error, got %q", err.Error())
+		}
+	})
 }
