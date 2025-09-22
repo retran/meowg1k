@@ -1249,3 +1249,382 @@ func TestRunFlowWithProgressAndContext(t *testing.T) {
 		}
 	})
 }
+
+func TestFlowProgressTracker_UpdateDisplay(t *testing.T) {
+	t.Run("empty tracker", func(t *testing.T) {
+		tracker := NewFlowProgressTracker(true, "test-flow") // silent mode
+
+		// Should not panic with empty tasks
+		tracker.updateDisplay()
+
+		// Verify no changes to internal state
+		if tracker.lastLines != 0 {
+			t.Errorf("Expected lastLines to be 0, got %d", tracker.lastLines)
+		}
+	})
+
+	t.Run("with running tasks", func(t *testing.T) {
+		tracker := NewFlowProgressTracker(true, "test-flow")
+		now := time.Now()
+
+		// Add a running task
+		tracker.tasks["task1"] = &TaskProgress{
+			ID:         "task1",
+			Name:       "Running Task",
+			Status:     "running",
+			LastUpdate: now,
+		}
+		tracker.taskOrder = append(tracker.taskOrder, "task1")
+
+		// Should not panic
+		tracker.updateDisplay()
+
+		// Verify lines were calculated
+		if tracker.lastLines == 0 {
+			t.Error("Expected lastLines to be greater than 0 with running tasks")
+		}
+	})
+
+	t.Run("with completed tasks only", func(t *testing.T) {
+		tracker := NewFlowProgressTracker(true, "test-flow")
+		now := time.Now()
+
+		// Add a completed task
+		tracker.tasks["task1"] = &TaskProgress{
+			ID:         "task1",
+			Name:       "Completed Task",
+			Status:     "completed",
+			LastUpdate: now,
+		}
+		tracker.taskOrder = append(tracker.taskOrder, "task1")
+
+		// Should not panic
+		tracker.updateDisplay()
+
+		// Should have calculated lines for task even without running tasks
+		if tracker.lastLines == 0 {
+			t.Error("Expected lastLines to be greater than 0 with completed tasks")
+		}
+	})
+
+	t.Run("with mixed task states", func(t *testing.T) {
+		tracker := NewFlowProgressTracker(true, "test-flow")
+		now := time.Now()
+
+		// Add tasks with different states
+		tracker.tasks["running"] = &TaskProgress{
+			ID:         "running",
+			Name:       "Running Task",
+			Status:     "running",
+			LastUpdate: now,
+		}
+		tracker.tasks["completed"] = &TaskProgress{
+			ID:         "completed",
+			Name:       "Completed Task",
+			Status:     "completed",
+			LastUpdate: now.Add(-1 * time.Minute),
+		}
+		tracker.tasks["failed"] = &TaskProgress{
+			ID:         "failed",
+			Name:       "Failed Task",
+			Status:     "failed",
+			LastUpdate: now.Add(-2 * time.Minute),
+		}
+		tracker.tasks["retrying"] = &TaskProgress{
+			ID:         "retrying",
+			Name:       "Retrying Task",
+			Status:     "retrying",
+			LastUpdate: now.Add(-30 * time.Second),
+		}
+		tracker.taskOrder = []string{"running", "completed", "failed", "retrying"}
+
+		// Should not panic
+		tracker.updateDisplay()
+
+		// Should have calculated lines for all visible tasks
+		if tracker.lastLines == 0 {
+			t.Error("Expected lastLines to be greater than 0 with mixed tasks")
+		}
+	})
+
+	t.Run("updates lastLines correctly", func(t *testing.T) {
+		tracker := NewFlowProgressTracker(true, "test-flow")
+
+		// First update with no tasks
+		tracker.updateDisplay()
+		firstLines := tracker.lastLines
+
+		// Add a task and update again
+		tracker.tasks["task1"] = &TaskProgress{
+			ID:         "task1",
+			Name:       "Test Task",
+			Status:     "running",
+			LastUpdate: time.Now(),
+		}
+		tracker.taskOrder = append(tracker.taskOrder, "task1")
+
+		tracker.updateDisplay()
+		secondLines := tracker.lastLines
+
+		// Should have more lines with tasks
+		if secondLines <= firstLines {
+			t.Errorf("Expected more lines after adding task: first=%d, second=%d", firstLines, secondLines)
+		}
+	})
+}
+
+func TestFlowProgressTracker_FormatTaskLine(t *testing.T) {
+	tracker := NewFlowProgressTracker(true, "test-flow")
+	now := time.Now()
+	spinnerIndex := 0
+
+	t.Run("nil task", func(t *testing.T) {
+		result := tracker.formatTaskLine(nil, spinnerIndex)
+		if result != "" {
+			t.Errorf("Expected empty string for nil task, got %q", result)
+		}
+	})
+
+	t.Run("running task", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Running Task",
+			Status:     "running",
+			LastUpdate: now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for running task")
+		}
+
+		if !strings.Contains(result, "Running Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "...") {
+			t.Errorf("Expected ellipsis for running task without details, got %q", result)
+		}
+	})
+
+	t.Run("running task with details", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Running Task",
+			Status:     "running",
+			LastUpdate: now,
+			Metadata: map[string]interface{}{
+				"step":     "Processing files...",
+				"progress": 0.75,
+			},
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for running task with details")
+		}
+
+		if !strings.Contains(result, "Running Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		// Should contain the step from metadata (but progress takes priority)
+		if !strings.Contains(result, "75%") {
+			t.Errorf("Expected progress percentage in result, got %q", result)
+		}
+	})
+
+	t.Run("completed task", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Completed Task",
+			Status:     "completed",
+			LastUpdate: now,
+			StartTime:  now.Add(-2 * time.Minute),
+			EndTime:    &now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for completed task")
+		}
+
+		if !strings.Contains(result, "Completed Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "✓") {
+			t.Errorf("Expected checkmark for completed task, got %q", result)
+		}
+	})
+
+	t.Run("completed task without duration", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Completed Task",
+			Status:     "completed",
+			LastUpdate: now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for completed task")
+		}
+
+		if !strings.Contains(result, "Completed Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "✓") {
+			t.Errorf("Expected checkmark for completed task, got %q", result)
+		}
+	})
+
+	t.Run("failed task", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Failed Task",
+			Status:     "failed",
+			LastUpdate: now,
+			Metadata: map[string]interface{}{
+				"error": "connection timeout",
+			},
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for failed task")
+		}
+
+		if !strings.Contains(result, "Failed Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "✗") {
+			t.Errorf("Expected X mark for failed task, got %q", result)
+		}
+
+		if !strings.Contains(result, "connection timeout") {
+			t.Errorf("Expected error message in result, got %q", result)
+		}
+	})
+
+	t.Run("failed task without error", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Failed Task",
+			Status:     "failed",
+			LastUpdate: now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for failed task")
+		}
+
+		if !strings.Contains(result, "Failed Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "✗") {
+			t.Errorf("Expected X mark for failed task, got %q", result)
+		}
+	})
+
+	t.Run("retrying task", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Retrying Task",
+			Status:     "retrying",
+			LastUpdate: now,
+			Metadata: map[string]interface{}{
+				"attempt": 2,
+				"delay":   30 * time.Second,
+			},
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for retrying task")
+		}
+
+		if !strings.Contains(result, "Retrying") {
+			t.Errorf("Expected 'Retrying' in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "Retrying Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+
+		// Should contain attempt info from metadata
+		if !strings.Contains(result, "attempt") {
+			t.Errorf("Expected retry attempt info in result, got %q", result)
+		}
+	})
+
+	t.Run("retrying task without retry info", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Retrying Task",
+			Status:     "retrying",
+			LastUpdate: now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result for retrying task")
+		}
+
+		if !strings.Contains(result, "Retrying") {
+			t.Errorf("Expected 'Retrying' in result, got %q", result)
+		}
+
+		if !strings.Contains(result, "...") {
+			t.Errorf("Expected ellipsis for retrying task without info, got %q", result)
+		}
+	})
+
+	t.Run("unknown status", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Unknown Task",
+			Status:     "unknown",
+			LastUpdate: now,
+		}
+
+		result := tracker.formatTaskLine(task, spinnerIndex)
+
+		if result != "" {
+			t.Errorf("Expected empty string for unknown status, got %q", result)
+		}
+	})
+
+	t.Run("spinner index wrapping", func(t *testing.T) {
+		task := &TaskProgress{
+			ID:         "task1",
+			Name:       "Running Task",
+			Status:     "running",
+			LastUpdate: now,
+		}
+
+		// Test with large spinner index that should wrap
+		largeIndex := len(tracker.spinnerChars)*3 + 2
+		result := tracker.formatTaskLine(task, largeIndex)
+
+		if result == "" {
+			t.Error("Expected non-empty result even with large spinner index")
+		}
+
+		if !strings.Contains(result, "Running Task") {
+			t.Errorf("Expected task name in result, got %q", result)
+		}
+	})
+}

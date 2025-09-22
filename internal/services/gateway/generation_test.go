@@ -199,3 +199,79 @@ func TestTaskTypeConstants(t *testing.T) {
 	assert.Equal(t, "QUESTION_ANSWERING", string(QuestionAnswering))
 	assert.Equal(t, "FACT_VERIFICATION", string(FactVerification))
 }
+
+func TestNewGenerateContentRequestGetters(t *testing.T) {
+	model := "gpt-4"
+	systemPrompt := "You are a helpful assistant"
+	userPrompt := "Hello, world!"
+	maxTokens := 100
+
+	req := NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
+
+	// Test all getter methods
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, systemPrompt, req.SystemPrompt())
+	assert.Equal(t, userPrompt, req.UserPrompt())
+	assert.Equal(t, maxTokens, req.MaxOutputTokens())
+}
+
+func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {
+	model := "text-embedding-ada-002"
+	chunks := []string{"hello", "world", "test"}
+	taskType := SemanticSimilarity
+
+	req := NewComputeEmbeddingsRequest(model, chunks, taskType)
+
+	// Test all getter methods
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, chunks, req.Chunks())
+	assert.Equal(t, taskType, req.TaskType())
+	assert.GreaterOrEqual(t, req.Dimensions(), 0)
+}
+
+func TestNewComputeEmbeddingsRequestWithDimensionsGetters(t *testing.T) {
+	model := "text-embedding-ada-002"
+	chunks := []string{"hello", "world"}
+	taskType := Classification
+	dimensions := 512
+
+	req := NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+
+	// Test all getter methods
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, chunks, req.Chunks())
+	assert.Equal(t, taskType, req.TaskType())
+	assert.Equal(t, dimensions, req.Dimensions())
+}
+
+func TestComputeDistance(t *testing.T) {
+	mixin := &ComputeDistanceMixin{}
+
+	embedding1 := Embedding{1.0, 0.0, 0.0}
+	embedding2 := Embedding{0.0, 1.0, 0.0}
+	embedding3 := Embedding{1.0, 0.0, 0.0}
+
+	// Test distance between different vectors
+	distance12, err := mixin.ComputeDistance(embedding1, embedding2)
+	assert.NoError(t, err)
+	assert.InDelta(t, 0.0, distance12, 0.001) // Should be 0 for orthogonal vectors
+
+	// Test distance between identical vectors
+	distance13, err := mixin.ComputeDistance(embedding1, embedding3)
+	assert.NoError(t, err)
+	assert.InDelta(t, 1.0, distance13, 0.001) // Should be 1 for identical vectors
+
+	// Test empty vectors
+	empty1 := Embedding{}
+	empty2 := Embedding{}
+	_, err = mixin.ComputeDistance(empty1, empty2)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "vectors must not be empty")
+
+	// Test vectors of different lengths
+	short := Embedding{1.0}
+	long := Embedding{1.0, 0.0, 0.0}
+	_, err = mixin.ComputeDistance(short, long)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "vectors must have the same length")
+}

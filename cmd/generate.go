@@ -59,6 +59,12 @@ func runGenerate(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to get silent flag: %w", err)
 	}
+
+	// Check if appConfig is initialized
+	if appConfig == nil {
+		return fmt.Errorf("configuration not loaded - please run with proper command initialization")
+	}
+
 	ctx := cmd.Context()
 
 	content, err := ui.RunFlowWithProgress(silent, "Generating", func(tracker *ui.FlowProgressTracker) (string, error) {
