@@ -22,8 +22,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/generate"
+	generateFlows "github.com/retran/meowg1k/flows/generate"
 	utilsio "github.com/retran/meowg1k/internal/utils/io"
 	"github.com/retran/meowg1k/internal/utils/ui"
 	"github.com/spf13/cobra"
@@ -43,30 +42,22 @@ func init() {
 
 	generateCmd.Flags().StringP("task", "t", "", "Run a predefined task from config")
 	generateCmd.Flags().StringP("user-prompt", "p", "", "User prompt for generation. Can be combined with stdin")
+	generateCmd.Flags().Bool("silent", false, "Silent mode - only output the result without progress indicators")
 }
 
 // runGenerate executes the main logic of the generate command.
 func runGenerate(cmd *cobra.Command) error {
-	factory := gateway.NewGatewayFactory()
-	resolver := generate.NewResolver(appConfig)
-
-	params, err := resolver.ResolveParams(cmd)
+	silent, err := cmd.Flags().GetBool("silent")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get silent flag: %w", err)
 	}
+	ctx := cmd.Context()
 
-	gw, err := factory.CreateGenerationGateway(cmd.Context(), params.Profile.Provider, params.Profile.BaseURL, params.Profile.APIKey)
+	content, err := ui.RunFlowWithProgress(silent, "Generating", func(tracker *ui.FlowProgressTracker) (string, error) {
+		return generateFlows.ExecuteGenerate(ctx, cmd, appConfig, tracker.FeedbackHandler())
+	})
 	if err != nil {
-		return err
-	}
-
-	service := generate.NewService(gw)
-
-	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {
-		return service.Generate(cmd.Context(), params)
-	}, "Generating content...")
-	if err != nil {
-		return err
+		return fmt.Errorf("failed to execute generation flow: %w", err)
 	}
 
 	_, err = io.WriteString(os.Stdout, utilsio.FinalizeOutput(content))

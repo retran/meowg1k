@@ -23,7 +23,6 @@ import (
 	"github.com/retran/meowg1k/internal/services/llm/voyage"
 )
 
-// Compile-time check to ensure voyageGateway implements EmbeddingGateway.
 var _ EmbeddingsGateway = (*voyageGateway)(nil)
 
 // voyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.

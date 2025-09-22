@@ -24,6 +24,9 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
+// Compile-time interface satisfaction check
+var _ GenerationGateway = (*anthropicGateway)(nil)
+
 // anthropicGateway wraps the Anthropic SDK client for content generation.
 type anthropicGateway struct {
 	client anthropic.Client

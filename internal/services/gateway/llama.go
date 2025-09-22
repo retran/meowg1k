@@ -24,7 +24,6 @@ import (
 	"github.com/retran/meowg1k/internal/services/llm/llama"
 )
 
-// Compile-time check for the llamaGateway.
 var _ GenerationGateway = (*llamaGateway)(nil)
 
 // var _ EmbeddingGateway = (*llamaGateway)(nil) // Uncomment when embedding is implemented

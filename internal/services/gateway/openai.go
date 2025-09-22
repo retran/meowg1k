@@ -25,9 +25,10 @@ import (
 	"github.com/openai/openai-go/v2/option"
 )
 
-// Compile-time checks to ensure openaiGateway implements both interfaces.
-var _ GenerationGateway = (*openaiGateway)(nil)
-var _ EmbeddingsGateway = (*openaiGateway)(nil)
+var (
+	_ GenerationGateway = (*openaiGateway)(nil)
+	_ EmbeddingsGateway = (*openaiGateway)(nil)
+)
 
 type openaiGateway struct {
 	ComputeDistanceMixin

@@ -23,9 +23,10 @@ import (
 	"google.golang.org/genai"
 )
 
-// Compile-time checks to ensure geminiGateway implements both interfaces.
-var _ GenerationGateway = (*geminiGateway)(nil)
-var _ EmbeddingsGateway = (*geminiGateway)(nil)
+var (
+	_ GenerationGateway = (*geminiGateway)(nil)
+	_ EmbeddingsGateway = (*geminiGateway)(nil)
+)
 
 // geminiGateway is a unified client for the Google Gemini API,
 // implementing both GenerationGateway and EmbeddingGateway.
