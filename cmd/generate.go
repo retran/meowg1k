@@ -23,6 +23,14 @@ import (
 	"os"
 
 	generateFlows "github.com/retran/meowg1k/flows/generate"
+	"github.com/retran/meowg1k/internal/services/config/command"
+	"github.com/retran/meowg1k/internal/services/config/loader"
+	"github.com/retran/meowg1k/internal/services/config/manager"
+	"github.com/retran/meowg1k/internal/services/config/registry"
+	"github.com/retran/meowg1k/internal/services/config/resolver"
+	"github.com/retran/meowg1k/internal/services/config/validator"
+	"github.com/retran/meowg1k/internal/services/gateway"
+	"github.com/retran/meowg1k/internal/services/prompt"
 	utilsio "github.com/retran/meowg1k/internal/utils/io"
 	"github.com/retran/meowg1k/internal/utils/ui"
 	"github.com/spf13/cobra"
@@ -54,7 +62,40 @@ func runGenerate(cmd *cobra.Command) error {
 	ctx := cmd.Context()
 
 	content, err := ui.RunFlowWithProgress(silent, "Generating", func(tracker *ui.FlowProgressTracker) (string, error) {
-		return generateFlows.ExecuteGenerate(ctx, cmd, appConfig, tracker.FeedbackHandler())
+		// Create and initialize all singleton services
+		registryService := registry.NewService()
+		validatorService := validator.NewService(registryService)
+		commandService := command.NewService(cmd)
+		managerService := manager.NewServiceWithConfig(appConfig, "")
+
+		// Create other required services
+		loaderService := loader.NewService()
+		resolverService := resolver.NewService(registryService, validatorService, commandService, managerService)
+		promptBuilder := prompt.NewBuilder()
+		gatewayFactory := gateway.NewGatewayFactory()
+
+		// Create factory with all dependencies
+		factory := generateFlows.NewFlowFactory(loaderService, resolverService, promptBuilder, gatewayFactory)
+
+		// Use factory to create the flow
+		flow := factory.CreateFlow(tracker.FeedbackHandler())
+
+		input := generateFlows.Input{
+			Cmd:    cmd,
+			Config: appConfig,
+		}
+
+		result, err := flow.Run(ctx, input)
+		if err != nil {
+			return "", err
+		}
+
+		// Extract the final content from the result
+		if generatedContent, ok := result.(generateFlows.GeneratedContent); ok {
+			return generatedContent.Content, nil
+		}
+
+		return "", fmt.Errorf("invalid result type")
 	})
 	if err != nil {
 		return fmt.Errorf("failed to execute generation flow: %w", err)

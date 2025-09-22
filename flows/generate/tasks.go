@@ -116,13 +116,13 @@ func (e *ResolveParamsExecutor) resolveParams(cmd *cobra.Command, cfg *config.Co
 	}
 
 	// Use resolver service to resolve task configuration (without stdin handling)
-	profileName, systemPrompt, baseUserPrompt, err := e.ResolverService.ResolveTaskConfiguration(cmd, cfg)
+	profileName, systemPrompt, baseUserPrompt, err := e.ResolverService.ResolveTaskConfiguration()
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve task configuration: %w", err)
 	}
 
 	// Use resolver service to resolve profile
-	profile, err := e.ResolverService.ResolveProfile(cfg, profileName)
+	profile, err := e.ResolverService.ResolveProfile(profileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve profile: %w", err)
 	}

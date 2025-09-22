@@ -27,14 +27,28 @@ import (
 	"github.com/retran/meowg1k/internal/services/config/loader"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/prompt"
-	"github.com/spf13/cobra"
 )
 
-// Tests for GenerateFlow
+// Tests for Flow Creation
 
-func TestGenerateFlow_Creation(t *testing.T) {
+func TestFlowCreation(t *testing.T) {
 	cfg := createTestConfig()
-	flow := GenerateFlow(nil, cfg)
+
+	// Create services for the factory
+	configLoader := &mockConfigLoaderService{config: cfg}
+	resolverService := &mockProfileResolver{
+		profile: createTestProfile(),
+		prompt:  "test user prompt",
+	}
+	promptBuilder := &mockPromptBuilder{}
+	gatewayFactory := &mockGatewayFactory{
+		gateway: &mockGenerationGateway{
+			content: "test generated content",
+		},
+	}
+
+	factory := NewFlowFactory(configLoader, resolverService, promptBuilder, gatewayFactory)
+	flow := factory.CreateFlow(nil)
 
 	if flow == nil {
 		t.Fatal("Expected flow to be created, got nil")
@@ -44,7 +58,7 @@ func TestGenerateFlow_Creation(t *testing.T) {
 	// This is a basic structural test - more detailed tests would require accessing internal flow state
 }
 
-func TestGenerateFlow_WithFeedbackHandler(t *testing.T) {
+func TestFlowWithFeedbackHandler(t *testing.T) {
 	cfg := createTestConfig()
 
 	// Mock feedback handler
@@ -52,16 +66,30 @@ func TestGenerateFlow_WithFeedbackHandler(t *testing.T) {
 		// Feedback processing not tested here
 	}
 
-	flow := GenerateFlow(feedbackHandler, cfg)
+	// Create services for the factory
+	configLoader := &mockConfigLoaderService{config: cfg}
+	resolverService := &mockProfileResolver{
+		profile: createTestProfile(),
+		prompt:  "test user prompt",
+	}
+	promptBuilder := &mockPromptBuilder{}
+	gatewayFactory := &mockGatewayFactory{
+		gateway: &mockGenerationGateway{
+			content: "test generated content",
+		},
+	}
+
+	factory := NewFlowFactory(configLoader, resolverService, promptBuilder, gatewayFactory)
+	flow := factory.CreateFlow(feedbackHandler)
 
 	if flow == nil {
 		t.Fatal("Expected flow to be created, got nil")
 	}
 }
 
-// Integration Tests for ExecuteGenerate
+// Factory Integration Tests
 
-func TestExecuteGenerate_Success(t *testing.T) {
+func TestFlowSuccess(t *testing.T) {
 	// Create test command with required flags
 	cmd := createTestCommand()
 	cmd.Flags().Set("user-prompt", "test user prompt")
@@ -71,11 +99,9 @@ func TestExecuteGenerate_Success(t *testing.T) {
 	// Create test config
 	cfg := createTestConfig()
 
-	// Mock the entire flow execution by creating our own flow with mocked dependencies
+	// Create mocked flow using factory
 	flow := createMockedFlow(cfg)
 
-	// We can't easily test ExecuteGenerate directly with real dependencies in a unit test,
-	// so we'll test the flow logic by creating a custom flow with mocked dependencies
 	input := Input{
 		Cmd:    cmd,
 		Config: cfg,
@@ -96,7 +122,7 @@ func TestExecuteGenerate_Success(t *testing.T) {
 	}
 }
 
-func TestExecuteGenerate_InvalidInput(t *testing.T) {
+func TestFlowInvalidInput(t *testing.T) {
 	// Test with invalid command (missing required flags)
 	cmd := createTestCommand()
 	// Don't set any flags
@@ -119,7 +145,7 @@ func TestExecuteGenerate_InvalidInput(t *testing.T) {
 	}
 }
 
-func TestExecuteGenerate_FlowExecutionError(t *testing.T) {
+func TestFlowExecutionError(t *testing.T) {
 	cmd := createTestCommand()
 	cmd.Flags().Set("user-prompt", "test prompt")
 	cfg := createTestConfig()
@@ -139,11 +165,9 @@ func TestExecuteGenerate_FlowExecutionError(t *testing.T) {
 	}
 }
 
-// Helper functions for creating mocked flows
+// Helper functions for creating mocked flows using the factory pattern
 
 func createMockedFlow(cfg *config.Config) *flows.Flow {
-	flow := flows.NewFlow()
-
 	// Create successful mocks
 	configLoader := &mockConfigLoaderService{
 		config: cfg,
@@ -157,21 +181,14 @@ func createMockedFlow(cfg *config.Config) *flows.Flow {
 			content: "mocked generated content",
 		},
 	}
-
-	// Add tasks with mocked dependencies
 	promptBuilder := prompt.NewBuilder()
-	flows.AddTask(flow, "resolve-params", NewResolveParamsExecutor(configLoader, resolverService, promptBuilder)).
-		LinkToID("create-gateway")
-	flows.AddTask(flow, "create-gateway", NewCreateGatewayExecutor(gatewayFactory)).
-		LinkToID("generate-content")
-	flows.AddTask(flow, "generate-content", &GenerateContentExecutor{})
 
-	return flow.SetStart("resolve-params")
+	// Use the factory pattern to create the flow
+	factory := NewFlowFactory(configLoader, resolverService, promptBuilder, gatewayFactory)
+	return factory.CreateFlow(nil)
 }
 
 func createMockedFlowWithErrors(cfg *config.Config) *flows.Flow {
-	flow := flows.NewFlow()
-
 	// Create failing mocks
 	configLoader := &mockConfigLoaderService{
 		config: cfg,
@@ -183,21 +200,16 @@ func createMockedFlowWithErrors(cfg *config.Config) *flows.Flow {
 	gatewayFactory := &mockGatewayFactory{
 		err: errors.New("gateway creation failed"),
 	}
-
-	// Add tasks with failing dependencies
 	promptBuilder := prompt.NewBuilder()
-	flows.AddTask(flow, "resolve-params", NewResolveParamsExecutor(configLoader, resolverService, promptBuilder)).
-		LinkToID("create-gateway")
-	flows.AddTask(flow, "create-gateway", NewCreateGatewayExecutor(gatewayFactory)).
-		LinkToID("generate-content")
-	flows.AddTask(flow, "generate-content", &GenerateContentExecutor{})
 
-	return flow.SetStart("resolve-params")
+	// Use the factory pattern to create the flow
+	factory := NewFlowFactory(configLoader, resolverService, promptBuilder, gatewayFactory)
+	return factory.CreateFlow(nil)
 }
 
 // End-to-end style tests with more realistic scenarios
 
-func TestGenerateFlow_EndToEnd_Success(t *testing.T) {
+func TestFlowEndToEndSuccess(t *testing.T) {
 	// This test simulates a more realistic end-to-end execution
 	// with all components working together
 
@@ -235,8 +247,6 @@ func TestGenerateFlow_EndToEnd_Success(t *testing.T) {
 }
 
 func createRealisticMockedFlow() *flows.Flow {
-	flow := flows.NewFlow()
-
 	// More realistic mocks that simulate actual behavior
 	configLoader := &mockConfigLoaderService{}
 	resolverService := &mockProfileResolver{
@@ -258,18 +268,15 @@ func createRealisticMockedFlow() *flows.Flow {
 	}
 
 	promptBuilder := prompt.NewBuilder()
-	flows.AddTask(flow, "resolve-params", NewResolveParamsExecutor(configLoader, resolverService, promptBuilder)).
-		LinkToID("create-gateway")
-	flows.AddTask(flow, "create-gateway", NewCreateGatewayExecutor(gatewayFactory)).
-		LinkToID("generate-content")
-	flows.AddTask(flow, "generate-content", &GenerateContentExecutor{})
 
-	return flow.SetStart("resolve-params")
+	// Use the factory pattern to create the flow
+	factory := NewFlowFactory(configLoader, resolverService, promptBuilder, gatewayFactory)
+	return factory.CreateFlow(nil)
 }
 
 // Test error propagation through the flow
 
-func TestGenerateFlow_ErrorPropagation(t *testing.T) {
+func TestFlowErrorPropagation(t *testing.T) {
 	tests := []struct {
 		name               string
 		profileResolverErr error
@@ -350,7 +357,7 @@ func TestGenerateFlow_ErrorPropagation(t *testing.T) {
 // End-to-End Integration Tests
 // These tests use real service implementations where possible to validate actual flow execution
 
-func TestExecuteGenerate_EndToEndWithRealServices(t *testing.T) {
+func TestFlowEndToEndWithRealServices(t *testing.T) {
 	// Create test command with required flags
 	cmd := createTestCommand()
 	cmd.Flags().Set("user-prompt", "Generate a simple hello world function in Python")
@@ -387,7 +394,7 @@ func TestExecuteGenerate_EndToEndWithRealServices(t *testing.T) {
 	}
 }
 
-func TestExecuteGenerate_EndToEndWithTimeout(t *testing.T) {
+func TestFlowEndToEndWithTimeout(t *testing.T) {
 	// Create test command
 	cmd := createTestCommand()
 	cmd.Flags().Set("user-prompt", "test prompt")
@@ -418,7 +425,7 @@ func TestExecuteGenerate_EndToEndWithTimeout(t *testing.T) {
 	}
 }
 
-func TestExecuteGenerate_EndToEndWithStdin(t *testing.T) {
+func TestFlowEndToEndWithStdin(t *testing.T) {
 	// This test would require complex stdin simulation
 	// For now, we'll test the command flag resolution logic
 	cmd := createTestCommand()
@@ -469,8 +476,6 @@ func createRealisticTestConfig() *config.Config {
 }
 
 func createRealServicesFlow(cfg *config.Config) *flows.Flow {
-	flow := flows.NewFlow()
-
 	// Use simplified real services that match the actual interfaces
 	loaderService := &integrationConfigLoaderService{config: cfg}
 	resolverService := &integrationResolverService{}
@@ -483,18 +488,13 @@ func createRealServicesFlow(cfg *config.Config) *flows.Flow {
 	}
 
 	promptBuilder := prompt.NewBuilder()
-	flows.AddTask(flow, "resolve-params", NewResolveParamsExecutor(loaderService, resolverService, promptBuilder)).
-		LinkToID("create-gateway")
-	flows.AddTask(flow, "create-gateway", NewCreateGatewayExecutor(gatewayFactory)).
-		LinkToID("generate-content")
-	flows.AddTask(flow, "generate-content", &GenerateContentExecutor{})
 
-	return flow.SetStart("resolve-params")
+	// Use the factory pattern to create the flow
+	factory := NewFlowFactory(loaderService, resolverService, promptBuilder, gatewayFactory)
+	return factory.CreateFlow(nil)
 }
 
 func createSlowServicesFlow(cfg *config.Config) *flows.Flow {
-	flow := flows.NewFlow()
-
 	loaderService := &integrationConfigLoaderService{config: cfg}
 	resolverService := &integrationResolverService{}
 
@@ -506,13 +506,10 @@ func createSlowServicesFlow(cfg *config.Config) *flows.Flow {
 	}
 
 	promptBuilder := prompt.NewBuilder()
-	flows.AddTask(flow, "resolve-params", NewResolveParamsExecutor(loaderService, resolverService, promptBuilder)).
-		LinkToID("create-gateway")
-	flows.AddTask(flow, "create-gateway", NewCreateGatewayExecutor(gatewayFactory)).
-		LinkToID("generate-content")
-	flows.AddTask(flow, "generate-content", &GenerateContentExecutor{})
 
-	return flow.SetStart("resolve-params")
+	// Use the factory pattern to create the flow
+	factory := NewFlowFactory(loaderService, resolverService, promptBuilder, gatewayFactory)
+	return factory.CreateFlow(nil)
 }
 
 // Integration test service implementations
@@ -531,41 +528,22 @@ func (r *integrationConfigLoaderService) LoadFromSources(sources ...loader.Confi
 
 type integrationResolverService struct{}
 
-func (r *integrationResolverService) ResolveProfile(cfg *config.Config, profileName string) (*config.ResolvedProfile, error) {
-	if cfg.Profiles == nil {
-		return nil, errors.New("no profiles configured")
-	}
-
-	profile, exists := cfg.Profiles[profileName]
-	if !exists {
-		return nil, errors.New("profile not found")
-	}
-
+func (r *integrationResolverService) ResolveProfile(profileName string) (*config.ResolvedProfile, error) {
+	// For integration tests, return a fixed test profile
 	return &config.ResolvedProfile{
-		Provider: gateway.Provider(profile.Provider),
-		Model:    profile.Model,
-		BaseURL:  profile.BaseURL,
+		Provider: gateway.OpenAI,
+		Model:    "gpt-4",
+		BaseURL:  "https://api.openai.com/v1",
 		APIKey:   "test-api-key",
-		Timeout:  profile.Timeout,
+		Timeout:  30000,
 	}, nil
 }
 
-func (r *integrationResolverService) ResolvePrompt(cfg *config.Config, promptName string) (string, error) {
+func (r *integrationResolverService) ResolvePrompt(promptName string) (string, error) {
 	return "test system prompt", nil
 }
 
-func (r *integrationResolverService) ResolveTaskConfiguration(cmd *cobra.Command, cfg *config.Config) (profileName, systemPrompt, userPrompt string, err error) {
-	// Simple implementation for integration tests
-	taskName, _ := cmd.Flags().GetString("task")
-	if taskName != "" {
-		// For integration tests, just return test values for any task
-		return "default", "test system prompt", "test user prompt", nil
-	}
-
-	// Default behavior
-	prompt, _ := cmd.Flags().GetString("user-prompt")
-	if prompt == "" {
-		return "", "", "", errors.New("user prompt is required")
-	}
-	return "default", "", prompt, nil
+func (r *integrationResolverService) ResolveTaskConfiguration() (profileName, systemPrompt, userPrompt string, err error) {
+	// For integration tests, return fixed test values
+	return "default", "test system prompt", "test user prompt", nil
 }

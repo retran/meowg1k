@@ -52,15 +52,15 @@ type mockProfileResolver struct {
 	promptErr error // Prompt resolution error
 }
 
-func (m *mockProfileResolver) ResolveProfile(cfg *config.Config, profileName string) (*config.ResolvedProfile, error) {
+func (m *mockProfileResolver) ResolveProfile(profileName string) (*config.ResolvedProfile, error) {
 	return m.profile, m.err
 }
 
-func (m *mockProfileResolver) ResolvePrompt(cfg *config.Config, promptName string) (string, error) {
+func (m *mockProfileResolver) ResolvePrompt(promptName string) (string, error) {
 	return m.prompt, m.promptErr
 }
 
-func (m *mockProfileResolver) ResolveTaskConfiguration(cmd *cobra.Command, cfg *config.Config) (profileName, systemPrompt, userPrompt string, err error) {
+func (m *mockProfileResolver) ResolveTaskConfiguration() (profileName, systemPrompt, userPrompt string, err error) {
 	if m.err != nil {
 		return "", "", "", m.err
 	}

@@ -22,42 +22,50 @@ import (
 	"os"
 
 	"github.com/retran/meowg1k/internal/config"
+	"github.com/retran/meowg1k/internal/services/config/command"
+	"github.com/retran/meowg1k/internal/services/config/manager"
 	"github.com/retran/meowg1k/internal/services/config/registry"
 	"github.com/retran/meowg1k/internal/services/config/validator"
-	"github.com/spf13/cobra"
 )
 
 // Service provides configuration resolution capabilities.
 type Service interface {
-	// ResolveProfile resolves a profile with validation.
-	ResolveProfile(cfg *config.Config, profileName string) (*config.ResolvedProfile, error)
+	// ResolveProfile resolves a profile with validation using the current config.
+	ResolveProfile(profileName string) (*config.ResolvedProfile, error)
 
-	// ResolvePrompt resolves a prompt configuration.
-	ResolvePrompt(cfg *config.Config, promptName string) (string, error)
+	// ResolvePrompt resolves a prompt configuration using the current config.
+	ResolvePrompt(promptName string) (string, error)
 
-	// ResolveTaskConfiguration resolves profile and prompts based on task flag or defaults.
-	ResolveTaskConfiguration(cmd *cobra.Command, cfg *config.Config) (profileName, systemPrompt, userPrompt string, err error)
+	// ResolveTaskConfiguration resolves profile and prompts based on task flag or defaults using current command and config.
+	ResolveTaskConfiguration() (profileName, systemPrompt, userPrompt string, err error)
 }
 
 // serviceImpl is the concrete implementation of the resolver service.
 type serviceImpl struct {
 	registryService  registry.Service
 	validatorService validator.Service
+	commandService   command.Service
+	managerService   manager.Service
 }
 
 // Compile-time interface satisfaction check
 var _ Service = (*serviceImpl)(nil)
 
 // NewService creates a new configuration resolver service.
-func NewService(registryService registry.Service, validatorService validator.Service) Service {
+func NewService(registryService registry.Service, validatorService validator.Service, commandService command.Service, managerService manager.Service) Service {
 	return &serviceImpl{
 		registryService:  registryService,
 		validatorService: validatorService,
+		commandService:   commandService,
+		managerService:   managerService,
 	}
 }
 
-// ResolveProfile resolves a profile with validation.
-func (s *serviceImpl) ResolveProfile(cfg *config.Config, profileName string) (*config.ResolvedProfile, error) {
+// ResolveProfile resolves a profile with validation using the current config.
+func (s *serviceImpl) ResolveProfile(profileName string) (*config.ResolvedProfile, error) {
+	cfg := s.managerService.GetConfig()
+	// No need to check for nil since manager service guarantees a loaded config
+
 	if cfg.Profiles == nil {
 		return nil, fmt.Errorf("no profiles defined in configuration")
 	}
@@ -128,8 +136,11 @@ func (s *serviceImpl) ResolveProfile(cfg *config.Config, profileName string) (*c
 	return resolved, nil
 }
 
-// ResolvePrompt resolves a prompt configuration.
-func (s *serviceImpl) ResolvePrompt(cfg *config.Config, promptName string) (string, error) {
+// ResolvePrompt resolves a prompt configuration using the current config.
+func (s *serviceImpl) ResolvePrompt(promptName string) (string, error) {
+	cfg := s.managerService.GetConfig()
+	// No need to check for nil since manager service guarantees a loaded config
+
 	// Look for prompts in the generate tasks
 	if cfg.Generate != nil && cfg.Generate.Tasks != nil {
 		if task, exists := cfg.Generate.Tasks[promptName]; exists {
@@ -142,8 +153,14 @@ func (s *serviceImpl) ResolvePrompt(cfg *config.Config, promptName string) (stri
 	return "", fmt.Errorf("prompt '%s' not found", promptName)
 }
 
-// ResolveTaskConfiguration resolves profile and prompts based on task flag or defaults.
-func (s *serviceImpl) ResolveTaskConfiguration(cmd *cobra.Command, cfg *config.Config) (profileName, systemPrompt, userPrompt string, err error) {
+// ResolveTaskConfiguration resolves profile and prompts based on task flag or defaults using current command and config.
+func (s *serviceImpl) ResolveTaskConfiguration() (profileName, systemPrompt, userPrompt string, err error) {
+	cmd := s.commandService.GetCommand()
+	// No need to check for nil since command service guarantees a command
+
+	cfg := s.managerService.GetConfig()
+	// No need to check for nil since manager service guarantees a loaded config
+
 	// Check if a specific task is requested
 	taskName, err := cmd.Flags().GetString("task")
 	if err != nil {
