@@ -1,4 +1,4 @@
-/*package shutdown
+/*
 
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
