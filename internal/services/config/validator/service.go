@@ -1,5 +1,4 @@
-/*package validator
-
+/*
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
 Licensed under the Apache License, Version 2.0 (the "License");
