@@ -19,10 +19,40 @@ package prompt
 import (
 	"os"
 	"testing"
+
+	"github.com/retran/meowg1k/internal/models/config"
+	configservice "github.com/retran/meowg1k/internal/services/config"
+	"github.com/stretchr/testify/mock"
 )
 
+// Mock manager service for testing
+type mockManagerService struct {
+	mock.Mock
+}
+
+func (m *mockManagerService) GetConfig() *config.Config {
+	args := m.Called()
+	return args.Get(0).(*config.Config)
+}
+
+func (m *mockManagerService) LoadConfig() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *mockManagerService) LoadConfigFromPath(configPath string) error {
+	args := m.Called(configPath)
+	return args.Error(0)
+}
+
+func (m *mockManagerService) LoadFromSources(sources ...configservice.ConfigSource) error {
+	args := m.Called(sources)
+	return args.Error(0)
+}
+
 func TestBuilder_CombinePrompts(t *testing.T) {
-	builder := NewBuilder()
+	mockManager := &mockManagerService{}
+	builder := NewBuilder(mockManager)
 
 	tests := []struct {
 		name     string
@@ -67,7 +97,8 @@ func TestBuilder_CombinePrompts(t *testing.T) {
 }
 
 func TestBuilder_BuildUserPrompt_NoStdin(t *testing.T) {
-	builder := NewBuilder()
+	mockManager := &mockManagerService{}
+	builder := NewBuilder(mockManager)
 
 	// Test with base prompt but no stdin (since we can't easily mock stdin in tests)
 	result, err := builder.BuildUserPrompt("base prompt", "\n\n```\n%s\n```")
@@ -83,7 +114,8 @@ func TestBuilder_BuildUserPrompt_NoStdin(t *testing.T) {
 }
 
 func TestBuilder_BuildUserPrompt_WithStdin(t *testing.T) {
-	builder := NewBuilder()
+	mockManager := &mockManagerService{}
+	builder := NewBuilder(mockManager)
 
 	// Save original stdin
 	oldStdin := os.Stdin
@@ -114,4 +146,60 @@ func TestBuilder_BuildUserPrompt_WithStdin(t *testing.T) {
 	if result != expected {
 		t.Errorf("BuildUserPrompt() = %q, want %q", result, expected)
 	}
+}
+
+func TestBuilder_ResolvePrompt_Success(t *testing.T) {
+	mockManager := &mockManagerService{}
+	builder := NewBuilder(mockManager)
+
+	cfg := &config.Config{
+		Generate: &config.GenerateConfig{
+			Tasks: map[string]*config.GenerateTask{
+				"test-task": {
+					UserPrompt: "Test user prompt",
+				},
+			},
+		},
+	}
+
+	mockManager.On("GetConfig").Return(cfg)
+
+	// Execute
+	result, err := builder.ResolvePrompt("test-task")
+
+	// Assert
+	if err != nil {
+		t.Errorf("ResolvePrompt() error = %v", err)
+	}
+	if result != "Test user prompt" {
+		t.Errorf("ResolvePrompt() = %q, want %q", result, "Test user prompt")
+	}
+
+	mockManager.AssertExpectations(t)
+}
+
+func TestBuilder_ResolvePrompt_NotFound(t *testing.T) {
+	mockManager := &mockManagerService{}
+	builder := NewBuilder(mockManager)
+
+	cfg := &config.Config{
+		Generate: &config.GenerateConfig{
+			Tasks: map[string]*config.GenerateTask{},
+		},
+	}
+
+	mockManager.On("GetConfig").Return(cfg)
+
+	// Execute
+	result, err := builder.ResolvePrompt("nonexistent-task")
+
+	// Assert
+	if err == nil {
+		t.Error("ResolvePrompt() expected error, got nil")
+	}
+	if result != "" {
+		t.Errorf("ResolvePrompt() = %q, want empty string", result)
+	}
+
+	mockManager.AssertExpectations(t)
 }

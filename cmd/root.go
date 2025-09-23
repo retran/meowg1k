@@ -26,10 +26,9 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/retran/meowg1k/internal/config"
-	"github.com/retran/meowg1k/internal/services/config/loader"
-	"github.com/retran/meowg1k/internal/services/config/registry"
-	"github.com/retran/meowg1k/internal/services/config/validator"
+	"github.com/retran/meowg1k/internal/models/config"
+	"github.com/retran/meowg1k/internal/services/command"
+	configservice "github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/utils/shutdown"
 	"github.com/spf13/cobra"
 )
@@ -95,21 +94,16 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
-		var err error
-		// Load configuration using individual services
-		registryService := registry.NewService()
-		validatorService := validator.NewService(registryService)
-		loaderService := loader.NewService()
+		// Load configuration using unified config service
+		commandService := command.NewService(cmd)
+		configService := configservice.NewService(commandService)
 
-		appConfig, err = loaderService.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load configuration: %w", err)
+		if err := configService.LoadConfigFromPath(configPath); err != nil {
+			return fmt.Errorf("failed to load and validate configuration: %w", err)
 		}
 
-		// Validate the loaded configuration
-		if err := validatorService.ValidateConfig(appConfig); err != nil {
-			return fmt.Errorf("configuration validation failed: %w", err)
-		}
+		// Get the loaded config
+		appConfig = configService.GetConfig()
 
 		// Reconfigure logging with the loaded configuration
 		if err := reconfigureLogging(appConfig); err != nil {

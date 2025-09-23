@@ -18,49 +18,13 @@ package gateway
 
 import (
 	"context"
+
+	"github.com/retran/meowg1k/internal/models/gateway"
 )
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
 type GenerationGateway interface {
 	// GenerateContent sends a content generation request to the LLM and returns the generated response.
 	// It returns an error if the generation process fails.
-	GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error)
-}
-
-// GenerateContentRequest holds the parameters for a content generation request.
-type GenerateContentRequest struct {
-	model           string
-	systemPrompt    string
-	userPrompt      string
-	maxOutputTokens int
-}
-
-// NewGenerateContentRequest creates and returns a new GenerateContentRequest.
-func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutputTokens int) *GenerateContentRequest {
-	return &GenerateContentRequest{
-		model:           model,
-		systemPrompt:    systemPrompt,
-		userPrompt:      userPrompt,
-		maxOutputTokens: maxOutputTokens,
-	}
-}
-
-// Model returns the model name for the content generation request.
-func (r *GenerateContentRequest) Model() string {
-	return r.model
-}
-
-// SystemPrompt returns the system prompt for the content generation request.
-func (r *GenerateContentRequest) SystemPrompt() string {
-	return r.systemPrompt
-}
-
-// UserPrompt returns the user prompt for the content generation request.
-func (r *GenerateContentRequest) UserPrompt() string {
-	return r.userPrompt
-}
-
-// MaxOutputTokens returns the maximum output tokens for the content generation request.
-func (r *GenerateContentRequest) MaxOutputTokens() int {
-	return r.maxOutputTokens
+	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error)
 }

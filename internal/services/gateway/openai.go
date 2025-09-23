@@ -23,6 +23,7 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+	"github.com/retran/meowg1k/internal/models/gateway"
 )
 
 var (
@@ -47,7 +48,7 @@ func newOpenAIGateway(baseURL string, apiKey string) (Gateway, error) {
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
-func (g *openaiGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *openaiGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
@@ -68,12 +69,12 @@ func (g *openaiGateway) GenerateContent(ctx context.Context, request *GenerateCo
 }
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
-func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
+func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {
 	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
-			OfArrayOfStrings: request.chunks,
+			OfArrayOfStrings: request.Chunks(),
 		},
-		Model: request.model,
+		Model: openai.EmbeddingModel(request.Model()),
 	}
 
 	// Set dimensions if specified
@@ -84,12 +85,12 @@ func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *ComputeE
 	response, err := g.client.Embeddings.New(ctx, params)
 
 	if err != nil {
-		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
-	embeddings := make([]Embedding, 0, len(response.Data))
+	embeddings := make([]gateway.Embedding, 0, len(response.Data))
 	for _, value := range response.Data {
-		embeddings = append(embeddings, Embedding(value.Embedding))
+		embeddings = append(embeddings, gateway.Embedding(value.Embedding))
 	}
 
 	return embeddings, nil

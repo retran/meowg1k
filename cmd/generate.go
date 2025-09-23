@@ -1,7 +1,16 @@
 /*
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
-Licensed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License, Vers	// Create registry service
+	registryService := providers.NewService()
+	commandService := command.NewService(cmd)
+	configService := configservice.NewServiceWithConfig(appConfig, configPath, commandService)
+
+	// Create task resolver service
+	taskResolverService := tasks.NewService(commandService, configService)
+
+	// Create profile resolver service
+	profileResolverService := profiles.NewService(registryService, configService)e "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -14,25 +23,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmd contains the command-line interface for meowg1k.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 
-	generateFlows "github.com/retran/meowg1k/flows/generate"
-	"github.com/retran/meowg1k/internal/services/config/command"
-	"github.com/retran/meowg1k/internal/services/config/loader"
-	"github.com/retran/meowg1k/internal/services/config/manager"
-	"github.com/retran/meowg1k/internal/services/config/registry"
-	"github.com/retran/meowg1k/internal/services/config/resolver"
-	"github.com/retran/meowg1k/internal/services/config/validator"
+	"github.com/retran/meowg1k/internal/activities/generate"
+	"github.com/retran/meowg1k/internal/models/config"
+	"github.com/retran/meowg1k/internal/services/command"
+	configservice "github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/gateway"
+	"github.com/retran/meowg1k/internal/services/profiles"
 	"github.com/retran/meowg1k/internal/services/prompt"
+	"github.com/retran/meowg1k/internal/services/providers"
+	"github.com/retran/meowg1k/internal/services/tasks"
 	utilsio "github.com/retran/meowg1k/internal/utils/io"
-	"github.com/retran/meowg1k/internal/utils/ui"
+	"github.com/retran/meowg1k/pkg/activity"
+	"github.com/retran/meowg1k/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -67,44 +77,15 @@ func runGenerate(cmd *cobra.Command) error {
 
 	ctx := cmd.Context()
 
-	content, err := ui.RunFlowWithProgress(silent, "Generating", func(tracker *ui.FlowProgressTracker) (string, error) {
-		// Create and initialize all singleton services
-		registryService := registry.NewService()
-		validatorService := validator.NewService(registryService)
-		commandService := command.NewService(cmd)
-		managerService := manager.NewServiceWithConfig(appConfig, "")
+	// Create progress tracker for the new system
+	tracker := ui.NewActivityTracker(silent, "Generating")
+	tracker.Start()
+	defer tracker.Stop()
 
-		// Create other required services
-		loaderService := loader.NewService()
-		resolverService := resolver.NewService(registryService, validatorService, commandService, managerService)
-		promptBuilder := prompt.NewBuilder()
-		gatewayFactory := gateway.NewGatewayFactory()
-
-		// Create factory with all dependencies
-		factory := generateFlows.NewFlowFactory(loaderService, resolverService, promptBuilder, gatewayFactory)
-
-		// Use factory to create the flow
-		flow := factory.CreateFlow(tracker.FeedbackHandler())
-
-		input := generateFlows.Input{
-			Cmd:    cmd,
-			Config: appConfig,
-		}
-
-		result, err := flow.Run(ctx, input)
-		if err != nil {
-			return "", err
-		}
-
-		// Extract the final content from the result
-		if generatedContent, ok := result.(generateFlows.GeneratedContent); ok {
-			return generatedContent.Content, nil
-		}
-
-		return "", fmt.Errorf("invalid result type")
-	})
+	// Use activity-based implementation
+	content, err := generateContentWithActivity(ctx, cmd, appConfig, tracker.FeedbackHandler())
 	if err != nil {
-		return fmt.Errorf("failed to execute generation flow: %w", err)
+		return fmt.Errorf("failed to execute generation: %w", err)
 	}
 
 	_, err = io.WriteString(os.Stdout, utilsio.FinalizeOutput(content))
@@ -113,4 +94,93 @@ func runGenerate(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// generateContentWithActivity implements the generate logic using the new activity-based approach
+func generateContentWithActivity(ctx context.Context, cmd *cobra.Command, appConfig *config.Config, feedbackHandler interface{}) (string, error) {
+	// Create all required services
+	registryService := providers.NewService()
+	commandService := command.NewService(cmd)
+	configService := configservice.NewServiceWithConfig(appConfig, configPath, commandService)
+
+	// Create task resolver service
+	taskResolverService := tasks.NewService(commandService, configService)
+
+	// Create profile resolver service
+	profileResolverService := profiles.NewService(registryService, configService)
+
+	// Create prompt builder service
+	promptBuilderService := prompt.NewBuilder(configService)
+
+	// Create gateway factory
+	gatewayFactory := gateway.NewGatewayFactory()
+
+	// Create generate activity factory with injected services
+	generateFactory := generate.NewGenerateActivityFactory(
+		taskResolverService,
+		profileResolverService,
+		promptBuilderService,
+		gatewayFactory,
+	)
+
+	// Create the activity function
+	generateActivity := generateFactory.CreateActivity()
+
+	// Read stdin content
+	stdinContent, err := utilsio.ReadFromStdin()
+	if err != nil {
+		return "", fmt.Errorf("failed to read stdin: %w", err)
+	}
+
+	// Get command line flags
+	taskName, err := cmd.Flags().GetString("task")
+	if err != nil {
+		return "", fmt.Errorf("failed to get task flag: %w", err)
+	}
+
+	userPrompt, err := cmd.Flags().GetString("user-prompt")
+	if err != nil {
+		return "", fmt.Errorf("failed to get user-prompt flag: %w", err)
+	}
+
+	silent, err := cmd.Flags().GetBool("silent")
+	if err != nil {
+		return "", fmt.Errorf("failed to get silent flag: %w", err)
+	}
+
+	// Create activity context
+	feedbackHandlerFunc, ok := feedbackHandler.(func(activity.Feedback))
+	if !ok {
+		// Create a default feedback handler if conversion fails
+		feedbackHandlerFunc = func(feedback activity.Feedback) {
+			// Default implementation - could log or handle feedback
+		}
+	}
+
+	activityCtx := activity.NewActivityContext("generate", feedbackHandlerFunc)
+
+	// Prepare input
+	input := &generate.GenerateInput{
+		Command:      cmd,
+		Config:       appConfig,
+		StdinContent: stdinContent,
+		TaskName:     taskName,
+		UserPrompt:   userPrompt,
+		Silent:       silent,
+	}
+
+	// Execute the activity
+	output, err := generateActivity(ctx, activityCtx, input)
+	if err != nil {
+		return "", fmt.Errorf("generate activity failed: %w", err)
+	}
+
+	return output.Content, nil
+}
+
+// generateContentSimple is a placeholder for the simple generation logic
+// TODO: Remove this function after migration is complete
+func generateContentSimple(ctx context.Context, cmd *cobra.Command, appConfig interface{}, feedbackHandler interface{}) (string, error) {
+	// This is a temporary placeholder
+	return "Generated content placeholder", nil
 }

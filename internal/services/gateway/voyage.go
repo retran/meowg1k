@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/retran/meowg1k/internal/services/llm/voyage"
 )
 
@@ -48,31 +49,31 @@ func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
 }
 
 // mapTaskTypeToInputType maps our generic TaskType to Voyage AI's input_type parameter.
-func mapTaskTypeToInputType(taskType TaskType) string {
+func mapTaskTypeToInputType(taskType gateway.TaskType) string {
 	switch taskType {
-	case RetrievalDocument:
+	case gateway.RetrievalDocument:
 		return "document"
-	case RetrievalQuery:
+	case gateway.RetrievalQuery:
 		return "query"
-	case CodeRetrievalQuery:
+	case gateway.CodeRetrievalQuery:
 		return "query"
-	case Classification:
-		return "document"
-	case Clustering:
-		return "document"
-	case SemanticSimilarity:
-		return "document"
-	case QuestionAnswering:
+	case gateway.Classification:
+		return "classification"
+	case gateway.Clustering:
+		return "clustering"
+	case gateway.SemanticSimilarity:
 		return "query"
-	case FactVerification:
+	case gateway.QuestionAnswering:
+		return "query"
+	case gateway.FactVerification:
 		return "query"
 	default:
-		return "document" // Default to document
+		return "query" // default to query for unknown task types
 	}
 }
 
 // ComputeEmbeddings sends a request to the Voyage AI API to compute embeddings for the given text chunks.
-func (g *voyageGateway) ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error) {
+func (g *voyageGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {
 	inputType := mapTaskTypeToInputType(request.TaskType())
 
 	req := voyage.EmbeddingRequest{
@@ -89,12 +90,12 @@ func (g *voyageGateway) ComputeEmbeddings(ctx context.Context, request *ComputeE
 
 	response, err := g.client.CreateEmbeddings(ctx, req)
 	if err != nil {
-		return []Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
 	}
 
-	embeddings := make([]Embedding, 0, len(response.Data))
+	embeddings := make([]gateway.Embedding, 0, len(response.Data))
 	for _, data := range response.Data {
-		embeddings = append(embeddings, Embedding(data.Embedding))
+		embeddings = append(embeddings, gateway.Embedding(data.Embedding))
 	}
 
 	return embeddings, nil

@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmd contains the command-line interface for meowg1k.
 package cmd
 
 import (
@@ -24,7 +23,7 @@ import (
 var indexCmd = &cobra.Command{
 	Use:     "index",
 	Aliases: []string{"i"},
-	Short:   "",
+	Short:   "Index command (not yet implemented)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runIndex(cmd)
 	},

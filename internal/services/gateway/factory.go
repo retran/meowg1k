@@ -19,12 +19,14 @@ package gateway
 import (
 	"context"
 	"fmt"
+
+	"github.com/retran/meowg1k/internal/models/gateway"
 )
 
 // GatewayFactory is the interface for creating LLM gateways.
 type GatewayFactory interface {
-	CreateGenerationGateway(ctx context.Context, provider Provider, baseURL, apiKey string) (GenerationGateway, error)
-	CreateEmbeddingsGateway(ctx context.Context, provider Provider, baseURL, apiKey string) (EmbeddingsGateway, error)
+	CreateGenerationGateway(ctx context.Context, provider gateway.Provider, baseURL, apiKey string) (GenerationGateway, error)
+	CreateEmbeddingsGateway(ctx context.Context, provider gateway.Provider, baseURL, apiKey string) (EmbeddingsGateway, error)
 }
 
 // gatewayFactory is the implementation of GatewayFactory.
@@ -36,7 +38,7 @@ func NewGatewayFactory() GatewayFactory {
 }
 
 // buildConfig builds the configuration from the provided parameters.
-func (f *gatewayFactory) buildConfig(provider Provider, baseURL, apiKey string) (*Config, error) {
+func (f *gatewayFactory) buildConfig(provider gateway.Provider, baseURL, apiKey string) (*gateway.Config, error) {
 	opts := []Option{
 		WithProvider(provider),
 	}
@@ -51,7 +53,7 @@ func (f *gatewayFactory) buildConfig(provider Provider, baseURL, apiKey string) 
 		opts = append(opts, WithAPIKey(apiKey))
 	}
 
-	cfg := &Config{}
+	cfg := &gateway.Config{}
 	for _, opt := range opts {
 		if err := opt(cfg); err != nil {
 			return nil, err
@@ -62,46 +64,46 @@ func (f *gatewayFactory) buildConfig(provider Provider, baseURL, apiKey string) 
 }
 
 // CreateGenerationGateway creates a gateway with options based on the provided parameters.
-func (f *gatewayFactory) CreateGenerationGateway(ctx context.Context, provider Provider, baseURL, apiKey string) (GenerationGateway, error) {
+func (f *gatewayFactory) CreateGenerationGateway(ctx context.Context, provider gateway.Provider, baseURL, apiKey string) (GenerationGateway, error) {
 	cfg, err := f.buildConfig(provider, baseURL, apiKey)
 	if err != nil {
 		return nil, err
 	}
 
 	switch cfg.Provider {
-	case Gemini:
+	case gateway.Gemini:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("gemini provider requires an API key")
 		}
 		return newGeminiGateway(ctx, cfg.APIKey)
-	case Llama:
+	case gateway.Llama:
 		if cfg.BaseURL == "" {
 			return nil, fmt.Errorf("llama provider requires a base URL")
 		}
 		return newLlamaGateway(cfg.BaseURL, cfg.APIKey)
-	case Nebius:
+	case gateway.Nebius:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}
 		return newOpenAIGateway(cfg.BaseURL, cfg.APIKey)
-	case OpenAI:
+	case gateway.OpenAI:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key")
 		}
 		return newOpenAIGateway(cfg.BaseURL, cfg.APIKey)
-	case OpenRouter:
+	case gateway.OpenRouter:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openrouter provider requires an API key")
 		}
 		return newOpenAIGateway(cfg.BaseURL, cfg.APIKey)
-	case Anthropic:
+	case gateway.Anthropic:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("anthropic provider requires an API key")
 		}
 		return newAnthropicGateway(cfg.APIKey)
-	case Voyage:
+	case gateway.Voyage:
 		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
-	case OpenAICompatible:
+	case gateway.OpenAICompatible:
 		if cfg.BaseURL == "" {
 			return nil, fmt.Errorf("openai-compatible provider requires a base URL")
 		}
@@ -115,38 +117,38 @@ func (f *gatewayFactory) CreateGenerationGateway(ctx context.Context, provider P
 }
 
 // CreateEmbeddingsGateway creates an embedding gateway with options based on the provided parameters.
-func (f *gatewayFactory) CreateEmbeddingsGateway(ctx context.Context, provider Provider, baseURL, apiKey string) (EmbeddingsGateway, error) {
+func (f *gatewayFactory) CreateEmbeddingsGateway(ctx context.Context, provider gateway.Provider, baseURL, apiKey string) (EmbeddingsGateway, error) {
 	cfg, err := f.buildConfig(provider, baseURL, apiKey)
 	if err != nil {
 		return nil, err
 	}
 
 	switch cfg.Provider {
-	case Gemini:
+	case gateway.Gemini:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("gemini provider requires an API key")
 		}
 		return newGeminiGateway(ctx, cfg.APIKey)
-	case Llama:
+	case gateway.Llama:
 		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
-	case Anthropic:
+	case gateway.Anthropic:
 		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
-	case OpenAI:
+	case gateway.OpenAI:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key")
 		}
 		return newOpenAIGateway(cfg.BaseURL, cfg.APIKey)
-	case OpenRouter:
+	case gateway.OpenRouter:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("openrouter provider requires an API key")
 		}
 		return newOpenAIGateway(cfg.BaseURL, cfg.APIKey)
-	case Voyage:
+	case gateway.Voyage:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("voyage provider requires an API key")
 		}
 		return newVoyageGateway(cfg.APIKey)
-	case Nebius:
+	case gateway.Nebius:
 		if cfg.APIKey == "" {
 			return nil, fmt.Errorf("nebius provider requires an API key")
 		}

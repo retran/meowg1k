@@ -16,35 +16,31 @@ limitations under the License.
 
 package registry
 
-// TokenizerType represents the type of tokenizer used by a model.
-type TokenizerType string
+import (
+	"github.com/retran/meowg1k/internal/models/llm"
+)
+
+type TokenizerType = llm.TokenizerType
 
 const (
 	// TokenizerCL100K is the tokenizer used by GPT-4 and similar OpenAI models.
-	TokenizerCL100K TokenizerType = "cl100k_base"
+	TokenizerCL100K = llm.TokenizerCL100K
 	// TokenizerGPT2 is the tokenizer used by older OpenAI models.
-	TokenizerGPT2 TokenizerType = "gpt2"
+	TokenizerGPT2 = llm.TokenizerGPT2
 	// TokenizerSentencePiece is used by many open-source models.
-	TokenizerSentencePiece TokenizerType = "sentencepiece"
+	TokenizerSentencePiece = llm.TokenizerSentencePiece
 	// TokenizerTikToken is the general tiktoken tokenizer.
-	TokenizerTikToken TokenizerType = "tiktoken"
+	TokenizerTikToken = llm.TokenizerTikToken
 	// TokenizerGemini is used by Google Gemini models.
-	TokenizerGemini TokenizerType = "gemini"
+	TokenizerGemini = llm.TokenizerGemini
 	// TokenizerLlama is used by Llama models.
-	TokenizerLlama TokenizerType = "llama"
+	TokenizerLlama = llm.TokenizerLlama
 	// TokenizerUnknown is used when the tokenizer type is unknown.
-	TokenizerUnknown TokenizerType = "unknown"
+	TokenizerUnknown = llm.TokenizerUnknown
 )
 
 // ModelInfo contains comprehensive information about a specific AI model.
-type ModelInfo struct {
-	Provider              string        // The provider offering this model
-	MaxContextTokens      int           // Maximum number of context tokens
-	MaxOutputTokens       int           // Maximum number of output tokens (0 if not limited)
-	TokenizerType         TokenizerType // Type of tokenizer used
-	Description           string        // Human-readable description
-	DefaultEmbedDimension int           // Default embedding dimension (0 if not applicable)
-}
+type ModelInfo = llm.ModelInfo
 
 // Service defines the interface for model registry operations.
 type Service interface {
@@ -62,7 +58,6 @@ type serviceImpl struct {
 	models map[string]ModelInfo
 }
 
-// NewService creates a new instance of the model registry service.
 func NewService() Service {
 	return &serviceImpl{
 		models: models,

@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,19 +35,19 @@ func TestGatewayFactory_buildConfig(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		provider    Provider
+		provider    gateway.Provider
 		baseURL     string
 		apiKey      string
-		expectedCfg *Config
+		expectedCfg *gateway.Config
 		expectError bool
 	}{
 		{
 			name:     "Valid configuration with all parameters",
-			provider: OpenAI,
+			provider: gateway.OpenAI,
 			baseURL:  "https://api.openai.com/v1",
 			apiKey:   "test-key",
-			expectedCfg: &Config{
-				Provider: OpenAI,
+			expectedCfg: &gateway.Config{
+				Provider: gateway.OpenAI,
 				BaseURL:  "https://api.openai.com/v1",
 				APIKey:   "test-key",
 			},
@@ -54,11 +55,11 @@ func TestGatewayFactory_buildConfig(t *testing.T) {
 		},
 		{
 			name:     "Valid configuration with only provider and API key",
-			provider: OpenAI,
+			provider: gateway.OpenAI,
 			baseURL:  "",
 			apiKey:   "test-key",
-			expectedCfg: &Config{
-				Provider: OpenAI,
+			expectedCfg: &gateway.Config{
+				Provider: gateway.OpenAI,
 				BaseURL:  "",
 				APIKey:   "test-key",
 			},
@@ -66,11 +67,11 @@ func TestGatewayFactory_buildConfig(t *testing.T) {
 		},
 		{
 			name:     "Valid configuration with only provider",
-			provider: OpenAI,
+			provider: gateway.OpenAI,
 			baseURL:  "",
 			apiKey:   "",
-			expectedCfg: &Config{
-				Provider: OpenAI,
+			expectedCfg: &gateway.Config{
+				Provider: gateway.OpenAI,
 				BaseURL:  "",
 				APIKey:   "",
 			},
@@ -102,7 +103,7 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		provider    Provider
+		provider    gateway.Provider
 		baseURL     string
 		apiKey      string
 		expectError bool
@@ -110,14 +111,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 	}{
 		{
 			name:        "OpenAI provider with API key",
-			provider:    OpenAI,
+			provider:    gateway.OpenAI,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "OpenAI provider without API key",
-			provider:    OpenAI,
+			provider:    gateway.OpenAI,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -125,14 +126,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "Anthropic provider with API key",
-			provider:    Anthropic,
+			provider:    gateway.Anthropic,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Anthropic provider without API key",
-			provider:    Anthropic,
+			provider:    gateway.Anthropic,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -140,14 +141,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "Gemini provider with API key",
-			provider:    Gemini,
+			provider:    gateway.Gemini,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Gemini provider without API key",
-			provider:    Gemini,
+			provider:    gateway.Gemini,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -155,14 +156,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "Llama provider with base URL",
-			provider:    Llama,
+			provider:    gateway.Llama,
 			baseURL:     "http://localhost:8080",
 			apiKey:      "",
 			expectError: false,
 		},
 		{
 			name:        "Llama provider without base URL",
-			provider:    Llama,
+			provider:    gateway.Llama,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -170,14 +171,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "OpenAI-compatible provider with base URL and API key",
-			provider:    OpenAICompatible,
+			provider:    gateway.OpenAICompatible,
 			baseURL:     "http://localhost:8080",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "OpenAI-compatible provider without base URL",
-			provider:    OpenAICompatible,
+			provider:    gateway.OpenAICompatible,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: true,
@@ -185,7 +186,7 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "OpenAI-compatible provider without API key",
-			provider:    OpenAICompatible,
+			provider:    gateway.OpenAICompatible,
 			baseURL:     "http://localhost:8080",
 			apiKey:      "",
 			expectError: true,
@@ -193,14 +194,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "OpenRouter provider with API key",
-			provider:    OpenRouter,
+			provider:    gateway.OpenRouter,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "OpenRouter provider without API key",
-			provider:    OpenRouter,
+			provider:    gateway.OpenRouter,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -208,14 +209,14 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "Nebius provider with API key",
-			provider:    Nebius,
+			provider:    gateway.Nebius,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Nebius provider without API key",
-			provider:    Nebius,
+			provider:    gateway.Nebius,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -223,7 +224,7 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 		},
 		{
 			name:        "Voyage provider (should fail for generation)",
-			provider:    Voyage,
+			provider:    gateway.Voyage,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: true,
@@ -255,7 +256,7 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		provider    Provider
+		provider    gateway.Provider
 		baseURL     string
 		apiKey      string
 		expectError bool
@@ -263,14 +264,14 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 	}{
 		{
 			name:        "OpenAI provider with API key",
-			provider:    OpenAI,
+			provider:    gateway.OpenAI,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "OpenAI provider without API key",
-			provider:    OpenAI,
+			provider:    gateway.OpenAI,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -278,14 +279,14 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "Gemini provider with API key",
-			provider:    Gemini,
+			provider:    gateway.Gemini,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Gemini provider without API key",
-			provider:    Gemini,
+			provider:    gateway.Gemini,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -293,14 +294,14 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "Voyage provider with API key",
-			provider:    Voyage,
+			provider:    gateway.Voyage,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Voyage provider without API key",
-			provider:    Voyage,
+			provider:    gateway.Voyage,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -308,14 +309,14 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "OpenRouter provider with API key",
-			provider:    OpenRouter,
+			provider:    gateway.OpenRouter,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "OpenRouter provider without API key",
-			provider:    OpenRouter,
+			provider:    gateway.OpenRouter,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -323,14 +324,14 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "Nebius provider with API key",
-			provider:    Nebius,
+			provider:    gateway.Nebius,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: false,
 		},
 		{
 			name:        "Nebius provider without API key",
-			provider:    Nebius,
+			provider:    gateway.Nebius,
 			baseURL:     "",
 			apiKey:      "",
 			expectError: true,
@@ -338,7 +339,7 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "Llama provider (not implemented)",
-			provider:    Llama,
+			provider:    gateway.Llama,
 			baseURL:     "http://localhost:8080",
 			apiKey:      "",
 			expectError: true,
@@ -346,7 +347,7 @@ func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name:        "Anthropic provider (not supported)",
-			provider:    Anthropic,
+			provider:    gateway.Anthropic,
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: true,

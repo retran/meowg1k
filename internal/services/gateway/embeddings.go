@@ -21,86 +21,17 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/retran/meowg1k/internal/services/llm/registry"
+	"github.com/retran/meowg1k/internal/models/gateway"
 )
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings
 // and measures the distance between them.
 type EmbeddingsGateway interface {
 	// ComputeEmbeddings computes the vector embedding for the given text.
-	ComputeEmbeddings(ctx context.Context, request *ComputeEmbeddingsRequest) ([]Embedding, error)
+	ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error)
 	// ComputeDistance calculates a similarity or distance score between two embeddings.
 	// The exact metric (e.g., cosine similarity) depends on the implementation.
-	ComputeDistance(first, second Embedding) (float64, error)
-}
-
-// Embedding represents a text embedding as a vector of floating-point numbers.
-type Embedding []float64
-
-// TaskType specifies the intended use case for the text embedding. This allows the model
-// to produce higher-quality embeddings tailored to the specific task.
-type TaskType string
-
-const (
-	SemanticSimilarity TaskType = "SEMANTIC_SIMILARITY"
-	Classification     TaskType = "CLASSIFICATION"
-	Clustering         TaskType = "CLUSTERING"
-	RetrievalDocument  TaskType = "RETRIEVAL_DOCUMENT"
-	RetrievalQuery     TaskType = "RETRIEVAL_QUERY"
-	CodeRetrievalQuery TaskType = "CODE_RETRIEVAL_QUERY"
-	QuestionAnswering  TaskType = "QUESTION_ANSWERING"
-	FactVerification   TaskType = "FACT_VERIFICATION"
-)
-
-// ComputeEmbeddingsRequest holds the parameters for a text embedding request.
-type ComputeEmbeddingsRequest struct {
-	model      string
-	chunks     []string
-	taskType   TaskType
-	dimensions int // Output dimensionality (optional, uses model default if 0)
-}
-
-// NewComputeEmbeddingsRequest creates and returns a new ComputeEmbeddingsRequest.
-// If the model has a default embedding dimension in the registry, it will be automatically used.
-func NewComputeEmbeddingsRequest(model string, chunks []string, taskType TaskType) *ComputeEmbeddingsRequest {
-	// Get the default embedding dimension from the model registry
-	defaultDim := registry.DefaultService.GetDefaultEmbedDimension(model)
-	return &ComputeEmbeddingsRequest{
-		model:      model,
-		chunks:     chunks,
-		taskType:   taskType,
-		dimensions: defaultDim,
-	}
-}
-
-// NewComputeEmbeddingsRequestWithDimensions creates a new ComputeEmbeddingsRequest with custom dimensions.
-func NewComputeEmbeddingsRequestWithDimensions(model string, chunks []string, taskType TaskType, dimensions int) *ComputeEmbeddingsRequest {
-	return &ComputeEmbeddingsRequest{
-		model:      model,
-		chunks:     chunks,
-		taskType:   taskType,
-		dimensions: dimensions,
-	}
-}
-
-// Model returns the model name for the embedding request.
-func (r *ComputeEmbeddingsRequest) Model() string {
-	return r.model
-}
-
-// Chunks returns the text chunks to be embedded.
-func (r *ComputeEmbeddingsRequest) Chunks() []string {
-	return r.chunks
-}
-
-// TaskType returns the specified task type for the embedding.
-func (r *ComputeEmbeddingsRequest) TaskType() TaskType {
-	return r.taskType
-}
-
-// Dimensions returns the output dimensionality for the embedding.
-func (r *ComputeEmbeddingsRequest) Dimensions() int {
-	return r.dimensions
+	ComputeDistance(first, second gateway.Embedding) (float64, error)
 }
 
 type ComputeDistanceMixin struct {
@@ -108,7 +39,7 @@ type ComputeDistanceMixin struct {
 
 // ComputeDistance calculates the cosine similarity between two embeddings.
 // It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
-func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) {
+func (g *ComputeDistanceMixin) ComputeDistance(a, b gateway.Embedding) (float64, error) {
 	if len(a) != len(b) {
 		return 0, fmt.Errorf("vectors must have the same length")
 	}

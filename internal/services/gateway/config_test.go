@@ -3,59 +3,60 @@ package gateway
 import (
 	"testing"
 
+	gatewaymodels "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestWithProvider(t *testing.T) {
 	tests := []struct {
 		name        string
-		provider    Provider
+		provider    gatewaymodels.Provider
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name:        "Valid OpenAI provider",
-			provider:    OpenAI,
+			provider:    gatewaymodels.OpenAI,
 			expectError: false,
 		},
 		{
 			name:        "Valid Anthropic provider",
-			provider:    Anthropic,
+			provider:    gatewaymodels.Anthropic,
 			expectError: false,
 		},
 		{
 			name:        "Valid Gemini provider",
-			provider:    Gemini,
+			provider:    gatewaymodels.Gemini,
 			expectError: false,
 		},
 		{
 			name:        "Valid Llama provider",
-			provider:    Llama,
+			provider:    gatewaymodels.Llama,
 			expectError: false,
 		},
 		{
 			name:        "Valid OpenRouter provider",
-			provider:    OpenRouter,
+			provider:    gatewaymodels.OpenRouter,
 			expectError: false,
 		},
 		{
 			name:        "Valid OpenAI-compatible provider",
-			provider:    OpenAICompatible,
+			provider:    gatewaymodels.OpenAICompatible,
 			expectError: false,
 		},
 		{
 			name:        "Valid Nebius provider",
-			provider:    Nebius,
+			provider:    gatewaymodels.Nebius,
 			expectError: false,
 		},
 		{
 			name:        "Valid Voyage provider",
-			provider:    Voyage,
+			provider:    gatewaymodels.Voyage,
 			expectError: false,
 		},
 		{
 			name:        "Invalid provider",
-			provider:    Provider("invalid"),
+			provider:    gatewaymodels.Provider("invalid"),
 			expectError: true,
 			errorMsg:    "unsupported provider: invalid",
 		},
@@ -63,7 +64,7 @@ func TestWithProvider(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
+			config := &gatewaymodels.Config{}
 			option := WithProvider(tt.provider)
 			err := option(config)
 
@@ -105,7 +106,7 @@ func TestWithBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
+			config := &gatewaymodels.Config{}
 			option := WithBaseURL(tt.baseURL)
 			err := option(config)
 
@@ -136,7 +137,7 @@ func TestWithAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
+			config := &gatewaymodels.Config{}
 			option := WithAPIKey(tt.apiKey)
 			err := option(config)
 
@@ -147,11 +148,11 @@ func TestWithAPIKey(t *testing.T) {
 }
 
 func TestConfigCombined(t *testing.T) {
-	config := &Config{}
+	config := &gatewaymodels.Config{}
 
 	// Apply multiple options
 	options := []Option{
-		WithProvider(OpenAI),
+		WithProvider(gatewaymodels.OpenAI),
 		WithBaseURL("https://api.openai.com/v1"),
 		WithAPIKey("sk-test123"),
 	}
@@ -161,7 +162,7 @@ func TestConfigCombined(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, OpenAI, config.Provider)
+	assert.Equal(t, gatewaymodels.OpenAI, config.Provider)
 	assert.Equal(t, "https://api.openai.com/v1", config.BaseURL)
 	assert.Equal(t, "sk-test123", config.APIKey)
 }

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 
+	configservice "github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/utils/io"
 )
 
@@ -33,14 +34,21 @@ type Builder interface {
 	// CombinePrompts merges multiple prompt parts with proper spacing.
 	// Skips empty parts and ensures proper newline separation.
 	CombinePrompts(parts ...string) string
+
+	// ResolvePrompt resolves a prompt configuration using the current config.
+	ResolvePrompt(promptName string) (string, error)
 }
 
 // builderImpl is the concrete implementation of the prompt builder service.
-type builderImpl struct{}
+type builderImpl struct {
+	configService configservice.Service
+}
 
 // NewBuilder creates a new prompt builder service.
-func NewBuilder() Builder {
-	return &builderImpl{}
+func NewBuilder(configService configservice.Service) Builder {
+	return &builderImpl{
+		configService: configService,
+	}
 }
 
 // BuildUserPrompt combines base prompt with stdin content using the specified wrapper.
@@ -82,4 +90,21 @@ func (b *builderImpl) CombinePrompts(parts ...string) string {
 	}
 
 	return strings.Join(nonEmptyParts, "\n\n")
+}
+
+// ResolvePrompt resolves a prompt configuration using the current config.
+func (b *builderImpl) ResolvePrompt(promptName string) (string, error) {
+	cfg := b.configService.GetConfig()
+	// No need to check for nil since manager service guarantees a loaded config
+
+	// Look for prompts in the generate tasks
+	if cfg.Generate != nil && cfg.Generate.Tasks != nil {
+		if task, exists := cfg.Generate.Tasks[promptName]; exists {
+			if task.UserPrompt != "" {
+				return task.UserPrompt, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("prompt '%s' not found", promptName)
 }
