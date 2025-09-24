@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/models/gateway"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"google.golang.org/genai"
 )
 
@@ -52,7 +52,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 }
 
 // GenerateContent sends a content generation request to the Google Gemini API.
-func (g *geminiGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (g *geminiGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
 	generationConfig := &genai.GenerateContentConfig{}
 
 	if request.SystemPrompt() != "" {
@@ -88,7 +88,7 @@ func (g *geminiGateway) GenerateContent(ctx context.Context, request *gateway.Ge
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
-func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {
+func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *mdGateway.ComputeEmbeddingsRequest) ([]mdGateway.Embedding, error) {
 	var contents []*genai.Content
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
@@ -110,16 +110,16 @@ func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *gateway.
 		config,
 	)
 	if err != nil {
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []mdGateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
-	embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
+	embeddings := make([]mdGateway.Embedding, 0, len(response.Embeddings))
 	for _, value := range response.Embeddings {
 		values := make([]float64, len(value.Values))
 		for i, v := range value.Values {
 			values[i] = float64(v)
 		}
-		embeddings = append(embeddings, gateway.Embedding(values))
+		embeddings = append(embeddings, mdGateway.Embedding(values))
 	}
 
 	return embeddings, nil

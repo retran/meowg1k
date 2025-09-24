@@ -31,39 +31,33 @@ import (
 func TestNewService(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      Config
+		apiKey      string
+		baseURL     string
+		timeout     time.Duration
 		expectError bool
 		errorMsg    string
 	}{
 		{
-			name: "Valid service creation",
-			config: Config{
-				APIKey:  "test-api-key",
-				BaseURL: "https://api.voyageai.com/v1",
-				Timeout: 30 * time.Second,
-			},
+			name:        "Valid service creation",
+			apiKey:      "test-api-key",
+			baseURL:     "https://api.voyageai.com/v1",
+			timeout:     30 * time.Second,
 			expectError: false,
 		},
 		{
-			name: "Service creation with default base URL",
-			config: Config{
-				APIKey: "test-api-key",
-			},
+			name:        "Service creation with default base URL",
+			apiKey:      "test-api-key",
 			expectError: false,
 		},
 		{
-			name: "Service creation with default timeout",
-			config: Config{
-				APIKey:  "test-api-key",
-				BaseURL: "https://custom.api.com",
-			},
+			name:        "Service creation with default timeout",
+			apiKey:      "test-api-key",
+			baseURL:     "https://custom.api.com",
 			expectError: false,
 		},
 		{
-			name: "Service creation without API key",
-			config: Config{
-				BaseURL: "https://api.voyageai.com/v1",
-			},
+			name:        "Service creation without API key",
+			baseURL:     "https://api.voyageai.com/v1",
 			expectError: true,
 			errorMsg:    "voyage API key is required",
 		},
@@ -71,7 +65,7 @@ func TestNewService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewService(tt.config)
+			service, err := NewService(tt.baseURL, tt.apiKey, tt.timeout)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -84,15 +78,15 @@ func TestNewService(t *testing.T) {
 				assert.NotNil(t, service)
 
 				impl := service.(*serviceImpl)
-				assert.Equal(t, tt.config.APIKey, impl.apiKey)
+				assert.Equal(t, tt.apiKey, impl.apiKey)
 
-				expectedBaseURL := tt.config.BaseURL
-				if expectedBaseURL == "" {
-					expectedBaseURL = DefaultBaseURL
+				expectedbaseURL := tt.baseURL
+				if expectedbaseURL == "" {
+					expectedbaseURL = DefaultBaseURL
 				}
-				assert.Equal(t, expectedBaseURL, impl.baseURL)
+				assert.Equal(t, expectedbaseURL, impl.baseURL)
 
-				expectedTimeout := tt.config.Timeout
+				expectedTimeout := tt.timeout
 				if expectedTimeout == 0 {
 					expectedTimeout = 30 * time.Second
 				}
@@ -244,12 +238,11 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			defer server.Close()
 
 			// Create service with test server URL
-			config := Config{
-				BaseURL: server.URL,
-				APIKey:  "test-api-key",
-				Timeout: 5 * time.Second,
-			}
-			service, err := NewService(config)
+			service, err := NewService(
+				server.URL,
+				"test-api-key",
+				5*time.Second,
+			)
 			require.NoError(t, err)
 
 			// Call CreateEmbeddings method
@@ -290,12 +283,11 @@ func TestServiceImpl_CreateEmbeddingsWithContext(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := Config{
-		BaseURL: server.URL,
-		APIKey:  "test-api-key",
-		Timeout: 5 * time.Second,
-	}
-	service, err := NewService(config)
+	service, err := NewService(
+		server.URL,
+		"test-api-key",
+		5*time.Second,
+	)
 	require.NoError(t, err)
 
 	// Create a context that will be cancelled

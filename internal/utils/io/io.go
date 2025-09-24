@@ -17,9 +17,6 @@ limitations under the License.
 package io
 
 import (
-	"fmt"
-	"io"
-	"os"
 	"strings"
 )
 
@@ -27,20 +24,4 @@ import (
 // it ends with a newline.
 func FinalizeOutput(content string) string {
 	return strings.TrimSpace(content) + "\n"
-}
-
-// ReadFromStdin reads from stdin if data is being piped to the command.
-func ReadFromStdin() (string, error) {
-	stat, err := os.Stdin.Stat()
-	if err != nil {
-		return "", fmt.Errorf("failed to stat stdin: %w", err)
-	}
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		input, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from stdin: %w", err)
-		}
-		return strings.TrimSpace(string(input)), nil
-	}
-	return "", nil
 }

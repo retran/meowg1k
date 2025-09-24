@@ -22,7 +22,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-	"github.com/retran/meowg1k/internal/models/gateway"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 // Compile-time interface satisfaction check
@@ -49,7 +49,7 @@ func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 }
 
 // GenerateContent generates content using Anthropic's API.
-func (g *anthropicGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (g *anthropicGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
 	model := request.Model()
 	if model == "" {
 		return "", fmt.Errorf("model is required")

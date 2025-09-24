@@ -14,27 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cmd
+// Package prompt provides types and interfaces for managing prompts.
+package prompt
 
-import (
-	"github.com/spf13/cobra"
-)
-
-var indexCmd = &cobra.Command{
-	Use:     "index",
-	Aliases: []string{"i"},
-	Short:   "Index command (not yet implemented)",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runIndex(cmd)
-	},
+// SystemPromptProvider defines an interface for retrieving system prompts.
+type SystemPromptProvider interface {
+	GetSystemPrompt() (string, error)
 }
 
-func init() {
-	rootCmd.AddCommand(indexCmd)
-}
-
-// runIndex executes the main logic of the index command.
-func runIndex(cmd *cobra.Command) error {
-	// not implemented
-	return nil
+// UserPromptProvider defines an interface for retrieving user prompts.
+type UserPromptProvider interface {
+	GetUserPrompt() (string, error)
 }

@@ -38,13 +38,6 @@ const (
 	Voyage Provider = "voyage"
 )
 
-// Config holds all possible configuration for any gateway provider.
-type Config struct {
-	Provider Provider
-	BaseURL  string // Used by Llama
-	APIKey   string // Used by Gemini
-}
-
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
 	model           string

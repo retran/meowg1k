@@ -20,10 +20,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"sync"
 
-	"github.com/retran/meowg1k/internal/models/config"
+	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/spf13/viper"
 )
@@ -34,212 +32,100 @@ const (
 	configFileName   = "config"
 )
 
-// Service provides unified configuration loading and management capabilities.
+// Service provides configuration loading and management capabilities.
 type Service interface {
-	// GetConfig retrieves the loaded and validated configuration.
-	GetConfig() *config.Config
-
-	// LoadConfig loads configuration from command line parameters or standard locations.
-	LoadConfig() error
-
-	// LoadConfigFromPath loads configuration from a specific path.
-	LoadConfigFromPath(configPath string) error
-
-	// LoadFromSources loads configuration from multiple sources with priority.
-	LoadFromSources(sources ...ConfigSource) error
+	// GetConfig returns the loaded configuration.
+	GetConfig() *mdConfig.Config
 }
 
-// ConfigSource represents a configuration source with priority ordering.
-type ConfigSource interface {
-	// Load retrieves configuration data from this source.
-	Load() (map[string]interface{}, error)
-
-	// Priority returns the priority of this source (higher = more important).
-	Priority() int
-
-	// Name returns a human-readable name for this source.
-	Name() string
-}
-
-// serviceImpl is the concrete implementation of the unified config service.
+// serviceImpl is the concrete implementation of the config service.
 type serviceImpl struct {
-	mu         sync.RWMutex
-	config     *config.Config
-	configPath string
-	commandSvc command.Service
+	Service
+	config *mdConfig.Config
 }
 
 // Compile-time interface satisfaction check
 var _ Service = (*serviceImpl)(nil)
 
-// NewService creates a new unified configuration service with injected dependencies.
-func NewService(commandSvc command.Service) Service {
-	return &serviceImpl{
-		commandSvc: commandSvc,
-	}
-}
-
-// NewServiceWithConfig creates a new service with a pre-loaded configuration.
-// This is useful for testing scenarios where you want to provide a specific config.
-func NewServiceWithConfig(cfg *config.Config, configPath string, commandSvc command.Service) Service {
-	if cfg == nil {
-		panic("config cannot be nil")
-	}
-
-	return &serviceImpl{
-		config:     cfg,
-		configPath: configPath,
-		commandSvc: commandSvc,
-	}
-}
-
-// GetConfig retrieves the loaded and validated configuration.
-func (s *serviceImpl) GetConfig() *config.Config {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.config
-}
-
-// LoadConfig loads configuration from command line parameters or standard locations.
-func (s *serviceImpl) LoadConfig() error {
-	// Get config path from command service
-	configPath, err := s.commandSvc.GetConfigPath()
-	if err != nil {
-		return fmt.Errorf("failed to get config path from command: %w", err)
-	}
-
-	return s.LoadConfigFromPath(configPath)
-}
-
-// LoadConfigFromPath loads configuration from a specific path.
-func (s *serviceImpl) LoadConfigFromPath(configPath string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Load configuration
-	cfg, err := s.loadConfigInternal(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-
-	// Validate configuration
-	if err := s.validateConfig(cfg); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	s.config = cfg
-	s.configPath = configPath
-	return nil
-}
-
-// LoadFromSources loads configuration from multiple sources with priority.
-func (s *serviceImpl) LoadFromSources(sources ...ConfigSource) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Sort sources by priority (higher priority first)
-	sort.Slice(sources, func(i, j int) bool {
-		return sources[i].Priority() > sources[j].Priority()
-	})
+// NewService creates a new configuration service and loads configuration at creation time.
+func NewService(commandSvc command.Service) (Service, error) {
+	service := &serviceImpl{}
 
 	v := viper.New()
 
-	// Load from each source in priority order
-	for _, source := range sources {
-		data, err := source.Load()
-		if err != nil {
-			return fmt.Errorf("failed to load from source %s: %w", source.Name(), err)
+	configPath, err := commandSvc.GetConfigPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config path from command: %w", err)
+	}
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+		if err := v.ReadInConfig(); err != nil {
+			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+				return nil, fmt.Errorf("specified config file not found: %s", configPath)
+			}
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+	} else {
+		v.SetConfigName(configFileName)
+		v.SetConfigType("yaml")
+
+		var configPaths []string
+
+		systemConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
+		if systemConfigDirs == "" {
+			systemConfigDirs = "/etc/xdg"
+		}
+		configPaths = append(configPaths, filepath.Join(systemConfigDirs, projectName))
+
+		userConfigDir := os.Getenv("XDG_CONFIG_HOME")
+		if userConfigDir == "" {
+			if home := os.Getenv("HOME"); home != "" {
+				userConfigDir = filepath.Join(home, ".config")
+			}
+		}
+		if userConfigDir != "" {
+			configPaths = append(configPaths, filepath.Join(userConfigDir, projectName))
 		}
 
-		// Merge the data into viper
-		for key, value := range data {
-			v.Set(key, value)
+		if cwd, err := os.Getwd(); err == nil {
+			configPaths = append(configPaths, filepath.Join(cwd, projectConfigDir))
+		}
+
+		foundAny := false
+		for i, path := range configPaths {
+			configFile := filepath.Join(path, configFileName+".yaml")
+			if _, err := os.Stat(configFile); err == nil {
+				if i == 0 {
+					v.AddConfigPath(path)
+					if err := v.ReadInConfig(); err == nil {
+						foundAny = true
+					}
+				} else {
+					v.SetConfigFile(configFile)
+					if err := v.MergeInConfig(); err == nil {
+						foundAny = true
+					}
+				}
+			}
+		}
+
+		if !foundAny {
+			return nil, fmt.Errorf("no configuration file found in standard locations")
 		}
 	}
 
 	// Unmarshal into config struct
-	var cfg config.Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return fmt.Errorf("failed to unmarshal configuration: %w", err)
-	}
-
-	// Validate configuration
-	if err := s.validateConfig(&cfg); err != nil {
-		return fmt.Errorf("configuration validation failed: %w", err)
-	}
-
-	s.config = &cfg
-	return nil
-}
-
-// loadConfigInternal loads configuration from a specific path (internal implementation)
-func (s *serviceImpl) loadConfigInternal(configPath string) (*config.Config, error) {
-	v := viper.New()
-
-	if configPath != "" {
-		// Use specific config file if provided
-		v.SetConfigFile(configPath)
-	} else {
-		// Search in standard locations
-		v.SetConfigName(configFileName)
-		v.SetConfigType("yaml")
-
-		// Look for config file in the following order:
-		// 1. Current directory (.meowg1k/)
-		// 2. Home directory (~/.meowg1k/)
-		// 3. System config directory (/etc/meowg1k/)
-
-		// Current directory project config
-		if cwd, err := os.Getwd(); err == nil {
-			v.AddConfigPath(filepath.Join(cwd, projectConfigDir))
-		}
-
-		// User home directory
-		if home, err := os.UserHomeDir(); err == nil {
-			v.AddConfigPath(filepath.Join(home, projectConfigDir))
-		}
-
-		// System config directory
-		v.AddConfigPath("/etc/" + projectName)
-	}
-
-	// Set environment variable prefix
-	v.SetEnvPrefix(projectName)
-	v.AutomaticEnv()
-
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			// Config file not found, use defaults
-			return s.getDefaultConfig(), nil
-		}
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var cfg config.Config
+	var cfg mdConfig.Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	return &cfg, nil
+	service.config = &cfg
+	return service, nil
 }
 
-// getDefaultConfig returns a default configuration when no config file is found.
-func (s *serviceImpl) getDefaultConfig() *config.Config {
-	return &config.Config{
-		// Default configuration values can be set here
-	}
-}
-
-// validateConfig performs basic configuration validation.
-func (s *serviceImpl) validateConfig(cfg *config.Config) error {
-	if cfg == nil {
-		return fmt.Errorf("configuration cannot be nil")
-	}
-
-	// Basic validation - check that we have at least one profile
-	if len(cfg.Profiles) == 0 {
-		return fmt.Errorf("at least one profile must be defined")
-	}
-
-	return nil
+// GetConfig returns the loaded configuration.
+func (s *serviceImpl) GetConfig() *mdConfig.Config {
+	return s.config
 }

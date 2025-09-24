@@ -18,7 +18,10 @@ package registry
 
 import (
 	"reflect"
+	"slices"
 	"testing"
+
+	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 )
 
 func TestNewService(t *testing.T) {
@@ -26,9 +29,6 @@ func TestNewService(t *testing.T) {
 	if service == nil {
 		t.Fatal("NewService() returned nil")
 	}
-
-	// Verify it implements the Service interface
-	var _ Service = service
 }
 
 func TestGetModelInfo(t *testing.T) {
@@ -42,16 +42,16 @@ func TestGetModelInfo(t *testing.T) {
 	if info.MaxContextTokens != 128000 {
 		t.Errorf("Expected MaxContextTokens 128000, got %d", info.MaxContextTokens)
 	}
-	if info.TokenizerType != TokenizerCL100K {
+	if info.TokenizerType != mdLLM.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K, got %s", info.TokenizerType)
 	}
 
 	// Test unknown model
 	unknownInfo := service.GetModelInfo("unknown-model")
-	expected := ModelInfo{
+	expected := mdLLM.ModelInfo{
 		Provider:         "unknown",
 		MaxContextTokens: 8192,
-		TokenizerType:    TokenizerUnknown,
+		TokenizerType:    mdLLM.TokenizerUnknown,
 		Description:      "Unknown model",
 	}
 	if !reflect.DeepEqual(unknownInfo, expected) {
@@ -80,25 +80,25 @@ func TestGetTokenizerType(t *testing.T) {
 
 	// Test CL100K tokenizer
 	tokenizerType := service.GetTokenizerType("gpt-4o")
-	if tokenizerType != TokenizerCL100K {
+	if tokenizerType != mdLLM.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K for gpt-4o, got %s", tokenizerType)
 	}
 
 	// Test Gemini tokenizer
 	tokenizerType = service.GetTokenizerType("gemini-2.5-pro")
-	if tokenizerType != TokenizerGemini {
+	if tokenizerType != mdLLM.TokenizerGemini {
 		t.Errorf("Expected TokenizerGemini for gemini-2.5-pro, got %s", tokenizerType)
 	}
 
 	// Test Llama tokenizer
 	tokenizerType = service.GetTokenizerType("meta-llama/llama-3.3-70b-instruct")
-	if tokenizerType != TokenizerLlama {
+	if tokenizerType != mdLLM.TokenizerLlama {
 		t.Errorf("Expected TokenizerLlama for llama model, got %s", tokenizerType)
 	}
 
 	// Test unknown model
 	tokenizerType = service.GetTokenizerType("unknown-model")
-	if tokenizerType != TokenizerUnknown {
+	if tokenizerType != mdLLM.TokenizerUnknown {
 		t.Errorf("Expected TokenizerUnknown for unknown model, got %s", tokenizerType)
 	}
 }
@@ -204,28 +204,9 @@ func TestListKnownModels(t *testing.T) {
 	}
 
 	for _, expected := range expectedModels {
-		found := false
-		for _, model := range models {
-			if model == expected {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(models, expected)
 		if !found {
 			t.Errorf("Expected model %s not found in list", expected)
 		}
-	}
-}
-
-func TestDefaultService(t *testing.T) {
-	// Test that DefaultService is properly initialized
-	if DefaultService == nil {
-		t.Fatal("DefaultService is nil")
-	}
-
-	// Test that it works
-	info := DefaultService.GetModelInfo("gpt-4o")
-	if info.Provider != "openai" {
-		t.Errorf("DefaultService.GetModelInfo failed: expected provider 'openai', got '%s'", info.Provider)
 	}
 }

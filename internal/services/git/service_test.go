@@ -25,9 +25,6 @@ func TestNewService(t *testing.T) {
 	if service == nil {
 		t.Errorf("NewService() returned nil")
 	}
-
-	// Verify interface compliance
-	var _ Service = service
 }
 
 func TestServiceImpl_ReadStagedFiles(t *testing.T) {

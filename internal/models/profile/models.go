@@ -14,17 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package gateway
+// Package profile defines profile-related models.
+package profile
 
 import (
-	"context"
+	"time"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
+	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 )
 
-// GenerationGateway defines the contract for a client that generates content using an LLM.
-type GenerationGateway interface {
-	// GenerateContent sends a content generation request to the LLM and returns the generated response.
-	// It returns an error if the generation process fails.
-	GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error)
+// Profile defines an enumeration for configured profile names.
+type Profile string
+
+// ResolvedProfile represents a profile with all values resolved.
+type ResolvedProfile struct {
+	Provider        mdGateway.Provider
+	Model           string
+	MaxInputTokens  int
+	MaxOutputTokens int
+	Timeout         time.Duration
+	BaseURL         string
+	APIKey          string
+	TokenizerType   mdLLM.TokenizerType
 }

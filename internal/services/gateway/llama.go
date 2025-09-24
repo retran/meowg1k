@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/models/gateway"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/retran/meowg1k/internal/services/llm/llama"
 )
 
@@ -59,7 +59,7 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {

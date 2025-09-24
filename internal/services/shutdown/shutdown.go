@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package shutdown provides utilities for graceful application shutdown.
+// Package shutdown provides service for graceful application shutdown.
 package shutdown
 
 import (
@@ -28,9 +28,17 @@ import (
 	"time"
 )
 
-// Manager handles graceful shutdown of the application.
+type Service interface {
+	Context() context.Context
+	Register(callback ShutdownCallback)
+	ListenForSignals() bool
+	Shutdown()
+}
+
+// serviceImpl handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
-type Manager struct {
+type serviceImpl struct {
+	Service
 	mu        sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -43,11 +51,11 @@ type Manager struct {
 // It should complete cleanup and return within a reasonable time.
 type ShutdownCallback func(ctx context.Context) error
 
-// NewManager creates a new shutdown manager with the specified timeout.
+// NewService creates a new shutdown manager with the specified timeout.
 // timeout sets the maximum time to wait for all callbacks to complete.
-func NewManager(timeout time.Duration) *Manager {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &Manager{
+func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) Service {
+	ctx, cancel := context.WithCancel(ctx)
+	return &serviceImpl{
 		ctx:       ctx,
 		cancel:    cancel,
 		logger:    slog.Default(),
@@ -56,17 +64,9 @@ func NewManager(timeout time.Duration) *Manager {
 	}
 }
 
-// WithLogger sets a custom logger for the shutdown manager.
-func (m *Manager) WithLogger(logger *slog.Logger) *Manager {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.logger = logger
-	return m
-}
-
 // Context returns the shutdown context.
 // This context is cancelled when shutdown begins.
-func (m *Manager) Context() context.Context {
+func (m *serviceImpl) Context() context.Context {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.ctx
@@ -74,7 +74,7 @@ func (m *Manager) Context() context.Context {
 
 // Register adds a callback to be executed during shutdown.
 // Callbacks are executed in the order they were registered.
-func (m *Manager) Register(callback ShutdownCallback) {
+func (m *serviceImpl) Register(callback ShutdownCallback) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -89,7 +89,7 @@ func (m *Manager) Register(callback ShutdownCallback) {
 // ListenForSignals starts listening for shutdown signals (SIGINT, SIGTERM).
 // This function blocks until a signal is received or the context is cancelled.
 // Returns true if shutdown was triggered by a signal, false if context was cancelled.
-func (m *Manager) ListenForSignals() bool {
+func (m *serviceImpl) ListenForSignals() bool {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -112,12 +112,12 @@ func (m *Manager) ListenForSignals() bool {
 
 // Shutdown triggers graceful shutdown manually.
 // This can be called programmatically instead of waiting for signals.
-func (m *Manager) Shutdown() {
+func (m *serviceImpl) Shutdown() {
 	m.shutdown()
 }
 
 // shutdown performs the actual shutdown process.
-func (m *Manager) shutdown() {
+func (m *serviceImpl) shutdown() {
 	m.logger.InfoContext(context.Background(), "Beginning graceful shutdown",
 		"timeout", m.timeout.String(),
 		"registered_callbacks", len(m.callbacks))
@@ -167,22 +167,4 @@ func (m *Manager) shutdown() {
 	m.logger.InfoContext(context.Background(), "Graceful shutdown completed successfully",
 		"total_callbacks", len(callbacks),
 		"total_time", m.timeout.String())
-}
-
-// CreateShutdownContext creates a new context that is cancelled when shutdown begins.
-// This is a convenience function for components that need shutdown-aware contexts.
-func (m *Manager) CreateShutdownContext(parent context.Context) context.Context {
-	// Create a context that is cancelled when either the parent or shutdown context is cancelled
-	ctx, cancel := context.WithCancel(parent)
-
-	go func() {
-		select {
-		case <-m.ctx.Done():
-			cancel()
-		case <-parent.Done():
-			cancel()
-		}
-	}()
-
-	return ctx
 }

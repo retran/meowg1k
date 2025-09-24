@@ -21,17 +21,17 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/retran/meowg1k/internal/models/gateway"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings
 // and measures the distance between them.
 type EmbeddingsGateway interface {
 	// ComputeEmbeddings computes the vector embedding for the given text.
-	ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error)
+	ComputeEmbeddings(ctx context.Context, request *mdGateway.ComputeEmbeddingsRequest) ([]mdGateway.Embedding, error)
 	// ComputeDistance calculates a similarity or distance score between two embeddings.
 	// The exact metric (e.g., cosine similarity) depends on the implementation.
-	ComputeDistance(first, second gateway.Embedding) (float64, error)
+	ComputeDistance(first, second mdGateway.Embedding) (float64, error)
 }
 
 type ComputeDistanceMixin struct {
@@ -39,7 +39,7 @@ type ComputeDistanceMixin struct {
 
 // ComputeDistance calculates the cosine similarity between two embeddings.
 // It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
-func (g *ComputeDistanceMixin) ComputeDistance(a, b gateway.Embedding) (float64, error) {
+func (g *ComputeDistanceMixin) ComputeDistance(a, b mdGateway.Embedding) (float64, error) {
 	if len(a) != len(b) {
 		return 0, fmt.Errorf("vectors must have the same length")
 	}

@@ -14,73 +14,92 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package profiles
+// Package profile provides services for resolving and validating LLM profiles.
+package profile
 
 import (
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/retran/meowg1k/internal/models/config"
-	configservice "github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/providers"
+	mdConfig "github.com/retran/meowg1k/internal/models/config"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
+	mdProfile "github.com/retran/meowg1k/internal/models/profile"
+
+	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/provider"
 )
 
 // Service provides profile configuration resolution capabilities.
 type Service interface {
-	// ResolveProfile resolves a profile with validation using the current config.
-	ResolveProfile(profileName string) (*config.ResolvedProfile, error)
+	// Get retrieves a profile with validation using the current config.
+	Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error)
 }
 
 // serviceImpl is the concrete implementation of the profile resolver service.
 type serviceImpl struct {
-	registryService providers.Service
-	configService   configservice.Service
+	Service
+	providerService  provider.Service
+	configService    config.Service
+	resolvedProfiles map[mdProfile.Profile]*mdProfile.ResolvedProfile
 }
 
 // Compile-time interface satisfaction check
 var _ Service = (*serviceImpl)(nil)
 
 // NewService creates a new profile resolver service.
-func NewService(registryService providers.Service, configService configservice.Service) Service {
-	return &serviceImpl{
-		registryService: registryService,
-		configService:   configService,
+func NewService(configService config.Service, providerService provider.Service) Service {
+	service := &serviceImpl{
+		providerService:  providerService,
+		configService:    configService,
+		resolvedProfiles: make(map[mdProfile.Profile]*mdProfile.ResolvedProfile),
 	}
+
+	return service
 }
 
-// ResolveProfile resolves a profile with validation using the current config.
-func (s *serviceImpl) ResolveProfile(profileName string) (*config.ResolvedProfile, error) {
-	cfg := s.configService.GetConfig()
-	// No need to check for nil since manager service guarantees a loaded config
+// Get retrieves a profile using cached data from initialization.
+func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error) {
+	if resolved, exists := s.resolvedProfiles[profile]; exists {
+		return resolved, nil
+	}
 
+	cfg := s.configService.GetConfig()
+	resolved, err := s.resolveProfileInternal(profile, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	s.resolvedProfiles[profile] = resolved
+	return resolved, nil
+}
+
+// resolveProfileInternal performs the actual profile resolution logic.
+func (s *serviceImpl) resolveProfileInternal(profile mdProfile.Profile, cfg *mdConfig.Config) (*mdProfile.ResolvedProfile, error) {
 	if cfg.Profiles == nil {
 		return nil, fmt.Errorf("no profiles defined in configuration")
 	}
 
-	profile, exists := cfg.Profiles[profileName]
+	profileDef, exists := cfg.Profiles[string(profile)]
 	if !exists {
-		return nil, fmt.Errorf("profile '%s' not found in configuration", profileName)
+		return nil, fmt.Errorf("profile '%s' not found in configuration", profile)
 	}
 
-	// Get provider definition
-	providerDef, err := s.registryService.GetProvider(profile.Provider)
+	providerDef, err := s.providerService.Get(mdGateway.Provider(profileDef.Provider))
 	if err != nil {
-		return nil, fmt.Errorf("unknown provider '%s' in profile '%s': %w", profile.Provider, profileName, err)
+		return nil, fmt.Errorf("unknown provider '%s' in profile '%s': %w", profileDef.Provider, profile, err)
 	}
 
-	// Apply defaults for missing values
-	resolved := &config.ResolvedProfile{
+	resolved := &mdProfile.ResolvedProfile{
 		Provider:        providerDef.Type,
-		Model:           profile.Model,
-		MaxInputTokens:  profile.MaxInputTokens,
-		MaxOutputTokens: profile.MaxOutputTokens,
-		Timeout:         profile.Timeout,
-		BaseURL:         profile.BaseURL,
-		TokenizerType:   profile.TokenizerType,
+		Model:           profileDef.Model,
+		MaxInputTokens:  profileDef.MaxInputTokens,
+		MaxOutputTokens: profileDef.MaxOutputTokens,
+		Timeout:         profileDef.Timeout,
+		BaseURL:         profileDef.BaseURL,
+		TokenizerType:   profileDef.TokenizerType,
 	}
 
-	// Apply provider defaults if values are not set
 	if resolved.Model == "" {
 		resolved.Model = providerDef.DefaultModel
 	}
@@ -105,10 +124,8 @@ func (s *serviceImpl) ResolveProfile(profileName string) (*config.ResolvedProfil
 		resolved.BaseURL = providerDef.DefaultBaseURL
 	}
 
-	// Resolve API key from environment
-	apiKeyEnv := profile.APIKeyEnv
+	apiKeyEnv := profileDef.APIKeyEnv
 	if apiKeyEnv == "" && providerDef.DefaultEnvVar != "" {
-		// Use default environment variable name from provider definition
 		apiKeyEnv = providerDef.DefaultEnvVar
 	}
 
@@ -116,7 +133,6 @@ func (s *serviceImpl) ResolveProfile(profileName string) (*config.ResolvedProfil
 		resolved.APIKey = os.Getenv(apiKeyEnv)
 	}
 
-	// Validate the resolved profile
 	if err := s.validateResolvedProfile(resolved); err != nil {
 		return nil, fmt.Errorf("profile validation failed: %w", err)
 	}
@@ -125,33 +141,23 @@ func (s *serviceImpl) ResolveProfile(profileName string) (*config.ResolvedProfil
 }
 
 // validateResolvedProfile validates a resolved profile configuration.
-func (s *serviceImpl) validateResolvedProfile(resolved *config.ResolvedProfile) error {
+func (s *serviceImpl) validateResolvedProfile(resolved *mdProfile.ResolvedProfile) error {
 	if resolved == nil {
 		return fmt.Errorf("resolved profile cannot be nil")
 	}
 
-	// Check timeout
-	if resolved.Timeout == 0 {
-		resolved.Timeout = 5 * time.Minute // Apply default
-	} else if resolved.Timeout < time.Second {
+	if resolved.Timeout < time.Second {
 		return fmt.Errorf("timeout must be at least 1 second, got %v", resolved.Timeout)
 	}
 
-	// Check output tokens
-	if resolved.MaxOutputTokens <= 0 {
-		resolved.MaxOutputTokens = 4096 // Apply default
-	} else if resolved.MaxOutputTokens > 200000 {
+	if resolved.MaxOutputTokens > 200000 {
 		return fmt.Errorf("max output tokens too large: %d (max 200000)", resolved.MaxOutputTokens)
 	}
 
-	// Check input tokens
-	if resolved.MaxInputTokens <= 0 {
-		resolved.MaxInputTokens = 128000 // Apply default
-	} else if resolved.MaxInputTokens > 2000000 {
+	if resolved.MaxInputTokens > 2000000 {
 		return fmt.Errorf("max input tokens too large: %d (max 2000000)", resolved.MaxInputTokens)
 	}
 
-	// Check model
 	if resolved.Model == "" {
 		return fmt.Errorf("model name is required")
 	}

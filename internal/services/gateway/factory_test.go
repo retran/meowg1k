@@ -19,8 +19,11 @@ package gateway
 import (
 	"context"
 	"testing"
+	"time"
 
-	"github.com/retran/meowg1k/internal/models/gateway"
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
+	mdLLM "github.com/retran/meowg1k/internal/models/llm"
+	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,203 +33,246 @@ func TestNewGatewayFactory(t *testing.T) {
 	assert.IsType(t, &gatewayFactory{}, factory)
 }
 
-func TestGatewayFactory_buildConfig(t *testing.T) {
-	factory := &gatewayFactory{}
-
-	tests := []struct {
-		name        string
-		provider    gateway.Provider
-		baseURL     string
-		apiKey      string
-		expectedCfg *gateway.Config
-		expectError bool
-	}{
-		{
-			name:     "Valid configuration with all parameters",
-			provider: gateway.OpenAI,
-			baseURL:  "https://api.openai.com/v1",
-			apiKey:   "test-key",
-			expectedCfg: &gateway.Config{
-				Provider: gateway.OpenAI,
-				BaseURL:  "https://api.openai.com/v1",
-				APIKey:   "test-key",
-			},
-			expectError: false,
-		},
-		{
-			name:     "Valid configuration with only provider and API key",
-			provider: gateway.OpenAI,
-			baseURL:  "",
-			apiKey:   "test-key",
-			expectedCfg: &gateway.Config{
-				Provider: gateway.OpenAI,
-				BaseURL:  "",
-				APIKey:   "test-key",
-			},
-			expectError: false,
-		},
-		{
-			name:     "Valid configuration with only provider",
-			provider: gateway.OpenAI,
-			baseURL:  "",
-			apiKey:   "",
-			expectedCfg: &gateway.Config{
-				Provider: gateway.OpenAI,
-				BaseURL:  "",
-				APIKey:   "",
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := factory.buildConfig(tt.provider, tt.baseURL, tt.apiKey)
-
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, cfg)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, cfg)
-				assert.Equal(t, tt.expectedCfg.Provider, cfg.Provider)
-				assert.Equal(t, tt.expectedCfg.BaseURL, cfg.BaseURL)
-				assert.Equal(t, tt.expectedCfg.APIKey, cfg.APIKey)
-			}
-		})
-	}
-}
-
-func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
+func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	factory := &gatewayFactory{}
 	ctx := context.Background()
 
 	tests := []struct {
 		name        string
-		provider    gateway.Provider
-		baseURL     string
-		apiKey      string
+		profile     *mdProfile.ResolvedProfile
 		expectError bool
 		errorMsg    string
 	}{
 		{
-			name:        "OpenAI provider with API key",
-			provider:    gateway.OpenAI,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "OpenAI provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAI,
+				Model:           "gpt-4",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "OpenAI provider without API key",
-			provider:    gateway.OpenAI,
-			baseURL:     "",
-			apiKey:      "",
+			name: "OpenAI provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAI,
+				Model:           "gpt-4",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openai provider requires an API key",
 		},
 		{
-			name:        "Anthropic provider with API key",
-			provider:    gateway.Anthropic,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Anthropic provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Anthropic,
+				Model:           "claude-3-haiku-20240307",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Anthropic provider without API key",
-			provider:    gateway.Anthropic,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Anthropic provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Anthropic,
+				Model:           "claude-3-haiku-20240307",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: true,
 			errorMsg:    "anthropic provider requires an API key",
 		},
 		{
-			name:        "Gemini provider with API key",
-			provider:    gateway.Gemini,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Gemini provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Gemini,
+				Model:           "gemini-1.5-flash",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerGemini,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Gemini provider without API key",
-			provider:    gateway.Gemini,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Gemini provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Gemini,
+				Model:           "gemini-1.5-flash",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerGemini,
+			},
 			expectError: true,
 			errorMsg:    "gemini provider requires an API key",
 		},
 		{
-			name:        "Llama provider with base URL",
-			provider:    gateway.Llama,
-			baseURL:     "http://localhost:8080",
-			apiKey:      "",
+			name: "Llama provider with base URL",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Llama,
+				Model:           "llama-3.1-70b-instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "http://localhost:8080",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerLlama,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Llama provider without base URL",
-			provider:    gateway.Llama,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Llama provider without base URL",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Llama,
+				Model:           "llama-3.1-70b-instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerLlama,
+			},
 			expectError: true,
 			errorMsg:    "llama provider requires a base URL",
 		},
 		{
-			name:        "OpenAI-compatible provider with base URL and API key",
-			provider:    gateway.OpenAICompatible,
-			baseURL:     "http://localhost:8080",
-			apiKey:      "test-key",
+			name: "OpenAI-compatible provider with base URL and API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAICompatible,
+				Model:           "custom-model",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "http://localhost:8080",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "OpenAI-compatible provider without base URL",
-			provider:    gateway.OpenAICompatible,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "OpenAI-compatible provider without base URL",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAICompatible,
+				Model:           "custom-model",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openai-compatible provider requires a base URL",
 		},
 		{
-			name:        "OpenAI-compatible provider without API key",
-			provider:    gateway.OpenAICompatible,
-			baseURL:     "http://localhost:8080",
-			apiKey:      "",
+			name: "OpenAI-compatible provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAICompatible,
+				Model:           "custom-model",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "http://localhost:8080",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openai-compatible provider requires an API key",
 		},
 		{
-			name:        "OpenRouter provider with API key",
-			provider:    gateway.OpenRouter,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "OpenRouter provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenRouter,
+				Model:           "openrouter/auto",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "OpenRouter provider without API key",
-			provider:    gateway.OpenRouter,
-			baseURL:     "",
-			apiKey:      "",
+			name: "OpenRouter provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenRouter,
+				Model:           "openrouter/auto",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openrouter provider requires an API key",
 		},
 		{
-			name:        "Nebius provider with API key",
-			provider:    gateway.Nebius,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Nebius provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Nebius,
+				Model:           "meta-llama/Llama-3.1-70B-Instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerLlama,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Nebius provider without API key",
-			provider:    gateway.Nebius,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Nebius provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Nebius,
+				Model:           "meta-llama/Llama-3.1-70B-Instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerLlama,
+			},
 			expectError: true,
 			errorMsg:    "nebius provider requires an API key",
 		},
 		{
-			name:        "Voyage provider (should fail for generation)",
-			provider:    gateway.Voyage,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Voyage provider (should fail for generation)",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Voyage,
+				Model:           "voyage-large-2",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 2000,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: true,
 			errorMsg:    "voyage provider only supports embeddings, not content generation",
 		},
@@ -234,7 +280,7 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gateway, err := factory.CreateGenerationGateway(ctx, tt.provider, tt.baseURL, tt.apiKey)
+			gateway, err := factory.NewGenerationGateway(ctx, tt.profile)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -250,114 +296,202 @@ func TestGatewayFactory_CreateGenerationGateway(t *testing.T) {
 	}
 }
 
-func TestGatewayFactory_CreateEmbeddingsGateway(t *testing.T) {
+func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	factory := &gatewayFactory{}
 	ctx := context.Background()
 
 	tests := []struct {
 		name        string
-		provider    gateway.Provider
-		baseURL     string
-		apiKey      string
+		profile     *mdProfile.ResolvedProfile
 		expectError bool
 		errorMsg    string
 	}{
 		{
-			name:        "OpenAI provider with API key",
-			provider:    gateway.OpenAI,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "OpenAI provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAI,
+				Model:           "text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "OpenAI provider without API key",
-			provider:    gateway.OpenAI,
-			baseURL:     "",
-			apiKey:      "",
+			name: "OpenAI provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenAI,
+				Model:           "text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openai provider requires an API key",
 		},
 		{
-			name:        "Gemini provider with API key",
-			provider:    gateway.Gemini,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Gemini provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Gemini,
+				Model:           "models/embedding-001",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerGemini,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Gemini provider without API key",
-			provider:    gateway.Gemini,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Gemini provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Gemini,
+				Model:           "models/embedding-001",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerGemini,
+			},
 			expectError: true,
 			errorMsg:    "gemini provider requires an API key",
 		},
 		{
-			name:        "Voyage provider with API key",
-			provider:    gateway.Voyage,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Voyage provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Voyage,
+				Model:           "voyage-large-2",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Voyage provider without API key",
-			provider:    gateway.Voyage,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Voyage provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Voyage,
+				Model:           "voyage-large-2",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: true,
 			errorMsg:    "voyage provider requires an API key",
 		},
 		{
-			name:        "OpenRouter provider with API key",
-			provider:    gateway.OpenRouter,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "OpenRouter provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenRouter,
+				Model:           "openai/text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "OpenRouter provider without API key",
-			provider:    gateway.OpenRouter,
-			baseURL:     "",
-			apiKey:      "",
+			name: "OpenRouter provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.OpenRouter,
+				Model:           "openai/text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "openrouter provider requires an API key",
 		},
 		{
-			name:        "Nebius provider with API key",
-			provider:    gateway.Nebius,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Nebius provider with API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Nebius,
+				Model:           "text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: false,
 		},
 		{
-			name:        "Nebius provider without API key",
-			provider:    gateway.Nebius,
-			baseURL:     "",
-			apiKey:      "",
+			name: "Nebius provider without API key",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Nebius,
+				Model:           "text-embedding-ada-002",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerCL100K,
+			},
 			expectError: true,
 			errorMsg:    "nebius provider requires an API key",
 		},
 		{
-			name:        "Llama provider (not implemented)",
-			provider:    gateway.Llama,
-			baseURL:     "http://localhost:8080",
-			apiKey:      "",
+			name: "Llama provider (not implemented)",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Llama,
+				Model:           "llama-3.1-70b-instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "http://localhost:8080",
+				APIKey:          "",
+				TokenizerType:   mdLLM.TokenizerLlama,
+			},
 			expectError: true,
 			errorMsg:    "llama embedding gateway is not yet implemented",
 		},
 		{
-			name:        "Anthropic provider (not supported)",
-			provider:    gateway.Anthropic,
-			baseURL:     "",
-			apiKey:      "test-key",
+			name: "Anthropic provider (not supported)",
+			profile: &mdProfile.ResolvedProfile{
+				Provider:        mdGateway.Anthropic,
+				Model:           "claude-3-haiku-20240307",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "test-key",
+				TokenizerType:   mdLLM.TokenizerUnknown,
+			},
 			expectError: true,
 			errorMsg:    "anthropic provider does not provide embedding models",
+		},
+		{
+			name:        "Nil profile",
+			profile:     nil,
+			expectError: true,
+			errorMsg:    "profile cannot be nil",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gateway, err := factory.CreateEmbeddingsGateway(ctx, tt.provider, tt.baseURL, tt.apiKey)
+			gateway, err := factory.NewEmbeddingsGateway(ctx, tt.profile)
 
 			if tt.expectError {
 				assert.Error(t, err)

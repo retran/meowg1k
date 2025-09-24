@@ -41,31 +41,22 @@ type Service interface {
 
 // serviceImpl represents a client for the Voyage AI API.
 type serviceImpl struct {
+	Service
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-// Config holds configuration for the Voyage AI client.
-type Config struct {
-	BaseURL string
-	APIKey  string
-	Timeout time.Duration
-}
-
 // NewService creates a new Voyage AI client with the given configuration.
-func NewService(config Config) (Service, error) {
-	apiKey := config.APIKey
+func NewService(baseURL, apiKey string, timeout time.Duration) (Service, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("voyage API key is required")
 	}
 
-	baseURL := config.BaseURL
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
 
-	timeout := config.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second
 	}

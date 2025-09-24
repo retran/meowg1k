@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package ui provides terminal-based user interface components
 package ui
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 	"sync"
@@ -25,7 +27,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/retran/meowg1k/pkg/activity"
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // ANSI color constants
@@ -67,7 +69,7 @@ func sanitizeDescription(description string) string {
 }
 
 // parseActivityHierarchy determines parent name and nesting level from activity name
-func (t *ActivityTracker) parseActivityHierarchy(activityName string) (parentName string, level int) {
+func (t *ExecutionTracker) parseActivityHierarchy(activityName string) (parentName string, level int) {
 	// Activity names are structured as "parent.child.grandchild"
 	parts := strings.Split(activityName, ".")
 	level = len(parts) - 1
@@ -81,16 +83,15 @@ func (t *ActivityTracker) parseActivityHierarchy(activityName string) (parentNam
 	return parentName, level
 }
 
-// ActivityTracker tracks and displays progress for activities
-type ActivityTracker struct {
+// ExecutionTracker tracks and displays progress for executions
+type ExecutionTracker struct {
 	silent        bool
 	mu            sync.RWMutex
-	activities    map[string]*ActivityProgress
+	executions    map[string]*ExecutionProgress
 	order         []string
-	workflowName  string
 	isRunning     bool
-	maxActivities int // Maximum number of activities to display
-	minCompleted  int // Minimum number of completed activities to show
+	maxExecutions int // Maximum number of executions to display
+	minCompleted  int // Minimum number of completed executions to show
 
 	// Display management
 	ticker       *time.Ticker
@@ -100,38 +101,32 @@ type ActivityTracker struct {
 	lastLines    int
 }
 
-// ActivityProgress represents the progress state of a single activity
-type ActivityProgress struct {
+// ExecutionProgress represents the progress state of a single activity
+type ExecutionProgress struct {
 	Name       string
-	Status     activity.Status
+	Status     executor.Status
 	Progress   float64
 	Message    string
 	StartTime  time.Time
 	EndTime    *time.Time
 	LastUpdate time.Time
 	Error      error
-	Metadata   map[string]interface{}
+	Metadata   map[string]any
 
 	// Hierarchy support
-	ParentName string   // Name of parent activity (empty for root activities)
-	Children   []string // Names of child activities
+	ParentName string   // Name of parent execution (empty for root execution)
+	Children   []string // Names of child executions
 	Level      int      // Nesting level (0 for root, 1 for first-level children, etc.)
 }
 
-// NewActivityTracker creates a new activity progress tracker
-func NewActivityTracker(silent bool, workflowName string) *ActivityTracker {
-	// Sanitize workflowName
-	if workflowName == "" {
-		workflowName = "Workflow"
-	}
-
-	tracker := &ActivityTracker{
+// NewExecutionTracker creates a new activity progress tracker
+func NewExecutionTracker(silent bool) *ExecutionTracker {
+	tracker := &ExecutionTracker{
 		silent:        silent,
-		activities:    make(map[string]*ActivityProgress),
+		executions:    make(map[string]*ExecutionProgress),
 		order:         make([]string, 0),
-		workflowName:  sanitizeDescription(workflowName),
-		maxActivities: 6, // Show max 6 activities total
-		minCompleted:  2, // Always reserve 2 slots for recently completed activities
+		maxExecutions: 6,
+		minCompleted:  2,
 		stopChan:      make(chan struct{}),
 		spinnerChars:  []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 	}
@@ -145,14 +140,14 @@ func NewActivityTracker(silent bool, workflowName string) *ActivityTracker {
 }
 
 // Start begins tracking activities
-func (t *ActivityTracker) Start() {
+func (t *ExecutionTracker) Start() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.isRunning = true
 }
 
 // Stop stops tracking and cleans up display
-func (t *ActivityTracker) Stop() {
+func (t *ExecutionTracker) Stop() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -171,15 +166,15 @@ func (t *ActivityTracker) Stop() {
 	}
 }
 
-// FeedbackHandler returns a feedback handler compatible with activity.FeedbackHandler
-func (t *ActivityTracker) FeedbackHandler() activity.FeedbackHandler {
-	return func(feedback activity.Feedback) {
+// FeedbackHandler returns a feedback handler compatible with executor.FeedbackHandler
+func (t *ExecutionTracker) FeedbackHandler() executor.FeedbackHandler {
+	return func(feedback executor.Feedback) {
 		t.UpdateActivity(feedback)
 	}
 }
 
 // UpdateActivity updates the progress of an activity
-func (t *ActivityTracker) UpdateActivity(feedback activity.Feedback) {
+func (t *ExecutionTracker) UpdateActivity(feedback executor.Feedback) {
 	if t.silent {
 		return
 	}
@@ -193,24 +188,24 @@ func (t *ActivityTracker) UpdateActivity(feedback activity.Feedback) {
 	}
 
 	// Get or create activity progress
-	activityProgress, exists := t.activities[activityName]
+	activityProgress, exists := t.executions[activityName]
 	if !exists {
 		// Determine parent and level from activity name
 		parentName, level := t.parseActivityHierarchy(activityName)
 
-		activityProgress = &ActivityProgress{
+		activityProgress = &ExecutionProgress{
 			Name:       sanitizeDescription(activityName),
 			StartTime:  feedback.Timestamp,
-			Metadata:   make(map[string]interface{}),
+			Metadata:   make(map[string]any),
 			ParentName: parentName,
 			Children:   make([]string, 0),
 			Level:      level,
 		}
-		t.activities[activityName] = activityProgress
+		t.executions[activityName] = activityProgress
 
 		// Add to parent's children list if this is a sub-activity
 		if parentName != "" {
-			if parentActivity, exists := t.activities[parentName]; exists {
+			if parentActivity, exists := t.executions[parentName]; exists {
 				parentActivity.Children = append(parentActivity.Children, activityName)
 			}
 		}
@@ -227,23 +222,22 @@ func (t *ActivityTracker) UpdateActivity(feedback activity.Feedback) {
 
 	// Update metadata if provided
 	if feedback.Metadata != nil {
-		for k, v := range feedback.Metadata {
-			activityProgress.Metadata[k] = v
-		}
+		maps.Copy(activityProgress.Metadata, feedback.Metadata)
 	}
 
 	// Set end time for completed/failed activities
-	if feedback.Status == activity.StatusCompleted || feedback.Status == activity.StatusFailed {
+	if feedback.Status == executor.StatusCompleted || feedback.Status == executor.StatusFailed {
 		endTime := feedback.Timestamp
 		activityProgress.EndTime = &endTime
 	}
 }
 
 // displayLoop handles the continuous update of the display
-func (t *ActivityTracker) displayLoop() {
+func (t *ExecutionTracker) displayLoop() {
 	for {
 		select {
 		case <-t.ticker.C:
+			atomic.AddInt64(&t.spinnerIndex, 1)
 			t.mu.RLock()
 			if t.isRunning {
 				t.updateDisplay()
@@ -256,7 +250,7 @@ func (t *ActivityTracker) displayLoop() {
 }
 
 // updateDisplay redraws the entire progress display
-func (t *ActivityTracker) updateDisplay() {
+func (t *ExecutionTracker) updateDisplay() {
 	// Clear previous output
 	if t.lastLines > 0 {
 		for i := 0; i < t.lastLines; i++ {
@@ -266,29 +260,12 @@ func (t *ActivityTracker) updateDisplay() {
 
 	lines := []string{}
 
-	// Check if we have any running activities
-	hasRunningActivities := false
-	for _, activityItem := range t.activities {
-		if activityItem.Status == activity.StatusStarted ||
-			activityItem.Status == activity.StatusRunning {
-			hasRunningActivities = true
-			break
-		}
-	}
-
-	// Main workflow line - only show if we have running activities
-	if hasRunningActivities {
-		currentIndex := atomic.AddInt64(&t.spinnerIndex, 1) - 1
-		currentSpinner := t.spinnerChars[int(currentIndex)%len(t.spinnerChars)]
-		lines = append(lines, fmt.Sprintf(" %s%s%s %s", colorCyan, currentSpinner, colorReset, t.workflowName))
-	}
-
 	// Activity progress lines - show only recent activities
 	visibleActivities := t.getVisibleActivities()
 	currentSpinnerIndex := int(atomic.LoadInt64(&t.spinnerIndex))
 
 	for _, activityName := range visibleActivities {
-		activity := t.activities[activityName]
+		activity := t.executions[activityName]
 		if activity == nil {
 			continue
 		}
@@ -308,17 +285,17 @@ func (t *ActivityTracker) updateDisplay() {
 }
 
 // formatActivityLine formats a single activity line with proper indentation
-func (t *ActivityTracker) formatActivityLine(activityItem *ActivityProgress, spinnerIndex int) string {
+func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, spinnerIndex int) string {
 	if activityItem == nil {
 		return ""
 	}
 
 	// Create indentation based on activity level
-	indent := strings.Repeat("  ", activityItem.Level+1) // +1 for base indentation
+	indent := strings.Repeat("  ", activityItem.Level) // +1 for base indentation
 	prefix := indent
 
 	switch activityItem.Status {
-	case activity.StatusStarted, activity.StatusRunning:
+	case executor.StatusStarted, executor.StatusRunning:
 		currentSpinner := t.spinnerChars[spinnerIndex%len(t.spinnerChars)]
 		message := activityItem.Message
 		if message == "" {
@@ -348,11 +325,11 @@ func (t *ActivityTracker) formatActivityLine(activityItem *ActivityProgress, spi
 		}
 		return fmt.Sprintf("%s %s%s%s %s%s %s", prefix, statusColor, statusIcon, colorReset, activityItem.Name, progressStr, message)
 
-	case activity.StatusCompleted:
+	case executor.StatusCompleted:
 		duration := t.getActivityDuration(activityItem)
 		return fmt.Sprintf("%s %s✓%s %s %s(%s)%s", prefix, colorGreen, colorReset, activityItem.Name, colorGray, duration, colorReset)
 
-	case activity.StatusFailed:
+	case executor.StatusFailed:
 		duration := t.getActivityDuration(activityItem)
 		errorMsg := ""
 		if activityItem.Error != nil {
@@ -370,11 +347,11 @@ func (t *ActivityTracker) formatActivityLine(activityItem *ActivityProgress, spi
 
 // getVisibleActivities returns activities that should be visible in the display
 // Takes into account hierarchy - shows parents if children are running
-func (t *ActivityTracker) getVisibleActivities() []string {
+func (t *ExecutionTracker) getVisibleActivities() []string {
 	// Create hierarchical ordering
 	hierarchicalOrder := t.createHierarchicalOrder()
 
-	if len(hierarchicalOrder) <= t.maxActivities {
+	if len(hierarchicalOrder) <= t.maxExecutions {
 		return hierarchicalOrder
 	}
 
@@ -383,16 +360,16 @@ func (t *ActivityTracker) getVisibleActivities() []string {
 	completed := []string{}
 
 	for _, name := range hierarchicalOrder {
-		activityItem := t.activities[name]
+		activityItem := t.executions[name]
 		if activityItem == nil {
 			continue
 		}
 
 		switch activityItem.Status {
-		case activity.StatusStarted, activity.StatusRunning:
+		case executor.StatusStarted, executor.StatusRunning:
 			// Mark this activity and all its ancestors as needing to be shown
 			t.markActivityAndAncestors(name, runningWithAncestors)
-		case activity.StatusCompleted, activity.StatusFailed:
+		case executor.StatusCompleted, executor.StatusFailed:
 			completed = append(completed, name)
 		}
 	}
@@ -408,7 +385,7 @@ func (t *ActivityTracker) getVisibleActivities() []string {
 
 	// Show recent completed activities (only root level to save space)
 	recentCompleted := t.minCompleted
-	availableSlots := t.maxActivities - len(visible)
+	availableSlots := t.maxExecutions - len(visible)
 	if availableSlots > 0 && recentCompleted > availableSlots {
 		recentCompleted = availableSlots
 	}
@@ -417,15 +394,12 @@ func (t *ActivityTracker) getVisibleActivities() []string {
 		// Filter completed to show only root activities
 		rootCompleted := []string{}
 		for _, name := range completed {
-			if activityItem := t.activities[name]; activityItem != nil && activityItem.Level == 0 {
+			if activityItem := t.executions[name]; activityItem != nil && activityItem.Level == 0 {
 				rootCompleted = append(rootCompleted, name)
 			}
 		}
 
-		start := len(rootCompleted) - recentCompleted
-		if start < 0 {
-			start = 0
-		}
+		start := max(len(rootCompleted)-recentCompleted, 0)
 		if start < len(rootCompleted) {
 			visible = append(visible, rootCompleted[start:]...)
 		}
@@ -435,7 +409,7 @@ func (t *ActivityTracker) getVisibleActivities() []string {
 }
 
 // createHierarchicalOrder creates a hierarchically ordered list of activities
-func (t *ActivityTracker) createHierarchicalOrder() []string {
+func (t *ExecutionTracker) createHierarchicalOrder() []string {
 	result := []string{}
 	processed := make(map[string]bool)
 
@@ -450,12 +424,12 @@ func (t *ActivityTracker) createHierarchicalOrder() []string {
 }
 
 // addActivityHierarchically adds an activity and its children in hierarchical order
-func (t *ActivityTracker) addActivityHierarchically(name string, result *[]string, processed map[string]bool) {
+func (t *ExecutionTracker) addActivityHierarchically(name string, result *[]string, processed map[string]bool) {
 	if processed[name] {
 		return
 	}
 
-	activity := t.activities[name]
+	activity := t.executions[name]
 	if activity == nil {
 		return
 	}
@@ -472,8 +446,8 @@ func (t *ActivityTracker) addActivityHierarchically(name string, result *[]strin
 }
 
 // markActivityAndAncestors marks an activity and all its ancestors for display
-func (t *ActivityTracker) markActivityAndAncestors(name string, marked map[string]bool) {
-	activityItem := t.activities[name]
+func (t *ExecutionTracker) markActivityAndAncestors(name string, marked map[string]bool) {
+	activityItem := t.executions[name]
 	if activityItem == nil {
 		return
 	}
@@ -487,7 +461,7 @@ func (t *ActivityTracker) markActivityAndAncestors(name string, marked map[strin
 }
 
 // getActivityDuration returns a human-readable duration string
-func (t *ActivityTracker) getActivityDuration(activity *ActivityProgress) string {
+func (t *ExecutionTracker) getActivityDuration(activity *ExecutionProgress) string {
 	if activity == nil {
 		return "0s"
 	}

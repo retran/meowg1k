@@ -17,32 +17,18 @@ limitations under the License.
 package generate
 
 import (
-	"github.com/retran/meowg1k/internal/models/config"
-	"github.com/spf13/cobra"
+	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 )
 
 // GenerateInput represents the input for the generate activity
 type GenerateInput struct {
-	// Command context from cobra
-	Command *cobra.Command
-
-	// Configuration (already loaded and validated)
-	Config *config.Config
-
-	// Input content from stdin (if any)
-	StdinContent string
-
-	// Command line flags
-	TaskName   string // from -t/--task flag
-	UserPrompt string // from -p/--user-prompt flag
-	Silent     bool   // from --silent flag
+	Profile      *mdProfile.ResolvedProfile
+	UserPrompt   string
+	SystemPrompt string
 }
 
 // GenerateOutput represents the output from the generate activity
 type GenerateOutput struct {
-	// Generated content ready for output
-	Content string
-
-	// Metadata about the generation process
-	Metadata map[string]interface{}
+	Content  string
+	Metadata map[string]any
 }
