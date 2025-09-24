@@ -75,14 +75,14 @@ func (e *ExecutorContext) GetExecutor() Executor {
 	return e.executor
 }
 
-// SendFeedback sends feedback about activity execution
-func (ac *ExecutorContext) SendFeedback(status Status, progress float64, message string) {
-	if ac.feedbackFunc == nil {
+// sendFeedback sends feedback about activity execution
+func (e *ExecutorContext) sendFeedback(status Status, progress float64, message string) {
+	if e.feedbackFunc == nil {
 		return
 	}
 
-	ac.feedbackFunc(Feedback{
-		ActivityName: ac.name,
+	e.feedbackFunc(Feedback{
+		ActivityName: e.name,
 		Status:       status,
 		Progress:     progress,
 		Message:      message,
@@ -90,17 +90,29 @@ func (ac *ExecutorContext) SendFeedback(status Status, progress float64, message
 	})
 }
 
-func (ac *ExecutorContext) SendProgress(progress float64, message string) {
-	ac.SendFeedback(StatusRunning, progress, message)
+func (e *ExecutorContext) SendPending(message string) {
+	e.sendFeedback(StatusPending, 0.0, message)
 }
 
-func (ac *ExecutorContext) SendError(err error, message string) {
-	if ac.feedbackFunc == nil {
+func (e *ExecutorContext) SendStarted(message string) {
+	e.sendFeedback(StatusStarted, 0.0, message)
+}
+
+func (e *ExecutorContext) SendProgress(progress float64, message string) {
+	e.sendFeedback(StatusRunning, progress, message)
+}
+
+func (e *ExecutorContext) SendCompleted(message string) {
+	e.sendFeedback(StatusCompleted, 1.0, message)
+}
+
+func (e *ExecutorContext) SendFailed(err error, message string) {
+	if e.feedbackFunc == nil {
 		return
 	}
 
-	ac.feedbackFunc(Feedback{
-		ActivityName: ac.name,
+	e.feedbackFunc(Feedback{
+		ActivityName: e.name,
 		Status:       StatusFailed,
 		Progress:     0.0,
 		Message:      message,
@@ -109,13 +121,13 @@ func (ac *ExecutorContext) SendError(err error, message string) {
 	})
 }
 
-func (ac *ExecutorContext) SendRetry(attempt int, err error) {
-	if ac.feedbackFunc == nil {
+func (e *ExecutorContext) SendRetry(attempt int, err error) {
+	if e.feedbackFunc == nil {
 		return
 	}
 
-	ac.feedbackFunc(Feedback{
-		ActivityName: ac.name,
+	e.feedbackFunc(Feedback{
+		ActivityName: e.name,
 		Status:       StatusRunning,
 		Progress:     0.0,
 		Message:      fmt.Sprintf("Retrying attempt %d", attempt),

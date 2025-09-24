@@ -35,6 +35,7 @@ type Service interface {
 
 // TaskConfiguration represents a resolved task configuration.
 type TaskConfiguration struct {
+	Name         string
 	Profile      *mdProfile.ResolvedProfile
 	SystemPrompt string
 	UserPrompt   string
@@ -64,6 +65,7 @@ func NewService(commandService command.Service, configService config.Service, pr
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task name: %w", err)
 	}
+	taskName = strings.TrimSpace(taskName)
 
 	cmdUserPrompt, err := commandService.GetUserPrompt()
 	if err != nil {
@@ -120,6 +122,7 @@ func NewService(commandService command.Service, configService config.Service, pr
 	}
 
 	service.cachedConfig = &TaskConfiguration{
+		Name:         taskName,
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,

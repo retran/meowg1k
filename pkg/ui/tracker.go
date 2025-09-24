@@ -294,13 +294,19 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 	indent := strings.Repeat("  ", activityItem.Level) // +1 for base indentation
 	prefix := indent
 
+	message := activityItem.Message
+	if message == "" {
+		message = "..."
+	}
+
+	duration := t.getActivityDuration(activityItem)
+
 	switch activityItem.Status {
+	case executor.StatusPending:
+		return fmt.Sprintf("%s%s⏲%s %s(%s)%s %s", prefix, colorGreen, colorReset, colorGray, duration, colorReset, message)
+
 	case executor.StatusStarted, executor.StatusRunning:
 		currentSpinner := t.spinnerChars[spinnerIndex%len(t.spinnerChars)]
-		message := activityItem.Message
-		if message == "" {
-			message = "..."
-		}
 
 		// Determine the display based on metadata
 		var statusIcon, statusColor string
@@ -323,14 +329,13 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 		if activityItem.Progress > 0 {
 			progressStr = fmt.Sprintf(" (%.0f%%)", activityItem.Progress*100)
 		}
-		return fmt.Sprintf("%s %s%s%s %s%s %s", prefix, statusColor, statusIcon, colorReset, activityItem.Name, progressStr, message)
+		return fmt.Sprintf("%s%s%s%s %s(%s)%s %s %s", prefix, statusColor, statusIcon, colorReset, colorGray, duration, colorReset, progressStr, message)
 
 	case executor.StatusCompleted:
 		duration := t.getActivityDuration(activityItem)
-		return fmt.Sprintf("%s %s✓%s %s %s(%s)%s", prefix, colorGreen, colorReset, activityItem.Name, colorGray, duration, colorReset)
+		return fmt.Sprintf("%s%s✓%s %s(%s)%s %s", prefix, colorGreen, colorReset, colorGray, duration, colorReset, message)
 
 	case executor.StatusFailed:
-		duration := t.getActivityDuration(activityItem)
 		errorMsg := ""
 		if activityItem.Error != nil {
 			errorMsg = fmt.Sprintf(" - %s", activityItem.Error.Error())
@@ -338,7 +343,7 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 				errorMsg = errorMsg[:47] + "..."
 			}
 		}
-		return fmt.Sprintf("%s %s✗%s %s %s(%s)%s%s", prefix, colorRed, colorReset, activityItem.Name, colorGray, duration, colorReset, errorMsg)
+		return fmt.Sprintf("%s%s✗%s %s(%s)%s %s%s", prefix, colorRed, colorReset, colorGray, duration, colorReset, message, errorMsg)
 
 	default:
 		return ""

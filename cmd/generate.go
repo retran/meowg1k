@@ -68,25 +68,28 @@ var generateCmd = &cobra.Command{
 		}
 
 		gatewayFactory := gateway.NewGatewayFactory()
-		activityFactory := generate.NewGenerateActivityFactory(gatewayFactory)
-
-		flowFactory := generate.NewGenerateFlowFactory(
+		activityFactory := generate.NewGenerateContentActivityFactory(gatewayFactory)
+		flowFactory := generate.NewGenerateContentFlowFactory(
 			taskService,
 			generatePromptService,
 			generatePromptService,
 			activityFactory,
 		)
-
 		flow := flowFactory.NewFlow()
 
-		executionTracker := ui.NewExecutionTracker(false)
+		silent, err := appContainer.CommandService.GetSilentFlag()
+		if err != nil {
+			return fmt.Errorf("failed to get silent flag: %w", err)
+		}
+
+		executionTracker := ui.NewExecutionTracker(silent)
 		executionTracker.Start()
 		defer executionTracker.Stop()
 
 		exec := executor.NewExecutor().
 			WithFeedbackHandler(executionTracker.FeedbackHandler())
 
-		return exec.RunFlow(appContainer.Context, "Generate", flow)
+		return exec.RunFlow(appContainer.Context, "GenerateContent", flow)
 	},
 }
 

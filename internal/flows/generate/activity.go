@@ -26,31 +26,35 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// GenerateActivityFactory creates instances of the generate activity with injected dependencies.
-type GenerateActivityFactory struct {
+// GenerateContentActivityFactory creates instances of the generate activity with injected dependencies.
+type GenerateContentActivityFactory struct {
 	gatewayFactory gateway.GatewayFactory
 }
 
-// NewGenerateActivityFactory creates a new generate activity factory with injected services.
-func NewGenerateActivityFactory(
+// NewGenerateContentActivityFactory creates a new generate activity factory with injected services.
+func NewGenerateContentActivityFactory(
 	gatewayFactory gateway.GatewayFactory,
-) *GenerateActivityFactory {
-	return &GenerateActivityFactory{
+) *GenerateContentActivityFactory {
+	return &GenerateContentActivityFactory{
 		gatewayFactory: gatewayFactory,
 	}
 }
 
-// NewActivity creates and returns the generate activity function.
-func (f *GenerateActivityFactory) NewActivity() func(context.Context, *executor.ExecutorContext, any) (any, error) {
+// NewActivity creates and returns the generate activity function with added progress reporting.
+func (f *GenerateContentActivityFactory) NewActivity() func(context.Context, *executor.ExecutorContext, any) (any, error) {
 	return func(ctx context.Context, executorCtx *executor.ExecutorContext, input any) (any, error) {
+		executorCtx.SendProgress(0.0, "Preparing generation request...")
+
 		if input == nil {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		generateInput, ok := input.(*GenerateInput)
+		generateInput, ok := input.(*GenerateContentInput)
 		if !ok {
 			return nil, fmt.Errorf("invalid input type: %T", input)
 		}
+
+		executorCtx.SendProgress(0.0, "Sending generation request to large language model...")
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, generateInput.Profile)
 		if err != nil {
@@ -64,14 +68,20 @@ func (f *GenerateActivityFactory) NewActivity() func(context.Context, *executor.
 			generateInput.Profile.MaxOutputTokens,
 		)
 
+		// This is the primary long-running operation within the activity.
 		content, err := generationGateway.GenerateContent(ctx, request)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate content: %w", err)
 		}
 
+		// Report that the generation itself is complete.
+		executorCtx.SendProgress(0.0, "Response received, preparing output...")
+
 		metadata := map[string]any{}
 
-		return &GenerateOutput{
+		executorCtx.SendCompleted( "Generation request completed.")
+
+		return &GenerateContentOutput{
 			Content:  content,
 			Metadata: metadata,
 		}, nil
