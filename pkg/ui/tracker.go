@@ -303,7 +303,7 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 
 	switch activityItem.Status {
 	case executor.StatusPending:
-		return fmt.Sprintf("%s%s⏲%s %s(%s)%s %s", prefix, colorGreen, colorReset, colorGray, duration, colorReset, message)
+		return fmt.Sprintf("%s%s⏸%s %s(%s)%s %s", prefix, colorYellow, colorReset, colorGray, duration, colorReset, message)
 
 	case executor.StatusStarted, executor.StatusRunning:
 		currentSpinner := t.spinnerChars[spinnerIndex%len(t.spinnerChars)]
@@ -315,10 +315,6 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 			statusIcon = currentSpinner
 			statusColor = colorYellow
 			message = fmt.Sprintf("retry %d - %s", retryAttempt, message)
-		} else if strings.Contains(message, "waiting") || strings.Contains(message, "pending") {
-			// This is pending
-			statusIcon = "⏸"
-			statusColor = colorYellow
 		} else {
 			// This is normal running
 			statusIcon = currentSpinner
@@ -329,10 +325,9 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 		if activityItem.Progress > 0 {
 			progressStr = fmt.Sprintf(" (%.0f%%)", activityItem.Progress*100)
 		}
-		return fmt.Sprintf("%s%s%s%s %s(%s)%s %s %s", prefix, statusColor, statusIcon, colorReset, colorGray, duration, colorReset, progressStr, message)
+		return fmt.Sprintf("%s%s%s%s %s(%s)%s %s%s", prefix, statusColor, statusIcon, colorReset, colorGray, duration, colorReset, progressStr, message)
 
 	case executor.StatusCompleted:
-		duration := t.getActivityDuration(activityItem)
 		return fmt.Sprintf("%s%s✓%s %s(%s)%s %s", prefix, colorGreen, colorReset, colorGray, duration, colorReset, message)
 
 	case executor.StatusFailed:
