@@ -200,8 +200,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 				APIKey:          "",
 				TokenizerType:   mdLLM.TokenizerCL100K,
 			},
-			expectError: true,
-			errorMsg:    "openai-compatible provider requires an API key",
+			expectError: false,
 		},
 		{
 			name: "OpenRouter provider with API key",

@@ -81,9 +81,6 @@ func (f *gatewayFactory) NewGenerationGateway(ctx context.Context, profile *mdPr
 		if profile.BaseURL == "" {
 			return nil, fmt.Errorf("openai-compatible provider requires a base URL")
 		}
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openai-compatible provider requires an API key")
-		}
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
