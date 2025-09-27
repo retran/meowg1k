@@ -25,7 +25,7 @@ tasks:
       - task: clean
       - mkdir -p bin
       - echo "Building {{.PROJECT_NAME}} v{{.VERSION}}..."
-      - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" .
+      - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" ./cmd/meow
 
   install:
     desc: Build and install the binary
@@ -34,7 +34,7 @@ tasks:
       - echo "Installing meow..."
       - |
         BIN_DIR="$(go env GOBIN)"; [ -z "$BIN_DIR" ] && BIN_DIR="$(go env GOPATH)/bin"
-        CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" .
+        CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" ./cmd/meow
         echo "✅ meow installed to $BIN_DIR!"
 
   check:

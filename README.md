@@ -4,17 +4,21 @@
 
 <div align="center">
 
-![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)
-![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)
-![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge)
+  ![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)
+  ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)
+  ![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge)
+  ![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge)
 
 </div>
 
 <div align="center">
-<img src="https://github.com/retran/meow/raw/dev/assets/icon_small.png" alt="Meow Logo" width="200">
-<br>
-<strong>meowg1k — AI Programming Assistance Tool</strong>
+
+  <img src="https://github.com/retran/meow/raw/dev/assets/icon_small.png" alt="Meow Logo" width="200">
+
+  <br>
+
+  <strong>meowg1k — AI Programming Assistance Tool</strong>
+
 </div>
 
 `meowg1k` is a command-line interface that brings the power of modern LLMs (Large Language Models) into your development workflow. With a single command, you can get code explanations, refactor suggestions, or fully generated files — all without leaving your terminal.
@@ -23,20 +27,20 @@ Part of the `project meow` ecosystem, `meowg1k` is the **AI counterpart** to [`m
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Core Principles](#core-principles)
-- [✨ Features](#-features)
-- [📋 Prerequisites](#-prerequisites)
-- [⚡ Installation](#-installation)
-- [⚡ Quick Start](#-quick-start)
-- [🔧 Configuration](#-configuration)
-- [🔍 Examples](#-examples)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [🔒 Verification & Security](#-verification--security)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-- [🙏 Acknowledgments](#-acknowledgments)
+- [Features](#features)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Verification & Security](#verification--security)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
 
 ## Core Principles
 
@@ -137,7 +141,7 @@ This principle ensures that operational expenses are a transparent and manageabl
 1. **Direct Control via Configuration:** You have full and granular control over all factors that influence cost, such as selecting the model, provider, and usage parameters. This empowers you to make a deliberate economic trade-off for any given task.
 2. **Internal Efficiency via Context Engineering:** The tool is designed to be inherently cost-effective. The principle of **Intelligent Context Engineering (#8)** directly contributes to cost control by optimizing the context to send the minimum number of tokens required for a high-quality result. This is a built-in, automatic cost-reduction mechanism.
 
-## ✨ Features
+## Features
 
 - **Generate code** from a prompt or from stdin
 - **Refactor** existing code automatically
@@ -146,22 +150,21 @@ This principle ensures that operational expenses are a transparent and manageabl
 - **Profile-based configuration**: Clean, hierarchical config system with smart defaults
 - **Project + user configs**: Override defaults per project or globally
 - **Comprehensive AI provider support**:
-  - **Content Generation**: Gemini, OpenAI, OpenRouter, Nebius AI Studio, Anthropic Claude, llama.cpp (local), and OpenAI-compatible APIs
-  - **Embeddings**: Gemini, Voyage AI (recommended by Anthropic), Nebius, OpenAI/OpenRouter, and OpenAI-compatible APIs
+  - **Content Generation**: Gemini, OpenAI, OpenRouter, Anthropic Claude, llama.cpp (local), and OpenAI-compatible APIs
+  - **Embeddings**: Gemini, Voyage AI (recommended by Anthropic), OpenAI/OpenRouter, and OpenAI-compatible APIs
 - **Smart defaults**: Minimal configuration required - just specify the provider and API key
 - **Environment-based API keys**: Secure credential management via environment variables
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 - **Go**: version 1.24 or newer
-- **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter, Nebius AI Studio)
+- **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter)
 - **API key** for your chosen provider:
   - Gemini: `MEOW_GEMINI_API_KEY`
   - OpenAI: `MEOW_OPENAI_API_KEY`
   - OpenRouter: `MEOW_OPENROUTER_API_KEY`
-  - Nebius: `MEOW_NEBIUS_API_KEY`
   - Anthropic: `MEOW_ANTHROPIC_API_KEY`
   - Voyage AI: `MEOW_VOYAGE_API_KEY`
   - Llama (local): `MEOW_LLAMA_API_KEY` (optional)
@@ -171,7 +174,7 @@ This principle ensures that operational expenses are a transparent and manageabl
 
 ---
 
-## ⚡ Installation
+## Installation
 
 ### Install with Go
 
@@ -212,11 +215,11 @@ sudo rpm -i meow-<version>-1.x86_64.rpm
 sudo rpm -i meow-<version>-1.aarch64.rpm
 ```
 
-> 💡 Packaging names come from our nfpm config (`package_name: meow`). Exact filenames on GitHub Releases are generated by GoReleaser and may include distro/arch suffixes as shown above.
+> Packaging names come from our nfpm config (`package_name: meow`). Exact filenames on GitHub Releases are generated by GoReleaser and may include distro/arch suffixes as shown above.
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ```bash
 # Explain code using a predefined task
@@ -229,11 +232,11 @@ cat component.js | meow g -p "Refactor for performance"
 cat app.py | meow g -t test
 ```
 
-> 🐾 Docs are available via `man meow`, `man meow-generate`, `man 5 meow-config`, and `man 7 meow-security`.
+> Docs are available via `man meow`, `man meow-generate`, `man 5 meow-config`, and `man 7 meow-security`.
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 `meow` uses a powerful profile-based configuration system for maximum flexibility. Configuration files are read in this order of precedence:
 
@@ -293,7 +296,6 @@ generate:
 | `gemini`            | `MEOW_GEMINI_API_KEY`            | `gemini-2.5-flash`                      | *automatic*                        | Generation + Embeddings |
 | `openai`            | `MEOW_OPENAI_API_KEY`            | `gpt-5-mini`                            | `https://api.openai.com/v1`        | Generation + Embeddings |
 | `openrouter`        | `MEOW_OPENROUTER_API_KEY`        | `meta-llama/llama-3.2-3b-instruct:free` | `https://openrouter.ai/api/v1`     | Generation + Embeddings |
-| `nebius`            | `MEOW_NEBIUS_API_KEY`            | `Qwen2.5-Coder-7B`                      | `https://api.studio.nebius.com/v1` | Generation + Embeddings |
 | `anthropic`         | `MEOW_ANTHROPIC_API_KEY`         | `claude-3-5-haiku-20241022`             | *automatic*                        | Generation only         |
 | `voyage`            | `MEOW_VOYAGE_API_KEY`            | `voyage-3.5`                            | `https://api.voyageai.com/v1`      | Embeddings only         |
 | `llama`             | `MEOW_LLAMA_API_KEY`             | *server-defined*                        | *required*                         | Generation only         |
@@ -350,7 +352,7 @@ generate:
 
 ---
 
-## 🔍 Examples
+## Examples
 
 ### 1. Using predefined tasks
 
@@ -480,7 +482,7 @@ profiles:
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 - **No API key**: Set `MEOW_GEMINI_API_KEY` in your shell profile
 - **Timeouts**: Increase `defaultTimeout` in config
@@ -491,14 +493,14 @@ profiles:
 
 ---
 
-## 🔒 Verification & Security
+## Verification & Security
 
 All release artifacts are:
 
 - **Signed** with [Sigstore cosign](https://docs.sigstore.dev/cosign/overview) (keyless, via GitHub OIDC)
 - **Shipped with SBOM** (Software Bill of Materials) for dependency transparency
 
-> 📖 See also `man 7 meow-security` for detailed security guidelines.
+> See also `man 7 meow-security` for detailed security guidelines.
 
 ### Verify a Release
 
@@ -522,22 +524,22 @@ See [latest release](https://github.com/retran/meowg1k/releases/latest) for all 
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-- 🐛 Report bugs
-- 💡 Suggest new features
-- 📝 Improve documentation
-- 🔧 Add provider integrations
+- Report bugs
+- Suggest new features
+- Improve documentation
+- Add provider integrations
 
 ---
 
-## 📄 License
+## License
 
 Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 `meowg1k` builds on the excellent work of the open-source and AI community:
 
@@ -545,16 +547,9 @@ Apache License 2.0 — see [LICENSE](LICENSE) for details.
 - [spf13/viper](https://github.com/spf13/viper) — configuration management
 - [go-task/task](https://github.com/go-task/task) — task runner
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) — local LLM inference
-- Google **Gemini 2.5** — cloud AI models (Pro & Flash)
 - The **Go** team and ecosystem
 
 And of course, thanks to the broader developer community for libraries, tools, and inspiration that make this project better every day.
-
----
-
-## Author
-
-`meowg1k` is developed by Andrew Vasilyev with help from `meowg1k` itself and feline assistants Sonya Blade, Mila, and Marcus Fenix.
 
 ---
 
@@ -562,7 +557,7 @@ And of course, thanks to the broader developer community for libraries, tools, a
 
 **Happy coding with `project meow`! 🐱**
 
-Made with ❤️ by Andrew Vasilyev and feline assistants
+Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix.
 
 [Report Bug](https://github.com/retran/meowg1k/issues) · [Request Feature](https://github.com/retran/meowg1k/issues) · [Contribute](https://github.com/retran/meowg1k/pulls)
 

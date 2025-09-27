@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cmd contains the command-line interface for meowg1k.
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
-	"github.com/retran/meowg1k/internal/config"
-	"github.com/retran/meowg1k/internal/llm/gateway"
-	"github.com/retran/meowg1k/internal/ui"
+	"github.com/retran/meowg1k/internal/app"
+	"github.com/retran/meowg1k/internal/flows/generate"
+	"github.com/retran/meowg1k/internal/services/gateway"
+	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/services/prompt"
+	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/pkg/executor"
+	"github.com/retran/meowg1k/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -35,163 +36,66 @@ var generateCmd = &cobra.Command{
 	Aliases: []string{"gen", "g"},
 	Short:   "Generate any content based on input — code, text, or docs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runGenerate(cmd)
+		ctx := cmd.Context()
+
+		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.AppContainer)
+		if !ok || appContainer == nil {
+			return fmt.Errorf("application not initialized")
+		}
+
+		providerService := provider.NewService()
+
+		profileService := profile.NewService(
+			appContainer.ConfigService,
+			providerService,
+		)
+
+		taskService, err := task.NewService(
+			appContainer.CommandService,
+			appContainer.ConfigService,
+			profileService,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create task service: %w", err)
+		}
+
+		generatePromptService, err := prompt.NewGeneratePromptService(
+			appContainer.CommandService,
+			taskService,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create prompt service: %w", err)
+		}
+
+		gatewayFactory := gateway.NewGatewayFactory()
+		activityFactory := generate.NewGenerateContentActivityFactory(gatewayFactory)
+		flowFactory := generate.NewGenerateContentFlowFactory(
+			taskService,
+			generatePromptService,
+			generatePromptService,
+			activityFactory,
+		)
+		flow := flowFactory.NewFlow()
+
+		silent, err := appContainer.CommandService.GetSilentFlag()
+		if err != nil {
+			return fmt.Errorf("failed to get silent flag: %w", err)
+		}
+
+		executionTracker := ui.NewExecutionTracker(silent)
+		executionTracker.Start()
+		defer executionTracker.Stop()
+
+		exec := executor.NewExecutor().
+			WithFeedbackHandler(executionTracker.FeedbackHandler())
+
+		return exec.RunFlow(appContainer.Context, "GenerateContent", flow)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(generateCmd)
-
 	generateCmd.Flags().StringP("task", "t", "", "Run a predefined task from config")
-	generateCmd.Flags().StringP("user-prompt", "p", "", "User prompt for generation. Can be combined with stdin")
-}
-
-const (
-	stdinContextWrapper = "\n\n```\n%s\n```"
-)
-
-// generationParams holds all the resolved parameters for a generation request.
-type generationParams struct {
-	Profile      *config.ResolvedProfile // Resolved configuration profile for the LLM
-	SystemPrompt string                  // System-level instruction for the LLM
-	UserPrompt   string                  // User's main prompt, potentially combined with stdin
-}
-
-// finalizeOutput formats the generated content by trimming whitespace and ensuring
-// it ends with a newline.
-func finalizeOutput(content string) string {
-	return strings.TrimSpace(content) + "\n"
-}
-
-// readUserPromptFromStdin reads from stdin if data is being piped to the command.
-func readUserPromptFromStdin() (string, error) {
-	stat, err := os.Stdin.Stat()
-	if err != nil {
-		return "", fmt.Errorf("failed to stat stdin: %w", err)
-	}
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		input, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from stdin: %w", err)
-		}
-		return strings.TrimSpace(string(input)), nil
-	}
-	return "", nil
-}
-
-// resolveParams consolidates all configuration resolution into a single struct.
-// It determines the final parameters for the generation request by checking flags,
-// task configurations, and defaults from the loaded configuration.
-func resolveParams(cmd *cobra.Command, cfg *config.Config) (*generationParams, error) {
-	var task *config.GenerateTask
-	var profileName string
-	var systemPrompt string
-	var userPrompt string
-
-	// Check if a task is specified
-	taskName, _ := cmd.Flags().GetString("task")
-	if taskName != "" {
-		var err error
-		task, err = cfg.GetGenerateTask(taskName)
-		if err != nil {
-			return nil, err
-		}
-
-		profileName = task.Profile
-		systemPrompt = task.SystemPrompt
-		userPrompt = task.UserPrompt
-	}
-
-	// If no profile specified from task, use default
-	if profileName == "" {
-		profileName = cfg.GetDefaultGenerateProfile()
-	}
-
-	// If no system prompt from task, use default
-	if systemPrompt == "" {
-		systemPrompt = cfg.GetDefaultGenerateSystemPrompt()
-	}
-
-	// Resolve user prompt from flag or task
-	cmdUserPrompt, _ := cmd.Flags().GetString("user-prompt")
-	if cmdUserPrompt != "" {
-		userPrompt = cmdUserPrompt
-	}
-
-	// Add stdin content if available
-	stdinContent, err := readUserPromptFromStdin()
-	if err != nil {
-		return nil, err
-	}
-
-	if stdinContent != "" {
-		if userPrompt != "" {
-			userPrompt = userPrompt + fmt.Sprintf(stdinContextWrapper, stdinContent)
-		} else {
-			userPrompt = stdinContent
-		}
-	}
-
-	if userPrompt == "" {
-		return nil, fmt.Errorf("no user prompt provided via the --user-prompt flag, stdin, or task configuration")
-	}
-
-	// Resolve the profile
-	profile, err := cfg.ResolveProfile(profileName)
-	if err != nil {
-		return nil, err
-	}
-
-	return &generationParams{
-		Profile:      profile,
-		SystemPrompt: systemPrompt,
-		UserPrompt:   userPrompt,
-	}, nil
-}
-
-// runGenerate executes the main logic of the generate command.
-func runGenerate(cmd *cobra.Command) error {
-	params, err := resolveParams(cmd, appConfig)
-	if err != nil {
-		return err
-	}
-
-	// Create gateway options based on resolved profile
-	opts := []gateway.Option{
-		gateway.WithProvider(params.Profile.Provider),
-	}
-
-	// Add baseURL for providers that need it
-	if params.Profile.BaseURL != "" {
-		opts = append(opts, gateway.WithBaseURL(params.Profile.BaseURL))
-	}
-
-	// Add API key for providers that need it
-	if params.Profile.APIKey != "" {
-		opts = append(opts, gateway.WithAPIKey(params.Profile.APIKey))
-	}
-
-	gw, err := gateway.NewGenerationGateway(cmd.Context(), opts...)
-	if err != nil {
-		return fmt.Errorf("failed to initialize gateway: %w", err)
-	}
-
-	request := gateway.NewGenerateContentRequest(params.Profile.Model, params.SystemPrompt, params.UserPrompt, params.Profile.MaxOutputTokens)
-
-	ctx, cancel := context.WithTimeout(cmd.Context(), params.Profile.Timeout)
-	defer cancel()
-
-	content, err := ui.RunWithSpinnerWithMessage(func() (string, error) {
-		return gw.GenerateContent(ctx, request)
-	}, "Generating content...")
-	if err != nil {
-		return err
-	}
-
-	_, err = io.WriteString(os.Stdout, finalizeOutput(content))
-	if err != nil {
-		return fmt.Errorf("failed to write response to stdout: %w", err)
-	}
-
-	return nil
+	generateCmd.Flags().StringP("system-prompt", "s", "", "System prompt for generation")
+	generateCmd.Flags().StringP("user-prompt", "u", "", "User prompt for generation. Can be combined with stdin")
 }

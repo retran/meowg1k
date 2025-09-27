@@ -26,7 +26,7 @@ Configuration structure:
 .nf
 profiles:
   <profile-name>:
-    provider: "gemini" | "openai" | "openrouter" | "nebius" | "anthropic" | "voyage" | "llama" | "openai-compatible"
+    provider: "gemini" | "openai" | "openrouter" | "anthropic" | "voyage" | "llama" | "openai-compatible"
     model: "model-name"              # optional, uses smart defaults
     baseURL: "https://api.url"       # required for llama/openai-compatible
     apiKeyEnv: "ENV_VAR_NAME"        # optional, uses smart defaults
@@ -94,9 +94,6 @@ Model: \fBgpt-5-mini\fR, API key: \fBMEOW_OPENAI_API_KEY\fR
 .B openrouter
 Model: \fBmeta-llama/llama-3.2-3b-instruct:free\fR,
 API key: \fBMEOW_OPENROUTER_API_KEY\fR
-.TP
-.B nebius
-Model: \fBQwen2.5-Coder-7B\fR, API key: \fBMEOW_NEBIUS_API_KEY\fR
 .TP
 .B anthropic
 Model: \fBclaude-3-5-haiku-20241022\fR, API key: \fBMEOW_ANTHROPIC_API_KEY\fR
