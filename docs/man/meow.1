@@ -13,8 +13,8 @@ For command\-specific flags, run:
 .B meow
 is a fast, script\-friendly AI CLI that supports multiple LLM providers
 through a configuration\-driven approach. It uses reusable profiles to
-simplify working with cloud models (Gemini, OpenAI, OpenRouter, Nebius AI
-Studio) and local inference (llama.cpp, OpenAI\-compatible APIs).
+simplify working with cloud models (Gemini, OpenAI, OpenRouter) and
+local inference (llama.cpp, OpenAI\-compatible APIs).
 .br
 Input can be provided via flags and/or piped through stdin.
 
@@ -59,11 +59,6 @@ OpenRouter aggregated models. Requires
 .B MEOW_OPENROUTER_API_KEY
 environment variable.
 .TP
-.B nebius
-Nebius AI Studio. Requires
-.B MEOW_NEBIUS_API_KEY
-environment variable.
-.TP
 .B anthropic
 Anthropic Claude models. Requires
 .B MEOW_ANTHROPIC_API_KEY
@@ -94,9 +89,6 @@ API key for the OpenAI provider.
 .TP
 .B MEOW_OPENROUTER_API_KEY
 API key for the OpenRouter provider.
-.TP
-.B MEOW_NEBIUS_API_KEY
-API key for the Nebius AI Studio provider.
 .TP
 .B MEOW_ANTHROPIC_API_KEY
 API key for the Anthropic provider.

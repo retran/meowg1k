@@ -20,13 +20,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/config"
+	"github.com/retran/meowg1k/internal/app"
 	"github.com/spf13/cobra"
-)
-
-var (
-	configPath string
-	appConfig  *config.Config
 )
 
 func Execute() error {
@@ -37,20 +32,23 @@ var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Skip config loading for commands that don't need it
+		// Skip app initialization for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
 		}
 
-		var err error
-		appConfig, err = config.LoadConfig(configPath)
+		app, err := app.NewAppContainer(cmd)
 		if err != nil {
-			return fmt.Errorf("failed to load configuration: %w", err)
+			return fmt.Errorf("failed to initialize app: %w", err)
 		}
+
+		cmd.SetContext(app.Context)
+
 		return nil
 	},
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "config file path (overrides project/user configs when specified)")
+	rootCmd.PersistentFlags().String("config", "", "config file path (overrides project/user configs when specified)")
+	rootCmd.PersistentFlags().Bool("silent", false, "silent mode - only output the result without progress indicators")
 }
