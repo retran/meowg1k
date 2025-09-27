@@ -121,7 +121,7 @@ func TestNewServiceWithInvalidConfig(t *testing.T) {
 	// Create a temporary invalid config file
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "invalid-config.yaml")
-	invalidContent := `invalid: yaml: content: [
+	invalidContent := `invalid: yaml: [unclosed bracket
 `
 	err := os.WriteFile(configPath, []byte(invalidContent), 0644)
 	if err != nil {
