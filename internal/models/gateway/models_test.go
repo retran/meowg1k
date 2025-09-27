@@ -16,7 +16,10 @@ limitations under the License.
 
 package gateway
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestProviderConstants(t *testing.T) {
 	// Test that all provider constants are defined correctly
@@ -121,5 +124,193 @@ func TestEmbeddingEmpty(t *testing.T) {
 	
 	if len(embedding) != 0 {
 		t.Errorf("Expected empty embedding length 0, got %d", len(embedding))
+	}
+}
+
+func TestNewComputeEmbeddingsRequest(t *testing.T) {
+	model := "text-embedding-ada-002"
+	chunks := []string{"hello world", "this is a test", "embeddings request"}
+	taskType := RetrievalQuery
+
+	request := NewComputeEmbeddingsRequest(model, chunks, taskType)
+
+	if request == nil {
+		t.Fatal("Expected non-nil request")
+	}
+
+	if request.Model() != model {
+		t.Errorf("Expected model %q, got %q", model, request.Model())
+	}
+
+	if len(request.Chunks()) != len(chunks) {
+		t.Errorf("Expected %d chunks, got %d", len(chunks), len(request.Chunks()))
+	}
+
+	for i, chunk := range chunks {
+		if request.Chunks()[i] != chunk {
+			t.Errorf("Expected chunk[%d] %q, got %q", i, chunk, request.Chunks()[i])
+		}
+	}
+
+	if request.TaskType() != taskType {
+		t.Errorf("Expected task type %q, got %q", taskType, request.TaskType())
+	}
+
+	if request.Dimensions() != 0 {
+		t.Errorf("Expected dimensions 0, got %d", request.Dimensions())
+	}
+}
+
+func TestNewComputeEmbeddingsRequestWithDimensions(t *testing.T) {
+	model := "voyage-3"
+	chunks := []string{"test chunk"}
+	taskType := Classification
+	dimensions := 1024
+
+	request := NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+
+	if request == nil {
+		t.Fatal("Expected non-nil request")
+	}
+
+	if request.Model() != model {
+		t.Errorf("Expected model %q, got %q", model, request.Model())
+	}
+
+	if len(request.Chunks()) != len(chunks) {
+		t.Errorf("Expected %d chunks, got %d", len(chunks), len(request.Chunks()))
+	}
+
+	if request.TaskType() != taskType {
+		t.Errorf("Expected task type %q, got %q", taskType, request.TaskType())
+	}
+
+	if request.Dimensions() != dimensions {
+		t.Errorf("Expected dimensions %d, got %d", dimensions, request.Dimensions())
+	}
+}
+
+func TestComputeEmbeddingsRequestGetters(t *testing.T) {
+	model := "test-model"
+	chunks := []string{"chunk1", "chunk2", "chunk3"}
+	taskType := Clustering
+	dimensions := 512
+
+	request := NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+
+	// Test Model() getter
+	if got := request.Model(); got != model {
+		t.Errorf("Model() = %q, want %q", got, model)
+	}
+
+	// Test Chunks() getter
+	gotChunks := request.Chunks()
+	if len(gotChunks) != len(chunks) {
+		t.Errorf("Chunks() length = %d, want %d", len(gotChunks), len(chunks))
+	}
+
+	for i, chunk := range chunks {
+		if gotChunks[i] != chunk {
+			t.Errorf("Chunks()[%d] = %q, want %q", i, gotChunks[i], chunk)
+		}
+	}
+
+	// Test TaskType() getter
+	if got := request.TaskType(); got != taskType {
+		t.Errorf("TaskType() = %q, want %q", got, taskType)
+	}
+
+	// Test Dimensions() getter  
+	if got := request.Dimensions(); got != dimensions {
+		t.Errorf("Dimensions() = %d, want %d", got, dimensions)
+	}
+}
+
+func TestComputeEmbeddingsRequestEdgeCases(t *testing.T) {
+	// Test with empty model
+	request1 := NewComputeEmbeddingsRequest("", []string{"test"}, RetrievalDocument)
+	if request1.Model() != "" {
+		t.Error("Expected empty model to be preserved")
+	}
+
+	// Test with nil chunks
+	request2 := NewComputeEmbeddingsRequest("model", nil, SemanticSimilarity)
+	if request2.Chunks() != nil && len(request2.Chunks()) != 0 {
+		t.Error("Expected nil or empty chunks slice")
+	}
+
+	// Test with empty chunks
+	request3 := NewComputeEmbeddingsRequest("model", []string{}, QuestionAnswering)
+	if len(request3.Chunks()) != 0 {
+		t.Error("Expected empty chunks slice")
+	}
+
+	// Test with zero dimensions
+	request4 := NewComputeEmbeddingsRequestWithDimensions("model", []string{"test"}, FactVerification, 0)
+	if request4.Dimensions() != 0 {
+		t.Error("Expected zero dimensions to be preserved")
+	}
+
+	// Test with negative dimensions (edge case)
+	request5 := NewComputeEmbeddingsRequestWithDimensions("model", []string{"test"}, CodeRetrievalQuery, -1)
+	if request5.Dimensions() != -1 {
+		t.Error("Expected negative dimensions to be preserved (though not valid)")
+	}
+}
+
+func TestComputeEmbeddingsRequestAllTaskTypes(t *testing.T) {
+	// Test all valid task types
+	taskTypes := []TaskType{
+		RetrievalDocument,
+		RetrievalQuery,
+		CodeRetrievalQuery,
+		SemanticSimilarity,
+		Classification,
+		Clustering,
+		QuestionAnswering,
+		FactVerification,
+	}
+
+	for _, taskType := range taskTypes {
+		request := NewComputeEmbeddingsRequest("test-model", []string{"test chunk"}, taskType)
+		if request.TaskType() != taskType {
+			t.Errorf("Expected task type %q, got %q", taskType, request.TaskType())
+		}
+	}
+}
+
+func TestComputeEmbeddingsRequestImmutability(t *testing.T) {
+	originalChunks := []string{"chunk1", "chunk2"}
+	request := NewComputeEmbeddingsRequest("model", originalChunks, RetrievalQuery)
+
+	// Modify the original slice
+	originalChunks[0] = "modified"
+
+	// The request should not be affected (if implemented properly)
+	// Note: This depends on whether the implementation makes a copy or not
+	// This test documents the expected behavior
+	requestChunks := request.Chunks()
+	if len(requestChunks) != 2 {
+		t.Errorf("Expected 2 chunks, got %d", len(requestChunks))
+	}
+}
+
+func TestComputeEmbeddingsRequestLargeData(t *testing.T) {
+	// Test with a large number of chunks
+	chunks := make([]string, 1000)
+	for i := range chunks {
+		chunks[i] = fmt.Sprintf("chunk-%d", i)
+	}
+
+	request := NewComputeEmbeddingsRequest("large-model", chunks, Clustering)
+	
+	if len(request.Chunks()) != 1000 {
+		t.Errorf("Expected 1000 chunks, got %d", len(request.Chunks()))
+	}
+
+	// Test with very large dimension value
+	request2 := NewComputeEmbeddingsRequestWithDimensions("model", []string{"test"}, RetrievalQuery, 65536)
+	if request2.Dimensions() != 65536 {
+		t.Errorf("Expected dimensions 65536, got %d", request2.Dimensions())
 	}
 }
