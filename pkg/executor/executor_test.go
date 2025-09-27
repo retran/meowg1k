@@ -19,6 +19,7 @@ package executor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -171,4 +172,290 @@ func TestExecutorContext(t *testing.T) {
 	ctx.SendCompleted("completed")
 	ctx.SendFailed(errors.New("error"), "failed")
 	ctx.SendRetry(1, errors.New("retry error"))
+}
+
+func TestNoOpFeedbackHandler(t *testing.T) {
+	handler := NoOpFeedbackHandler
+	
+	// Should not panic when called
+	feedback := Feedback{
+		ActivityName: "test-activity",
+		Status:       StatusRunning,
+		Message:      "test message",
+		Progress:     0.5,
+		Timestamp:    time.Now(),
+	}
+	
+	handler(feedback) // Should do nothing and not panic
+}
+
+func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	ctx := NewExecutorContext("test-activity", handler, nil)
+	
+	// Test sendFeedback with various statuses
+	ctx.sendFeedback(StatusPending, 0.0, "pending")
+	ctx.sendFeedback(StatusRunning, 0.5, "running")
+	ctx.sendFeedback(StatusCompleted, 1.0, "completed")
+	ctx.sendFeedback(StatusFailed, 0.8, "failed")
+	
+	if len(feedbackCalls) != 4 {
+		t.Errorf("Expected 4 feedback calls, got %d", len(feedbackCalls))
+	}
+	
+	// Check that all feedback has correct activity name
+	for i, feedback := range feedbackCalls {
+		if feedback.ActivityName != "test-activity" {
+			t.Errorf("Feedback %d has wrong activity name: %s", i, feedback.ActivityName)
+		}
+	}
+}
+
+func TestExecutorContextRetryWithDetails(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	ctx := NewExecutorContext("retry-activity", handler, nil)
+	
+	// Test SendRetry with different retry counts
+	ctx.SendRetry(1, errors.New("first retry"))
+	ctx.SendRetry(3, errors.New("third retry"))
+	
+	if len(feedbackCalls) != 2 {
+		t.Errorf("Expected 2 retry feedback calls, got %d", len(feedbackCalls))
+	}
+	
+	// Check first retry
+	if feedbackCalls[0].Status != StatusRunning { // SendRetry uses StatusRunning
+		t.Errorf("Expected StatusRunning, got %v", feedbackCalls[0].Status)
+	}
+	if feedbackCalls[0].Error == nil {
+		t.Error("Expected error in first retry feedback")
+	}
+	if feedbackCalls[0].Metadata["retry_attempt"] != 1 {
+		t.Errorf("Expected retry attempt 1, got %v", feedbackCalls[0].Metadata["retry_attempt"])
+	}
+	
+	// Check third retry  
+	if feedbackCalls[1].Metadata["retry_attempt"] != 3 {
+		t.Errorf("Expected retry attempt 3, got %v", feedbackCalls[1].Metadata["retry_attempt"])
+	}
+}
+
+func TestExecutorContextFailedWithDetails(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	ctx := NewExecutorContext("failed-activity", handler, nil)
+	
+	testError := errors.New("test failure")
+	ctx.SendFailed(testError, "operation failed")
+	
+	if len(feedbackCalls) != 1 {
+		t.Errorf("Expected 1 failure feedback call, got %d", len(feedbackCalls))
+	}
+	
+	feedback := feedbackCalls[0]
+	if feedback.Status != StatusFailed {
+		t.Errorf("Expected StatusFailed, got %v", feedback.Status)
+	}
+	if feedback.Error != testError {
+		t.Errorf("Expected test error, got %v", feedback.Error)
+	}
+	if feedback.Message != "operation failed" {
+		t.Errorf("Expected 'operation failed', got %s", feedback.Message)
+	}
+}
+
+func TestExecutorWithComplexActivity(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	executor := NewExecutor().WithFeedbackHandler(handler)
+	
+	// Define a complex activity that sends multiple feedback updates
+	complexActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+		inputStr := input.(string)
+		executorCtx.SendStarted("Starting complex operation")
+		
+		// Simulate some work with progress updates
+		for i := 1; i <= 3; i++ {
+			time.Sleep(10 * time.Millisecond)
+			progress := float64(i) / 3.0
+			executorCtx.SendProgress(progress, fmt.Sprintf("Step %d of 3", i))
+		}
+		
+		executorCtx.SendCompleted("Complex operation completed")
+		return "result-" + inputStr, nil
+	}
+	
+	// Run the complex activity
+	ctx := context.Background()
+	parentCtx := NewExecutorContext("parent", handler, executor)
+	
+	future := executor.RunActivity(ctx, parentCtx, "complex", complexActivity, "test-input")
+	
+	result, err := future.Get(context.Background())
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if result.(string) != "result-test-input" {
+		t.Errorf("Expected 'result-test-input', got %v", result)
+	}
+	
+	// Check that we received multiple feedback updates
+	if len(feedbackCalls) < 5 { // At least started, 3 progress, completed
+		t.Errorf("Expected at least 5 feedback calls, got %d", len(feedbackCalls))
+	}
+}
+
+func TestExecutorWithActivityThatFails(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	executor := NewExecutor().WithFeedbackHandler(handler)
+	
+	// Define an activity that fails
+	failingActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+		executorCtx.SendStarted("Starting operation that will fail")
+		
+		time.Sleep(10 * time.Millisecond)
+		
+		testError := errors.New("operation failed")
+		executorCtx.SendFailed(testError, "Operation failed as expected")
+		
+		return nil, testError
+	}
+	
+	ctx := context.Background()
+	parentCtx := NewExecutorContext("parent", handler, executor)
+	
+	future := executor.RunActivity(ctx, parentCtx, "failing", failingActivity, 42)
+	
+	result, err := future.Get(context.Background())
+	if err == nil {
+		t.Fatal("Expected error from failing activity")
+	}
+	if result != nil {
+		t.Errorf("Expected nil result from failed activity, got %v", result)
+	}
+	
+	// Check that failure feedback was sent
+	hasFailure := false
+	for _, feedback := range feedbackCalls {
+		if feedback.Status == StatusFailed {
+			hasFailure = true
+			break
+		}
+	}
+	if !hasFailure {
+		t.Error("Expected failure feedback to be sent")
+	}
+}
+
+func TestExecutorFlowWithSubactivities(t *testing.T) {
+	feedbackCalls := []Feedback{}
+	handler := func(feedback Feedback) {
+		feedbackCalls = append(feedbackCalls, feedback)
+	}
+	
+	executor := NewExecutor().WithFeedbackHandler(handler)
+	
+	// Define a simple activity
+	simpleActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+		inputStr := input.(string)
+		executorCtx.SendStarted("Processing " + inputStr)
+		time.Sleep(10 * time.Millisecond)
+		result := "processed-" + inputStr
+		executorCtx.SendCompleted("Finished processing")
+		return result, nil
+	}
+	
+	// Define a flow that runs multiple activities
+	testFlow := func(ctx context.Context, executorCtx *ExecutorContext) error {
+		executorCtx.SendStarted("Starting flow")
+		
+		// Run first activity
+		future1 := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "activity1", simpleActivity, "input1")
+		result1, err := future1.Get(ctx)
+		if err != nil {
+			return err
+		}
+		
+		// Run second activity
+		future2 := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "activity2", simpleActivity, "input2")
+		result2, err := future2.Get(ctx)
+		if err != nil {
+			return err
+		}
+		
+		executorCtx.SendCompleted(fmt.Sprintf("Flow completed with results: %s, %s", result1.(string), result2.(string)))
+		return nil
+	}
+	
+	// Execute the flow
+	ctx := context.Background()
+	err := executor.RunFlow(ctx, "test-flow", testFlow)
+	
+	if err != nil {
+		t.Fatalf("Expected no error from flow, got %v", err)
+	}
+	
+	// Should have received feedback from both the flow and the activities
+	if len(feedbackCalls) == 0 {
+		t.Error("Expected feedback calls from flow execution")
+	}
+}
+
+func TestExecutorContextWithNilHandler(t *testing.T) {
+	// Test that executor context works with nil handler (shouldn't panic)
+	ctx := NewExecutorContext("test-activity", nil, nil)
+	
+	// These should not panic
+	ctx.SendStarted("started")
+	ctx.SendProgress(0.5, "progress")
+	ctx.SendCompleted("completed")
+	ctx.SendFailed(errors.New("error"), "failed")
+	ctx.SendRetry(1, errors.New("retry"))
+}
+
+func TestExecutorWithTimeout(t *testing.T) {
+	executor := NewExecutor() // Uses NoOpFeedbackHandler by default
+	
+	// Define a slow activity
+	slowActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+		select {
+		case <-time.After(1 * time.Second): // This will timeout
+			return "slow-result", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	
+	// Run with a short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	
+	parentCtx := NewExecutorContext("parent", NoOpFeedbackHandler, executor)
+	future := executor.RunActivity(ctx, parentCtx, "slow", slowActivity, "test")
+	
+	result, err := future.Get(context.Background())
+	if err == nil {
+		t.Fatal("Expected timeout error")
+	}
+	if result != nil {
+		t.Errorf("Expected nil result on timeout, got %v", result)
+	}
 }
