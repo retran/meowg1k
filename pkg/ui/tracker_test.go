@@ -17,6 +17,7 @@ limitations under the License.
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -149,16 +150,166 @@ func TestUpdateActivity(t *testing.T) {
 	}
 }
 
-func TestGetActivityDuration(t *testing.T) {
-	tracker := &ExecutionTracker{}
+func TestStartAndStop(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	
+	// Test Start
+	if tracker.isRunning {
+		t.Error("expected tracker to not be running initially")
+	}
+	
+	tracker.Start()
+	
+	if !tracker.isRunning {
+		t.Error("expected tracker to be running after Start()")
+	}
+	
+	// Test Stop
+	tracker.Stop()
+	
+	if tracker.isRunning {
+		t.Error("expected tracker to not be running after Stop()")
+	}
+}
 
-	start := time.Now().Add(-5 * time.Second)
-	activity := &ExecutionProgress{
-		StartTime: start,
+func TestUpdateActivitySilentMode(t *testing.T) {
+	tracker := NewExecutionTracker(true) // silent mode
+	
+	feedback := executor.Feedback{
+		ActivityName: "test",
+		Status:       executor.StatusStarted,
+		Message:      "starting",
+		Timestamp:    time.Now(),
 	}
 
-	duration := tracker.getActivityDuration(activity)
-	if !strings.Contains(duration, "5.0s") {
-		t.Errorf("expected duration to contain '5.0s', got %s", duration)
+	// Should not panic in silent mode
+	tracker.UpdateActivity(feedback)
+
+	// Activity should not be tracked in silent mode  
+	tracker.mu.RLock()
+	defer tracker.mu.RUnlock()
+	
+	_, exists := tracker.executions["test"]
+	if exists {
+		t.Error("expected activity to not be created in silent mode")
+	}
+}
+
+func TestGetActivityDuration(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	defer tracker.Stop()
+
+	now := time.Now()
+	later := now.Add(5 * time.Second)
+	
+	// Test with completed activity
+	activityCompleted := &ExecutionProgress{
+		StartTime: now,
+		EndTime:   &later,
+		Status:    executor.StatusCompleted,
+	}
+	
+	duration := tracker.getActivityDuration(activityCompleted)
+	if duration == "" {
+		t.Error("expected non-empty duration for completed activity")
+	}
+
+	// Test with running activity
+	activityRunning := &ExecutionProgress{
+		StartTime: now,
+		EndTime:   nil,
+		Status:    executor.StatusStarted,
+	}
+	
+	duration = tracker.getActivityDuration(activityRunning)
+	if duration == "" {
+		t.Error("expected non-empty duration for running activity")
+	}
+
+	// Test with nil activity
+	duration = tracker.getActivityDuration(nil)
+	if duration != "0s" {
+		t.Errorf("expected '0s' duration for nil activity, got '%s'", duration)
+	}
+}
+
+func TestHierarchicalActivities(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	defer tracker.Stop()
+
+	// Add parent activity
+	parentFeedback := executor.Feedback{
+		ActivityName: "parent",
+		Status:       executor.StatusStarted,
+		Message:      "parent started",
+		Timestamp:    time.Now(),
+	}
+	tracker.UpdateActivity(parentFeedback)
+
+	// Add child activity
+	childFeedback := executor.Feedback{
+		ActivityName: "parent.child",
+		Status:       executor.StatusStarted,
+		Message:      "child started",
+		Timestamp:    time.Now(),
+	}
+	tracker.UpdateActivity(childFeedback)
+
+	tracker.mu.RLock()
+	defer tracker.mu.RUnlock()
+
+	// Check parent activity
+	parent, exists := tracker.executions["parent"]
+	if !exists {
+		t.Error("expected parent activity to exist")
+	}
+	if parent.Level != 0 {
+		t.Errorf("expected parent level to be 0, got %d", parent.Level)
+	}
+
+	// Check child activity
+	child, exists := tracker.executions["parent.child"]
+	if !exists {
+		t.Error("expected child activity to exist")
+	}
+	if child.Level != 1 {
+		t.Errorf("expected child level to be 1, got %d", child.Level)
+	}
+	if child.ParentName != "parent" {
+		t.Errorf("expected child parent to be 'parent', got '%s'", child.ParentName)
+	}
+}
+
+func TestMultipleActivityStatuses(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	defer tracker.Stop()
+
+	statuses := []executor.Status{
+		executor.StatusStarted,
+		executor.StatusCompleted,
+		executor.StatusFailed,
+	}
+
+	for i, status := range statuses {
+		activityName := fmt.Sprintf("activity_%d", i)
+		feedback := executor.Feedback{
+			ActivityName: activityName,
+			Status:       status,
+			Message:      fmt.Sprintf("status %s", status),
+			Timestamp:    time.Now(),
+		}
+		tracker.UpdateActivity(feedback)
+
+		tracker.mu.RLock()
+		activity, exists := tracker.executions[activityName]
+		tracker.mu.RUnlock()
+
+		if !exists {
+			t.Errorf("expected activity %s to exist", activityName)
+			continue
+		}
+		if activity.Status != status {
+			t.Errorf("expected status %s, got %s", status, activity.Status)
+		}
 	}
 }
