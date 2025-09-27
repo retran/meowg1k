@@ -18,6 +18,8 @@ package generate
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +28,8 @@ import (
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/pkg/executor"
+	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Mock implementations for testing
@@ -240,4 +244,277 @@ func TestGenerateContentInputWithVariousPrompts(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Additional comprehensive tests for activity and flow functions
+
+func TestGenerateContentActivityExecution(t *testing.T) {
+	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activity := factory.NewActivity()
+
+	if activity == nil {
+		t.Fatal("Activity function should not be nil")
+	}
+
+	// Create real executor context with no-op feedback handler
+	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+	profile := &mdProfile.ResolvedProfile{
+		Provider:        mdGateway.OpenAI,
+		Model:           "gpt-4",
+		MaxOutputTokens: 4096,
+		TokenizerType:   mdLLM.TokenizerCL100K,
+	}
+
+	input := &GenerateContentInput{
+		Profile:      profile,
+		UserPrompt:   "Test prompt",
+		SystemPrompt: "Test system",
+	}
+
+	// Test successful execution
+	ctx := context.Background()
+	result, err := activity(ctx, executorCtx, input)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result should not be nil")
+	}
+
+	output, ok := result.(*GenerateContentOutput)
+	if !ok {
+		t.Fatal("Result should be GenerateContentOutput")
+	}
+
+	if output.Content != "Generated content" {
+		t.Errorf("Expected 'Generated content', got '%s'", output.Content)
+	}
+}
+
+func TestGenerateContentActivityWithNilInput(t *testing.T) {
+	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activity := factory.NewActivity()
+
+	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+	// Test with nil input
+	ctx := context.Background()
+	_, err := activity(ctx, executorCtx, nil)
+
+	if err == nil {
+		t.Error("Expected error with nil input")
+	}
+
+	expectedError := "input cannot be nil"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestGenerateContentActivityWithInvalidInput(t *testing.T) {
+	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activity := factory.NewActivity()
+
+	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+	// Test with wrong input type
+	ctx := context.Background()
+	_, err := activity(ctx, executorCtx, "invalid input")
+
+	if err == nil {
+		t.Error("Expected error with invalid input type")
+	}
+
+	if !strings.Contains(err.Error(), "invalid input type") {
+		t.Errorf("Expected 'invalid input type' error, got: %v", err)
+	}
+}
+
+func TestGenerateContentFlowExecution(t *testing.T) {
+	// Setup mocks
+	profile := &mdProfile.ResolvedProfile{
+		Provider: mdGateway.OpenAI,
+		Model:    "gpt-4",
+	}
+
+	taskService := &mockTaskService{
+		config: &task.TaskConfiguration{
+			Name:         "test-task",
+			Profile:      profile,
+			SystemPrompt: "System prompt",
+			UserPrompt:   "User prompt",
+		},
+	}
+
+	userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
+	systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
+	activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+
+	flowFactory := NewGenerateContentFlowFactory(
+		taskService,
+		userPromptProvider,
+		systemPromptProvider,
+		activityFactory,
+	)
+
+	flow := flowFactory.NewFlow()
+	if flow == nil {
+		t.Fatal("Flow function should not be nil")
+	}
+
+	// Create real executor context
+	executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+	// Test flow execution
+	ctx := context.Background()
+	err := flow(ctx, executorCtx)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+}
+
+func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
+	taskService := &mockTaskService{
+		config: &task.TaskConfiguration{
+			Name:    "test-task",
+			Profile: &mdProfile.ResolvedProfile{},
+		},
+	}
+
+	// Test with user prompt error
+	t.Run("user prompt error", func(t *testing.T) {
+		userPromptProvider := &mockPromptProviderWithError{err: errors.New("user prompt error")}
+		systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
+		activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+
+		flowFactory := NewGenerateContentFlowFactory(
+			taskService,
+			userPromptProvider,
+			systemPromptProvider,
+			activityFactory,
+		)
+
+		flow := flowFactory.NewFlow()
+		executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+		ctx := context.Background()
+		err := flow(ctx, executorCtx)
+
+		if err == nil {
+			t.Error("Expected error with user prompt failure")
+		}
+
+		if !strings.Contains(err.Error(), "failed to get user prompt") {
+			t.Errorf("Expected user prompt error, got: %v", err)
+		}
+	})
+
+	// Test with system prompt error
+	t.Run("system prompt error", func(t *testing.T) {
+		userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
+		systemPromptProvider := &mockPromptProviderWithError{err: errors.New("system prompt error")}
+		activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+
+		flowFactory := NewGenerateContentFlowFactory(
+			taskService,
+			userPromptProvider,
+			systemPromptProvider,
+			activityFactory,
+		)
+
+		flow := flowFactory.NewFlow()
+		executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+
+		ctx := context.Background()
+		err := flow(ctx, executorCtx)
+
+		if err == nil {
+			t.Error("Expected error with system prompt failure")
+		}
+
+		if !strings.Contains(err.Error(), "failed to get system prompt") {
+			t.Errorf("Expected system prompt error, got: %v", err)
+		}
+	})
+}
+
+func TestGenerateContentFlowWithActivityError(t *testing.T) {
+	taskService := &mockTaskService{
+		config: &task.TaskConfiguration{
+			Name:    "test-task",
+			Profile: &mdProfile.ResolvedProfile{},
+		},
+	}
+
+	userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
+	systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
+	activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+
+	flowFactory := NewGenerateContentFlowFactory(
+		taskService,
+		userPromptProvider,
+		systemPromptProvider,
+		activityFactory,
+	)
+
+	flow := flowFactory.NewFlow()
+	
+	// Mock executor that returns error
+	executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutorWithError{err: errors.New("activity execution failed")})
+
+	ctx := context.Background()
+	err := flow(ctx, executorCtx)
+
+	if err == nil {
+		t.Error("Expected error with activity failure")
+	}
+
+	if !strings.Contains(err.Error(), "failed to execute \"GenerateContent\" activity") {
+		t.Errorf("Expected activity execution error, got: %v", err)
+	}
+}
+
+// Extended mock implementations
+
+type mockExecutor struct{}
+
+func (m *mockExecutor) RunActivity(ctx context.Context, parentCtx *executor.ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
+	// Create a future with the expected result
+	f := future.NewFuture[any]()
+	f.Complete(&GenerateContentOutput{Content: "Generated content"})
+	return f
+}
+
+func (m *mockExecutor) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *executor.ExecutorContext) error) error {
+	return nil
+}
+
+type mockExecutorWithError struct {
+	err error
+}
+
+func (m *mockExecutorWithError) RunActivity(ctx context.Context, parentCtx *executor.ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
+	f := future.NewFuture[any]()
+	f.CompleteWithError(m.err)
+	return f
+}
+
+func (m *mockExecutorWithError) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *executor.ExecutorContext) error) error {
+	return m.err
+}
+
+type mockPromptProviderWithError struct {
+	err error
+}
+
+func (m *mockPromptProviderWithError) GetUserPrompt() (string, error) {
+	return "", m.err
+}
+
+func (m *mockPromptProviderWithError) GetSystemPrompt() (string, error) {
+	return "", m.err
 }
