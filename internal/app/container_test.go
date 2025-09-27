@@ -57,10 +57,37 @@ func TestGetLogDir(t *testing.T) {
 }
 
 func TestNewAppContainer(t *testing.T) {
-	// Create a test cobra command
+	// Create a temporary config file for testing
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	configContent := `profiles:
+  test:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+    maxInputTokens: 1000
+    maxOutputTokens: 500
+generate:
+  default:
+    profile: "test"
+    systemPrompt: "You are a helpful assistant"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+
+	// Create a test cobra command with required flags
 	cmd := &cobra.Command{
 		Use: "test",
 	}
+	// Add the flags that the command service expects
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	
+	// Set the config flag to point to our temp config
+	cmd.Flags().Set("config", configPath)
 
 	// Call NewAppContainer
 	container, err := NewAppContainer(cmd)
