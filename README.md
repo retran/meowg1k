@@ -4,17 +4,21 @@
 
 <div align="center">
 
-![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)
-![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)
-![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge)
-![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge)
+  ![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)
+  ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)
+  ![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge)
+  ![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge)
 
 </div>
 
 <div align="center">
-<img src="https://github.com/retran/meow/raw/dev/assets/icon_small.png" alt="Meow Logo" width="200">
-<br>
-<strong>meowg1k — AI Programming Assistance Tool</strong>
+
+  <img src="https://github.com/retran/meow/raw/dev/assets/icon_small.png" alt="Meow Logo" width="200">
+
+  <br>
+
+  <strong>meowg1k — AI Programming Assistance Tool</strong>
+
 </div>
 
 `meowg1k` is a command-line interface that brings the power of modern LLMs (Large Language Models) into your development workflow. With a single command, you can get code explanations, refactor suggestions, or fully generated files — all without leaving your terminal.
@@ -545,16 +549,9 @@ Apache License 2.0 — see [LICENSE](LICENSE) for details.
 - [spf13/viper](https://github.com/spf13/viper) — configuration management
 - [go-task/task](https://github.com/go-task/task) — task runner
 - [llama.cpp](https://github.com/ggerganov/llama.cpp) — local LLM inference
-- Google **Gemini 2.5** — cloud AI models (Pro & Flash)
 - The **Go** team and ecosystem
 
 And of course, thanks to the broader developer community for libraries, tools, and inspiration that make this project better every day.
-
----
-
-## Author
-
-`meowg1k` is developed by Andrew Vasilyev with help from `meowg1k` itself and feline assistants Sonya Blade, Mila, and Marcus Fenix.
 
 ---
 
@@ -562,7 +559,7 @@ And of course, thanks to the broader developer community for libraries, tools, a
 
 **Happy coding with `project meow`! 🐱**
 
-Made with ❤️ by Andrew Vasilyev and feline assistants
+Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix.
 
 [Report Bug](https://github.com/retran/meowg1k/issues) · [Request Feature](https://github.com/retran/meowg1k/issues) · [Contribute](https://github.com/retran/meowg1k/pulls)
 
