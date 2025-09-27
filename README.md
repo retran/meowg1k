@@ -150,8 +150,8 @@ This principle ensures that operational expenses are a transparent and manageabl
 - **Profile-based configuration**: Clean, hierarchical config system with smart defaults
 - **Project + user configs**: Override defaults per project or globally
 - **Comprehensive AI provider support**:
-  - **Content Generation**: Gemini, OpenAI, OpenRouter, Nebius AI Studio, Anthropic Claude, llama.cpp (local), and OpenAI-compatible APIs
-  - **Embeddings**: Gemini, Voyage AI (recommended by Anthropic), Nebius, OpenAI/OpenRouter, and OpenAI-compatible APIs
+  - **Content Generation**: Gemini, OpenAI, OpenRouter, Anthropic Claude, llama.cpp (local), and OpenAI-compatible APIs
+  - **Embeddings**: Gemini, Voyage AI (recommended by Anthropic), OpenAI/OpenRouter, and OpenAI-compatible APIs
 - **Smart defaults**: Minimal configuration required - just specify the provider and API key
 - **Environment-based API keys**: Secure credential management via environment variables
 
@@ -160,12 +160,11 @@ This principle ensures that operational expenses are a transparent and manageabl
 ## Prerequisites
 
 - **Go**: version 1.24 or newer
-- **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter, Nebius AI Studio)
+- **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter)
 - **API key** for your chosen provider:
   - Gemini: `MEOW_GEMINI_API_KEY`
   - OpenAI: `MEOW_OPENAI_API_KEY`
   - OpenRouter: `MEOW_OPENROUTER_API_KEY`
-  - Nebius: `MEOW_NEBIUS_API_KEY`
   - Anthropic: `MEOW_ANTHROPIC_API_KEY`
   - Voyage AI: `MEOW_VOYAGE_API_KEY`
   - Llama (local): `MEOW_LLAMA_API_KEY` (optional)
@@ -297,7 +296,6 @@ generate:
 | `gemini`            | `MEOW_GEMINI_API_KEY`            | `gemini-2.5-flash`                      | *automatic*                        | Generation + Embeddings |
 | `openai`            | `MEOW_OPENAI_API_KEY`            | `gpt-5-mini`                            | `https://api.openai.com/v1`        | Generation + Embeddings |
 | `openrouter`        | `MEOW_OPENROUTER_API_KEY`        | `meta-llama/llama-3.2-3b-instruct:free` | `https://openrouter.ai/api/v1`     | Generation + Embeddings |
-| `nebius`            | `MEOW_NEBIUS_API_KEY`            | `Qwen2.5-Coder-7B`                      | `https://api.studio.nebius.com/v1` | Generation + Embeddings |
 | `anthropic`         | `MEOW_ANTHROPIC_API_KEY`         | `claude-3-5-haiku-20241022`             | *automatic*                        | Generation only         |
 | `voyage`            | `MEOW_VOYAGE_API_KEY`            | `voyage-3.5`                            | `https://api.voyageai.com/v1`      | Embeddings only         |
 | `llama`             | `MEOW_LLAMA_API_KEY`             | *server-defined*                        | *required*                         | Generation only         |

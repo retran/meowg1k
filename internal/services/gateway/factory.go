@@ -55,11 +55,6 @@ func (f *gatewayFactory) NewGenerationGateway(ctx context.Context, profile *mdPr
 			return nil, fmt.Errorf("llama provider requires a base URL")
 		}
 		return newLlamaGateway(profile.BaseURL, profile.APIKey)
-	case mdGateway.Nebius:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("nebius provider requires an API key")
-		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case mdGateway.OpenAI:
 		if profile.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key")
@@ -118,11 +113,6 @@ func (f *gatewayFactory) NewEmbeddingsGateway(ctx context.Context, profile *mdPr
 			return nil, fmt.Errorf("voyage provider requires an API key")
 		}
 		return newVoyageGateway(profile.APIKey)
-	case mdGateway.Nebius:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("nebius provider requires an API key")
-		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	default:
 		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
 	}

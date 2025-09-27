@@ -24,8 +24,6 @@ const (
 	Llama Provider = "llama"
 	// Gemini identifies the Gemini provider.
 	Gemini Provider = "gemini"
-	// Nebius identifies the Nebius AI Studio provider.
-	Nebius Provider = "nebius"
 	// OpenAI identifies the OpenAI provider.
 	OpenAI Provider = "openai"
 	// OpenRouter identifies the OpenRouter provider.
