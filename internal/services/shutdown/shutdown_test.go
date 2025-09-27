@@ -19,8 +19,10 @@ package shutdown
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -258,5 +260,195 @@ func TestConcurrentAccess(t *testing.T) {
 		// Expected
 	default:
 		t.Error("Context should be cancelled after shutdown")
+	}
+}
+
+func TestListenForSignalsContextCancellation(t *testing.T) {
+	logger := slog.Default()
+	ctx, cancel := context.WithCancel(context.Background())
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	// Start ListenForSignals in a goroutine
+	done := make(chan bool, 1)
+	
+	go func() {
+		service.ListenForSignals()
+		done <- true
+	}()
+
+	// Cancel the context after a short delay
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	// Wait for ListenForSignals to return
+	select {
+	case <-done:
+		// Expected - context cancellation should cause ListenForSignals to return
+	case <-time.After(1 * time.Second):
+		t.Error("ListenForSignals should have returned after context cancellation")
+	}
+}
+
+func TestListenForSignalsShutdown(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	// Start ListenForSignals in a goroutine
+	done := make(chan bool, 1)
+	
+	go func() {
+		service.ListenForSignals()
+		done <- true
+	}()
+
+	// Trigger shutdown manually after a short delay
+	time.Sleep(50 * time.Millisecond)
+	service.Shutdown()
+
+	// Wait for ListenForSignals to return
+	select {
+	case <-done:
+		// ListenForSignals should have detected the shutdown and returned
+		// The exact return value depends on implementation details
+	case <-time.After(1 * time.Second):
+		t.Error("ListenForSignals should have returned after manual shutdown")
+	}
+}
+
+func TestMultipleShutdownCalls(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	var callbackCount int32
+	service.Register(func(ctx context.Context) error {
+		atomic.AddInt32(&callbackCount, 1)
+		return nil
+	})
+
+	// Call shutdown multiple times
+	service.Shutdown()
+	service.Shutdown()
+	service.Shutdown()
+
+	// Give some time for shutdown to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Callback should be called for each shutdown call (if that's the implementation behavior)
+	callCount := atomic.LoadInt32(&callbackCount)
+	if callCount < 1 {
+		t.Errorf("Expected callback to be called at least once, got %d times", callCount)
+	}
+	// Note: Multiple shutdown calls may execute callbacks multiple times depending on implementation
+}
+
+func TestShutdownWithSlowCallback(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 200 * time.Millisecond // Short timeout for test
+
+	service := NewService(logger, ctx, timeout)
+
+	var callbackStarted, callbackCompleted bool
+	service.Register(func(ctx context.Context) error {
+		callbackStarted = true
+		select {
+		case <-time.After(500 * time.Millisecond): // Longer than timeout
+			callbackCompleted = true
+			return nil
+		case <-ctx.Done():
+			// Context was cancelled due to timeout
+			return ctx.Err()
+		}
+	})
+
+	// Trigger shutdown
+	start := time.Now()
+	service.Shutdown()
+	elapsed := time.Since(start)
+
+	// Shutdown should have completed within the timeout period
+	if elapsed > 300*time.Millisecond {
+		t.Errorf("Shutdown took too long: %v, expected around %v", elapsed, timeout)
+	}
+
+	// Callback should have started but not completed normally
+	if !callbackStarted {
+		t.Error("Callback should have started")
+	}
+
+	if callbackCompleted {
+		t.Error("Callback should not have completed normally due to timeout")
+	}
+}
+
+func TestServiceContextAfterShutdown(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+	serviceCtx := service.Context()
+
+	// Context should not be cancelled initially
+	select {
+	case <-serviceCtx.Done():
+		t.Error("Context should not be cancelled initially")
+	default:
+		// Expected
+	}
+
+	// Trigger shutdown
+	service.Shutdown()
+
+	// Give some time for shutdown to process
+	time.Sleep(100 * time.Millisecond)
+
+	// Context should be cancelled after shutdown
+	select {
+	case <-serviceCtx.Done():
+		// Expected
+	default:
+		t.Error("Context should be cancelled after shutdown")
+	}
+}
+
+func TestCallbackErrorHandling(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	testError := fmt.Errorf("test callback error")
+	var successCallbackCalled bool
+
+	// Register a callback that fails
+	service.Register(func(ctx context.Context) error {
+		return testError
+	})
+
+	// Register a callback that succeeds (should still be called)
+	service.Register(func(ctx context.Context) error {
+		successCallbackCalled = true
+		return nil
+	})
+
+	// Trigger shutdown
+	service.Shutdown()
+
+	// Give some time for shutdown to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Success callback should still be called even after error
+	if !successCallbackCalled {
+		t.Error("Success callback should be called even after error in previous callback")
 	}
 }
