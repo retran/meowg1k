@@ -474,3 +474,117 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 		}
 	})
 }
+
+func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+
+	// Try to create a gateway for testing
+	gateway, err := newGeminiGateway(ctx, "test-api-key")
+	if err != nil {
+		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
+		return
+	}
+
+	t.Run("Dimensions overflow check", func(t *testing.T) {
+		chunks := []string{"test"}
+		// Create a request with dimensions that would exceed int32 max
+		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+			"text-embedding-004",
+			chunks,
+			mdGateway.RetrievalQuery,
+			int(^uint32(0)>>1)+1, // This exceeds int32 max
+		)
+
+		_, err := gateway.ComputeEmbeddings(ctx, request)
+		if err == nil {
+			t.Error("Expected error for dimensions overflow, got none")
+		} else if !strings.Contains(err.Error(), "exceeds int32 range") {
+			t.Logf("Got different error (API-related): %v", err)
+		}
+	})
+
+	t.Run("Zero dimensions", func(t *testing.T) {
+		chunks := []string{"test"}
+		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+			"text-embedding-004",
+			chunks,
+			mdGateway.RetrievalQuery,
+			0, // Zero dimensions should not set the config
+		)
+
+		_, err := gateway.ComputeEmbeddings(ctx, request)
+		// This should proceed without dimension overflow error
+		if err != nil {
+			t.Logf("Expected network/API error: %v", err)
+		}
+	})
+
+	t.Run("Negative dimensions", func(t *testing.T) {
+		chunks := []string{"test"}
+		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+			"text-embedding-004",
+			chunks,
+			mdGateway.RetrievalQuery,
+			-1, // Negative dimensions should not trigger overflow path
+		)
+
+		_, err := gateway.ComputeEmbeddings(ctx, request)
+		// This should proceed without dimension overflow error
+		if err != nil {
+			t.Logf("Expected network/API error: %v", err)
+		}
+	})
+}
+
+func TestGeminiGateway_GenerateContent_EdgeCases(t *testing.T) {
+	ctx := context.Background()
+
+	// Try to create a gateway for testing
+	gateway, err := newGeminiGateway(ctx, "test-api-key")
+	if err != nil {
+		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
+		return
+	}
+
+	t.Run("Empty system prompt", func(t *testing.T) {
+		request := mdGateway.NewGenerateContentRequest(
+			"gemini-1.5-flash",
+			"", // Empty system prompt
+			"Hello, how are you?",
+			4096,
+		)
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil {
+			t.Logf("Expected network/API error: %v", err)
+		}
+	})
+
+	t.Run("Empty user prompt", func(t *testing.T) {
+		request := mdGateway.NewGenerateContentRequest(
+			"gemini-1.5-flash",
+			"You are a helpful assistant",
+			"", // Empty user prompt
+			4096,
+		)
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil {
+			t.Logf("Expected network/API error: %v", err)
+		}
+	})
+
+	t.Run("Both prompts empty", func(t *testing.T) {
+		request := mdGateway.NewGenerateContentRequest(
+			"gemini-1.5-flash",
+			"", // Empty system prompt
+			"", // Empty user prompt
+			4096,
+		)
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil {
+			t.Logf("Expected network/API error: %v", err)
+		}
+	})
+}

@@ -24,8 +24,8 @@ import (
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 )
 
-// GatewayFactory is the interface for creating LLM gateways.
-type GatewayFactory interface {
+// Factory is the interface for creating LLM gateways.
+type Factory interface {
 	// NewGenerationGateway creates a new generation gateway based on the provided profile.
 	NewGenerationGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (GenerationGateway, error)
 	// NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
@@ -35,8 +35,8 @@ type GatewayFactory interface {
 // gatewayFactory is the implementation of GatewayFactory.
 type gatewayFactory struct{}
 
-// NewGatewayFactory creates a new gateway factory.
-func NewGatewayFactory() GatewayFactory {
+// NewFactory creates a new gateway factory.
+func NewFactory() Factory {
 	return &gatewayFactory{}
 }
 

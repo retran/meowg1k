@@ -80,7 +80,7 @@ func (m *mockPromptProvider) GetSystemPrompt() (string, error) {
 	return m.prompt, nil
 }
 
-func TestGenerateContentInput(t *testing.T) {
+func TestContentInput(t *testing.T) {
 	profile := &mdProfile.ResolvedProfile{
 		Provider:        mdGateway.OpenAI,
 		Model:           "gpt-4",
@@ -90,7 +90,7 @@ func TestGenerateContentInput(t *testing.T) {
 		TokenizerType:   mdLLM.TokenizerCL100K,
 	}
 
-	input := GenerateContentInput{
+	input := ContentInput{
 		Profile:      profile,
 		UserPrompt:   "Test user prompt",
 		SystemPrompt: "Test system prompt",
@@ -109,13 +109,13 @@ func TestGenerateContentInput(t *testing.T) {
 	}
 }
 
-func TestGenerateContentOutput(t *testing.T) {
+func TestContentOutput(t *testing.T) {
 	metadata := map[string]any{
 		"tokens_used": 100,
 		"model":       "gpt-4",
 	}
 
-	output := GenerateContentOutput{
+	output := ContentOutput{
 		Content:  "Generated content",
 		Metadata: metadata,
 	}
@@ -133,9 +133,9 @@ func TestGenerateContentOutput(t *testing.T) {
 	}
 }
 
-func TestNewGenerateContentActivityFactory(t *testing.T) {
+func TestNewContentActivityFactory(t *testing.T) {
 	gatewayFactory := &mockGatewayFactory{}
-	factory := NewGenerateContentActivityFactory(gatewayFactory)
+	factory := NewActivityFactory(gatewayFactory)
 
 	if factory == nil {
 		t.Fatal("Factory should not be nil")
@@ -146,7 +146,7 @@ func TestNewGenerateContentActivityFactory(t *testing.T) {
 	}
 }
 
-func TestNewGenerateContentFlowFactory(t *testing.T) {
+func TestNewContentFlowFactory(t *testing.T) {
 	taskService := &mockTaskService{
 		config: &task.TaskConfiguration{
 			Name:         "test-task",
@@ -157,9 +157,9 @@ func TestNewGenerateContentFlowFactory(t *testing.T) {
 	}
 	userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
 	systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
-	activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
-	flowFactory := NewGenerateContentFlowFactory(
+	flowFactory := NewFlowFactory(
 		taskService,
 		userPromptProvider,
 		systemPromptProvider,
@@ -182,13 +182,13 @@ func TestNewGenerateContentFlowFactory(t *testing.T) {
 		t.Error("System prompt provider should be set correctly")
 	}
 
-	if flowFactory.generateContentActivityFactory != activityFactory {
+	if flowFactory.activityFactory != activityFactory {
 		t.Error("Activity factory should be set correctly")
 	}
 }
 
-func TestGenerateContentInputZeroValues(t *testing.T) {
-	input := GenerateContentInput{}
+func TestContentInputZeroValues(t *testing.T) {
+	input := ContentInput{}
 
 	if input.Profile != nil {
 		t.Error("Expected nil Profile")
@@ -203,8 +203,8 @@ func TestGenerateContentInputZeroValues(t *testing.T) {
 	}
 }
 
-func TestGenerateContentOutputZeroValues(t *testing.T) {
-	output := GenerateContentOutput{}
+func TestContentOutputZeroValues(t *testing.T) {
+	output := ContentOutput{}
 
 	if output.Content != "" {
 		t.Error("Expected empty Content")
@@ -215,7 +215,7 @@ func TestGenerateContentOutputZeroValues(t *testing.T) {
 	}
 }
 
-func TestGenerateContentInputWithVariousPrompts(t *testing.T) {
+func TestContentInputWithVariousPrompts(t *testing.T) {
 	testCases := []struct {
 		name         string
 		userPrompt   string
@@ -230,7 +230,7 @@ func TestGenerateContentInputWithVariousPrompts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			input := GenerateContentInput{
+			input := ContentInput{
 				UserPrompt:   tc.userPrompt,
 				SystemPrompt: tc.systemPrompt,
 			}
@@ -249,7 +249,7 @@ func TestGenerateContentInputWithVariousPrompts(t *testing.T) {
 // Additional comprehensive tests for activity and flow functions
 
 func TestGenerateContentActivityExecution(t *testing.T) {
-	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	factory := NewActivityFactory(&mockGatewayFactory{})
 	activity := factory.NewActivity()
 
 	if activity == nil {
@@ -266,7 +266,7 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 		TokenizerType:   mdLLM.TokenizerCL100K,
 	}
 
-	input := &GenerateContentInput{
+	input := &ContentInput{
 		Profile:      profile,
 		UserPrompt:   "Test prompt",
 		SystemPrompt: "Test system",
@@ -284,9 +284,9 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 		t.Fatal("Result should not be nil")
 	}
 
-	output, ok := result.(*GenerateContentOutput)
+	output, ok := result.(*ContentOutput)
 	if !ok {
-		t.Fatal("Result should be GenerateContentOutput")
+		t.Fatal("Result should be ContentOutput")
 	}
 
 	if output.Content != "Generated content" {
@@ -295,7 +295,7 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 }
 
 func TestGenerateContentActivityWithNilInput(t *testing.T) {
-	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	factory := NewActivityFactory(&mockGatewayFactory{})
 	activity := factory.NewActivity()
 
 	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
@@ -315,7 +315,7 @@ func TestGenerateContentActivityWithNilInput(t *testing.T) {
 }
 
 func TestGenerateContentActivityWithInvalidInput(t *testing.T) {
-	factory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	factory := NewActivityFactory(&mockGatewayFactory{})
 	activity := factory.NewActivity()
 
 	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
@@ -351,9 +351,9 @@ func TestGenerateContentFlowExecution(t *testing.T) {
 
 	userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
 	systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
-	activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
-	flowFactory := NewGenerateContentFlowFactory(
+	flowFactory := NewFlowFactory(
 		taskService,
 		userPromptProvider,
 		systemPromptProvider,
@@ -389,9 +389,9 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 	t.Run("user prompt error", func(t *testing.T) {
 		userPromptProvider := &mockPromptProviderWithError{err: errors.New("user prompt error")}
 		systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
-		activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+		activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
-		flowFactory := NewGenerateContentFlowFactory(
+		flowFactory := NewFlowFactory(
 			taskService,
 			userPromptProvider,
 			systemPromptProvider,
@@ -417,9 +417,9 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 	t.Run("system prompt error", func(t *testing.T) {
 		userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
 		systemPromptProvider := &mockPromptProviderWithError{err: errors.New("system prompt error")}
-		activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+		activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
-		flowFactory := NewGenerateContentFlowFactory(
+		flowFactory := NewFlowFactory(
 			taskService,
 			userPromptProvider,
 			systemPromptProvider,
@@ -452,9 +452,9 @@ func TestGenerateContentFlowWithActivityError(t *testing.T) {
 
 	userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
 	systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
-	activityFactory := NewGenerateContentActivityFactory(&mockGatewayFactory{})
+	activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
-	flowFactory := NewGenerateContentFlowFactory(
+	flowFactory := NewFlowFactory(
 		taskService,
 		userPromptProvider,
 		systemPromptProvider,
@@ -485,7 +485,7 @@ type mockExecutor struct{}
 func (m *mockExecutor) RunActivity(ctx context.Context, parentCtx *executor.ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
 	// Create a future with the expected result
 	f := future.NewFuture[any]()
-	f.Complete(&GenerateContentOutput{Content: "Generated content"})
+	f.Complete(&ContentOutput{Content: "Generated content"})
 	return f
 }
 

@@ -18,10 +18,16 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/app"
 	"github.com/spf13/cobra"
+)
+
+var (
+	// ErrCommandIsNil indicates the command parameter is nil
+	ErrCommandIsNil = errors.New("command is nil")
 )
 
 func Execute() error {
@@ -34,7 +40,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Handle nil command gracefully
 		if cmd == nil {
-			return fmt.Errorf("command is nil")
+			return ErrCommandIsNil
 		}
 
 		// Skip app initialization for certain commands
@@ -47,7 +53,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize app: %w", err)
 		}
 
-		cmd.SetContext(app.Context)
+		cmd.SetContext(app.ShutdownService.Context())
 
 		return nil
 	},

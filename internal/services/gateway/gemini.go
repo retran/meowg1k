@@ -100,7 +100,12 @@ func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *mdGatewa
 
 	// Set output dimensionality if specified
 	if request.Dimensions() > 0 {
-		dims := int32(request.Dimensions())
+		dimensions := request.Dimensions()
+		// Check for integer overflow when converting to int32
+		if dimensions > int(^uint32(0)>>1) {
+			return nil, fmt.Errorf("dimensions value %d exceeds int32 range", dimensions)
+		}
+		dims := int32(dimensions)
 		config.OutputDimensionality = &dims
 	}
 

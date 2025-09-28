@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -31,6 +32,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	// ErrAppNotInitialized indicates the application container is not properly initialized
+	ErrAppNotInitialized = errors.New("application not initialized")
+)
+
 var generateCmd = &cobra.Command{
 	Use:     "generate",
 	Aliases: []string{"gen", "g"},
@@ -38,9 +44,9 @@ var generateCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
-		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.AppContainer)
+		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
-			return fmt.Errorf("application not initialized")
+			return ErrAppNotInitialized
 		}
 
 		providerService := provider.NewService()
@@ -67,9 +73,9 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create prompt service: %w", err)
 		}
 
-		gatewayFactory := gateway.NewGatewayFactory()
-		activityFactory := generate.NewGenerateContentActivityFactory(gatewayFactory)
-		flowFactory := generate.NewGenerateContentFlowFactory(
+		gatewayFactory := gateway.NewFactory()
+		activityFactory := generate.NewActivityFactory(gatewayFactory)
+		flowFactory := generate.NewFlowFactory(
 			taskService,
 			generatePromptService,
 			generatePromptService,
@@ -89,7 +95,7 @@ var generateCmd = &cobra.Command{
 		exec := executor.NewExecutor().
 			WithFeedbackHandler(executionTracker.FeedbackHandler())
 
-		return exec.RunFlow(appContainer.Context, "GenerateContent", flow)
+		return exec.RunFlow(appContainer.ShutdownService.Context(), "GenerateContent", flow)
 	},
 }
 

@@ -97,7 +97,7 @@ generate:
 	}
 
 	if container == nil {
-		t.Error("container is nil")
+		t.Fatal("container is nil")
 	}
 
 	if container.Logger == nil {
@@ -116,12 +116,12 @@ generate:
 		t.Error("ConfigService is nil")
 	}
 
-	if container.Context == nil {
+	if container.ShutdownService.Context() == nil {
 		t.Error("Context is nil")
 	}
 
 	// Check that AppContainerKey is set in context
-	val := container.Context.Value(AppContainerKey)
+	val := container.ShutdownService.Context().Value(AppContainerKey)
 	if val != container {
 		t.Error("AppContainerKey not set correctly in context")
 	}
@@ -175,7 +175,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var container *AppContainer
+			var container *Container
 			var err error
 
 			if tt.name == "Command service creation error" {
@@ -357,14 +357,14 @@ generate:
 	if container.ConfigService == nil {
 		t.Error("ConfigService should not be nil")
 	}
-	if container.Context == nil {
+	if container.ShutdownService.Context() == nil {
 		t.Error("Context should not be nil")
 	}
 
 	// Test that services can be used
 	config := container.ConfigService.GetConfig()
 	if config == nil {
-		t.Error("Config should not be nil")
+		t.Fatal("Config should not be nil")
 	}
 
 	if len(config.Profiles) != 2 {
@@ -441,12 +441,12 @@ generate:
 	}
 
 	// Test that the context value is set correctly
-	contextValue := container.Context.Value(AppContainerKey)
+	contextValue := container.ShutdownService.Context().Value(AppContainerKey)
 	if contextValue == nil {
 		t.Error("AppContainerKey value should not be nil")
 	}
 
-	containerFromContext, ok := contextValue.(*AppContainer)
+	containerFromContext, ok := contextValue.(*Container)
 	if !ok {
 		t.Error("AppContainerKey value should be *AppContainer")
 	}
@@ -523,5 +523,98 @@ func TestNewAppContainerLogFileHandling(t *testing.T) {
 	// Test shutdown to close log files properly
 	if container.ShutdownService != nil {
 		container.ShutdownService.Shutdown()
+	}
+}
+
+func TestValidateLogPath(t *testing.T) {
+	tests := []struct {
+		name      string
+		logDir    string
+		fileName  string
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name:      "valid path",
+			logDir:    "/tmp/logs",
+			fileName:  "app.log",
+			expectErr: false,
+		},
+		{
+			name:      "filename with forward slash",
+			logDir:    "/tmp/logs",
+			fileName:  "subdir/app.log",
+			expectErr: true,
+			errMsg:    "invalid log filename",
+		},
+		{
+			name:      "filename with backward slash",
+			logDir:    "/tmp/logs",
+			fileName:  "subdir\\app.log",
+			expectErr: true,
+			errMsg:    "invalid log filename",
+		},
+		{
+			name:      "filename with double dots",
+			logDir:    "/tmp/logs",
+			fileName:  "../app.log",
+			expectErr: true,
+			errMsg:    "invalid log filename",
+		},
+		{
+			name:      "filename with double dots in middle",
+			logDir:    "/tmp/logs",
+			fileName:  "app..log",
+			expectErr: true,
+			errMsg:    "invalid log filename",
+		},
+		{
+			name:      "empty filename",
+			logDir:    "/tmp/logs",
+			fileName:  "",
+			expectErr: false,
+		},
+		{
+			name:      "filename with special chars",
+			logDir:    "/tmp/logs",
+			fileName:  "app-2025_01.log",
+			expectErr: false,
+		},
+		{
+			name:      "logdir with trailing slash",
+			logDir:    "/tmp/logs/",
+			fileName:  "app.log",
+			expectErr: false,
+		},
+		{
+			name:      "logdir with double slashes",
+			logDir:    "/tmp//logs",
+			fileName:  "app.log",
+			expectErr: false,
+		},
+		{
+			name:      "complex valid filename",
+			logDir:    "/home/user/.cache/myapp/logs",
+			fileName:  "meow-2025-09-28.log",
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateLogPath(tt.logDir, tt.fileName)
+
+			if tt.expectErr {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Expected error to contain %q, got %q", tt.errMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
 	}
 }

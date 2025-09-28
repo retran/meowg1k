@@ -28,7 +28,7 @@ import (
 )
 
 func TestNewGatewayFactory(t *testing.T) {
-	factory := NewGatewayFactory()
+	factory := NewFactory()
 	assert.NotNil(t, factory)
 	assert.IsType(t, &gatewayFactory{}, factory)
 }

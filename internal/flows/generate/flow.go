@@ -28,29 +28,29 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-type GenerateContentFlowFactory struct {
-	taskService                    task.Service
-	userPromptProvider             prompt.UserPromptProvider
-	systemPromptProvider           prompt.SystemPromptProvider
-	generateContentActivityFactory *GenerateContentActivityFactory
+type FlowFactory struct {
+	taskService          task.Service
+	userPromptProvider   prompt.UserPromptProvider
+	systemPromptProvider prompt.SystemPromptProvider
+	activityFactory      *ActivityFactory
 }
 
-func NewGenerateContentFlowFactory(
+func NewFlowFactory(
 	taskService task.Service,
 	userPromptProvider prompt.UserPromptProvider,
 	systemPromptProvider prompt.SystemPromptProvider,
-	generateContentActivityFactory *GenerateContentActivityFactory,
-) *GenerateContentFlowFactory {
-	return &GenerateContentFlowFactory{
-		taskService:                    taskService,
-		userPromptProvider:             userPromptProvider,
-		systemPromptProvider:           systemPromptProvider,
-		generateContentActivityFactory: generateContentActivityFactory,
+	activityFactory *ActivityFactory,
+) *FlowFactory {
+	return &FlowFactory{
+		taskService:          taskService,
+		userPromptProvider:   userPromptProvider,
+		systemPromptProvider: systemPromptProvider,
+		activityFactory:      activityFactory,
 	}
 }
 
 // NewFlow creates and returns the generate activity function with improved, multi-step status reporting.
-func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext) error {
+func (f *FlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext) error {
 	return func(ctx context.Context, flowCtx *executor.ExecutorContext) error {
 		task := f.taskService.Get()
 
@@ -78,8 +78,8 @@ func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.E
 		}
 		flowCtx.SendProgress(0.0, status)
 
-		activity := f.generateContentActivityFactory.NewActivity()
-		input := &GenerateContentInput{
+		activity := f.activityFactory.NewActivity()
+		input := &ContentInput{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
 			SystemPrompt: systemPrompt,
@@ -93,7 +93,7 @@ func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.E
 		}
 
 		flowCtx.SendProgress(0.0, "Processing result...")
-		generateOutput, ok := output.(*GenerateContentOutput)
+		generateOutput, ok := output.(*ContentOutput)
 		if !ok {
 			return errors.New("invalid output type from \"GenerateContent\" activity")
 		}

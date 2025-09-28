@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/retran/meowg1k/internal/services/command"
@@ -33,12 +34,9 @@ import (
 )
 
 // AppContainer is the main application struct that holds all cross-cutting services.
-type AppContainer struct {
+type Container struct {
 	// Logger is the structured logger for the application.
 	Logger *slog.Logger
-
-	// Context is the root context for the application.
-	Context context.Context
 
 	// ShutdownService handles graceful shutdown of the application.
 	ShutdownService shutdown.Service
@@ -52,17 +50,39 @@ type AppContainer struct {
 
 const (
 	logFileName = "meow.log"
+	// Operating system constants
+	osWindows = "windows"
+	osDarwin  = "darwin"
 )
 
-// AppContainerKey is the context key type for storing and retrieving the AppContainer instance.
+// validateLogPath validates the log path to prevent directory traversal attacks
+func validateLogPath(logDir, fileName string) error {
+	// Ensure filename doesn't contain path separators
+	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
+		return fmt.Errorf("invalid log filename: %s", fileName)
+	}
+
+	// Clean the logDir path to resolve any path issues
+	cleanLogDir := filepath.Clean(logDir)
+	logPath := filepath.Join(cleanLogDir, fileName)
+
+	// Ensure the final path is within the expected log directory
+	if !strings.HasPrefix(logPath, cleanLogDir) {
+		return fmt.Errorf("log path %s is outside log directory %s", logPath, cleanLogDir)
+	}
+
+	return nil
+}
+
+// AppContainerKey is the context key type for storing and retrieving the Container instance.
 type appContainerKey struct{}
 
-// AppContainerKey is the context key for storing and retrieving the AppContainer instance.
+// AppContainerKey is the context key for storing and retrieving the Container instance.
 var AppContainerKey = appContainerKey{}
 
 // NewAppContainer initializes the main application struct with all necessary services.
-func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
-	container := &AppContainer{}
+func NewAppContainer(cmd *cobra.Command) (*Container, error) {
+	container := &Container{}
 
 	ctx := cmd.Context()
 	if ctx == nil {
@@ -77,12 +97,17 @@ func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
 	}
 
 	// Ensure log directory exists
-	if err = os.MkdirAll(logDir, 0755); err != nil {
+	if err = os.MkdirAll(logDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
+	// Validate log path to prevent directory traversal
+	if err = validateLogPath(logDir, logFileName); err != nil {
+		return nil, fmt.Errorf("invalid log path: %w", err)
+	}
+
 	logPath := filepath.Join(logDir, logFileName)
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
@@ -116,7 +141,6 @@ func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
-	container.Context = shutdownService.Context()
 
 	return container, nil
 }
@@ -130,9 +154,9 @@ func getLogDir() (string, error) {
 	}
 
 	switch runtime.GOOS {
-	case "darwin":
+	case osDarwin:
 		return filepath.Join(homeDir, "Library", "Logs", "meow"), nil
-	case "windows":
+	case osWindows:
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData == "" {
 			localAppData = filepath.Join(homeDir, "AppData", "Local")
