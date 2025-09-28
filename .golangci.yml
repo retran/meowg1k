@@ -1,7 +1,9 @@
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
-  go: "1.25"
+  go: "1.25.1"
 
 output:
   format: colored-line-number
