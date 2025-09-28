@@ -25,6 +25,19 @@ import (
 	"time"
 )
 
+var (
+	errTest        = errors.New("test error")
+	errActivity    = errors.New("activity error")
+	errFailed      = errors.New("error")
+	errRetry       = errors.New("retry error")
+	errFirstRetry  = errors.New("first retry")
+	errThirdRetry  = errors.New("third retry")
+	errTestFailure = errors.New("test failure")
+	errOpFailed    = errors.New("operation failed")
+	errNilHandler  = errors.New("error")
+	errNilRetry    = errors.New("retry")
+)
+
 func TestDefaultRetryPolicy(t *testing.T) {
 	policy := DefaultRetryPolicy()
 	if policy.MaxAttempts != 3 {
@@ -99,7 +112,7 @@ func TestRunFlow(t *testing.T) {
 		return nil
 	}
 
-	err := exec.RunFlow(ctx, "test", flow)
+	err := exec.RunFlow(ctx, "test", flow, DefaultRetryPolicy())
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -110,10 +123,10 @@ func TestRunFlowWithError(t *testing.T) {
 	ctx := context.Background()
 
 	flow := func(ctx context.Context, activityCtx *ExecutorContext) error {
-		return errors.New("test error")
+		return errTest
 	}
 
-	err := exec.RunFlow(ctx, "test", flow)
+	err := exec.RunFlow(ctx, "test", flow, DefaultRetryPolicy())
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -147,7 +160,7 @@ func TestRunActivityWithError(t *testing.T) {
 	parentCtx := NewExecutorContext("parent", NoOpFeedbackHandler, exec)
 
 	activity := func(ctx context.Context, activityCtx *ExecutorContext, input any) (any, error) {
-		return nil, errors.New("activity error")
+		return nil, errActivity
 	}
 
 	fut := exec.RunActivity(ctx, parentCtx, "test", activity, "input")
@@ -170,8 +183,8 @@ func TestExecutorContext(t *testing.T) {
 	ctx.SendStarted("started")
 	ctx.SendProgress(0.5, "progress")
 	ctx.SendCompleted("completed")
-	ctx.SendFailed(errors.New("error"), "failed")
-	ctx.SendRetry(1, errors.New("retry error"))
+	ctx.SendFailed(errFailed, "failed")
+	ctx.SendRetry(1, errRetry)
 }
 
 func TestNoOpFeedbackHandler(t *testing.T) {
@@ -198,10 +211,10 @@ func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
 	ctx := NewExecutorContext("test-activity", handler, nil)
 
 	// Test sendFeedback with various statuses
-	ctx.sendFeedback(StatusPending, 0.0, "pending")
-	ctx.sendFeedback(StatusRunning, 0.5, "running")
-	ctx.sendFeedback(StatusCompleted, 1.0, "completed")
-	ctx.sendFeedback(StatusFailed, 0.8, "failed")
+	ctx.sendFeedback(StatusPending, 0.0, "pending", nil, nil)
+	ctx.sendFeedback(StatusRunning, 0.5, "running", nil, nil)
+	ctx.sendFeedback(StatusCompleted, 1.0, "completed", nil, nil)
+	ctx.sendFeedback(StatusFailed, 0.8, "failed", nil, nil)
 
 	if len(feedbackCalls) != 4 {
 		t.Errorf("Expected 4 feedback calls, got %d", len(feedbackCalls))
@@ -224,8 +237,8 @@ func TestExecutorContextRetryWithDetails(t *testing.T) {
 	ctx := NewExecutorContext("retry-activity", handler, nil)
 
 	// Test SendRetry with different retry counts
-	ctx.SendRetry(1, errors.New("first retry"))
-	ctx.SendRetry(3, errors.New("third retry"))
+	ctx.SendRetry(1, errFirstRetry)
+	ctx.SendRetry(3, errThirdRetry)
 
 	if len(feedbackCalls) != 2 {
 		t.Errorf("Expected 2 retry feedback calls, got %d", len(feedbackCalls))
@@ -256,8 +269,7 @@ func TestExecutorContextFailedWithDetails(t *testing.T) {
 
 	ctx := NewExecutorContext("failed-activity", handler, nil)
 
-	testError := errors.New("test failure")
-	ctx.SendFailed(testError, "operation failed")
+	ctx.SendFailed(errTestFailure, "operation failed")
 
 	if len(feedbackCalls) != 1 {
 		t.Errorf("Expected 1 failure feedback call, got %d", len(feedbackCalls))
@@ -267,7 +279,7 @@ func TestExecutorContextFailedWithDetails(t *testing.T) {
 	if feedback.Status != StatusFailed {
 		t.Errorf("Expected StatusFailed, got %v", feedback.Status)
 	}
-	if feedback.Error != testError {
+	if !errors.Is(feedback.Error, errTestFailure) {
 		t.Errorf("Expected test error, got %v", feedback.Error)
 	}
 	if feedback.Message != "operation failed" {
@@ -333,10 +345,9 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 
 		time.Sleep(10 * time.Millisecond)
 
-		testError := errors.New("operation failed")
-		executorCtx.SendFailed(testError, "Operation failed as expected")
+		executorCtx.SendFailed(errOpFailed, "Operation failed as expected")
 
-		return nil, testError
+		return nil, errOpFailed
 	}
 
 	ctx := context.Background()
@@ -407,7 +418,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 
 	// Execute the flow
 	ctx := context.Background()
-	err := executor.RunFlow(ctx, "test-flow", testFlow)
+	err := executor.RunFlow(ctx, "test-flow", testFlow, DefaultRetryPolicy())
 
 	if err != nil {
 		t.Fatalf("Expected no error from flow, got %v", err)
@@ -427,8 +438,8 @@ func TestExecutorContextWithNilHandler(t *testing.T) {
 	ctx.SendStarted("started")
 	ctx.SendProgress(0.5, "progress")
 	ctx.SendCompleted("completed")
-	ctx.SendFailed(errors.New("error"), "failed")
-	ctx.SendRetry(1, errors.New("retry"))
+	ctx.SendFailed(errNilHandler, "failed")
+	ctx.SendRetry(1, errNilRetry)
 }
 
 func TestExecutorWithTimeout(t *testing.T) {

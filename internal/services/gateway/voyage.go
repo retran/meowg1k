@@ -46,32 +46,40 @@ func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
 	}, nil
 }
 
+const (
+	// DefaultTaskType is the default task type for Voyage AI embeddings.
+	DefaultTaskType = "query"
+)
+
 // mapTaskTypeToInputType maps our generic TaskType to Voyage AI's input_type parameter.
 func mapTaskTypeToInputType(taskType mdGateway.TaskType) string {
 	switch taskType {
 	case mdGateway.RetrievalDocument:
 		return "document"
 	case mdGateway.RetrievalQuery:
-		return "query"
+		return DefaultTaskType
 	case mdGateway.CodeRetrievalQuery:
-		return "query"
+		return DefaultTaskType
 	case mdGateway.Classification:
 		return "classification"
 	case mdGateway.Clustering:
 		return "clustering"
 	case mdGateway.SemanticSimilarity:
-		return "query"
+		return DefaultTaskType
 	case mdGateway.QuestionAnswering:
-		return "query"
+		return DefaultTaskType
 	case mdGateway.FactVerification:
-		return "query"
+		return DefaultTaskType
 	default:
-		return "query" // default to query for unknown task types
+		return DefaultTaskType // default to query for unknown task types
 	}
 }
 
 // ComputeEmbeddings sends a request to the Voyage AI API to compute embeddings for the given text chunks.
-func (g *voyageGateway) ComputeEmbeddings(ctx context.Context, request *mdGateway.ComputeEmbeddingsRequest) ([]mdGateway.Embedding, error) {
+func (g *voyageGateway) ComputeEmbeddings(
+	ctx context.Context,
+	request *mdGateway.ComputeEmbeddingsRequest,
+) ([]mdGateway.Embedding, error) {
 	inputType := mapTaskTypeToInputType(request.TaskType())
 
 	req := voyage.EmbeddingRequest{

@@ -21,10 +21,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+)
+
+var (
+	ErrBaseURLRequired           = errors.New("base URL cannot be empty")
+	ErrFailedToMarshalRequest    = errors.New("failed to marshal request")
+	ErrFailedToCreateRequest     = errors.New("failed to create HTTP request")
+	ErrFailedToSendRequest       = errors.New("failed to send request")
+	ErrFailedToReadResponse      = errors.New("failed to read response body")
+	ErrAPIRequestFailed          = errors.New("API request failed")
+	ErrFailedToUnmarshalResponse = errors.New("failed to unmarshal response")
 )
 
 // CompletionRequest represents the request body for /completion endpoint
@@ -125,9 +136,9 @@ type serviceImpl struct {
 }
 
 // NewService creates a new client for interacting with the LLM completion endpoint.
-func NewService(baseURL string, apiKey string) (Service, error) {
+func NewService(baseURL, apiKey string) (Service, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("base URL cannot be empty")
+		return nil, ErrBaseURLRequired
 	}
 
 	return &serviceImpl{
@@ -141,13 +152,13 @@ func NewService(baseURL string, apiKey string) (Service, error) {
 func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToMarshalRequest, err)
 	}
 
 	url := c.baseURL + "/completion"
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateRequest, err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -157,23 +168,22 @@ func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*Co
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToReadResponse, err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(bodyBytes))
 	}
 
 	var completionResp CompletionResponse
 	if err := json.Unmarshal(bodyBytes, &completionResp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToUnmarshalResponse, err)
 	}
-
 	return &completionResp, nil
 }

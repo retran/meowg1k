@@ -18,11 +18,16 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/retran/meowg1k/internal/services/llm/llama"
+)
+
+var (
+	ErrBaseURLRequired = errors.New("base URL is required")
 )
 
 var _ GenerationGateway = (*llamaGateway)(nil)
@@ -45,7 +50,7 @@ const (
 // NewLlamaGateway creates and initializes a new LlamaGateway.
 func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("base URL is required")
+		return nil, ErrBaseURLRequired
 	}
 
 	client, err := llama.NewService(baseURL, apiKey)

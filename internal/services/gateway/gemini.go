@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
@@ -27,6 +28,16 @@ import (
 var (
 	_ GenerationGateway = (*geminiGateway)(nil)
 	_ EmbeddingsGateway = (*geminiGateway)(nil)
+)
+
+var (
+	ErrGenerationStopped        = errors.New("generation stopped for reason")
+	ErrRequestBlocked           = errors.New("request was blocked by the API")
+	ErrEmptyResponse            = errors.New("gemini API returned an empty response")
+	ErrDimensionsOutOfRange     = errors.New("dimensions value exceeds int32 range")
+	ErrFailedToCreateClient     = errors.New("failed to create Gemini client")
+	ErrFailedToFetchResponse    = errors.New("failed to fetch response from Gemini API")
+	ErrFailedToComputeEmbedding = errors.New("failed to compute embedding")
 )
 
 // geminiGateway is a unified client for the Google Gemini API,
@@ -43,7 +54,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateClient, err)
 	}
 
 	return &geminiGateway{
@@ -52,7 +63,10 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 }
 
 // GenerateContent sends a content generation request to the Google Gemini API.
-func (g *geminiGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
+func (g *geminiGateway) GenerateContent(
+	ctx context.Context,
+	request *mdGateway.GenerateContentRequest,
+) (string, error) {
 	generationConfig := &genai.GenerateContentConfig{}
 
 	if request.SystemPrompt() != "" {
@@ -66,29 +80,29 @@ func (g *geminiGateway) GenerateContent(ctx context.Context, request *mdGateway.
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: failed to fetch response from Gemini API: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrFailedToFetchResponse, err)
 	}
 
 	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
 		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
-		return "", fmt.Errorf("failed to generate content: generation stopped for reason: %s", result.Candidates[0].FinishReason)
+		return "", fmt.Errorf("%w: %s", ErrGenerationStopped, result.Candidates[0].FinishReason)
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
-			return "", fmt.Errorf(
-				"failed to generate content: request was blocked by the API for reason: %s",
-				result.PromptFeedback.BlockReason,
-			)
+			return "", fmt.Errorf("%w: %s", ErrRequestBlocked, result.PromptFeedback.BlockReason)
 		}
-		return "", fmt.Errorf("failed to generate content: gemini API returned an empty response")
+		return "", ErrEmptyResponse
 	}
 
 	return result.Text(), nil
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
-func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *mdGateway.ComputeEmbeddingsRequest) ([]mdGateway.Embedding, error) {
+func (g *geminiGateway) ComputeEmbeddings(
+	ctx context.Context,
+	request *mdGateway.ComputeEmbeddingsRequest,
+) ([]mdGateway.Embedding, error) {
 	var contents []*genai.Content
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
@@ -103,7 +117,7 @@ func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *mdGatewa
 		dimensions := request.Dimensions()
 		// Check for integer overflow when converting to int32
 		if dimensions > int(^uint32(0)>>1) {
-			return nil, fmt.Errorf("dimensions value %d exceeds int32 range", dimensions)
+			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
 		}
 		dims := int32(dimensions)
 		config.OutputDimensionality = &dims
@@ -115,7 +129,7 @@ func (g *geminiGateway) ComputeEmbeddings(ctx context.Context, request *mdGatewa
 		config,
 	)
 	if err != nil {
-		return []mdGateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []mdGateway.Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
 	}
 
 	embeddings := make([]mdGateway.Embedding, 0, len(response.Embeddings))

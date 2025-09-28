@@ -1,7 +1,29 @@
 /*
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
-Licensed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License	// Create a temporary git repository for more comprehensive testing
+	tempDir, err := os.MkdirTemp("", "git_test")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}"License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -121,11 +143,13 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	// Create and stage a file
 	testFile := "test.txt"
 	testContent := "Hello, world!"
-	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+	err = os.WriteFile(testFile, []byte(testContent), 0644)
+	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	if err := exec.Command("git", "add", testFile).Run(); err != nil {
+	err = exec.Command("git", "add", testFile).Run()
+	if err != nil {
 		t.Fatalf("Failed to stage test file: %v", err)
 	}
 
@@ -196,14 +220,18 @@ func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
 
 	// Change to temp directory
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
 
-	if err := os.Chdir(tempDir); err != nil {
+	err = os.Chdir(tempDir)
+	if err != nil {
 		t.Skipf("Failed to change to temp directory: %v", err)
 	}
 
 	// Initialize git repo
-	if err := exec.Command("git", "init").Run(); err != nil {
+	err = exec.Command("git", "init").Run()
+	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
@@ -234,14 +262,18 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 
 	// Change to temp directory
 	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
 
-	if err := os.Chdir(tempDir); err != nil {
+	err = os.Chdir(tempDir)
+	if err != nil {
 		t.Skipf("Failed to change to temp directory: %v", err)
 	}
 
 	// Initialize git repo
-	if err := exec.Command("git", "init").Run(); err != nil {
+	err = exec.Command("git", "init").Run()
+	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
@@ -255,10 +287,12 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}
 	for i, filename := range testFiles {
 		content := fmt.Sprintf("Content of file %d", i+1)
-		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		err := os.WriteFile(filename, []byte(content), 0644)
+		if err != nil {
 			t.Fatalf("Failed to create %s: %v", filename, err)
 		}
-		if err := exec.Command("git", "add", filename).Run(); err != nil {
+		err = exec.Command("git", "add", filename).Run()
+		if err != nil {
 			t.Fatalf("Failed to stage %s: %v", filename, err)
 		}
 	}

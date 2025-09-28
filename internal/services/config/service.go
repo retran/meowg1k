@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,7 +61,8 @@ func NewService(commandSvc command.Service) (Service, error) {
 	if configPath != "" {
 		v.SetConfigFile(configPath)
 		if err := v.ReadInConfig(); err != nil {
-			if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			var configFileNotFoundError viper.ConfigFileNotFoundError
+			if errors.As(err, &configFileNotFoundError) {
 				return nil, fmt.Errorf("specified config file not found: %s", configPath)
 			}
 			return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -75,6 +77,7 @@ func NewService(commandSvc command.Service) (Service, error) {
 		if systemConfigDirs == "" {
 			systemConfigDirs = "/etc/xdg"
 		}
+
 		configPaths = append(configPaths, filepath.Join(systemConfigDirs, projectName))
 
 		userConfigDir := os.Getenv("XDG_CONFIG_HOME")
@@ -83,6 +86,7 @@ func NewService(commandSvc command.Service) (Service, error) {
 				userConfigDir = filepath.Join(home, ".config")
 			}
 		}
+
 		if userConfigDir != "" {
 			configPaths = append(configPaths, filepath.Join(userConfigDir, projectName))
 		}

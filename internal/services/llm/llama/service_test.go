@@ -114,7 +114,7 @@ func TestServiceImpl_Complete(t *testing.T) {
 			mockStatusCode: 500,
 			mockError:      "Internal Server Error",
 			expectError:    true,
-			errorMsg:       "API request failed with status 500",
+			errorMsg:       "API request failed: status 500: Internal Server Error",
 		},
 		{
 			name: "Invalid JSON response",
@@ -355,7 +355,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:    "API request failed with status 404",
+			errorMsg:    "API request failed: status 404: Not Found",
 		},
 		{
 			name: "Client error status codes",
@@ -369,7 +369,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:    "API request failed with status 400",
+			errorMsg:    "API request failed: status 400: Bad Request",
 		},
 		{
 			name: "Malformed JSON response",

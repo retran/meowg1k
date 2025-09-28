@@ -257,7 +257,7 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 	}
 
 	// Create real executor context with no-op feedback handler
-	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, mockExecutor{})
 
 	profile := &mdProfile.ResolvedProfile{
 		Provider:        mdGateway.OpenAI,
@@ -482,14 +482,25 @@ func TestGenerateContentFlowWithActivityError(t *testing.T) {
 
 type mockExecutor struct{}
 
-func (m *mockExecutor) RunActivity(ctx context.Context, parentCtx *executor.ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
+func (m mockExecutor) RunActivity(
+	ctx context.Context,
+	parentCtx *executor.ExecutorContext,
+	name string,
+	activity executor.Activity[any, any],
+	input any,
+) *future.Future[any] {
 	// Create a future with the expected result
 	f := future.NewFuture[any]()
 	f.Complete(&ContentOutput{Content: "Generated content"})
 	return f
 }
 
-func (m *mockExecutor) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *executor.ExecutorContext) error) error {
+func (m mockExecutor) RunFlow(
+	ctx context.Context,
+	name string,
+	flow executor.Flow,
+	retryPolicy *executor.RetryPolicy,
+) error {
 	return nil
 }
 
@@ -497,13 +508,24 @@ type mockExecutorWithError struct {
 	err error
 }
 
-func (m *mockExecutorWithError) RunActivity(ctx context.Context, parentCtx *executor.ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
+func (m mockExecutorWithError) RunActivity(
+	ctx context.Context,
+	parentCtx *executor.ExecutorContext,
+	name string,
+	activity executor.Activity[any, any],
+	input any,
+) *future.Future[any] {
 	f := future.NewFuture[any]()
 	f.CompleteWithError(m.err)
 	return f
 }
 
-func (m *mockExecutorWithError) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *executor.ExecutorContext) error) error {
+func (m mockExecutorWithError) RunFlow(
+	ctx context.Context,
+	name string,
+	flow executor.Flow,
+	retryPolicy *executor.RetryPolicy,
+) error {
 	return m.err
 }
 

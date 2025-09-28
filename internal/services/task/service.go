@@ -53,7 +53,10 @@ var _ Service = (*serviceImpl)(nil)
 // NewService creates a new task resolver service.
 // It loads and validates the task configuration at creation time.
 // resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
-func resolveTaskConfiguration(taskName string, cmdUserPrompt string, cfg *mdConfig.Config) (string, string, string, error) {
+func resolveTaskConfiguration(
+	taskName, cmdUserPrompt string,
+	cfg *mdConfig.Config,
+) (string, string, string, error) {
 	var profileName, systemPrompt, userPrompt string
 
 	if taskName != "" && cfg.Generate != nil && cfg.Generate.Tasks != nil {
@@ -110,7 +113,11 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 	return nil
 }
 
-func NewService(commandService command.Service, configService config.Service, profileService profile.Service) (Service, error) {
+func NewService(
+	commandService command.Service,
+	configService config.Service,
+	profileService profile.Service,
+) (Service, error) {
 	service := &serviceImpl{}
 
 	cfg := configService.GetConfig()
@@ -134,7 +141,8 @@ func NewService(commandService command.Service, configService config.Service, pr
 		return nil, err
 	}
 
-	if err := validateConfiguration(taskName, profileName, userPrompt); err != nil {
+	err = validateConfiguration(taskName, profileName, userPrompt)
+	if err != nil {
 		return nil, err
 	}
 

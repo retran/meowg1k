@@ -34,7 +34,10 @@ var _ SystemPromptProvider = (*GeneratePromptService)(nil)
 var _ SystemPromptProvider = (*GeneratePromptService)(nil)
 
 // NewGeneratePromptService creates a new instance of the prompt service for generate command.
-func NewGeneratePromptService(commandService command.Service, taskService task.Service) (*GeneratePromptService, error) {
+func NewGeneratePromptService(
+	commandService command.Service,
+	taskService task.Service,
+) (*GeneratePromptService, error) {
 	systemPrompt, err := buildSystemPrompt(taskService)
 	if err != nil {
 		return nil, err
@@ -82,6 +85,7 @@ func buildUserPrompt(commandService command.Service, taskService task.Service) (
 			sb.WriteString("```\n")
 		}
 		sb.WriteString(contents)
+
 		if userPrompt != "" {
 			sb.WriteString("\n```")
 		}

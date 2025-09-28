@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package executor provides the core components for running activities and flows.
 package executor
 
 import (
@@ -24,18 +25,23 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// Status represents the current status of an activity
+// Status represents the current status of an activity.
 type Status string
 
 const (
-	StatusPending   Status = "pending"
-	StatusStarted   Status = "started"
-	StatusRunning   Status = "running"
+	// StatusPending indicates that the activity is pending.
+	StatusPending Status = "pending"
+	// StatusStarted indicates that the activity has started.
+	StatusStarted Status = "started"
+	// StatusRunning indicates that the activity is running.
+	StatusRunning Status = "running"
+	// StatusCompleted indicates that the activity has completed.
 	StatusCompleted Status = "completed"
-	StatusFailed    Status = "failed"
+	// StatusFailed indicates that the activity has failed.
+	StatusFailed Status = "failed"
 )
 
-// Feedback contains information about activity execution progress
+// Feedback contains information about activity execution progress.
 type Feedback struct {
 	ActivityName string         `json:"activity_name"`
 	Status       Status         `json:"status"`
@@ -43,111 +49,137 @@ type Feedback struct {
 	Message      string         `json:"message"`
 	Metadata     map[string]any `json:"metadata,omitempty"`
 	Timestamp    time.Time      `json:"timestamp"`
-	Error        error          `json:"error,omitempty"`
+	Error        error          `json:"-"`
 }
 
-// FeedbackHandler processes feedback from activities
+// String returns a string representation of the feedback.
+func (f *Feedback) String() string {
+	if f.Error != nil {
+		if f.Progress > 0 {
+			return fmt.Sprintf(
+				"[%s] %s: %s (%.1f%%) (%v)",
+				f.ActivityName, f.Status, f.Message, f.Progress*100, f.Error,
+			)
+		}
+		return fmt.Sprintf("[%s] %s: %s (%v)", f.ActivityName, f.Status, f.Message, f.Error)
+	}
+
+	if f.Progress > 0 {
+		return fmt.Sprintf("[%s] %s: %s (%.1f%%)", f.ActivityName, f.Status, f.Message, f.Progress*100)
+	}
+
+	return fmt.Sprintf("[%s] %s: %s", f.ActivityName, f.Status, f.Message)
+}
+
+// FeedbackHandler processes feedback from activities.
 type FeedbackHandler func(feedback Feedback)
 
-// ExecutorContext provides feedback capabilities to activities and access to the executor
+// NoOpFeedbackHandler is a feedback handler that does nothing.
+func NoOpFeedbackHandler(feedback Feedback) {}
+
+// ExecutorContext provides feedback capabilities to activities and access to the executor.
 type ExecutorContext struct {
 	name         string
 	feedbackFunc FeedbackHandler
-	executor     Executor // Interface for running sub-activities
+	Executor     Executor // Interface for running sub-activities
 }
 
-// Executor defines the interface for executing flows and activities
-type Executor interface {
-	RunFlow(ctx context.Context, flowName string, flow func(context.Context, *ExecutorContext) error) error
-	RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity, input any) *future.Future[any]
-}
-
-// NewExecutorContext creates a new activity context with executor access
-func NewExecutorContext(activityName string, handler FeedbackHandler, executor Executor) *ExecutorContext {
+// NewExecutorContext creates a new executor context.
+func NewExecutorContext(name string, feedbackFunc FeedbackHandler, executor Executor) *ExecutorContext {
 	return &ExecutorContext{
-		name:         activityName,
-		feedbackFunc: handler,
-		executor:     executor,
+		name:         name,
+		feedbackFunc: feedbackFunc,
+		Executor:     executor,
 	}
 }
 
-func (e *ExecutorContext) GetExecutor() Executor {
-	return e.executor
+// Name returns the name of the activity.
+func (c *ExecutorContext) Name() string {
+	return c.name
 }
 
-// sendFeedback sends feedback about activity execution
-func (e *ExecutorContext) sendFeedback(status Status, progress float64, message string) {
-	if e.feedbackFunc == nil {
+// GetExecutor returns the executor associated with the context.
+func (c *ExecutorContext) GetExecutor() Executor {
+	return c.Executor
+}
+
+func (c *ExecutorContext) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
+	if c.feedbackFunc == nil {
 		return
 	}
 
-	e.feedbackFunc(Feedback{
-		ActivityName: e.name,
+	c.feedbackFunc(Feedback{
+		ActivityName: c.name,
 		Status:       status,
 		Progress:     progress,
 		Message:      message,
 		Timestamp:    time.Now(),
-	})
-}
-
-func (e *ExecutorContext) SendPending(message string) {
-	e.sendFeedback(StatusPending, 0.0, message)
-}
-
-func (e *ExecutorContext) SendStarted(message string) {
-	e.sendFeedback(StatusStarted, 0.0, message)
-}
-
-func (e *ExecutorContext) SendProgress(progress float64, message string) {
-	e.sendFeedback(StatusRunning, progress, message)
-}
-
-func (e *ExecutorContext) SendCompleted(message string) {
-	e.sendFeedback(StatusCompleted, 1.0, message)
-}
-
-func (e *ExecutorContext) SendFailed(err error, message string) {
-	if e.feedbackFunc == nil {
-		return
-	}
-
-	e.feedbackFunc(Feedback{
-		ActivityName: e.name,
-		Status:       StatusFailed,
-		Progress:     0.0,
-		Message:      message,
 		Error:        err,
-		Timestamp:    time.Now(),
+		Metadata:     metadata,
 	})
 }
 
-func (e *ExecutorContext) SendRetry(attempt int, err error) {
-	if e.feedbackFunc == nil {
-		return
-	}
+// SendPending sends a pending status update.
+func (c *ExecutorContext) SendPending(message string) {
+	c.sendFeedback(StatusPending, 0, message, nil, nil)
+}
 
-	e.feedbackFunc(Feedback{
-		ActivityName: e.name,
-		Status:       StatusRunning,
-		Progress:     0.0,
-		Message:      fmt.Sprintf("Retrying attempt %d", attempt),
-		Error:        err,
-		Metadata: map[string]any{
-			"retry_attempt": attempt,
-		},
-		Timestamp: time.Now(),
+// SendStarted sends a started status update.
+func (c *ExecutorContext) SendStarted(message string) {
+	c.sendFeedback(StatusStarted, 0, message, nil, nil)
+}
+
+// SendProgress sends a progress update.
+func (c *ExecutorContext) SendProgress(progress float64, message string) {
+	c.sendFeedback(StatusRunning, progress, message, nil, nil)
+}
+
+// SendCompleted sends a completed status update.
+func (c *ExecutorContext) SendCompleted(message string) {
+	c.sendFeedback(StatusCompleted, 1, message, nil, nil)
+}
+
+// SendFailed sends a failed status update.
+func (c *ExecutorContext) SendFailed(err error, message string) {
+	c.sendFeedback(StatusFailed, 0, message, err, nil)
+}
+
+// SendRetry sends a retry status update.
+func (c *ExecutorContext) SendRetry(attempt int, err error) {
+	c.sendFeedback(StatusRunning, 0, fmt.Sprintf("Retrying (%d)", attempt), err, map[string]any{
+		"retry_attempt": attempt,
 	})
 }
 
-// Flow represents a sequence of activities that produces a result
-// It's just a function that takes standard context and activity context
-type Flow[O any] func(ctx context.Context, activityCtx *ExecutorContext) (O, error)
+// Activity defines a function that can be executed by the executor.
+type Activity[T any, K any] func(ctx context.Context, activityCtx *ExecutorContext, input T) (K, error)
 
-// Activity represents a reusable operation
-// It's just a function that takes standard context and activity context
-type Activity[I any, O any] func(ctx context.Context, activityCtx *ExecutorContext, input I) (O, error)
+// Flow defines a function that can be executed by the executor.
+type Flow func(ctx context.Context, flowCtx *ExecutorContext) error
 
-// NoOpFeedbackHandler is a feedback handler that does nothing
-func NoOpFeedbackHandler(feedback Feedback) {
-	// Do nothing
+// Executor defines the interface for executing flows and activities.
+type Executor interface {
+	RunActivity(
+		ctx context.Context,
+		parentCtx *ExecutorContext,
+		name string,
+		activity Activity[any, any],
+		input any,
+	) *future.Future[any]
+	RunFlow(ctx context.Context, name string, flow Flow, retryPolicy *RetryPolicy) error
+}
+
+// RetryPolicy defines the retry behavior for an operation.
+type RetryPolicy struct {
+	// MaxAttempts is the maximum number of retry attempts.
+	MaxAttempts int
+
+	// InitialDelay is the initial time to wait between attempts.
+	InitialDelay time.Duration
+
+	// MaxDelay is the maximum time to wait between attempts.
+	MaxDelay time.Duration
+
+	// Multiplier is the factor by which the delay is multiplied after each attempt.
+	Multiplier float64
 }

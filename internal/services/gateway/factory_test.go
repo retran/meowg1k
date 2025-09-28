@@ -25,6 +25,7 @@ import (
 	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewGatewayFactory(t *testing.T) {
@@ -99,7 +100,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 				TokenizerType:   mdLLM.TokenizerUnknown,
 			},
 			expectError: true,
-			errorMsg:    "anthropic provider requires an API key",
+			errorMsg:    "anthropic API key is required",
 		},
 		{
 			name: "Gemini provider with API key",
@@ -253,13 +254,13 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 			gateway, err := factory.NewGenerationGateway(ctx, tt.profile)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, gateway)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, gateway)
 			}
 		})

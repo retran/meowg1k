@@ -95,7 +95,7 @@ var generateCmd = &cobra.Command{
 		exec := executor.NewExecutor().
 			WithFeedbackHandler(executionTracker.FeedbackHandler())
 
-		return exec.RunFlow(appContainer.ShutdownService.Context(), "GenerateContent", flow)
+		return exec.RunFlow(appContainer.ShutdownService.Context(), "GenerateContent", flow, executor.DefaultRetryPolicy())
 	},
 }
 

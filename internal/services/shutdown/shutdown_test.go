@@ -19,12 +19,15 @@ package shutdown
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+)
+
+var (
+	errTestCallback = errors.New("test callback error")
 )
 
 func TestNewService(t *testing.T) {
@@ -94,8 +97,8 @@ func TestMultipleCallbacks(t *testing.T) {
 		idx := i
 		callback := func(ctx context.Context) error {
 			mu.Lock()
+			defer mu.Unlock()
 			callbackOrder = append(callbackOrder, idx)
-			mu.Unlock()
 			return nil
 		}
 		service.Register(callback)
@@ -130,11 +133,10 @@ func TestCallbackError(t *testing.T) {
 	service := NewService(logger, ctx, timeout)
 
 	var successCallbackCalled bool
-	testError := errors.New("test callback error")
 
 	// Register a callback that fails
 	service.Register(func(ctx context.Context) error {
-		return testError
+		return errTestCallback
 	})
 
 	// Register a callback that succeeds (should still be called even after error)
@@ -149,9 +151,9 @@ func TestCallbackError(t *testing.T) {
 	// Give some time for shutdown to complete
 	time.Sleep(100 * time.Millisecond)
 
-	// Success callback should still be called even after error
+	// The success callback should still be called
 	if !successCallbackCalled {
-		t.Error("Success callback should be called even after error in previous callback")
+		t.Error("Success callback should be called even after a previous callback failed")
 	}
 }
 
@@ -234,12 +236,12 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(2)
-		go func(idx int) {
+		go func() {
 			defer wg.Done()
 			service.Register(func(ctx context.Context) error {
 				return nil
 			})
-		}(i)
+		}()
 		go func() {
 			defer wg.Done()
 			_ = service.Context()
@@ -427,12 +429,11 @@ func TestCallbackErrorHandling(t *testing.T) {
 
 	service := NewService(logger, ctx, timeout)
 
-	testError := fmt.Errorf("test callback error")
 	var successCallbackCalled bool
 
 	// Register a callback that fails
 	service.Register(func(ctx context.Context) error {
-		return testError
+		return errTestCallback
 	})
 
 	// Register a callback that succeeds (should still be called)

@@ -20,19 +20,18 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// RetryPolicy defines how activities should be retried on failure
-type RetryPolicy struct {
-	MaxAttempts  int           `json:"max_attempts"`
-	InitialDelay time.Duration `json:"initial_delay"`
-	MaxDelay     time.Duration `json:"max_delay"`
-	Multiplier   float64       `json:"multiplier"`
-}
+var (
+	ErrActivityInvalidType  = errors.New("activity has invalid type")
+	ErrFlowFailed           = errors.New("flow is failed")
+	ErrUnexpectedEndOfRetry = errors.New("unexpected end of retry loop")
+)
 
 // DefaultRetryPolicy returns a sensible default retry policy
 func DefaultRetryPolicy() *RetryPolicy {
@@ -85,14 +84,14 @@ func (e *ExecutorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 func (e *ExecutorImpl) RunFlow(
 	ctx context.Context,
 	flowName string,
-	flow func(context.Context, *ExecutorContext) error,
+	flow Flow,
+	retryPolicy *RetryPolicy,
 ) error {
 	fut := future.NewFuture[any]()
 	executorCtx := NewExecutorContext(flowName, e.FeedbackHandler, e)
 	executorCtx.SendPending(fmt.Sprintf("Flow %q is pending", flowName))
 
 	go func() {
-		// Try to cast to a function with the right signature
 		err := e.executeFlow(ctx, executorCtx, flow)
 		if err != nil {
 			fut.CompleteWithError(err)
@@ -106,22 +105,24 @@ func (e *ExecutorImpl) RunFlow(
 }
 
 // RunActivity runs a sub-activity asynchronously and returns a future for its result
-func (e *ExecutorImpl) RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity, input any) *future.Future[any] {
+func (e *ExecutorImpl) RunActivity(
+	ctx context.Context,
+	parentCtx *ExecutorContext,
+	activityName string,
+	activity Activity[any, any],
+	input any,
+) *future.Future[any] {
 	future := future.NewFuture[any]()
 	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
 	activityCtx := NewExecutorContext(fullActivityName, parentCtx.feedbackFunc, e)
 	activityCtx.SendPending(fmt.Sprintf("Activity \"%s\" is pending", activityName))
 
 	go func() {
-		if activityFunc, ok := activity.(func(context.Context, *ExecutorContext, any) (any, error)); ok {
-			result, err := e.executeActivity(ctx, activityCtx, activityFunc, input, e.RetryPolicy)
-			if err != nil {
-				future.CompleteWithError(err)
-			} else {
-				future.Complete(result)
-			}
+		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
+		if err != nil {
+			future.CompleteWithError(err)
 		} else {
-			future.CompleteWithError(fmt.Errorf("activity \"%s\" has invalid type", activityName))
+			future.Complete(result)
 		}
 	}()
 
@@ -143,7 +144,7 @@ func (e *ExecutorImpl) executeFlow(
 	err := flow(ctx, flowCtx)
 	if err != nil {
 		flowCtx.SendFailed(err, fmt.Sprintf("Flow \"%s\" is failed", flowCtx.name))
-		return fmt.Errorf("flow \"%s\" is failed: %v", flowCtx.name, err)
+		return fmt.Errorf("%w: %s: %w", ErrFlowFailed, flowCtx.name, err)
 	}
 
 	return nil
@@ -153,7 +154,7 @@ func (e *ExecutorImpl) executeFlow(
 func (e *ExecutorImpl) executeActivity(
 	ctx context.Context,
 	activityCtx *ExecutorContext,
-	activity func(context.Context, *ExecutorContext, any) (any, error),
+	activity Activity[any, any],
 	input any,
 	policy *RetryPolicy,
 ) (any, error) {
@@ -195,5 +196,5 @@ func (e *ExecutorImpl) executeActivity(
 	}
 
 	// This should never be reached, but just in case
-	return nil, fmt.Errorf("activity \"%s\": unexpected end of retry loop", name)
+	return nil, fmt.Errorf("%w: %s", ErrUnexpectedEndOfRetry, name)
 }

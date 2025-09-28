@@ -74,7 +74,10 @@ func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile
 }
 
 // resolveProfileInternal performs the actual profile resolution logic.
-func (s *serviceImpl) resolveProfileInternal(profile mdProfile.Profile, cfg *mdConfig.Config) (*mdProfile.ResolvedProfile, error) {
+func (s *serviceImpl) resolveProfileInternal(
+	profile mdProfile.Profile,
+	cfg *mdConfig.Config,
+) (*mdProfile.ResolvedProfile, error) {
 	if cfg.Profiles == nil {
 		return nil, fmt.Errorf("no profiles defined in configuration")
 	}

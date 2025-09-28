@@ -18,10 +18,15 @@ package gateway
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
+)
+
+var (
+	ErrVectorsDifferentLength = errors.New("vectors must have the same length")
+	ErrVectorsEmpty           = errors.New("vectors must not be empty")
 )
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings
@@ -41,11 +46,11 @@ type ComputeDistanceMixin struct {
 // It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
 func (g *ComputeDistanceMixin) ComputeDistance(a, b mdGateway.Embedding) (float64, error) {
 	if len(a) != len(b) {
-		return 0, fmt.Errorf("vectors must have the same length")
+		return 0, ErrVectorsDifferentLength
 	}
 
 	if len(a) == 0 || len(b) == 0 {
-		return 0, fmt.Errorf("vectors must not be empty")
+		return 0, ErrVectorsEmpty
 	}
 
 	var dotProduct, aMagnitude, bMagnitude float64

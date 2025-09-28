@@ -133,7 +133,7 @@ func (c *serviceImpl) CreateEmbeddings(ctx context.Context, req EmbeddingRequest
 	if resp.StatusCode != http.StatusOK {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err != nil {
-			return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("API request failed: status %d: %s", resp.StatusCode, string(body))
 		}
 		return nil, fmt.Errorf("API request failed: %s", errorResp.Error.Message)
 	}

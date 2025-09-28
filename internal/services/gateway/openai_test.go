@@ -44,7 +44,7 @@ func createOpenAIMockServer() *httptest.Server {
 	}))
 }
 
-func handleOpenAIChatCompletion(w http.ResponseWriter, r *http.Request) {
+func handleOpenAIChatCompletion(w http.ResponseWriter, _ *http.Request) {
 	// Simulate OpenAI chat completion response
 	response := map[string]interface{}{
 		"id":      "chatcmpl-123",
@@ -72,7 +72,7 @@ func handleOpenAIChatCompletion(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func handleOpenAIEmbeddings(w http.ResponseWriter, r *http.Request) {
+func handleOpenAIEmbeddings(w http.ResponseWriter, _ *http.Request) {
 	// Simulate OpenAI embeddings response
 	response := map[string]interface{}{
 		"object": "list",
@@ -101,14 +101,8 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 
 	// Create profile with mock server URL
 	profile := &mdProfile.ResolvedProfile{
-		Provider:        mdGateway.OpenAI,
-		Model:           "gpt-4",
-		BaseURL:         mockServer.URL,
-		APIKey:          "test-api-key",
-		MaxInputTokens:  4096,
-		MaxOutputTokens: 2048,
-		Timeout:         30 * time.Second,
-		TokenizerType:   mdLLM.TokenizerCL100K,
+		BaseURL: mockServer.URL,
+		APIKey:  "test-api-key",
 	}
 
 	// Create gateway
@@ -151,14 +145,8 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 	defer errorServer.Close()
 
 	profile := &mdProfile.ResolvedProfile{
-		Provider:        mdGateway.OpenAI,
-		Model:           "gpt-4",
-		BaseURL:         errorServer.URL,
-		APIKey:          "test-api-key",
-		MaxInputTokens:  4096,
-		MaxOutputTokens: 2048,
-		Timeout:         30 * time.Second,
-		TokenizerType:   mdLLM.TokenizerCL100K,
+		BaseURL: errorServer.URL,
+		APIKey:  "test-api-key",
 	}
 
 	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
@@ -191,14 +179,8 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	defer mockServer.Close()
 
 	profile := &mdProfile.ResolvedProfile{
-		Provider:        mdGateway.OpenAI,
-		Model:           "text-embedding-ada-002",
-		BaseURL:         mockServer.URL,
-		APIKey:          "test-api-key",
-		MaxInputTokens:  8192,
-		MaxOutputTokens: 0, // Embeddings don't have output tokens
-		Timeout:         30 * time.Second,
-		TokenizerType:   mdLLM.TokenizerCL100K,
+		BaseURL: mockServer.URL,
+		APIKey:  "test-api-key",
 	}
 
 	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
