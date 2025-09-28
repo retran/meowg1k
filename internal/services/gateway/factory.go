@@ -33,9 +33,7 @@ type GatewayFactory interface {
 }
 
 // gatewayFactory is the implementation of GatewayFactory.
-type gatewayFactory struct {
-	GatewayFactory
-}
+type gatewayFactory struct{}
 
 // NewGatewayFactory creates a new gateway factory.
 func NewGatewayFactory() GatewayFactory {

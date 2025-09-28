@@ -38,7 +38,6 @@ type Service interface {
 // serviceImpl handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
 type serviceImpl struct {
-	Service
 	mu        sync.RWMutex
 	ctx       context.Context
 	cancel    context.CancelFunc

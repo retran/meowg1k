@@ -52,7 +52,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the command service.
 type serviceImpl struct {
-	Service
 	cmd   *cobra.Command
 	stdin string
 }

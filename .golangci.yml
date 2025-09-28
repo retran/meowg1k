@@ -1,7 +1,7 @@
 run:
   timeout: 5m
   modules-download-mode: readonly
-  go: "1.23"
+  go: "1.25"
 
 output:
   formats:
@@ -9,7 +9,6 @@ output:
       path: stdout
   print-issued-lines: true
   print-linter-name: true
-  uniq-by-line: true
   sort-results: true
 
 linters-settings:
@@ -21,7 +20,6 @@ linters-settings:
   goimports:
     local-prefixes: github.com/retran/meowg1k
   govet:
-    check-shadowing: true
     enable-all: true
     disable:
       - fieldalignment
@@ -69,9 +67,6 @@ linters-settings:
   errcheck:
     check-type-assertions: true
     check-blank: true
-  exhaustive:
-    check-generated: false
-    default-signifies-exhaustive: false
   forbidigo:
     forbid:
       - p: ^print.*$
@@ -119,127 +114,64 @@ linters-settings:
 linters:
   disable-all: true
   enable:
-    # Error detection
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-    - bodyclose
-    - rowserrcheck
-    - sqlclosecheck
-    - exhaustive
-    - exhaustruct
-    
-    # Code quality
-    - gocyclo
-    - gofmt
-    - goimports
-    - revive
-    - stylecheck
-    - unconvert
-    - unparam
-    - misspell
-    - nakedret
-    - prealloc
-    - predeclared
-    - nolintlint
-    
-    # Performance
-    - gocritic
-    - maligned
-    
-    # Security
-    - gosec
-    
-    # Style
-    - whitespace
-    - wsl
-    - nlreturn
-    - lll
-    - funlen
-    - nestif
-    - cyclop
-    
-    # Bugs
-    - asciicheck
-    - bidichk
-    - durationcheck
-    - exportloopref
-    - makezero
-    - nilerr
-    - nilnil
-    - noctx
-    - tenv
-    
-    # Complexity
-    - dupl
-    - goconst
-    - godox
-    - gomnd
-    - gomoddirectives
-    - gomodguard
-    - grouper
-    
-    # Import organization
-    - depguard
-    - importas
-    
-    # Test quality
-    - testpackage
-    - tparallel
-    - testifylint
-    
-    # Documentation
-    - godot
-    - containedctx
-    - contextcheck
-    - decorder
-    - errname
-    - errorlint
-    - forbidigo
-    - forcetypeassert
-    - gci
-    - ginkgolinter
-    - gocheckcompilerdirectives
-    - gochecknoglobals
-    - gochecknoinits
-    - gochecksumtype
-    - goconst
-    - goerr113
-    - gofumpt
-    - goheader
-    - gomoddirectives
-    - gomodguard
-    - goprintffuncname
-    - gosimple
-    - gosmopolitan
-    - grouper
-    - importas
-    - interfacebloat
-    - ireturn
-    - loggercheck
-    - maintidx
-    - mirror
-    - musttag
-    - nonamedreturns
-    - paralleltest
-    - protogetter
-    - reassign
-    - tagalign
-    - tagliatelle
-    - usestdlibvars
-    - varnamelen
-    - wastedassign
-    - zerologlint
+    # --- Core & Correctness ---
+    - errcheck          # Checks for unchecked errors
+    - govet             # Reports suspicious constructs
+    - staticcheck       # Huge set of static analysis checks
+    - unused            # Checks for unused code
+    - ineffassign       # Checks for ineffectual assignments
+    - typecheck         # Ensures code type-checks
+    - bodyclose         # Checks for unclosed HTTP response bodies
+    - rowserrcheck      # Checks for unchecked errors on sql.Rows
+    - sqlclosecheck     # Checks for unclosed sql.Rows or sql.Stmt
+    - nilerr            # Finds returning nil for non-nil error types
+
+    # --- Style & Formatting ---
+    - gofmt             # Formats code
+    - goimports         # Formats imports
+    - revive            # Fast, configurable, opinionated linter for style
+    - stylecheck        # A collection of style checks
+    - lll               # Line length linter
+    - whitespace        # Checks for leading/trailing whitespace
+    - wsl               # Enforces empty lines and other whitespace rules
+    - misspell          # Finds common misspellings in comments and strings
+    - gofumpt           # Stricter formatting than gofmt
+
+    # --- Complexity & Maintainability ---
+    - gocyclo           # Computes cyclomatic complexity
+    - funlen            # Checks function length
+    - dupl              # Finds duplicate code
+    - goconst           # Finds repeated strings that could be constants
+    - godox             # Finds TODOs, FIXMEs, etc.
+    - forbidigo         # Forbids usage of specified functions (e.g., print)
+    - nestif            # Reports deeply nested if statements
+    - depguard          # Manages package import restrictions
+
+    # --- Performance ---
+    - gocritic          # Provides diagnostics on style, performance, and bugs
+    - prealloc          # Finds slice declarations that could be preallocated
+    - unconvert         # Removes unnecessary type conversions
+
+    # --- Modern Go & Best Practices ---
+    - copyloopvar       # Finds variables captured by reference in loops (Go 1.22+)
+    - errorlint         # Linter for error handling common mistakes
+    - err113            # Checks for proper error wrapping
+    - containedctx      # Checks for contexts stored in structs
+    - noctx             # Finds functions that should probably accept a context
+    - unparam           # Reports unused function parameters
+
+    # --- Testing ---
+    - testifylint       # Checks for common mistakes in testify assertions
+
+    # --- Security ---
+    - gosec             # Go security checker
 
 issues:
   max-issues-per-linter: 50
   max-same-issues: 3
   new: false
   fix: false
+  uniq-by-line: true
   exclude-use-default: true
   exclude-rules:
     # Exclude some linters from running on tests files.
@@ -268,7 +200,7 @@ issues:
         - forbidigo
         - godox
         - exhaustive
-        
+
     # Exclude cmd package from magic number checks
     - path: cmd/
       linters:
@@ -276,35 +208,35 @@ issues:
         - goconst
         - gochecknoinits
         - forbidigo
-        
+
     # Exclude main functions from some checks
     - path: main\.go
       linters:
         - gochecknoinits
         - forbidigo
-        
+
     # Exclude generated files
     - path: ".*\\.pb\\.go"
       linters:
         - all
-        
+
     # Allow weak crypto in tests (for mocking)
     - text: "weak cryptographic primitive"
       linters:
         - gosec
-        
+
     # Allow package comments to be missing for internal packages
     - text: "should have a package comment"
       linters:
         - revive
       path: internal/
-      
+
     # Allow magic numbers in configuration
     - text: "Magic number"
       linters:
         - gomnd
       path: "config|version"
-      
+
     # Allow long lines in generated files
     - text: "line is \\d+ characters"
       linters:

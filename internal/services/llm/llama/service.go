@@ -119,7 +119,6 @@ type Service interface {
 
 // serviceImpl provides methods to interact with LLM completion API
 type serviceImpl struct {
-	Service
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client

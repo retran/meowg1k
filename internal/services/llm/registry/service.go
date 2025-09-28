@@ -33,7 +33,6 @@ type Service interface {
 
 // serviceImpl is the private implementation of the Service interface.
 type serviceImpl struct {
-	Service
 	models map[string]modelsLLM.ModelInfo
 }
 

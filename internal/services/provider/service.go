@@ -34,7 +34,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the registry service.
 type serviceImpl struct {
-	Service
 	providers map[mdGateway.Provider]mdConfig.ProviderDefinition
 }
 

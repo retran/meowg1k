@@ -40,7 +40,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the config service.
 type serviceImpl struct {
-	Service
 	config *mdConfig.Config
 }
 

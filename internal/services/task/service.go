@@ -43,7 +43,6 @@ type TaskConfiguration struct {
 
 // serviceImpl is the concrete implementation of the task resolver service.
 type serviceImpl struct {
-	Service
 	profileService profile.Service
 	cachedConfig   *TaskConfiguration
 }

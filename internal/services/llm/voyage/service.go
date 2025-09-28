@@ -41,7 +41,6 @@ type Service interface {
 
 // serviceImpl represents a client for the Voyage AI API.
 type serviceImpl struct {
-	Service
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client

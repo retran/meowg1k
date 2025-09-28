@@ -368,3 +368,45 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 		t.Error("Expected timeout error")
 	}
 }
+
+func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
+	// Create mock server
+	mockServer := createOpenAIMockServer()
+	defer mockServer.Close()
+
+	profile := &mdProfile.ResolvedProfile{
+		Provider:        mdGateway.OpenAI,
+		Model:           "text-embedding-ada-002",
+		BaseURL:         mockServer.URL,
+		APIKey:          "test-api-key",
+		MaxInputTokens:  8192,
+		MaxOutputTokens: 0,
+		Timeout:         30 * time.Second,
+		TokenizerType:   mdLLM.TokenizerCL100K,
+	}
+
+	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	if err != nil {
+		t.Fatalf("Failed to create OpenAI gateway: %v", err)
+	}
+
+	// Create embeddings request with dimensions
+	request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		"text-embedding-ada-002",
+		[]string{"Hello world"},
+		mdGateway.RetrievalQuery,
+		512, // This should trigger the dimensions parameter setting
+	)
+
+	// Test embeddings computation with dimensions
+	ctx := context.Background()
+	embeddings, err := gateway.ComputeEmbeddings(ctx, request)
+
+	if err != nil {
+		t.Fatalf("ComputeEmbeddings with dimensions failed: %v", err)
+	}
+
+	if len(embeddings) == 0 {
+		t.Error("Expected non-empty embeddings")
+	}
+}

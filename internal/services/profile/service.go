@@ -38,7 +38,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the profile resolver service.
 type serviceImpl struct {
-	Service
 	providerService  provider.Service
 	configService    config.Service
 	resolvedProfiles map[mdProfile.Profile]*mdProfile.ResolvedProfile

@@ -32,9 +32,7 @@ type Service interface {
 }
 
 // serviceImpl implements GitService.
-type serviceImpl struct {
-	Service
-}
+type serviceImpl struct{}
 
 // NewService creates a new Git service.
 func NewService() Service {
