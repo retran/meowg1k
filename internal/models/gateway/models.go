@@ -111,7 +111,12 @@ func NewComputeEmbeddingsRequest(model string, chunks []string, taskType TaskTyp
 }
 
 // NewComputeEmbeddingsRequestWithDimensions creates a new ComputeEmbeddingsRequest with custom dimensions.
-func NewComputeEmbeddingsRequestWithDimensions(model string, chunks []string, taskType TaskType, dimensions int) *ComputeEmbeddingsRequest {
+func NewComputeEmbeddingsRequestWithDimensions(
+	model string,
+	chunks []string,
+	taskType TaskType,
+	dimensions int,
+) *ComputeEmbeddingsRequest {
 	return &ComputeEmbeddingsRequest{
 		model:      model,
 		chunks:     chunks,

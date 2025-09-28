@@ -21,10 +21,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+)
+
+// Voyage service errors
+var (
+	ErrVoyageAPIKeyRequired = errors.New("voyage API key is required")
+	ErrAPIRequestFailed     = errors.New("API request failed")
 )
 
 const (
@@ -41,7 +48,6 @@ type Service interface {
 
 // serviceImpl represents a client for the Voyage AI API.
 type serviceImpl struct {
-	Service
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
@@ -50,7 +56,7 @@ type serviceImpl struct {
 // NewService creates a new Voyage AI client with the given configuration.
 func NewService(baseURL, apiKey string, timeout time.Duration) (Service, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("voyage API key is required")
+		return nil, ErrVoyageAPIKeyRequired
 	}
 
 	if baseURL == "" {
@@ -112,7 +118,7 @@ func (c *serviceImpl) CreateEmbeddings(ctx context.Context, req EmbeddingRequest
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.baseURL+"/embeddings", bytes.NewBuffer(requestBody))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/embeddings", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -134,9 +140,10 @@ func (c *serviceImpl) CreateEmbeddings(ctx context.Context, req EmbeddingRequest
 	if resp.StatusCode != http.StatusOK {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err != nil {
-			return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(body))
 		}
-		return nil, fmt.Errorf("API request failed: %s", errorResp.Error.Message)
+
+		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, errorResp.Error.Message)
 	}
 
 	var embeddingResp EmbeddingResponse

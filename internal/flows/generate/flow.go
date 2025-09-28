@@ -28,40 +28,44 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-type GenerateContentFlowFactory struct {
-	taskService                    task.Service
-	userPromptProvider             prompt.UserPromptProvider
-	systemPromptProvider           prompt.SystemPromptProvider
-	generateContentActivityFactory *GenerateContentActivityFactory
+// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
+var ErrInvalidActivityOutputType = errors.New("invalid output type from GenerateContent activity")
+
+type FlowFactory struct {
+	taskService          task.Service
+	userPromptProvider   prompt.UserPromptProvider
+	systemPromptProvider prompt.SystemPromptProvider
+	activityFactory      *ActivityFactory
 }
 
-func NewGenerateContentFlowFactory(
+func NewFlowFactory(
 	taskService task.Service,
 	userPromptProvider prompt.UserPromptProvider,
 	systemPromptProvider prompt.SystemPromptProvider,
-	generateContentActivityFactory *GenerateContentActivityFactory,
-) *GenerateContentFlowFactory {
-	return &GenerateContentFlowFactory{
-		taskService:                    taskService,
-		userPromptProvider:             userPromptProvider,
-		systemPromptProvider:           systemPromptProvider,
-		generateContentActivityFactory: generateContentActivityFactory,
+	activityFactory *ActivityFactory,
+) *FlowFactory {
+	return &FlowFactory{
+		taskService:          taskService,
+		userPromptProvider:   userPromptProvider,
+		systemPromptProvider: systemPromptProvider,
+		activityFactory:      activityFactory,
 	}
 }
 
 // NewFlow creates and returns the generate activity function with improved, multi-step status reporting.
-func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext) error {
-	return func(ctx context.Context, flowCtx *executor.ExecutorContext) error {
+func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
+	return func(ctx context.Context, flowCtx *executor.Context) error {
 		task := f.taskService.Get()
 
 		subject := "Content generation"
 		if task.Name != "" {
-			subject = fmt.Sprintf("Task \"%s\"", task.Name)
+			subject = fmt.Sprintf("Task %q", task.Name)
 		}
 
 		flowCtx.SendProgress(0.0, fmt.Sprintf("Starting %s...", subject))
 
 		flowCtx.SendProgress(0.0, "Preparing prompts...")
+
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
 		if err != nil {
 			return fmt.Errorf("failed to get user prompt: %w", err)
@@ -74,12 +78,13 @@ func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.E
 
 		status := "Generating content..."
 		if task.Name != "" {
-		 status = fmt.Sprintf("Executing task \"%s\"...", task.Name)
-    }
+			status = fmt.Sprintf("Executing task %q...", task.Name)
+		}
+
 		flowCtx.SendProgress(0.0, status)
 
-		activity := f.generateContentActivityFactory.NewActivity()
-		input := &GenerateContentInput{
+		activity := f.activityFactory.NewActivity()
+		input := &ContentInput{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
 			SystemPrompt: systemPrompt,
@@ -93,9 +98,11 @@ func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.E
 		}
 
 		flowCtx.SendProgress(0.0, "Processing result...")
-		generateOutput, ok := output.(*GenerateContentOutput)
+
+		generateOutput, ok := output.(*ContentOutput)
+
 		if !ok {
-			return errors.New("invalid output type from \"GenerateContent\" activity")
+			return ErrInvalidActivityOutputType
 		}
 
 		flowCtx.SendCompleted(fmt.Sprintf("%s completed.", subject))

@@ -19,26 +19,33 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/shutdown"
-	"github.com/spf13/cobra"
+)
+
+var (
+	// ErrInvalidLogFilename is returned when a log filename contains invalid characters.
+	ErrInvalidLogFilename = errors.New("log filename contains invalid characters or path separators")
+	// ErrLogPathOutsideDirectory is returned when a log path is outside the expected directory.
+	ErrLogPathOutsideDirectory = errors.New("log path is outside log directory")
 )
 
 // AppContainer is the main application struct that holds all cross-cutting services.
-type AppContainer struct {
+type Container struct {
 	// Logger is the structured logger for the application.
 	Logger *slog.Logger
-
-	// Context is the root context for the application.
-	Context context.Context
 
 	// ShutdownService handles graceful shutdown of the application.
 	ShutdownService shutdown.Service
@@ -52,22 +59,45 @@ type AppContainer struct {
 
 const (
 	logFileName = "meow.log"
+	// Operating system constants
+	osWindows = "windows"
+	osDarwin  = "darwin"
 )
 
-// AppContainerKey is the context key type for storing and retrieving the AppContainer instance.
+// validateLogPath validates the log path to prevent directory traversal attacks
+func validateLogPath(logDir, fileName string) error {
+	// Ensure filename doesn't contain path separators
+	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
+		return fmt.Errorf("%w: %s", ErrInvalidLogFilename, fileName)
+	}
+
+	// Clean the logDir path to resolve any path issues
+	cleanLogDir := filepath.Clean(logDir)
+	logPath := filepath.Join(cleanLogDir, fileName)
+
+	// Ensure the final path is within the expected log directory
+	if !strings.HasPrefix(logPath, cleanLogDir) {
+		return fmt.Errorf("%w: %s is outside %s", ErrLogPathOutsideDirectory, logPath, cleanLogDir)
+	}
+
+	return nil
+}
+
+// AppContainerKey is the context key type for storing and retrieving the Container instance.
 type appContainerKey struct{}
 
-// AppContainerKey is the context key for storing and retrieving the AppContainer instance.
+// AppContainerKey is the context key for storing and retrieving the Container instance.
 var AppContainerKey = appContainerKey{}
 
 // NewAppContainer initializes the main application struct with all necessary services.
-func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
-	container := &AppContainer{}
+func NewAppContainer(cmd *cobra.Command) (*Container, error) {
+	container := &Container{}
 
 	ctx := cmd.Context()
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	ctx = context.WithValue(ctx, AppContainerKey, container)
 
 	// Create logs directory in user's cache directory
@@ -77,12 +107,25 @@ func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
 	}
 
 	// Ensure log directory exists
-	if err = os.MkdirAll(logDir, 0755); err != nil {
+	if err = os.MkdirAll(logDir, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	logPath := filepath.Join(logDir, logFileName)
-	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// Validate log path to prevent directory traversal
+
+	if err = validateLogPath(logDir, logFileName); err != nil {
+		return nil, fmt.Errorf("invalid log path: %w", err)
+	}
+
+	root, err := os.OpenRoot(logDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open root directory: %w", err)
+	}
+	defer root.Close()
+	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file: %w", err)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
@@ -99,6 +142,7 @@ func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
 				return fmt.Errorf("failed to close log file: %w", err)
 			}
 		}
+
 		return nil
 	})
 
@@ -116,7 +160,6 @@ func NewAppContainer(cmd *cobra.Command) (*AppContainer, error) {
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
-	container.Context = shutdownService.Context()
 
 	return container, nil
 }
@@ -130,19 +173,21 @@ func getLogDir() (string, error) {
 	}
 
 	switch runtime.GOOS {
-	case "darwin":
+	case osDarwin:
 		return filepath.Join(homeDir, "Library", "Logs", "meow"), nil
-	case "windows":
+	case osWindows:
 		localAppData := os.Getenv("LOCALAPPDATA")
 		if localAppData == "" {
 			localAppData = filepath.Join(homeDir, "AppData", "Local")
 		}
+
 		return filepath.Join(localAppData, "meow", "logs"), nil
 	default:
 		xdgCache := os.Getenv("XDG_CACHE_HOME")
 		if xdgCache == "" {
 			xdgCache = filepath.Join(homeDir, ".cache")
 		}
+
 		return filepath.Join(xdgCache, "meow", "logs"), nil
 	}
 }

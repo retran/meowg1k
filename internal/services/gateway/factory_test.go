@@ -21,14 +21,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewGatewayFactory(t *testing.T) {
-	factory := NewGatewayFactory()
+	factory := NewFactory()
 	assert.NotNil(t, factory)
 	assert.IsType(t, &gatewayFactory{}, factory)
 }
@@ -99,7 +101,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 				TokenizerType:   mdLLM.TokenizerUnknown,
 			},
 			expectError: true,
-			errorMsg:    "anthropic provider requires an API key",
+			errorMsg:    "anthropic API key is required",
 		},
 		{
 			name: "Gemini provider with API key",
@@ -253,13 +255,13 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 			gateway, err := factory.NewGenerationGateway(ctx, tt.profile)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, gateway)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, gateway)
 			}
 		})
@@ -435,13 +437,13 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 			gateway, err := factory.NewEmbeddingsGateway(ctx, tt.profile)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, gateway)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, gateway)
 			}
 		})

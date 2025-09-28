@@ -18,11 +18,16 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/app"
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/app"
 )
+
+// ErrCommandIsNil indicates the command parameter is nil
+var ErrCommandIsNil = errors.New("command is nil")
 
 func Execute() error {
 	return rootCmd.Execute()
@@ -32,6 +37,11 @@ var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Handle nil command gracefully
+		if cmd == nil {
+			return ErrCommandIsNil
+		}
+
 		// Skip app initialization for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
@@ -42,7 +52,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize app: %w", err)
 		}
 
-		cmd.SetContext(app.Context)
+		cmd.SetContext(app.ShutdownService.Context())
 
 		return nil
 	},

@@ -23,6 +23,11 @@ import (
 	"strings"
 )
 
+// Git command errors
+var (
+	ErrGitCommandFailed = errors.New("git command failed")
+)
+
 // Service provides Git repository operations.
 type Service interface {
 	ReadStagedFiles() ([]string, error)
@@ -32,9 +37,7 @@ type Service interface {
 }
 
 // serviceImpl implements GitService.
-type serviceImpl struct {
-	Service
-}
+type serviceImpl struct{}
 
 // NewService creates a new Git service.
 func NewService() Service {
@@ -44,16 +47,19 @@ func NewService() Service {
 // runGitCommand is a helper function that executes any git command and returns its output.
 func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+
 	out, err := cmd.Output()
 	if err != nil {
 		// If an error occurs, try to get more detailed information from stderr.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
-			return "", fmt.Errorf("git command failed: %s\nargs: %v", strings.TrimSpace(stderr), args)
+			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
 		}
+
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}
+
 	return string(out), nil
 }
 

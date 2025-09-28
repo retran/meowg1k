@@ -20,15 +20,15 @@ import (
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 )
 
-// GenerateContentInput represents the input for the generate activity
-type GenerateContentInput struct {
+// ContentInput represents the input for the generate activity
+type ContentInput struct {
 	Profile      *mdProfile.ResolvedProfile
 	UserPrompt   string
 	SystemPrompt string
 }
 
-// GenerateContentOutput represents the output from the generate activity
-type GenerateContentOutput struct {
+// ContentOutput represents the output from the generate activity
+type ContentOutput struct {
 	Content  string
 	Metadata map[string]any
 }

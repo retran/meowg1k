@@ -1,0 +1,52 @@
+version: 2
+updates:
+  # Keep Go modules up to date
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    reviewers:
+      - "retran"
+    labels:
+      - "dependencies"
+      - "go"
+
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    reviewers:
+      - "retran"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Keep Docker up to date if we have Dockerfile
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    reviewers:
+      - "retran"
+    labels:
+      - "dependencies"
+      - "docker"
