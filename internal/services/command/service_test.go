@@ -203,3 +203,241 @@ func TestGetStdIn(t *testing.T) {
 	// Test that GetStdIn returns a string (not nil)
 	_ = service.GetStdIn() // Should not panic
 }
+
+func TestNewServiceStdinErrorPaths(t *testing.T) {
+	// These tests are challenging because they require manipulating stdin
+	// We can test the service creation works with various command configurations
+	
+	tests := []struct {
+		name        string
+		setupCmd    func() *cobra.Command
+		expectError bool
+	}{
+		{
+			name: "Valid command with no flags",
+			setupCmd: func() *cobra.Command {
+				return &cobra.Command{Use: "test"}
+			},
+			expectError: false,
+		},
+		{
+			name: "Command with multiple flags",
+			setupCmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "complex"}
+				cmd.Flags().String("config", "", "config path")
+				cmd.Flags().String("task", "", "task name")
+				cmd.Flags().String("user-prompt", "", "user prompt")
+				cmd.Flags().Bool("silent", false, "silent mode")
+				return cmd
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := tt.setupCmd()
+			service, err := NewService(cmd)
+			
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if !tt.expectError && service == nil {
+				t.Error("Expected service but got nil")
+			}
+		})
+	}
+}
+
+func TestGetMethodsWithUndefinedFlags(t *testing.T) {
+	// Test error handling when flags are not defined
+	cmd := &cobra.Command{Use: "test"}
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		testFunc func() (interface{}, error)
+	}{
+		{
+			name: "GetConfigPath with undefined flag",
+			testFunc: func() (interface{}, error) {
+				return service.GetConfigPath()
+			},
+		},
+		{
+			name: "GetTaskName with undefined flag",
+			testFunc: func() (interface{}, error) {
+				return service.GetTaskName()
+			},
+		},
+		{
+			name: "GetUserPrompt with undefined flag",
+			testFunc: func() (interface{}, error) {
+				return service.GetUserPrompt()
+			},
+		},
+		{
+			name: "GetSilentFlag with undefined flag",
+			testFunc: func() (interface{}, error) {
+				return service.GetSilentFlag()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.testFunc()
+			if err == nil {
+				t.Errorf("Expected error for %s when flag is undefined", tt.name)
+			}
+		})
+	}
+}
+
+func TestServiceMethodsWithDefinedButUnsetFlags(t *testing.T) {
+	// Test behavior when flags are defined but not set (empty values)
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Test with unset flags (should return empty/default values)
+	configPath, err := service.GetConfigPath()
+	if err != nil {
+		t.Errorf("GetConfigPath failed: %v", err)
+	}
+	if configPath != "" {
+		t.Errorf("Expected empty config path, got '%s'", configPath)
+	}
+
+	taskName, err := service.GetTaskName()
+	if err != nil {
+		t.Errorf("GetTaskName failed: %v", err)
+	}
+	if taskName != "" {
+		t.Errorf("Expected empty task name, got '%s'", taskName)
+	}
+
+	userPrompt, err := service.GetUserPrompt()
+	if err != nil {
+		t.Errorf("GetUserPrompt failed: %v", err)
+	}
+	if userPrompt != "" {
+		t.Errorf("Expected empty user prompt, got '%s'", userPrompt)
+	}
+
+	silent, err := service.GetSilentFlag()
+	if err != nil {
+		t.Errorf("GetSilentFlag failed: %v", err)
+	}
+	if silent {
+		t.Error("Expected silent flag to be false by default")
+	}
+}
+
+func TestGetMethodsWithVariousValues(t *testing.T) {
+	// Test with various flag values including edge cases
+	tests := []struct {
+		name          string
+		configValue   string
+		taskValue     string
+		promptValue   string
+		silentValue   string
+	}{
+		{
+			name:          "Normal values",
+			configValue:   "/etc/config.yaml",
+			taskValue:     "process-data",
+			promptValue:   "Process the input data",
+			silentValue:   "false",
+		},
+		{
+			name:          "Empty string values",
+			configValue:   "",
+			taskValue:     "",
+			promptValue:   "",
+			silentValue:   "false",
+		},
+		{
+			name:          "Special characters",
+			configValue:   "/path/with spaces/config.yaml",
+			taskValue:     "task-with-dashes_and_underscores",
+			promptValue:   "Prompt with \"quotes\" and 'apostrophes'",
+			silentValue:   "true",
+		},
+		{
+			name:          "Long values",
+			configValue:   "/very/long/path/to/configuration/file/that/might/cause/issues.yaml",
+			taskValue:     "very-long-task-name-that-exceeds-normal-length-expectations",
+			promptValue:   "This is a very long prompt that contains multiple sentences and might test the limits of string handling in the system.",
+			silentValue:   "true",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: "test"}
+			cmd.Flags().String("config", "", "config path")
+			cmd.Flags().String("task", "", "task name")
+			cmd.Flags().String("user-prompt", "", "user prompt")
+			cmd.Flags().Bool("silent", false, "silent mode")
+
+			// Set flag values
+			cmd.Flags().Set("config", tt.configValue)
+			cmd.Flags().Set("task", tt.taskValue)
+			cmd.Flags().Set("user-prompt", tt.promptValue)
+			cmd.Flags().Set("silent", tt.silentValue)
+
+			service, err := NewService(cmd)
+			if err != nil {
+				t.Fatalf("NewService failed: %v", err)
+			}
+
+			// Test all getters
+			configPath, err := service.GetConfigPath()
+			if err != nil {
+				t.Errorf("GetConfigPath failed: %v", err)
+			}
+			if configPath != tt.configValue {
+				t.Errorf("Expected config '%s', got '%s'", tt.configValue, configPath)
+			}
+
+			taskName, err := service.GetTaskName()
+			if err != nil {
+				t.Errorf("GetTaskName failed: %v", err)
+			}
+			if taskName != tt.taskValue {
+				t.Errorf("Expected task '%s', got '%s'", tt.taskValue, taskName)
+			}
+
+			userPrompt, err := service.GetUserPrompt()
+			if err != nil {
+				t.Errorf("GetUserPrompt failed: %v", err)
+			}
+			if userPrompt != tt.promptValue {
+				t.Errorf("Expected prompt '%s', got '%s'", tt.promptValue, userPrompt)
+			}
+
+			expectedSilent := tt.silentValue == "true"
+			silent, err := service.GetSilentFlag()
+			if err != nil {
+				t.Errorf("GetSilentFlag failed: %v", err)
+			}
+			if silent != expectedSilent {
+				t.Errorf("Expected silent %v, got %v", expectedSilent, silent)
+			}
+		})
+	}
+}

@@ -446,6 +446,241 @@ func TestFormatActivityLine(t *testing.T) {
 	}
 }
 
+func TestFormatActivityLineEdgeCases(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	
+	// Test nil activity
+	result := tracker.formatActivityLine(nil, 0)
+	if result != "" {
+		t.Errorf("Expected empty string for nil activity, got: %q", result)
+	}
+	
+	// Test activity with retry metadata
+	activityWithRetry := &ExecutionProgress{
+		Name:      "retry-activity",
+		Status:    executor.StatusRunning,
+		Message:   "Original message",
+		Level:     0,
+		StartTime: time.Now(),
+		Metadata:  map[string]interface{}{"retry_attempt": 3},
+	}
+	result = tracker.formatActivityLine(activityWithRetry, 0)
+	if !strings.Contains(result, "retry 3 - Original message") {
+		t.Errorf("Expected retry message, got: %q", result)
+	}
+	
+	// Test activity with progress
+	activityWithProgress := &ExecutionProgress{
+		Name:      "progress-activity", 
+		Status:    executor.StatusRunning,
+		Message:   "In progress",
+		Level:     0,
+		StartTime: time.Now(),
+		Progress:  0.75, // 75%
+	}
+	result = tracker.formatActivityLine(activityWithProgress, 0)
+	if !strings.Contains(result, "(75%)") {
+		t.Errorf("Expected progress percentage, got: %q", result)
+	}
+	
+	// Test failed activity with error
+	failedActivity := &ExecutionProgress{
+		Name:      "failed-activity",
+		Status:    executor.StatusFailed,
+		Message:   "Failed operation",
+		Level:     0,
+		StartTime: time.Now(),
+		EndTime:   &[]time.Time{time.Now()}[0],
+		Error:     fmt.Errorf("detailed error message"),
+	}
+	result = tracker.formatActivityLine(failedActivity, 0)
+	if !strings.Contains(result, "Failed operation") {
+		t.Errorf("Expected failure message, got: %q", result)
+	}
+	if !strings.Contains(result, "detailed error message") {
+		t.Errorf("Expected error message, got: %q", result)
+	}
+	
+	// Test failed activity with very long error message (should be truncated)
+	longErrorActivity := &ExecutionProgress{
+		Name:      "long-error-activity",
+		Status:    executor.StatusFailed,
+		Message:   "Failed",
+		Level:     0,
+		StartTime: time.Now(),
+		EndTime:   &[]time.Time{time.Now()}[0],
+		Error:     fmt.Errorf("this is a very long error message that should be truncated because it exceeds fifty characters"),
+	}
+	result = tracker.formatActivityLine(longErrorActivity, 0)
+	if !strings.Contains(result, "...") {
+		t.Errorf("Expected truncated error message, got: %q", result)
+	}
+	
+	// Test unknown status (should return empty string)
+	unknownStatusActivity := &ExecutionProgress{
+		Name:      "unknown-activity",
+		Status:    executor.Status("invalid_status"), // invalid status
+		Message:   "Unknown",
+		Level:     0,
+		StartTime: time.Now(),
+	}
+	result = tracker.formatActivityLine(unknownStatusActivity, 0)
+	if result != "" {
+		t.Errorf("Expected empty string for unknown status, got: %q", result)
+	}
+}
+
+func TestUpdateDisplayComprehensive(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	tracker.Start() // Start the display loop
+	
+	// Add multiple activities using proper Feedback struct
+	activities := []executor.Feedback{
+		{ActivityName: "parent", Status: executor.StatusRunning, Message: "Parent activity", Timestamp: time.Now()},
+		{ActivityName: "parent.child1", Status: executor.StatusCompleted, Message: "Child 1 completed", Timestamp: time.Now()},
+		{ActivityName: "parent.child2", Status: executor.StatusRunning, Message: "Child 2 running", Timestamp: time.Now()},
+		{ActivityName: "independent", Status: executor.StatusFailed, Message: "Failed independently", Error: fmt.Errorf("test error"), Timestamp: time.Now()},
+	}
+	
+	for _, feedback := range activities {
+		tracker.UpdateActivity(feedback)
+	}
+	
+	// Wait longer for display loop to process
+	time.Sleep(500 * time.Millisecond)
+	
+	// Stop the tracker
+	tracker.Stop()
+	
+	// Verify activities were added (can't easily capture stderr output in tests)
+	tracker.mu.RLock()
+	defer tracker.mu.RUnlock()
+	
+	if len(tracker.executions) != 4 {
+		t.Errorf("Expected 4 activities, got %d", len(tracker.executions))
+	}
+	
+	if tracker.executions["parent"] == nil {
+		t.Error("Expected parent activity to be tracked")
+	}
+	if tracker.executions["parent.child1"] == nil {
+		t.Error("Expected child1 activity to be tracked")
+	}
+	if tracker.executions["parent.child2"] == nil {
+		t.Error("Expected child2 activity to be tracked")
+	}
+	if tracker.executions["independent"] == nil {
+		t.Error("Expected independent activity to be tracked")
+	}
+}
+
+func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	
+	// Test adding activity with complex metadata
+	metadata := map[string]interface{}{
+		"retry_attempt": 2,
+		"custom_field":  "value",
+		"numeric_field": 123,
+	}
+	
+	feedback := executor.Feedback{
+		ActivityName: "complex.nested.activity",
+		Status:       executor.StatusRunning,
+		Message:      "Complex activity",
+		Metadata:     metadata,
+		Timestamp:    time.Now(),
+	}
+	tracker.UpdateActivity(feedback)
+	
+	tracker.mu.RLock()
+	activity := tracker.executions["complex.nested.activity"]
+	tracker.mu.RUnlock()
+	
+	if activity == nil {
+		t.Fatalf("Activity not found")
+	}
+	
+	if activity.Level != 2 { // Should be calculated from name depth
+		t.Errorf("Expected level 2, got %d", activity.Level)
+	}
+	
+	if retryAttempt, ok := activity.Metadata["retry_attempt"].(int); !ok || retryAttempt != 2 {
+		t.Errorf("Expected retry_attempt=2 in metadata")
+	}
+	
+	// Test duplicate activity update
+	updateFeedback := executor.Feedback{
+		ActivityName: "complex.nested.activity",
+		Status:       executor.StatusCompleted,
+		Message:      "Completed complex",
+		Timestamp:    time.Now(),
+	}
+	tracker.UpdateActivity(updateFeedback)
+	
+	tracker.mu.RLock()
+	updatedActivity := tracker.executions["complex.nested.activity"]
+	tracker.mu.RUnlock()
+	
+	if updatedActivity.Status != executor.StatusCompleted {
+		t.Errorf("Expected activity to be updated to completed")
+	}
+	if updatedActivity.Message != "Completed complex" {
+		t.Errorf("Expected updated message")
+	}
+}
+
+func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
+	tracker := NewExecutionTracker(false)
+	
+	// Add nested activities using proper Feedback
+	activities := []string{"root", "root.level1", "root.level1.level2", "root.level1.level2.level3"}
+	for _, name := range activities {
+		feedback := executor.Feedback{
+			ActivityName: name,
+			Status:       executor.StatusRunning,
+			Message:      "Level message",
+			Timestamp:    time.Now(),
+		}
+		tracker.UpdateActivity(feedback)
+	}
+	
+	runningWithAncestors := make(map[string]bool)
+	
+	// Mark deepest level and verify all ancestors get marked
+	tracker.markActivityAndAncestors("root.level1.level2.level3", runningWithAncestors)
+	
+	expectedMarked := []string{
+		"root.level1.level2.level3",
+		"root.level1.level2",
+		"root.level1",
+		"root",
+	}
+	
+	for _, activity := range expectedMarked {
+		if !runningWithAncestors[activity] {
+			t.Errorf("Expected activity %s to be marked", activity)
+		}
+	}
+	
+	// Test marking non-existent activity (should not panic)
+	tracker.markActivityAndAncestors("nonexistent", runningWithAncestors)
+	
+	// Test marking activity without parent structure
+	standalone := executor.Feedback{
+		ActivityName: "standalone",
+		Status:       executor.StatusRunning,
+		Message:      "Standalone",
+		Timestamp:    time.Now(),
+	}
+	tracker.UpdateActivity(standalone)
+	tracker.markActivityAndAncestors("standalone", runningWithAncestors)
+	
+	if !runningWithAncestors["standalone"] {
+		t.Errorf("Expected standalone activity to be marked")
+	}
+}
+
 func TestGetVisibleActivities(t *testing.T) {
 	tracker := NewExecutionTracker(false)
 	tracker.maxExecutions = 3 // Limit to test filtering
