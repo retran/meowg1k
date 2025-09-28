@@ -343,17 +343,14 @@ func TestRootCmdEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Nil command", func(t *testing.T) {
-		// Test with nil command (should be handled gracefully)
-		defer func() {
-			if r := recover(); r != nil {
-				t.Errorf("PersistentPreRunE should not panic with nil command: %v", r)
-			}
-		}()
-		
-		// This might panic or return an error, both are acceptable
+		// Test with nil command - this is expected to fail gracefully
+		// but shouldn't cause panics in production
 		err := rootCmd.PersistentPreRunE(nil, []string{})
-		if err != nil {
-			t.Logf("Expected error with nil command: %v", err)
+		if err == nil {
+			t.Error("Expected error with nil command")
 		}
+		
+		// Any error is acceptable as long as it doesn't panic
+		t.Logf("Got expected error with nil command: %v", err)
 	})
 }

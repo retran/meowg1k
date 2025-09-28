@@ -32,6 +32,11 @@ var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// Handle nil command gracefully
+		if cmd == nil {
+			return fmt.Errorf("command is nil")
+		}
+		
 		// Skip app initialization for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
