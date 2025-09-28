@@ -32,6 +32,13 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
+// Test error definitions
+var (
+	errUserPromptError    = errors.New("user prompt error")
+	errSystemPromptError  = errors.New("system prompt error")
+	errActivityExecFailed = errors.New("activity execution failed")
+)
+
 // Mock implementations for testing
 
 type mockGatewayFactory struct{}
@@ -61,10 +68,10 @@ func (m *mockEmbeddingsGateway) ComputeDistance(first, second mdGateway.Embeddin
 }
 
 type mockTaskService struct {
-	config *task.TaskConfiguration
+	config *task.Configuration
 }
 
-func (m *mockTaskService) Get() *task.TaskConfiguration {
+func (m *mockTaskService) Get() *task.Configuration {
 	return m.config
 }
 
@@ -148,7 +155,7 @@ func TestNewContentActivityFactory(t *testing.T) {
 
 func TestNewContentFlowFactory(t *testing.T) {
 	taskService := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			Name:         "test-task",
 			Profile:      &mdProfile.ResolvedProfile{},
 			SystemPrompt: "System prompt",
@@ -257,7 +264,7 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 	}
 
 	// Create real executor context with no-op feedback handler
-	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, mockExecutor{})
+	executorCtx := executor.NewContext("test-activity", executor.NoOpFeedbackHandler, mockExecutor{})
 
 	profile := &mdProfile.ResolvedProfile{
 		Provider:        mdGateway.OpenAI,
@@ -298,7 +305,7 @@ func TestGenerateContentActivityWithNilInput(t *testing.T) {
 	factory := NewActivityFactory(&mockGatewayFactory{})
 	activity := factory.NewActivity()
 
-	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+	executorCtx := executor.NewContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
 
 	// Test with nil input
 	ctx := context.Background()
@@ -318,7 +325,7 @@ func TestGenerateContentActivityWithInvalidInput(t *testing.T) {
 	factory := NewActivityFactory(&mockGatewayFactory{})
 	activity := factory.NewActivity()
 
-	executorCtx := executor.NewExecutorContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
+	executorCtx := executor.NewContext("test-activity", executor.NoOpFeedbackHandler, &mockExecutor{})
 
 	// Test with wrong input type
 	ctx := context.Background()
@@ -341,7 +348,7 @@ func TestGenerateContentFlowExecution(t *testing.T) {
 	}
 
 	taskService := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			Name:         "test-task",
 			Profile:      profile,
 			SystemPrompt: "System prompt",
@@ -366,7 +373,7 @@ func TestGenerateContentFlowExecution(t *testing.T) {
 	}
 
 	// Create real executor context
-	executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+	executorCtx := executor.NewContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
 
 	// Test flow execution
 	ctx := context.Background()
@@ -379,7 +386,7 @@ func TestGenerateContentFlowExecution(t *testing.T) {
 
 func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 	taskService := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			Name:    "test-task",
 			Profile: &mdProfile.ResolvedProfile{},
 		},
@@ -387,7 +394,7 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 
 	// Test with user prompt error
 	t.Run("user prompt error", func(t *testing.T) {
-		userPromptProvider := &mockPromptProviderWithError{err: errors.New("user prompt error")}
+		userPromptProvider := &mockPromptProviderWithError{err: errUserPromptError}
 		systemPromptProvider := &mockPromptProvider{prompt: "System prompt"}
 		activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
@@ -399,7 +406,7 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 		)
 
 		flow := flowFactory.NewFlow()
-		executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+		executorCtx := executor.NewContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
 
 		ctx := context.Background()
 		err := flow(ctx, executorCtx)
@@ -416,7 +423,7 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 	// Test with system prompt error
 	t.Run("system prompt error", func(t *testing.T) {
 		userPromptProvider := &mockPromptProvider{prompt: "User prompt"}
-		systemPromptProvider := &mockPromptProviderWithError{err: errors.New("system prompt error")}
+		systemPromptProvider := &mockPromptProviderWithError{err: errSystemPromptError}
 		activityFactory := NewActivityFactory(&mockGatewayFactory{})
 
 		flowFactory := NewFlowFactory(
@@ -427,7 +434,7 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 		)
 
 		flow := flowFactory.NewFlow()
-		executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
+		executorCtx := executor.NewContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutor{})
 
 		ctx := context.Background()
 		err := flow(ctx, executorCtx)
@@ -444,7 +451,7 @@ func TestGenerateContentFlowWithPromptErrors(t *testing.T) {
 
 func TestGenerateContentFlowWithActivityError(t *testing.T) {
 	taskService := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			Name:    "test-task",
 			Profile: &mdProfile.ResolvedProfile{},
 		},
@@ -464,7 +471,7 @@ func TestGenerateContentFlowWithActivityError(t *testing.T) {
 	flow := flowFactory.NewFlow()
 
 	// Mock executor that returns error
-	executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutorWithError{err: errors.New("activity execution failed")})
+	executorCtx := executor.NewContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutorWithError{err: errActivityExecFailed})
 
 	ctx := context.Background()
 	err := flow(ctx, executorCtx)
@@ -484,7 +491,7 @@ type mockExecutor struct{}
 
 func (m mockExecutor) RunActivity(
 	ctx context.Context,
-	parentCtx *executor.ExecutorContext,
+	parentCtx *executor.Context,
 	name string,
 	activity executor.Activity[any, any],
 	input any,
@@ -510,7 +517,7 @@ type mockExecutorWithError struct {
 
 func (m mockExecutorWithError) RunActivity(
 	ctx context.Context,
-	parentCtx *executor.ExecutorContext,
+	parentCtx *executor.Context,
 	name string,
 	activity executor.Activity[any, any],
 	input any,

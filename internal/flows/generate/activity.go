@@ -50,8 +50,8 @@ func NewActivityFactory(
 
 // NewActivity creates and returns the generate activity function with added progress reporting.
 func (f *ActivityFactory) NewActivity() func(
-	context.Context, *executor.ExecutorContext, any) (any, error) {
-	return func(ctx context.Context, executorCtx *executor.ExecutorContext, input any) (any, error) {
+	context.Context, *executor.Context, any) (any, error) {
+	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
 		executorCtx.SendProgress(0.0, "Preparing generation request...")
 
 		if input == nil {

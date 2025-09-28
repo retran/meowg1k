@@ -84,7 +84,7 @@ func TestGetInvalidProvider(t *testing.T) {
 		t.Error("Expected error for invalid provider")
 	}
 
-	expectedErrorMsg := "provider 'invalid-provider' not found"
+	expectedErrorMsg := "provider not found: invalid-provider"
 	if err.Error() != expectedErrorMsg {
 		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, err.Error())
 	}

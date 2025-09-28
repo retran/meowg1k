@@ -77,16 +77,16 @@ type FeedbackHandler func(feedback Feedback)
 // NoOpFeedbackHandler is a feedback handler that does nothing.
 func NoOpFeedbackHandler(feedback Feedback) {}
 
-// ExecutorContext provides feedback capabilities to activities and access to the executor.
-type ExecutorContext struct {
+// Context provides feedback capabilities to activities and access to the executor.
+type Context struct {
 	name         string
 	feedbackFunc FeedbackHandler
 	Executor     Executor // Interface for running sub-activities
 }
 
-// NewExecutorContext creates a new executor context.
-func NewExecutorContext(name string, feedbackFunc FeedbackHandler, executor Executor) *ExecutorContext {
-	return &ExecutorContext{
+// NewContext creates a new executor context.
+func NewContext(name string, feedbackFunc FeedbackHandler, executor Executor) *Context {
+	return &Context{
 		name:         name,
 		feedbackFunc: feedbackFunc,
 		Executor:     executor,
@@ -94,16 +94,16 @@ func NewExecutorContext(name string, feedbackFunc FeedbackHandler, executor Exec
 }
 
 // Name returns the name of the activity.
-func (c *ExecutorContext) Name() string {
+func (c *Context) Name() string {
 	return c.name
 }
 
 // GetExecutor returns the executor associated with the context.
-func (c *ExecutorContext) GetExecutor() Executor {
+func (c *Context) GetExecutor() Executor {
 	return c.Executor
 }
 
-func (c *ExecutorContext) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
+func (c *Context) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
 	if c.feedbackFunc == nil {
 		return
 	}
@@ -120,48 +120,48 @@ func (c *ExecutorContext) sendFeedback(status Status, progress float64, message 
 }
 
 // SendPending sends a pending status update.
-func (c *ExecutorContext) SendPending(message string) {
+func (c *Context) SendPending(message string) {
 	c.sendFeedback(StatusPending, 0, message, nil, nil)
 }
 
 // SendStarted sends a started status update.
-func (c *ExecutorContext) SendStarted(message string) {
+func (c *Context) SendStarted(message string) {
 	c.sendFeedback(StatusStarted, 0, message, nil, nil)
 }
 
 // SendProgress sends a progress update.
-func (c *ExecutorContext) SendProgress(progress float64, message string) {
+func (c *Context) SendProgress(progress float64, message string) {
 	c.sendFeedback(StatusRunning, progress, message, nil, nil)
 }
 
 // SendCompleted sends a completed status update.
-func (c *ExecutorContext) SendCompleted(message string) {
+func (c *Context) SendCompleted(message string) {
 	c.sendFeedback(StatusCompleted, 1, message, nil, nil)
 }
 
 // SendFailed sends a failed status update.
-func (c *ExecutorContext) SendFailed(err error, message string) {
+func (c *Context) SendFailed(err error, message string) {
 	c.sendFeedback(StatusFailed, 0, message, err, nil)
 }
 
 // SendRetry sends a retry status update.
-func (c *ExecutorContext) SendRetry(attempt int, err error) {
+func (c *Context) SendRetry(attempt int, err error) {
 	c.sendFeedback(StatusRunning, 0, fmt.Sprintf("Retrying (%d)", attempt), err, map[string]any{
 		"retry_attempt": attempt,
 	})
 }
 
 // Activity defines a function that can be executed by the executor.
-type Activity[T any, K any] func(ctx context.Context, activityCtx *ExecutorContext, input T) (K, error)
+type Activity[T any, K any] func(ctx context.Context, activityCtx *Context, input T) (K, error)
 
 // Flow defines a function that can be executed by the executor.
-type Flow func(ctx context.Context, flowCtx *ExecutorContext) error
+type Flow func(ctx context.Context, flowCtx *Context) error
 
 // Executor defines the interface for executing flows and activities.
 type Executor interface {
 	RunActivity(
 		ctx context.Context,
-		parentCtx *ExecutorContext,
+		parentCtx *Context,
 		name string,
 		activity Activity[any, any],
 		input any,

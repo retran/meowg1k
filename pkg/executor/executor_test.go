@@ -108,7 +108,7 @@ func TestRunFlow(t *testing.T) {
 	exec := NewExecutor()
 	ctx := context.Background()
 
-	flow := func(ctx context.Context, activityCtx *ExecutorContext) error {
+	flow := func(ctx context.Context, activityCtx *Context) error {
 		return nil
 	}
 
@@ -122,7 +122,7 @@ func TestRunFlowWithError(t *testing.T) {
 	exec := NewExecutor()
 	ctx := context.Background()
 
-	flow := func(ctx context.Context, activityCtx *ExecutorContext) error {
+	flow := func(ctx context.Context, activityCtx *Context) error {
 		return errTest
 	}
 
@@ -138,9 +138,9 @@ func TestRunFlowWithError(t *testing.T) {
 func TestRunActivity(t *testing.T) {
 	exec := NewExecutor()
 	ctx := context.Background()
-	parentCtx := NewExecutorContext("parent", NoOpFeedbackHandler, exec)
+	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
-	activity := func(ctx context.Context, activityCtx *ExecutorContext, input any) (any, error) {
+	activity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
 		return "result", nil
 	}
 
@@ -157,9 +157,9 @@ func TestRunActivity(t *testing.T) {
 func TestRunActivityWithError(t *testing.T) {
 	exec := NewExecutor()
 	ctx := context.Background()
-	parentCtx := NewExecutorContext("parent", NoOpFeedbackHandler, exec)
+	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
-	activity := func(ctx context.Context, activityCtx *ExecutorContext, input any) (any, error) {
+	activity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
 		return nil, errActivity
 	}
 
@@ -172,7 +172,7 @@ func TestRunActivityWithError(t *testing.T) {
 
 func TestExecutorContext(t *testing.T) {
 	exec := NewExecutor()
-	ctx := NewExecutorContext("test", NoOpFeedbackHandler, exec)
+	ctx := NewContext("test", NoOpFeedbackHandler, exec)
 
 	if ctx.GetExecutor() != exec {
 		t.Error("expected GetExecutor to return the executor")
@@ -208,7 +208,7 @@ func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	ctx := NewExecutorContext("test-activity", handler, nil)
+	ctx := NewContext("test-activity", handler, nil)
 
 	// Test sendFeedback with various statuses
 	ctx.sendFeedback(StatusPending, 0.0, "pending", nil, nil)
@@ -234,7 +234,7 @@ func TestExecutorContextRetryWithDetails(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	ctx := NewExecutorContext("retry-activity", handler, nil)
+	ctx := NewContext("retry-activity", handler, nil)
 
 	// Test SendRetry with different retry counts
 	ctx.SendRetry(1, errFirstRetry)
@@ -267,7 +267,7 @@ func TestExecutorContextFailedWithDetails(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	ctx := NewExecutorContext("failed-activity", handler, nil)
+	ctx := NewContext("failed-activity", handler, nil)
 
 	ctx.SendFailed(errTestFailure, "operation failed")
 
@@ -296,7 +296,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	executor := NewExecutor().WithFeedbackHandler(handler)
 
 	// Define a complex activity that sends multiple feedback updates
-	complexActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+	complexActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		inputStr := input.(string)
 		executorCtx.SendStarted("Starting complex operation")
 
@@ -313,7 +313,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 
 	// Run the complex activity
 	ctx := context.Background()
-	parentCtx := NewExecutorContext("parent", handler, executor)
+	parentCtx := NewContext("parent", handler, executor)
 
 	future := executor.RunActivity(ctx, parentCtx, "complex", complexActivity, "test-input")
 
@@ -340,7 +340,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	executor := NewExecutor().WithFeedbackHandler(handler)
 
 	// Define an activity that fails
-	failingActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+	failingActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		executorCtx.SendStarted("Starting operation that will fail")
 
 		time.Sleep(10 * time.Millisecond)
@@ -351,7 +351,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	parentCtx := NewExecutorContext("parent", handler, executor)
+	parentCtx := NewContext("parent", handler, executor)
 
 	future := executor.RunActivity(ctx, parentCtx, "failing", failingActivity, 42)
 
@@ -385,7 +385,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 	executor := NewExecutor().WithFeedbackHandler(handler)
 
 	// Define a simple activity
-	simpleActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+	simpleActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		inputStr := input.(string)
 		executorCtx.SendStarted("Processing " + inputStr)
 		time.Sleep(10 * time.Millisecond)
@@ -395,7 +395,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 	}
 
 	// Define a flow that runs multiple activities
-	testFlow := func(ctx context.Context, executorCtx *ExecutorContext) error {
+	testFlow := func(ctx context.Context, executorCtx *Context) error {
 		executorCtx.SendStarted("Starting flow")
 
 		// Run first activity
@@ -432,7 +432,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 
 func TestExecutorContextWithNilHandler(t *testing.T) {
 	// Test that executor context works with nil handler (shouldn't panic)
-	ctx := NewExecutorContext("test-activity", nil, nil)
+	ctx := NewContext("test-activity", nil, nil)
 
 	// These should not panic
 	ctx.SendStarted("started")
@@ -446,7 +446,7 @@ func TestExecutorWithTimeout(t *testing.T) {
 	executor := NewExecutor() // Uses NoOpFeedbackHandler by default
 
 	// Define a slow activity
-	slowActivity := func(ctx context.Context, executorCtx *ExecutorContext, input any) (any, error) {
+	slowActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		select {
 		case <-time.After(1 * time.Second): // This will timeout
 			return "slow-result", nil
@@ -459,7 +459,7 @@ func TestExecutorWithTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	parentCtx := NewExecutorContext("parent", NoOpFeedbackHandler, executor)
+	parentCtx := NewContext("parent", NoOpFeedbackHandler, executor)
 	future := executor.RunActivity(ctx, parentCtx, "slow", slowActivity, "test")
 
 	result, err := future.Get(context.Background())

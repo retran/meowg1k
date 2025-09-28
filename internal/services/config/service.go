@@ -27,6 +27,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Configuration errors
+var (
+	ErrSpecifiedConfigFileNotFound = errors.New("specified config file not found")
+	ErrNoConfigFoundInStdLocations = errors.New("no configuration file found in standard locations")
+)
+
 const (
 	projectName      = "meowg1k"
 	projectConfigDir = "." + projectName
@@ -50,7 +56,6 @@ var _ Service = (*serviceImpl)(nil)
 // NewService creates a new configuration service and loads configuration at creation time.
 func NewService(commandSvc command.Service) (Service, error) {
 	service := &serviceImpl{}
-
 	v := viper.New()
 
 	configPath, err := commandSvc.GetConfigPath()
@@ -59,63 +64,12 @@ func NewService(commandSvc command.Service) (Service, error) {
 	}
 
 	if configPath != "" {
-		v.SetConfigFile(configPath)
-		if err := v.ReadInConfig(); err != nil {
-			var configFileNotFoundError viper.ConfigFileNotFoundError
-			if errors.As(err, &configFileNotFoundError) {
-				return nil, fmt.Errorf("specified config file not found: %s", configPath)
-			}
-			return nil, fmt.Errorf("failed to read config file: %w", err)
-		}
+		err = loadSpecificConfigFile(v, configPath)
 	} else {
-		v.SetConfigName(configFileName)
-		v.SetConfigType("yaml")
-
-		var configPaths []string
-
-		systemConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
-		if systemConfigDirs == "" {
-			systemConfigDirs = "/etc/xdg"
-		}
-
-		configPaths = append(configPaths, filepath.Join(systemConfigDirs, projectName))
-
-		userConfigDir := os.Getenv("XDG_CONFIG_HOME")
-		if userConfigDir == "" {
-			if home := os.Getenv("HOME"); home != "" {
-				userConfigDir = filepath.Join(home, ".config")
-			}
-		}
-
-		if userConfigDir != "" {
-			configPaths = append(configPaths, filepath.Join(userConfigDir, projectName))
-		}
-
-		if cwd, err := os.Getwd(); err == nil {
-			configPaths = append(configPaths, filepath.Join(cwd, projectConfigDir))
-		}
-
-		foundAny := false
-		for i, path := range configPaths {
-			configFile := filepath.Join(path, configFileName+".yaml")
-			if _, err := os.Stat(configFile); err == nil {
-				if i == 0 {
-					v.AddConfigPath(path)
-					if err := v.ReadInConfig(); err == nil {
-						foundAny = true
-					}
-				} else {
-					v.SetConfigFile(configFile)
-					if err := v.MergeInConfig(); err == nil {
-						foundAny = true
-					}
-				}
-			}
-		}
-
-		if !foundAny {
-			return nil, fmt.Errorf("no configuration file found in standard locations")
-		}
+		err = loadDefaultConfigFiles(v)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// Unmarshal into config struct
@@ -126,6 +80,80 @@ func NewService(commandSvc command.Service) (Service, error) {
 
 	service.config = &cfg
 	return service, nil
+}
+
+// loadSpecificConfigFile loads a specific config file path.
+func loadSpecificConfigFile(v *viper.Viper, configPath string) error {
+	v.SetConfigFile(configPath)
+
+	if err := v.ReadInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			return fmt.Errorf("%w: %s", ErrSpecifiedConfigFileNotFound, configPath)
+		}
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+	return nil
+}
+
+// loadDefaultConfigFiles loads configuration files from standard locations.
+func loadDefaultConfigFiles(v *viper.Viper) error {
+	v.SetConfigName(configFileName)
+	v.SetConfigType("yaml")
+
+	configPaths := getConfigPaths()
+	foundAny := false
+
+	for i, path := range configPaths {
+		configFile := filepath.Join(path, configFileName+".yaml")
+		if _, err := os.Stat(configFile); err == nil {
+			if i == 0 {
+				v.AddConfigPath(path)
+
+				if err := v.ReadInConfig(); err == nil {
+					foundAny = true
+				}
+			} else {
+				v.SetConfigFile(configFile)
+				if err := v.MergeInConfig(); err == nil {
+					foundAny = true
+				}
+			}
+		}
+	}
+
+	if !foundAny {
+		return ErrNoConfigFoundInStdLocations
+	}
+	return nil
+}
+
+// getConfigPaths returns the standard configuration file search paths.
+func getConfigPaths() []string {
+	var configPaths []string
+
+	systemConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
+	if systemConfigDirs == "" {
+		systemConfigDirs = "/etc/xdg"
+	}
+	configPaths = append(configPaths, filepath.Join(systemConfigDirs, projectName))
+
+	userConfigDir := os.Getenv("XDG_CONFIG_HOME")
+	if userConfigDir == "" {
+		if home := os.Getenv("HOME"); home != "" {
+			userConfigDir = filepath.Join(home, ".config")
+		}
+	}
+
+	if userConfigDir != "" {
+		configPaths = append(configPaths, filepath.Join(userConfigDir, projectName))
+	}
+
+	if cwd, err := os.Getwd(); err == nil {
+		configPaths = append(configPaths, filepath.Join(cwd, projectConfigDir))
+	}
+
+	return configPaths
 }
 
 // GetConfig returns the loaded configuration.

@@ -18,12 +18,18 @@ limitations under the License.
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdLLM "github.com/retran/meowg1k/internal/models/llm"
+)
+
+// Provider service errors
+var (
+	ErrProviderNotFound = errors.New("provider not found")
 )
 
 // Service provides provider registry capabilities.
@@ -140,7 +146,7 @@ func NewService() Service {
 func (s *serviceImpl) Get(providerType mdGateway.Provider) (mdConfig.ProviderDefinition, error) {
 	provider, exists := s.providers[providerType]
 	if !exists {
-		return mdConfig.ProviderDefinition{}, fmt.Errorf("provider '%s' not found", providerType)
+		return mdConfig.ProviderDefinition{}, fmt.Errorf("%w: %s", ErrProviderNotFound, providerType)
 	}
 
 	return provider, nil

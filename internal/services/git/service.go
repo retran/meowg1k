@@ -1,19 +1,7 @@
 /*
-Copyright © 2025 Andrew Vasilyev <me@refunc (g *serviceImpl) runGitCommand(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
-	out, err := cmd.Output()
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
-	if err != nil {
-		// If an error occurs, try to get more detailed information from stderr.
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			stderr := string(exitErr.Stderr)
-			return "", fmt.Errorf("git command failed: %s\nargs: %v", strings.TrimSpace(stderr), args)
-		}
-		return "", fmt.Errorf("failed to execute git command: %w, args: %v", err, args)
-	}
-	return string(out), nil
-}nsed under the Apache License, Version 2.0 (the "License");
+Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -33,6 +21,11 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+)
+
+// Git command errors
+var (
+	ErrGitCommandFailed = errors.New("git command failed")
 )
 
 // Service provides Git repository operations.
@@ -55,12 +48,13 @@ func NewService() Service {
 func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	out, err := cmd.Output()
+
 	if err != nil {
 		// If an error occurs, try to get more detailed information from stderr.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
-			return "", fmt.Errorf("git command failed: %s\nargs: %v", strings.TrimSpace(stderr), args)
+			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
 		}
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}

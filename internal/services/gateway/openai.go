@@ -42,7 +42,7 @@ type openaiGateway struct {
 
 // NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
 // It sets up the OpenAI client with the given base URL and API key.
-func newOpenAIGateway(baseURL string, apiKey string) (Gateway, error) {
+func newOpenAIGateway(baseURL, apiKey string) (Gateway, error) {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
 	}

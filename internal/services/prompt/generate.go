@@ -84,11 +84,13 @@ func buildUserPrompt(commandService command.Service, taskService task.Service) (
 		if userPrompt != "" {
 			sb.WriteString("```\n")
 		}
+
 		sb.WriteString(contents)
 
 		if userPrompt != "" {
 			sb.WriteString("\n```")
 		}
+
 		sb.WriteString("\n")
 	}
 

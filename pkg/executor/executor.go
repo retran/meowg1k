@@ -53,42 +53,42 @@ func NoRetryPolicy() RetryPolicy {
 	}
 }
 
-// ExecutorImpl is the central component for running activities
+// Impl is the central component for running activities
 // It handles retry logic, feedback, and will handle caching/rate limiting in the future
-type ExecutorImpl struct {
+type Impl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
 }
 
 // NewExecutor creates a new activity executor with the given configuration
-func NewExecutor() *ExecutorImpl {
-	return &ExecutorImpl{
+func NewExecutor() *Impl {
+	return &Impl{
 		RetryPolicy:     DefaultRetryPolicy(),
 		FeedbackHandler: NoOpFeedbackHandler,
 	}
 }
 
 // WithRetryPolicy sets the retry policy for this executor
-func (e *ExecutorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
+func (e *Impl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	e.RetryPolicy = policy
 	return e
 }
 
 // WithFeedbackHandler sets the feedback handler for this executor
-func (e *ExecutorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
+func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	e.FeedbackHandler = handler
 	return e
 }
 
 // RunFlow runs a flow asynchronously and returns when it completes or fails
-func (e *ExecutorImpl) RunFlow(
+func (e *Impl) RunFlow(
 	ctx context.Context,
 	flowName string,
 	flow Flow,
 	retryPolicy *RetryPolicy,
 ) error {
 	fut := future.NewFuture[any]()
-	executorCtx := NewExecutorContext(flowName, e.FeedbackHandler, e)
+	executorCtx := NewContext(flowName, e.FeedbackHandler, e)
 	executorCtx.SendPending(fmt.Sprintf("Flow %q is pending", flowName))
 
 	go func() {
@@ -105,34 +105,34 @@ func (e *ExecutorImpl) RunFlow(
 }
 
 // RunActivity runs a sub-activity asynchronously and returns a future for its result
-func (e *ExecutorImpl) RunActivity(
+func (e *Impl) RunActivity(
 	ctx context.Context,
-	parentCtx *ExecutorContext,
+	parentCtx *Context,
 	activityName string,
 	activity Activity[any, any],
 	input any,
 ) *future.Future[any] {
-	future := future.NewFuture[any]()
+	fut := future.NewFuture[any]()
 	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
-	activityCtx := NewExecutorContext(fullActivityName, parentCtx.feedbackFunc, e)
+	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
 	activityCtx.SendPending(fmt.Sprintf("Activity \"%s\" is pending", activityName))
 
 	go func() {
 		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
 		if err != nil {
-			future.CompleteWithError(err)
+			fut.CompleteWithError(err)
 		} else {
-			future.Complete(result)
+			fut.Complete(result)
 		}
 	}()
 
-	return future
+	return fut
 }
 
-func (e *ExecutorImpl) executeFlow(
+func (e *Impl) executeFlow(
 	ctx context.Context,
-	flowCtx *ExecutorContext,
-	flow func(context.Context, *ExecutorContext) error,
+	flowCtx *Context,
+	flow func(context.Context, *Context) error,
 ) error {
 	select {
 	case <-ctx.Done():
@@ -151,9 +151,9 @@ func (e *ExecutorImpl) executeFlow(
 }
 
 // executeActivity handles typed sub-activities with retry logic
-func (e *ExecutorImpl) executeActivity(
+func (e *Impl) executeActivity(
 	ctx context.Context,
-	activityCtx *ExecutorContext,
+	activityCtx *Context,
 	activity Activity[any, any],
 	input any,
 	policy *RetryPolicy,

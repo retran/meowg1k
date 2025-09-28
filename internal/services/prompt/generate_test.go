@@ -28,10 +28,10 @@ import (
 
 type mockTaskService struct {
 	task.Service
-	config *task.TaskConfiguration
+	config *task.Configuration
 }
 
-func (m *mockTaskService) Get() *task.TaskConfiguration {
+func (m *mockTaskService) Get() *task.Configuration {
 	return m.config
 }
 
@@ -46,7 +46,7 @@ func (m *mockCommandService) GetStdIn() string {
 
 func TestNewGeneratePromptService(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			Name:         "test-task",
 			Profile:      &mdProfile.ResolvedProfile{},
 			SystemPrompt: "Test system prompt",
@@ -71,7 +71,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 func TestGetSystemPrompt(t *testing.T) {
 	expectedSystemPrompt := "Test system prompt"
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: expectedSystemPrompt,
 			UserPrompt:   "Test user prompt",
 		},
@@ -98,7 +98,7 @@ func TestGetSystemPrompt(t *testing.T) {
 
 func TestGetUserPrompt(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
@@ -126,7 +126,7 @@ func TestGetUserPrompt(t *testing.T) {
 
 func TestBuildUserPromptWithStdin(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
@@ -154,7 +154,7 @@ func TestBuildUserPromptWithStdin(t *testing.T) {
 
 func TestBuildUserPromptStdinOnly(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},
@@ -182,7 +182,7 @@ func TestBuildUserPromptStdinOnly(t *testing.T) {
 
 func TestBuildUserPromptEmpty(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},
@@ -210,7 +210,7 @@ func TestBuildUserPromptEmpty(t *testing.T) {
 
 func TestInterfaceImplementation(t *testing.T) {
 	mockTask := &mockTaskService{
-		config: &task.TaskConfiguration{
+		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},

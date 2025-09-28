@@ -103,7 +103,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *mdGateway.ComputeEmbeddingsRequest,
 ) ([]mdGateway.Embedding, error) {
-	var contents []*genai.Content
+	contents := make([]*genai.Content, 0, len(request.Chunks()))
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
 	}
@@ -133,11 +133,13 @@ func (g *geminiGateway) ComputeEmbeddings(
 	}
 
 	embeddings := make([]mdGateway.Embedding, 0, len(response.Embeddings))
+
 	for _, value := range response.Embeddings {
 		values := make([]float64, len(value.Values))
 		for i, v := range value.Values {
 			values[i] = float64(v)
 		}
+
 		embeddings = append(embeddings, mdGateway.Embedding(values))
 	}
 

@@ -290,9 +290,9 @@ func TestLlamaGateway_ContentTypes(t *testing.T) {
 				userPrompt:   "Write a poem about algorithms and data structures",
 			},
 			{
-				name:         "Dialogue",
+				name:         "Dialog",
 				systemPrompt: "You are a screenwriter",
-				userPrompt:   "Write a dialogue between two AI assistants discussing the future of programming",
+				userPrompt:   "Write a dialog between two AI assistants discussing the future of programming",
 			},
 		}
 

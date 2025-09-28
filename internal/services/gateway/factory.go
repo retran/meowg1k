@@ -34,8 +34,11 @@ var (
 	ErrProviderNotSpecified            = errors.New("a provider must be specified with WithProvider()")
 	ErrProfileCannotBeNil              = errors.New("profile cannot be nil")
 	ErrLlamaEmbeddingsNotImplemented   = errors.New("llama embedding gateway is not yet implemented")
-	ErrAnthropicNoEmbeddings           = errors.New("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
-	ErrVoyageAPIKeyRequired            = errors.New("voyage provider requires an API key")
+	ErrAnthropicNoEmbeddings           = errors.New(
+		"anthropic provider does not provide embedding models " +
+			"(use voyage provider for embeddings recommended by Anthropic)",
+	)
+	ErrVoyageAPIKeyRequired = errors.New("voyage provider requires an API key")
 )
 
 // Factory is the interface for creating LLM gateways.

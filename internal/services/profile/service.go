@@ -18,6 +18,7 @@ limitations under the License.
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -28,6 +29,17 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/provider"
+)
+
+// Profile service errors
+var (
+	ErrNoProfilesDefined          = errors.New("no profiles defined in configuration")
+	ErrProfileNotFound            = errors.New("profile not found in configuration")
+	ErrResolvedProfileCannotBeNil = errors.New("resolved profile cannot be nil")
+	ErrTimeoutTooSmall            = errors.New("timeout must be at least 1 second")
+	ErrMaxOutputTokensTooLarge    = errors.New("max output tokens too large")
+	ErrMaxInputTokensTooLarge     = errors.New("max input tokens too large")
+	ErrModelNameRequired          = errors.New("model name is required")
 )
 
 // Service provides profile configuration resolution capabilities.
@@ -79,12 +91,12 @@ func (s *serviceImpl) resolveProfileInternal(
 	cfg *mdConfig.Config,
 ) (*mdProfile.ResolvedProfile, error) {
 	if cfg.Profiles == nil {
-		return nil, fmt.Errorf("no profiles defined in configuration")
+		return nil, ErrNoProfilesDefined
 	}
 
 	profileDef, exists := cfg.Profiles[string(profile)]
 	if !exists {
-		return nil, fmt.Errorf("profile '%s' not found in configuration", profile)
+		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
 	}
 
 	providerDef, err := s.providerService.Get(mdGateway.Provider(profileDef.Provider))
@@ -145,23 +157,23 @@ func (s *serviceImpl) resolveProfileInternal(
 // validateResolvedProfile validates a resolved profile configuration.
 func (s *serviceImpl) validateResolvedProfile(resolved *mdProfile.ResolvedProfile) error {
 	if resolved == nil {
-		return fmt.Errorf("resolved profile cannot be nil")
+		return ErrResolvedProfileCannotBeNil
 	}
 
 	if resolved.Timeout < time.Second {
-		return fmt.Errorf("timeout must be at least 1 second, got %v", resolved.Timeout)
+		return fmt.Errorf("%w, got %v", ErrTimeoutTooSmall, resolved.Timeout)
 	}
 
 	if resolved.MaxOutputTokens > 200000 {
-		return fmt.Errorf("max output tokens too large: %d (max 200000)", resolved.MaxOutputTokens)
+		return fmt.Errorf("%w: %d (max 200000)", ErrMaxOutputTokensTooLarge, resolved.MaxOutputTokens)
 	}
 
 	if resolved.MaxInputTokens > 2000000 {
-		return fmt.Errorf("max input tokens too large: %d (max 2000000)", resolved.MaxInputTokens)
+		return fmt.Errorf("%w: %d (max 2000000)", ErrMaxInputTokensTooLarge, resolved.MaxInputTokens)
 	}
 
 	if resolved.Model == "" {
-		return fmt.Errorf("model name is required")
+		return ErrModelNameRequired
 	}
 
 	return nil

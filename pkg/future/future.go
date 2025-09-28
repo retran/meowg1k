@@ -19,8 +19,13 @@ package future
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
+)
+
+// Future package errors
+var (
+	ErrNoFuturesProvided = errors.New("no futures provided")
 )
 
 // Future represents a value that will be available in the future
@@ -52,6 +57,7 @@ func (f *Future[T]) Complete(value T) {
 	if f.done {
 		return
 	}
+
 	f.done = true
 	f.val = value
 	f.ch <- result[T]{value: value}
@@ -66,6 +72,7 @@ func (f *Future[T]) CompleteWithError(err error) {
 	if f.done {
 		return
 	}
+
 	f.done = true
 	f.err = err
 	f.ch <- result[T]{error: err}
@@ -136,7 +143,7 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (T, int, error) {
 	if len(futures) == 0 {
 		var zero T
-		return zero, -1, fmt.Errorf("no futures provided")
+		return zero, -1, ErrNoFuturesProvided
 	}
 
 	// Create a combined channel for all futures

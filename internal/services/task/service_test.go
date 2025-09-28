@@ -283,7 +283,7 @@ func TestNewServiceErrorCases(t *testing.T) {
 			},
 			commandSvc:  &mockCommandService{taskName: "non-existent-task"},
 			profileSvc:  &mockProfileService{},
-			expectedErr: "task 'non-existent-task' not found in configuration",
+			expectedErr: "task not found in configuration: non-existent-task",
 		},
 		{
 			name:        "no default configuration",
@@ -358,14 +358,14 @@ func TestNewServiceErrorCases(t *testing.T) {
 	}
 }
 
-func TestTaskConfigurationFields(t *testing.T) {
-	// Test TaskConfiguration struct fields
+func TestConfigurationFields(t *testing.T) {
+	// Test Configuration struct fields
 	profile := &mdProfile.ResolvedProfile{
 		Provider: mdGateway.OpenAI,
 		Model:    "gpt-4",
 	}
 
-	config := &TaskConfiguration{
+	config := &Configuration{
 		Name:         "test-task",
 		Profile:      profile,
 		SystemPrompt: "Test system",

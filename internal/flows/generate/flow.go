@@ -55,8 +55,8 @@ func NewFlowFactory(
 }
 
 // NewFlow creates and returns the generate activity function with improved, multi-step status reporting.
-func (f *FlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext) error {
-	return func(ctx context.Context, flowCtx *executor.ExecutorContext) error {
+func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
+	return func(ctx context.Context, flowCtx *executor.Context) error {
 		task := f.taskService.Get()
 
 		subject := "Content generation"

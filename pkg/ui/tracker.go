@@ -356,6 +356,19 @@ func (t *ExecutionTracker) getVisibleActivities() []string {
 	}
 
 	// Get running activities and their ancestors
+	runningWithAncestors, completed := t.categorizeActivities(hierarchicalOrder)
+
+	// Add running activities and their ancestors
+	visible := t.addRunningActivities(hierarchicalOrder, runningWithAncestors)
+
+	// Add recent completed activities if space available
+	visible = t.addRecentCompletedActivities(visible, completed)
+
+	return visible
+}
+
+// categorizeActivities separates activities into running/ancestors and completed categories.
+func (t *ExecutionTracker) categorizeActivities(hierarchicalOrder []string) (map[string]bool, []string) {
 	runningWithAncestors := make(map[string]bool)
 	completed := []string{}
 
@@ -374,16 +387,24 @@ func (t *ExecutionTracker) getVisibleActivities() []string {
 		}
 	}
 
+	return runningWithAncestors, completed
+}
+
+// addRunningActivities adds running activities and their ancestors in hierarchical order.
+func (t *ExecutionTracker) addRunningActivities(hierarchicalOrder []string, runningWithAncestors map[string]bool) []string {
 	visible := []string{}
 
-	// Add running activities and their ancestors in hierarchical order
 	for _, name := range hierarchicalOrder {
 		if runningWithAncestors[name] {
 			visible = append(visible, name)
 		}
 	}
 
-	// Show recent completed activities (only root level to save space)
+	return visible
+}
+
+// addRecentCompletedActivities adds recent completed activities if space is available.
+func (t *ExecutionTracker) addRecentCompletedActivities(visible, completed []string) []string {
 	recentCompleted := t.minCompleted
 	availableSlots := t.maxExecutions - len(visible)
 	if availableSlots > 0 && recentCompleted > availableSlots {
@@ -392,12 +413,7 @@ func (t *ExecutionTracker) getVisibleActivities() []string {
 
 	if len(completed) > 0 && recentCompleted > 0 {
 		// Filter completed to show only root activities
-		rootCompleted := []string{}
-		for _, name := range completed {
-			if activityItem := t.executions[name]; activityItem != nil && activityItem.Level == 0 {
-				rootCompleted = append(rootCompleted, name)
-			}
-		}
+		rootCompleted := t.filterRootCompleted(completed)
 
 		start := max(len(rootCompleted)-recentCompleted, 0)
 		if start < len(rootCompleted) {
@@ -406,6 +422,19 @@ func (t *ExecutionTracker) getVisibleActivities() []string {
 	}
 
 	return visible
+}
+
+// filterRootCompleted filters completed activities to show only root level activities.
+func (t *ExecutionTracker) filterRootCompleted(completed []string) []string {
+	rootCompleted := []string{}
+
+	for _, name := range completed {
+		if activityItem := t.executions[name]; activityItem != nil && activityItem.Level == 0 {
+			rootCompleted = append(rootCompleted, name)
+		}
+	}
+
+	return rootCompleted
 }
 
 // createHierarchicalOrder creates a hierarchically ordered list of activities
