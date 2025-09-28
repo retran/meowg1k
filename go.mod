@@ -1,6 +1,6 @@
 module github.com/retran/meowg1k
 
-go 1.24.5
+go 1.25.1
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.12.0

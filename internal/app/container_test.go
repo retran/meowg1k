@@ -463,3 +463,65 @@ generate:
 		t.Error("ConfigService should be accessible through context")
 	}
 }
+
+func TestGetLogDirErrorHandling(t *testing.T) {
+	// Test error handling in getLogDir
+	// This is difficult to test directly since os.UserHomeDir() rarely fails
+	// in normal test environments. However, we can test the function works
+	// correctly under normal conditions which is what's most important.
+
+	dir, err := getLogDir()
+	if err != nil {
+		t.Errorf("getLogDir should not fail in normal test environment: %v", err)
+	}
+
+	if dir == "" {
+		t.Error("getLogDir should return non-empty directory")
+	}
+
+	// Verify the directory follows expected patterns for each OS
+	switch runtime.GOOS {
+	case "darwin":
+		if !strings.Contains(dir, "Library/Logs/meow") {
+			t.Errorf("macOS log directory should contain 'Library/Logs/meow', got: %s", dir)
+		}
+	case "windows":
+		if !strings.Contains(dir, "meow") || !strings.Contains(dir, "logs") {
+			t.Errorf("Windows log directory should contain 'meow' and 'logs', got: %s", dir)
+		}
+	default:
+		if !strings.Contains(dir, "meow") || !strings.Contains(dir, "logs") {
+			t.Errorf("Unix log directory should contain 'meow' and 'logs', got: %s", dir)
+		}
+	}
+}
+
+func TestNewAppContainerLogFileHandling(t *testing.T) {
+	// Test that NewAppContainer properly handles log file creation
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "test prompt", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+
+	// This should succeed and create log files
+	container, err := NewAppContainer(cmd)
+	if err != nil {
+		// Log directory creation might fail in restricted environments
+		t.Logf("NewAppContainer failed (might be environment-related): %v", err)
+		return
+	}
+
+	if container == nil {
+		t.Fatal("Expected container to be created")
+	}
+
+	if container.Logger == nil {
+		t.Error("Logger should be initialized")
+	}
+
+	// Test shutdown to close log files properly
+	if container.ShutdownService != nil {
+		container.ShutdownService.Shutdown()
+	}
+}

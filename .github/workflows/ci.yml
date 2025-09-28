@@ -19,7 +19,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25.1"
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -77,16 +77,16 @@ jobs:
             if (fs.existsSync('coverage.out')) {
               const { execSync } = require('child_process');
               const coverage = execSync('go tool cover -func=coverage.out | grep total | awk \'{print $3}\'').toString().trim();
-              
+
               const body = `## 🧪 Test Coverage Report
-              
+
               **Coverage: ${coverage}** ${parseFloat(coverage) >= 90 ? '✅' : '❌'}
-              
-              ${parseFloat(coverage) >= 90 ? 
-                '✅ Meets the 90% coverage threshold!' : 
+
+              ${parseFloat(coverage) >= 90 ?
+                '✅ Meets the 90% coverage threshold!' :
                 '❌ Below the 90% coverage threshold. Please add more tests.'}
               `;
-              
+
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
@@ -104,7 +104,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -112,7 +112,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25.1"
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
@@ -124,7 +124,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     needs: [test, lint]
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -134,7 +134,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25.1"
 
       - name: Install Task
         uses: arduino/setup-task@v2
@@ -159,7 +159,7 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -167,7 +167,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25.1"
 
       - name: Run Gosec Security Scanner
         uses: securecodewarrior/github-action-gosec@master
