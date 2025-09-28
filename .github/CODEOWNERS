@@ -1,0 +1,23 @@
+# Global code owners
+* @retran
+
+# GitHub Actions and CI/CD
+/.github/ @retran
+
+# Go modules and dependencies
+/go.mod @retran
+/go.sum @retran
+
+# Build and release configuration
+/Taskfile.yml @retran
+/.goreleaser.yaml @retran
+/.golangci.yml @retran
+
+# Documentation
+/docs/ @retran
+/README.md @retran
+
+# Core application code
+/cmd/ @retran
+/internal/ @retran
+/pkg/ @retran

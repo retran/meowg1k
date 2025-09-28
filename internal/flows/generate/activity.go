@@ -19,6 +19,7 @@ package generate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
@@ -26,32 +27,40 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// GenerateContentActivityFactory creates instances of the generate activity with injected dependencies.
-type GenerateContentActivityFactory struct {
-	gatewayFactory gateway.GatewayFactory
+var (
+	// ErrInputCannotBeNil indicates that the input parameter is nil
+	ErrInputCannotBeNil = errors.New("input cannot be nil")
+	// ErrInvalidInputType indicates that the input type is not supported
+	ErrInvalidInputType = errors.New("invalid input type")
+)
+
+// ActivityFactory creates instances of the generate activity with injected dependencies.
+type ActivityFactory struct {
+	gatewayFactory gateway.Factory
 }
 
-// NewGenerateContentActivityFactory creates a new generate activity factory with injected services.
-func NewGenerateContentActivityFactory(
-	gatewayFactory gateway.GatewayFactory,
-) *GenerateContentActivityFactory {
-	return &GenerateContentActivityFactory{
+// NewActivityFactory creates a new generate activity factory with injected services.
+func NewActivityFactory(
+	gatewayFactory gateway.Factory,
+) *ActivityFactory {
+	return &ActivityFactory{
 		gatewayFactory: gatewayFactory,
 	}
 }
 
 // NewActivity creates and returns the generate activity function with added progress reporting.
-func (f *GenerateContentActivityFactory) NewActivity() func(context.Context, *executor.ExecutorContext, any) (any, error) {
-	return func(ctx context.Context, executorCtx *executor.ExecutorContext, input any) (any, error) {
+func (f *ActivityFactory) NewActivity() func(
+	context.Context, *executor.Context, any) (any, error) {
+	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
 		executorCtx.SendProgress(0.0, "Preparing generation request...")
 
 		if input == nil {
-			return nil, fmt.Errorf("input cannot be nil")
+			return nil, ErrInputCannotBeNil
 		}
 
-		generateInput, ok := input.(*GenerateContentInput)
+		generateInput, ok := input.(*ContentInput)
 		if !ok {
-			return nil, fmt.Errorf("invalid input type: %T", input)
+			return nil, fmt.Errorf("%w: %T", ErrInvalidInputType, input)
 		}
 
 		executorCtx.SendProgress(0.0, "Sending generation request to large language model...")
@@ -79,9 +88,9 @@ func (f *GenerateContentActivityFactory) NewActivity() func(context.Context, *ex
 
 		metadata := map[string]any{}
 
-		executorCtx.SendCompleted( "Generation request completed.")
+		executorCtx.SendCompleted("Generation request completed.")
 
-		return &GenerateContentOutput{
+		return &ContentOutput{
 			Content:  content,
 			Metadata: metadata,
 		}, nil
