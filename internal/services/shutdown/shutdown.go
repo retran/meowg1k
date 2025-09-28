@@ -40,7 +40,7 @@ type Service interface {
 // It listens for system signals and coordinates shutdown of all registered components.
 type serviceImpl struct {
 	mu        sync.RWMutex
-	ctx       context.Context
+	ctx       context.Context //nolint:containedctx // stored to expose shutdown context to consumers
 	cancel    context.CancelFunc
 	logger    *slog.Logger
 	callbacks []Callback
@@ -55,10 +55,13 @@ type Callback func(ctx context.Context) error
 // timeout sets the maximum time to wait for all callbacks to complete.
 func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) Service {
 	ctx, cancel := context.WithCancel(ctx)
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &serviceImpl{
 		ctx:       ctx,
 		cancel:    cancel,
-		logger:    slog.Default(),
+		logger:    logger,
 		callbacks: make([]Callback, 0),
 		timeout:   timeout,
 	}
@@ -152,15 +155,11 @@ func (m *serviceImpl) shutdown() {
 				"execution_time", time.Since(callbackStart))
 		}
 
-		// Check if we're running out of time
-		select {
-		case <-shutdownCtx.Done():
+		if shutdownCtx.Err() != nil {
 			m.logger.WarnContext(shutdownCtx, "Shutdown timeout reached, canceling remaining callbacks",
 				"completed_callbacks", i+1,
 				"remaining_callbacks", len(callbacks)-i-1)
 			return
-		default:
-			// Continue with next callback
 		}
 	}
 

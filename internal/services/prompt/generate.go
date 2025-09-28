@@ -31,22 +31,15 @@ type GeneratePromptService struct {
 
 // Compile-time interface satisfaction check
 var _ SystemPromptProvider = (*GeneratePromptService)(nil)
-var _ SystemPromptProvider = (*GeneratePromptService)(nil)
+var _ UserPromptProvider = (*GeneratePromptService)(nil)
 
 // NewGeneratePromptService creates a new instance of the prompt service for generate command.
 func NewGeneratePromptService(
 	commandService command.Service,
 	taskService task.Service,
 ) (*GeneratePromptService, error) {
-	systemPrompt, err := buildSystemPrompt(taskService)
-	if err != nil {
-		return nil, err
-	}
-
-	userPrompt, err := buildUserPrompt(commandService, taskService)
-	if err != nil {
-		return nil, err
-	}
+	systemPrompt := buildSystemPrompt(taskService)
+	userPrompt := buildUserPrompt(commandService, taskService)
 
 	return &GeneratePromptService{
 		systemPrompt: systemPrompt,
@@ -64,11 +57,11 @@ func (g *GeneratePromptService) GetUserPrompt() (string, error) {
 	return g.userPrompt, nil
 }
 
-func buildSystemPrompt(taskService task.Service) (string, error) {
-	return taskService.Get().SystemPrompt, nil
+func buildSystemPrompt(taskService task.Service) string {
+	return taskService.Get().SystemPrompt
 }
 
-func buildUserPrompt(commandService command.Service, taskService task.Service) (string, error) {
+func buildUserPrompt(commandService command.Service, taskService task.Service) string {
 	sb := strings.Builder{}
 
 	userPrompt := taskService.Get().UserPrompt
@@ -94,5 +87,5 @@ func buildUserPrompt(commandService command.Service, taskService task.Service) (
 		sb.WriteString("\n")
 	}
 
-	return sb.String(), nil
+	return sb.String()
 }

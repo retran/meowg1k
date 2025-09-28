@@ -115,7 +115,7 @@ func (e *Impl) RunActivity(
 	fut := future.NewFuture[any]()
 	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
 	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
-	activityCtx.SendPending(fmt.Sprintf("Activity \"%s\" is pending", activityName))
+	activityCtx.SendPending(fmt.Sprintf("Activity %q is pending", activityName))
 
 	go func() {
 		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
@@ -136,14 +136,14 @@ func (e *Impl) executeFlow(
 ) error {
 	select {
 	case <-ctx.Done():
-		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow \"%s\" is cancelled", flowCtx.name))
-		return fmt.Errorf("flow \"%s\" is cancelled: %w", flowCtx.name, ctx.Err())
+		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow %q is canceled", flowCtx.name))
+		return fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err())
 	default:
 	}
 
 	err := flow(ctx, flowCtx)
 	if err != nil {
-		flowCtx.SendFailed(err, fmt.Sprintf("Flow \"%s\" is failed", flowCtx.name))
+		flowCtx.SendFailed(err, fmt.Sprintf("Flow %q is failed", flowCtx.name))
 		return fmt.Errorf("%w: %s: %w", ErrFlowFailed, flowCtx.name, err)
 	}
 
@@ -162,11 +162,11 @@ func (e *Impl) executeActivity(
 	delay := policy.InitialDelay
 
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
-		// Check if context is cancelled before each attempt
+		// Check if context is canceled before each attempt
 		select {
 		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity \"%s\" is cancelled", activityCtx.name))
-			return nil, fmt.Errorf("activity \"%s\" is cancelled: %w", activityCtx.name, ctx.Err())
+			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+			return nil, fmt.Errorf("activity %q is canceled: %w", activityCtx.name, ctx.Err())
 		default:
 		}
 
@@ -177,8 +177,8 @@ func (e *Impl) executeActivity(
 
 		// If this was the last attempt, return the error
 		if attempt == policy.MaxAttempts {
-			activityCtx.SendFailed(err, fmt.Sprintf("Activity \"%s\" failed after %d attempts", name, attempt))
-			return nil, fmt.Errorf("activity \"%s\" failed after %d attempts: %w", name, attempt, err)
+			activityCtx.SendFailed(err, fmt.Sprintf("Activity %q failed after %d attempts", name, attempt))
+			return nil, fmt.Errorf("activity %q failed after %d attempts: %w", name, attempt, err)
 		}
 
 		// Send retry feedback
@@ -187,8 +187,8 @@ func (e *Impl) executeActivity(
 		// Wait before retry with exponential backoff
 		select {
 		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity \"%s\" is cancelled", activityCtx.name))
-			return nil, fmt.Errorf("activity \"%s\" is cancelled: %w", activityCtx.name, ctx.Err())
+			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+			return nil, fmt.Errorf("activity %q is canceled: %w", activityCtx.name, ctx.Err())
 		case <-time.After(delay):
 			// Calculate next delay with exponential backoff
 			delay = min(time.Duration(float64(delay)*policy.Multiplier), policy.MaxDelay)

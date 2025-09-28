@@ -140,10 +140,9 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 
 // WaitAny waits for any future to complete and returns its result and index
 // The returned index indicates which future completed first
-func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (T, int, error) {
+func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index int, err error) {
 	if len(futures) == 0 {
-		var zero T
-		return zero, -1, ErrNoFuturesProvided
+		return value, -1, ErrNoFuturesProvided
 	}
 
 	// Create a combined channel for all futures
@@ -168,15 +167,14 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (T, int, error) 
 	case res := <-resultCh:
 		return res.value, res.index, res.err
 	case <-ctx.Done():
-		var zero T
-		return zero, -1, ctx.Err()
+		return value, -1, ctx.Err()
 	}
 }
 
 // WaitAllMap waits for all futures in a map and returns results with the same keys
-func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[T]) (map[K]T, map[K]error) {
-	results := make(map[K]T)
-	errors := make(map[K]error)
+func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[T]) (results map[K]T, errors map[K]error) {
+	results = make(map[K]T)
+	errors = make(map[K]error)
 
 	for key, future := range futures {
 		result, err := future.Get(ctx)

@@ -38,7 +38,7 @@ generate:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestNewServiceWithInvalidConfig(t *testing.T) {
 	configPath := filepath.Join(tempDir, "invalid-config.yaml")
 	invalidContent := `invalid: yaml: [unclosed bracket
 `
-	err := os.WriteFile(configPath, []byte(invalidContent), 0644)
+	err := os.WriteFile(configPath, []byte(invalidContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestNewServiceWithSystemConfigDirs(t *testing.T) {
 	// Create temporary directories and config file
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0755)
+	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
@@ -197,7 +197,7 @@ generate:
   default:
     profile: "default"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
@@ -246,7 +246,7 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 	// Create temporary directories and config file
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0755)
+	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
@@ -257,7 +257,7 @@ generate:
   default:
     profile: "user"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 	// Create temporary directories and config file
 	tempDir := t.TempDir()
 	homeConfigDir := filepath.Join(tempDir, ".config", "meowg1k")
-	os.MkdirAll(homeConfigDir, 0755)
+	os.MkdirAll(homeConfigDir, 0o755)
 
 	configPath := filepath.Join(homeConfigDir, "config.yaml")
 	configContent := `profiles:
@@ -312,7 +312,7 @@ generate:
   default:
     profile: "home"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
@@ -345,7 +345,7 @@ func TestNewServiceWithCurrentDirectoryConfig(t *testing.T) {
 	// Create temporary current directory with config
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, ".meowg1k")
-	os.MkdirAll(configDir, 0755)
+	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
@@ -356,7 +356,7 @@ generate:
   default:
     profile: "local"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
@@ -419,7 +419,7 @@ func TestNewServiceConfigMerging(t *testing.T) {
 
 	// Create system config
 	systemConfigDir := filepath.Join(tempDir, "system", "meowg1k")
-	os.MkdirAll(systemConfigDir, 0755)
+	os.MkdirAll(systemConfigDir, 0o755)
 	systemConfigPath := filepath.Join(systemConfigDir, "config.yaml")
 	systemConfigContent := `profiles:
   system:
@@ -429,11 +429,11 @@ generate:
   default:
     profile: "system"
 `
-	os.WriteFile(systemConfigPath, []byte(systemConfigContent), 0644)
+	os.WriteFile(systemConfigPath, []byte(systemConfigContent), 0o644)
 
 	// Create user config
 	userConfigDir := filepath.Join(tempDir, "user", "meowg1k")
-	os.MkdirAll(userConfigDir, 0755)
+	os.MkdirAll(userConfigDir, 0o755)
 	userConfigPath := filepath.Join(userConfigDir, "config.yaml")
 	userConfigContent := `profiles:
   user:
@@ -443,7 +443,7 @@ generate:
     # Override system config
     model: "user-override-model"
 `
-	os.WriteFile(userConfigPath, []byte(userConfigContent), 0644)
+	os.WriteFile(userConfigPath, []byte(userConfigContent), 0o644)
 
 	// Set environment to use both configs
 	os.Setenv("XDG_CONFIG_DIRS", filepath.Join(tempDir, "system"))

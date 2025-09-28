@@ -17,6 +17,7 @@ limitations under the License.
 package task
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -75,11 +76,13 @@ type mockProfileService struct {
 	profiles map[mdProfile.Profile]*mdProfile.ResolvedProfile
 }
 
+var errMockProfileNotFound = errors.New("mock profile not found")
+
 func (m *mockProfileService) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error) {
 	if resolved, exists := m.profiles[profile]; exists {
 		return resolved, nil
 	}
-	return nil, fmt.Errorf("profile '%s' not found", profile)
+	return nil, fmt.Errorf("%w: %s", errMockProfileNotFound, profile)
 }
 
 func TestNewServiceSuccess(t *testing.T) {

@@ -101,7 +101,7 @@ func TestFeedbackHandler(t *testing.T) {
 	defer tracker.Stop()                  // stop to clean up
 	handler := tracker.FeedbackHandler()
 
-	feedback := executor.Feedback{
+	feedback := &executor.Feedback{
 		ActivityName: "test",
 		Status:       executor.StatusStarted,
 		Message:      "starting",
@@ -126,7 +126,7 @@ func TestUpdateActivity(t *testing.T) {
 	tracker := NewExecutionTracker(false)
 	defer tracker.Stop()
 
-	feedback := executor.Feedback{
+	feedback := &executor.Feedback{
 		ActivityName: "test",
 		Status:       executor.StatusCompleted,
 		Message:      "done",
@@ -179,7 +179,7 @@ func TestStartAndStop(t *testing.T) {
 func TestUpdateActivitySilentMode(t *testing.T) {
 	tracker := NewExecutionTracker(true) // silent mode
 
-	feedback := executor.Feedback{
+	feedback := &executor.Feedback{
 		ActivityName: "test",
 		Status:       executor.StatusStarted,
 		Message:      "starting",
@@ -242,7 +242,7 @@ func TestHierarchicalActivities(t *testing.T) {
 	defer tracker.Stop()
 
 	// Add parent activity
-	parentFeedback := executor.Feedback{
+	parentFeedback := &executor.Feedback{
 		ActivityName: "parent",
 		Status:       executor.StatusStarted,
 		Message:      "parent started",
@@ -251,7 +251,7 @@ func TestHierarchicalActivities(t *testing.T) {
 	tracker.UpdateActivity(parentFeedback)
 
 	// Add child activity
-	childFeedback := executor.Feedback{
+	childFeedback := &executor.Feedback{
 		ActivityName: "parent.child",
 		Status:       executor.StatusStarted,
 		Message:      "child started",
@@ -296,7 +296,7 @@ func TestMultipleActivityStatuses(t *testing.T) {
 
 	for i, status := range statuses {
 		activityName := fmt.Sprintf("activity_%d", i)
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: activityName,
 			Status:       status,
 			Message:      fmt.Sprintf("status %s", status),
@@ -342,7 +342,7 @@ func TestUpdateDisplay(t *testing.T) {
 	defer tracker.Stop()
 
 	// Add some test activities
-	feedback1 := executor.Feedback{
+	feedback1 := &executor.Feedback{
 		ActivityName: "test-activity-1",
 		Status:       executor.StatusRunning,
 		Message:      "Testing activity 1",
@@ -350,7 +350,7 @@ func TestUpdateDisplay(t *testing.T) {
 		Timestamp:    time.Now(),
 	}
 
-	feedback2 := executor.Feedback{
+	feedback2 := &executor.Feedback{
 		ActivityName: "test-activity-2",
 		Status:       executor.StatusCompleted,
 		Message:      "Testing activity 2",
@@ -535,7 +535,7 @@ func TestUpdateDisplayComprehensive(t *testing.T) {
 	tracker.Start() // Start the display loop
 
 	// Add multiple activities using proper Feedback struct
-	activities := []executor.Feedback{
+	activities := []*executor.Feedback{
 		{ActivityName: "parent", Status: executor.StatusRunning, Message: "Parent activity", Timestamp: time.Now()},
 		{ActivityName: "parent.child1", Status: executor.StatusCompleted, Message: "Child 1 completed", Timestamp: time.Now()},
 		{ActivityName: "parent.child2", Status: executor.StatusRunning, Message: "Child 2 running", Timestamp: time.Now()},
@@ -584,7 +584,7 @@ func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 		"numeric_field": 123,
 	}
 
-	feedback := executor.Feedback{
+	feedback := &executor.Feedback{
 		ActivityName: "complex.nested.activity",
 		Status:       executor.StatusRunning,
 		Message:      "Complex activity",
@@ -610,7 +610,7 @@ func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 	}
 
 	// Test duplicate activity update
-	updateFeedback := executor.Feedback{
+	updateFeedback := &executor.Feedback{
 		ActivityName: "complex.nested.activity",
 		Status:       executor.StatusCompleted,
 		Message:      "Completed complex",
@@ -636,7 +636,7 @@ func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
 	// Add nested activities using proper Feedback
 	activities := []string{"root", "root.level1", "root.level1.level2", "root.level1.level2.level3"}
 	for _, name := range activities {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: name,
 			Status:       executor.StatusRunning,
 			Message:      "Level message",
@@ -667,7 +667,7 @@ func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
 	tracker.markActivityAndAncestors("nonexistent", runningWithAncestors)
 
 	// Test marking activity without parent structure
-	standalone := executor.Feedback{
+	standalone := &executor.Feedback{
 		ActivityName: "standalone",
 		Status:       executor.StatusRunning,
 		Message:      "Standalone",
@@ -700,7 +700,7 @@ func TestGetVisibleActivities(t *testing.T) {
 	}
 
 	for _, act := range activities {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: act.name,
 			Status:       act.status,
 			Message:      fmt.Sprintf("Activity %s", act.name),
@@ -750,7 +750,7 @@ func TestCreateHierarchicalOrder(t *testing.T) {
 	}
 
 	for _, name := range activities {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: name,
 			Status:       executor.StatusRunning,
 			Message:      "Test activity",
@@ -790,7 +790,7 @@ func TestAddActivityHierarchically(t *testing.T) {
 	// Create some activities first
 	activities := []string{"root", "root.child", "root.child.grandchild"}
 	for _, name := range activities {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: name,
 			Status:       executor.StatusRunning,
 			Message:      "Test",
@@ -821,7 +821,7 @@ func TestMarkActivityAndAncestors(t *testing.T) {
 	// Create hierarchical activities
 	activities := []string{"parent", "parent.child", "parent.child.grandchild"}
 	for _, name := range activities {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: name,
 			Status:       executor.StatusRunning,
 			Message:      "Test",
@@ -849,7 +849,7 @@ func TestDisplayLoop(t *testing.T) {
 	tracker.Start()
 
 	// Add an activity to trigger display updates
-	feedback := executor.Feedback{
+	feedback := &executor.Feedback{
 		ActivityName: "test-display",
 		Status:       executor.StatusRunning,
 		Message:      "Testing display loop",
@@ -876,7 +876,7 @@ func TestTrackerWithManyActivities(t *testing.T) {
 
 	// Add more activities than the limit
 	for i := 0; i < 10; i++ {
-		feedback := executor.Feedback{
+		feedback := &executor.Feedback{
 			ActivityName: fmt.Sprintf("activity-%d", i),
 			Status:       executor.StatusCompleted, // Use completed to test filtering
 			Message:      fmt.Sprintf("Activity %d", i),

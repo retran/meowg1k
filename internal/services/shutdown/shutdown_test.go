@@ -46,10 +46,10 @@ func TestNewService(t *testing.T) {
 		t.Fatal("Service context should not be nil")
 	}
 
-	// Test that context is not cancelled initially
+	// Test that context is not canceled initially
 	select {
 	case <-serviceCtx.Done():
-		t.Error("Service context should not be cancelled initially")
+		t.Error("Service context should not be canceled initially")
 	default:
 		// Expected
 	}
@@ -157,7 +157,7 @@ func TestCallbackError(t *testing.T) {
 	}
 }
 
-func TestContextCancelledOnShutdown(t *testing.T) {
+func TestContextCanceledOnShutdown(t *testing.T) {
 	logger := slog.Default()
 	ctx := context.Background()
 	timeout := 5 * time.Second
@@ -165,10 +165,10 @@ func TestContextCancelledOnShutdown(t *testing.T) {
 	service := NewService(logger, ctx, timeout)
 	serviceCtx := service.Context()
 
-	// Context should not be cancelled initially
+	// Context should not be canceled initially
 	select {
 	case <-serviceCtx.Done():
-		t.Error("Context should not be cancelled initially")
+		t.Error("Context should not be canceled initially")
 	default:
 		// Expected
 	}
@@ -179,12 +179,12 @@ func TestContextCancelledOnShutdown(t *testing.T) {
 	// Give some time for shutdown to process
 	time.Sleep(100 * time.Millisecond)
 
-	// Context should be cancelled after shutdown
+	// Context should be canceled after shutdown
 	select {
 	case <-serviceCtx.Done():
 		// Expected
 	default:
-		t.Error("Context should be cancelled after shutdown")
+		t.Error("Context should be canceled after shutdown")
 	}
 }
 
@@ -204,7 +204,7 @@ func TestShutdownTimeout(t *testing.T) {
 			callbackCompleted = true
 			return nil
 		case <-ctx.Done():
-			// Callback should be cancelled due to timeout
+			// Callback should be canceled due to timeout
 			return ctx.Err()
 		}
 	})
@@ -221,7 +221,7 @@ func TestShutdownTimeout(t *testing.T) {
 
 	// The long-running callback should not have completed normally
 	if callbackCompleted {
-		t.Error("Long-running callback should have been cancelled due to timeout")
+		t.Error("Long-running callback should have been canceled due to timeout")
 	}
 }
 
@@ -256,12 +256,12 @@ func TestConcurrentAccess(t *testing.T) {
 	// Give some time for shutdown to complete
 	time.Sleep(100 * time.Millisecond)
 
-	// Context should be cancelled
+	// Context should be canceled
 	select {
 	case <-service.Context().Done():
 		// Expected
 	default:
-		t.Error("Context should be cancelled after shutdown")
+		t.Error("Context should be canceled after shutdown")
 	}
 }
 
@@ -366,7 +366,7 @@ func TestShutdownWithSlowCallback(t *testing.T) {
 			callbackCompleted = true
 			return nil
 		case <-ctx.Done():
-			// Context was cancelled due to timeout
+			// Context was canceled due to timeout
 			return ctx.Err()
 		}
 	})
@@ -399,10 +399,10 @@ func TestServiceContextAfterShutdown(t *testing.T) {
 	service := NewService(logger, ctx, timeout)
 	serviceCtx := service.Context()
 
-	// Context should not be cancelled initially
+	// Context should not be canceled initially
 	select {
 	case <-serviceCtx.Done():
-		t.Error("Context should not be cancelled initially")
+		t.Error("Context should not be canceled initially")
 	default:
 		// Expected
 	}
@@ -413,12 +413,12 @@ func TestServiceContextAfterShutdown(t *testing.T) {
 	// Give some time for shutdown to process
 	time.Sleep(100 * time.Millisecond)
 
-	// Context should be cancelled after shutdown
+	// Context should be canceled after shutdown
 	select {
 	case <-serviceCtx.Done():
 		// Expected
 	default:
-		t.Error("Context should be cancelled after shutdown")
+		t.Error("Context should be canceled after shutdown")
 	}
 }
 

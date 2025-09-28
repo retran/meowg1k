@@ -218,7 +218,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 		}
 	})
 
-	t.Run("Generate content with cancelled context", func(t *testing.T) {
+	t.Run("Generate content with canceled context", func(t *testing.T) {
 		gateway, err := newAnthropicGateway("test-api-key")
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -236,9 +236,9 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 		_, err = gateway.GenerateContent(ctx, request)
 		if err == nil {
-			t.Fatal("Expected error for cancelled context")
+			t.Fatal("Expected error for canceled context")
 		}
-		// Should get context cancelled error or connection error
+		// Should get context canceled error or connection error
 		if !strings.Contains(err.Error(), "context canceled") &&
 			!strings.Contains(err.Error(), "failed to generate content with Anthropic") {
 			t.Logf("Got expected error for cancelled context: %v", err)

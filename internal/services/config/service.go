@@ -104,21 +104,14 @@ func loadDefaultConfigFiles(v *viper.Viper) error {
 	configPaths := getConfigPaths()
 	foundAny := false
 
-	for i, path := range configPaths {
-		configFile := filepath.Join(path, configFileName+".yaml")
-		if _, err := os.Stat(configFile); err == nil {
-			if i == 0 {
-				v.AddConfigPath(path)
+	for _, path := range configPaths {
+		found, err := tryLoadConfigFromPath(v, path, !foundAny)
+		if err != nil {
+			return err
+		}
 
-				if err := v.ReadInConfig(); err == nil {
-					foundAny = true
-				}
-			} else {
-				v.SetConfigFile(configFile)
-				if err := v.MergeInConfig(); err == nil {
-					foundAny = true
-				}
-			}
+		if found {
+			foundAny = true
 		}
 	}
 
@@ -126,6 +119,36 @@ func loadDefaultConfigFiles(v *viper.Viper) error {
 		return ErrNoConfigFoundInStdLocations
 	}
 	return nil
+}
+
+func tryLoadConfigFromPath(v *viper.Viper, path string, primary bool) (bool, error) {
+	configFile := filepath.Join(path, configFileName+".yaml")
+
+	if _, err := os.Stat(configFile); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to access config file %s: %w", configFile, err)
+	}
+
+	if primary {
+		v.AddConfigPath(path)
+
+		if err := v.ReadInConfig(); err != nil {
+			return false, fmt.Errorf("failed to read config from %s: %w", configFile, err)
+		}
+
+		return true, nil
+	}
+
+	v.SetConfigFile(configFile)
+
+	if err := v.MergeInConfig(); err != nil {
+		return false, fmt.Errorf("failed to merge config from %s: %w", configFile, err)
+	}
+
+	return true, nil
 }
 
 // getConfigPaths returns the standard configuration file search paths.
@@ -136,6 +159,7 @@ func getConfigPaths() []string {
 	if systemConfigDirs == "" {
 		systemConfigDirs = "/etc/xdg"
 	}
+
 	configPaths = append(configPaths, filepath.Join(systemConfigDirs, projectName))
 
 	userConfigDir := os.Getenv("XDG_CONFIG_HOME")

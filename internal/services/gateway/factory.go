@@ -77,12 +77,12 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Anthropic:
 		if profile.APIKey == "" {
 			return nil, ErrAnthropicAPIKeyRequired
@@ -94,7 +94,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.BaseURL == "" {
 			return nil, ErrOpenAICompatibleBaseURLRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	default:
 		return nil, ErrProviderNotSpecified
 	}
@@ -123,12 +123,12 @@ func (f *gatewayFactory) NewEmbeddingsGateway(
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Voyage:
 		if profile.APIKey == "" {
 			return nil, ErrVoyageAPIKeyRequired

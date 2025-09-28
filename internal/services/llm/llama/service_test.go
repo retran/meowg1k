@@ -158,19 +158,20 @@ func TestServiceImpl_Complete(t *testing.T) {
 			result, err := service.Complete(ctx, tt.request)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, result)
+				require.Error(t, err)
+				require.Nil(t, result)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.mockResponse.Content, result.Content)
-				assert.Equal(t, tt.mockResponse.Model, result.Model)
-				assert.Equal(t, tt.mockResponse.TokensEvaluated, result.TokensEvaluated)
-				assert.Equal(t, tt.mockResponse.TokensCached, result.TokensCached)
+				return
 			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.mockResponse.Content, result.Content)
+			assert.Equal(t, tt.mockResponse.Model, result.Model)
+			assert.Equal(t, tt.mockResponse.TokensEvaluated, result.TokensEvaluated)
+			assert.Equal(t, tt.mockResponse.TokensCached, result.TokensCached)
 		})
 	}
 }
@@ -199,7 +200,7 @@ func TestServiceImpl_CompleteWithAuthHeader(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
@@ -244,7 +245,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	service, err := NewService(server.URL, "test-key")
 	require.NoError(t, err)
 
-	// Create a context that will be cancelled
+	// Create a context that will be canceled
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -253,7 +254,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
 
@@ -290,7 +291,7 @@ func TestCompletionRequestFieldsValidation(t *testing.T) {
 	var unmarshaledReq CompletionRequest
 	err = json.Unmarshal(data, &unmarshaledReq)
 	assert.NoError(t, err)
-	assert.Equal(t, req.Temperature, unmarshaledReq.Temperature)
+	assert.InEpsilon(t, req.Temperature, unmarshaledReq.Temperature, 0.001)
 	assert.Equal(t, req.TopK, unmarshaledReq.TopK)
 	assert.Equal(t, req.Stop, unmarshaledReq.Stop)
 }
@@ -479,7 +480,7 @@ func TestCompletionResponseValidation(t *testing.T) {
 	assert.Equal(t, response.TokensCached, unmarshaledResp.TokensCached)
 	assert.Equal(t, response.GenerationSettings["temperature"], unmarshaledResp.GenerationSettings["temperature"])
 	// Use type assertion for map values that could be different numeric types
-	assert.Equal(t, float64(150), unmarshaledResp.Timings["predicted_n"])
+	assert.InEpsilon(t, float64(150), unmarshaledResp.Timings["predicted_n"], 0.001)
 	assert.Equal(t, len(response.Tokens), len(unmarshaledResp.Tokens))
 	assert.Equal(t, len(response.Probs), len(unmarshaledResp.Probs))
 }

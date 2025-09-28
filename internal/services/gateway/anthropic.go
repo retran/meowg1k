@@ -97,9 +97,9 @@ func (g *anthropicGateway) GenerateContent(
 	}
 
 	// Find the first text block in the response
-	for _, content := range response.Content {
-		if content.Type == "text" {
-			textBlock := content.AsText()
+	for i := range response.Content {
+		if response.Content[i].Type == "text" {
+			textBlock := response.Content[i].AsText()
 			return textBlock.Text, nil
 		}
 	}

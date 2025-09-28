@@ -24,6 +24,14 @@ import (
 	"time"
 )
 
+var (
+	errFirstFuture  = errors.New("first error")
+	errSecondFuture = errors.New("second error")
+	errTestFuture   = errors.New("test error")
+	errIgnored      = errors.New("should be ignored")
+	errFutureOne    = errors.New("future 1 error")
+)
+
 func TestFuture_CompleteAndGet(t *testing.T) {
 	future := NewFuture[int]()
 	ctx := context.Background()
@@ -292,8 +300,8 @@ func TestFutureCompleteMultipleTimes(t *testing.T) {
 func TestFutureCompleteWithErrorMultipleTimes(t *testing.T) {
 	f := NewFuture[int]()
 
-	firstErr := errors.New("first error")
-	secondErr := errors.New("second error")
+	firstErr := errFirstFuture
+	secondErr := errSecondFuture
 
 	// Complete with error
 	f.CompleteWithError(firstErr)
@@ -306,7 +314,7 @@ func TestFutureCompleteWithErrorMultipleTimes(t *testing.T) {
 	defer cancel()
 
 	result, err := f.Get(ctx)
-	if err != firstErr {
+	if !errors.Is(err, firstErr) {
 		t.Fatalf("Expected first error, got %v", err)
 	}
 	if result != 0 {
@@ -318,7 +326,7 @@ func TestFutureCompleteAfterError(t *testing.T) {
 	f := NewFuture[string]()
 
 	// Complete with error first
-	testErr := errors.New("test error")
+	testErr := errTestFuture
 	f.CompleteWithError(testErr)
 
 	// Try to complete with value - should be ignored
@@ -328,7 +336,7 @@ func TestFutureCompleteAfterError(t *testing.T) {
 	defer cancel()
 
 	result, err := f.Get(ctx)
-	if err != testErr {
+	if !errors.Is(err, testErr) {
 		t.Fatalf("Expected test error, got %v", err)
 	}
 	if result != "" {
@@ -343,7 +351,7 @@ func TestFutureErrorAfterComplete(t *testing.T) {
 	f.Complete("test value")
 
 	// Try to complete with error - should be ignored
-	f.CompleteWithError(errors.New("should be ignored"))
+	f.CompleteWithError(errIgnored)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -379,7 +387,7 @@ func TestFutureGetAlreadyCompleted(t *testing.T) {
 func TestFutureGetAlreadyCompletedWithError(t *testing.T) {
 	f := NewFuture[int]()
 
-	testErr := errors.New("test error")
+	testErr := errTestFuture
 	f.CompleteWithError(testErr)
 
 	// Get should return immediately with error
@@ -387,7 +395,7 @@ func TestFutureGetAlreadyCompletedWithError(t *testing.T) {
 	defer cancel()
 
 	result, err := f.Get(ctx)
-	if err != testErr {
+	if !errors.Is(err, testErr) {
 		t.Fatalf("Expected test error, got %v", err)
 	}
 	if result != 0 {
@@ -413,14 +421,14 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 
 	// Test TryGet on future with error
 	f2 := NewFuture[string]()
-	testErr := errors.New("test error")
+	testErr := errTestFuture
 	f2.CompleteWithError(testErr)
 
 	result2, err2, ok2 := f2.TryGet()
 	if !ok2 {
 		t.Error("Expected TryGet to return true for future with error")
 	}
-	if err2 != testErr {
+	if !errors.Is(err2, testErr) {
 		t.Fatalf("Expected test error, got %v", err2)
 	}
 	if result2 != "" {
@@ -475,7 +483,7 @@ func TestWaitAnyWithError(t *testing.T) {
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		f1.CompleteWithError(errors.New("future 1 error"))
+		f1.CompleteWithError(errFutureOne)
 	}()
 
 	go func() {
@@ -541,7 +549,7 @@ func TestFutureConcurrentOperations(t *testing.T) {
 
 	// Start multiple readers
 	results := make([]int, 10)
-	errors := make([]error, 10)
+	errs := make([]error, 10)
 
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
@@ -552,7 +560,7 @@ func TestFutureConcurrentOperations(t *testing.T) {
 
 			result, err := f.Get(ctx)
 			results[index] = result
-			errors[index] = err
+			errs[index] = err
 		}(i)
 	}
 
@@ -560,14 +568,14 @@ func TestFutureConcurrentOperations(t *testing.T) {
 
 	// All readers should get the same result
 	firstResult := results[0]
-	firstError := errors[0]
+	firstError := errs[0]
 
 	for i := 1; i < 10; i++ {
 		if results[i] != firstResult {
 			t.Errorf("Reader %d got different result: %v vs %v", i, results[i], firstResult)
 		}
-		if errors[i] != firstError {
-			t.Errorf("Reader %d got different error: %v vs %v", i, errors[i], firstError)
+		if !errors.Is(errs[i], firstError) {
+			t.Errorf("Reader %d got different error: %v vs %v", i, errs[i], firstError)
 		}
 	}
 }

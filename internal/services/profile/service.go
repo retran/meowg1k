@@ -76,6 +76,7 @@ func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile
 	}
 
 	cfg := s.configService.GetConfig()
+
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
 		return nil, err
@@ -114,29 +115,12 @@ func (s *serviceImpl) resolveProfileInternal(
 		TokenizerType:   profileDef.TokenizerType,
 	}
 
-	if resolved.Model == "" {
-		resolved.Model = providerDef.DefaultModel
-	}
-
-	if resolved.MaxInputTokens == 0 {
-		resolved.MaxInputTokens = providerDef.MaxInputTokens
-	}
-
-	if resolved.MaxOutputTokens == 0 {
-		resolved.MaxOutputTokens = providerDef.MaxOutputTokens
-	}
-
-	if resolved.Timeout == 0 {
-		resolved.Timeout = providerDef.DefaultTimeout
-	}
-
-	if resolved.TokenizerType == "" {
-		resolved.TokenizerType = providerDef.TokenizerType
-	}
-
-	if resolved.BaseURL == "" {
-		resolved.BaseURL = providerDef.DefaultBaseURL
-	}
+	resolved.Model = defaultValue(resolved.Model, providerDef.DefaultModel)
+	resolved.MaxInputTokens = defaultValue(resolved.MaxInputTokens, providerDef.MaxInputTokens)
+	resolved.MaxOutputTokens = defaultValue(resolved.MaxOutputTokens, providerDef.MaxOutputTokens)
+	resolved.Timeout = defaultValue(resolved.Timeout, providerDef.DefaultTimeout)
+	resolved.TokenizerType = defaultValue(resolved.TokenizerType, providerDef.TokenizerType)
+	resolved.BaseURL = defaultValue(resolved.BaseURL, providerDef.DefaultBaseURL)
 
 	apiKeyEnv := profileDef.APIKeyEnv
 	if apiKeyEnv == "" && providerDef.DefaultEnvVar != "" {
@@ -177,4 +161,13 @@ func (s *serviceImpl) validateResolvedProfile(resolved *mdProfile.ResolvedProfil
 	}
 
 	return nil
+}
+
+func defaultValue[T comparable](value, fallback T) T {
+	var zero T
+	if value != zero {
+		return value
+	}
+
+	return fallback
 }

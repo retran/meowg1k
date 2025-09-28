@@ -1,29 +1,7 @@
 /*
 Copyright © 2025 Andrew Vasilyev <me@retran.me>
 
-Licensed under the Apache License	// Create a temporary git repository for more comprehensive testing
-	tempDir, err := os.MkdirTemp("", "git_test")
-	if err != nil {
-		t.Skipf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Change to temp directory
-	originalDir, _ := os.Getwd()
-	defer func() {
-		_ = os.Chdir(originalDir)
-	}()
-
-	err = os.Chdir(tempDir)
-	if err != nil {
-		t.Skipf("Failed to change to temp directory: %v", err)
-	}
-
-	// Initialize git repo
-	err = exec.Command("git", "init").Run()
-	if err != nil {
-		t.Skipf("Failed to init git repo: %v", err)
-	}"License");
+Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
@@ -116,13 +94,13 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
 
-	if err := os.Chdir(tempDir); err != nil {
-		t.Skipf("Failed to change to temp directory: %v", err)
+	if chdirErr := os.Chdir(tempDir); chdirErr != nil {
+		t.Skipf("Failed to change to temp directory: %v", chdirErr)
 	}
 
 	// Initialize git repo
-	if err := exec.Command("git", "init").Run(); err != nil {
-		t.Skipf("Failed to init git repo: %v", err)
+	if initErr := exec.Command("git", "init").Run(); initErr != nil {
+		t.Skipf("Failed to init git repo: %v", initErr)
 	}
 
 	// Configure git user (required for commits)
@@ -181,8 +159,8 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	}
 
 	// Commit the file to test ReadOriginalFileContent
-	if err := exec.Command("git", "commit", "-m", "Initial commit").Run(); err != nil {
-		t.Fatalf("Failed to commit: %v", err)
+	if commitErr := exec.Command("git", "commit", "-m", "Initial commit").Run(); commitErr != nil {
+		t.Fatalf("Failed to commit: %v", commitErr)
 	}
 
 	// Test ReadOriginalFileContent

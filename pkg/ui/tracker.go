@@ -168,13 +168,13 @@ func (t *ExecutionTracker) Stop() {
 
 // FeedbackHandler returns a feedback handler compatible with executor.FeedbackHandler
 func (t *ExecutionTracker) FeedbackHandler() executor.FeedbackHandler {
-	return func(feedback executor.Feedback) {
+	return func(feedback *executor.Feedback) {
 		t.UpdateActivity(feedback)
 	}
 }
 
 // UpdateActivity updates the progress of an activity
-func (t *ExecutionTracker) UpdateActivity(feedback executor.Feedback) {
+func (t *ExecutionTracker) UpdateActivity(feedback *executor.Feedback) {
 	if t.silent {
 		return
 	}

@@ -72,10 +72,10 @@ func (f *Feedback) String() string {
 }
 
 // FeedbackHandler processes feedback from activities.
-type FeedbackHandler func(feedback Feedback)
+type FeedbackHandler func(feedback *Feedback)
 
 // NoOpFeedbackHandler is a feedback handler that does nothing.
-func NoOpFeedbackHandler(feedback Feedback) {}
+func NoOpFeedbackHandler(feedback *Feedback) {}
 
 // Context provides feedback capabilities to activities and access to the executor.
 type Context struct {
@@ -108,7 +108,7 @@ func (c *Context) sendFeedback(status Status, progress float64, message string, 
 		return
 	}
 
-	c.feedbackFunc(Feedback{
+	feedback := &Feedback{
 		ActivityName: c.name,
 		Status:       status,
 		Progress:     progress,
@@ -116,7 +116,9 @@ func (c *Context) sendFeedback(status Status, progress float64, message string, 
 		Timestamp:    time.Now(),
 		Error:        err,
 		Metadata:     metadata,
-	})
+	}
+
+	c.feedbackFunc(feedback)
 }
 
 // SendPending sends a pending status update.

@@ -139,6 +139,7 @@ func NewService() Service {
 			},
 		},
 	}
+
 	return s
 }
 

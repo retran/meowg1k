@@ -26,7 +26,6 @@ import (
 	"time"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 )
 
@@ -106,10 +105,7 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	}
 
 	// Create gateway
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create test request
 	request := mdGateway.NewGenerateContentRequest(
@@ -149,10 +145,7 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 		APIKey:  "test-api-key",
 	}
 
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	request := mdGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -162,7 +155,7 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	_, err = gateway.GenerateContent(ctx, request)
+	_, err := gateway.GenerateContent(ctx, request)
 
 	if err == nil {
 		t.Error("Expected error from failing server")
@@ -183,10 +176,7 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 		APIKey:  "test-api-key",
 	}
 
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create embeddings request
 	request := mdGateway.NewComputeEmbeddingsRequest(
@@ -232,18 +222,7 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 	}))
 	defer errorServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
-		Model:    "text-embedding-ada-002",
-		BaseURL:  errorServer.URL,
-		APIKey:   "test-api-key",
-		Timeout:  30 * time.Second,
-	}
-
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(errorServer.URL, "test-api-key")
 
 	request := mdGateway.NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
@@ -252,7 +231,7 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	_, err = gateway.ComputeEmbeddings(ctx, request)
+	_, err := gateway.ComputeEmbeddings(ctx, request)
 
 	if err == nil {
 		t.Error("Expected error from failing server")
@@ -279,18 +258,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 	}))
 	defer emptyServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
-		Model:    "gpt-4",
-		BaseURL:  emptyServer.URL,
-		APIKey:   "test-api-key",
-		Timeout:  30 * time.Second,
-	}
-
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(emptyServer.URL, "test-api-key")
 
 	request := mdGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -300,7 +268,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	_, err = gateway.GenerateContent(ctx, request)
+	_, err := gateway.GenerateContent(ctx, request)
 
 	if err == nil {
 		t.Error("Expected error for empty choices")
@@ -320,18 +288,7 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 	}))
 	defer slowServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
-		Model:    "gpt-4",
-		BaseURL:  slowServer.URL,
-		APIKey:   "test-api-key",
-		Timeout:  50 * time.Millisecond, // Very short timeout
-	}
-
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(slowServer.URL, "test-api-key")
 
 	request := mdGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -344,7 +301,7 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	_, err = gateway.GenerateContent(ctx, request)
+	_, err := gateway.GenerateContent(ctx, request)
 
 	if err == nil {
 		t.Error("Expected timeout error")
@@ -356,21 +313,7 @@ func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
-		Provider:        mdGateway.OpenAI,
-		Model:           "text-embedding-ada-002",
-		BaseURL:         mockServer.URL,
-		APIKey:          "test-api-key",
-		MaxInputTokens:  8192,
-		MaxOutputTokens: 0,
-		Timeout:         30 * time.Second,
-		TokenizerType:   mdLLM.TokenizerCL100K,
-	}
-
-	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)
-	if err != nil {
-		t.Fatalf("Failed to create OpenAI gateway: %v", err)
-	}
+	gateway := newOpenAIGateway(mockServer.URL, "test-api-key")
 
 	// Create embeddings request with dimensions
 	request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(

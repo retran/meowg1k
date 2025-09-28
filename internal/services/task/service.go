@@ -69,33 +69,39 @@ func resolveTaskConfiguration(
 ) (string, string, string, error) {
 	var profileName, systemPrompt, userPrompt string
 
-	if taskName != "" && cfg.Generate != nil && cfg.Generate.Tasks != nil {
-		task, exists := cfg.Generate.Tasks[taskName]
-		if !exists {
-			return "", "", "", fmt.Errorf("%w: %s", ErrTaskNotFoundInConfig, taskName)
-		}
-
-		profileName = task.Profile
-		systemPrompt = task.SystemPrompt
-
-		if cmdUserPrompt != "" {
-			userPrompt = cmdUserPrompt
-		} else {
-			userPrompt = task.UserPrompt
-		}
-
-		profileName, systemPrompt = applyDefaults(profileName, systemPrompt, cfg)
-	} else {
-		if cfg.Generate == nil || cfg.Generate.Default == nil {
-			return "", "", "", ErrNoDefaultConfigurationAvailable
-		}
-
-		profileName = cfg.Generate.Default.Profile
-		systemPrompt = cfg.Generate.Default.SystemPrompt
-		userPrompt = cmdUserPrompt
+	if taskName == "" || cfg.Generate == nil || cfg.Generate.Tasks == nil {
+		return resolveDefaultConfiguration(cmdUserPrompt, cfg)
 	}
 
+	task, exists := cfg.Generate.Tasks[taskName]
+	if !exists {
+		return "", "", "", fmt.Errorf("%w: %s", ErrTaskNotFoundInConfig, taskName)
+	}
+
+	profileName = task.Profile
+	systemPrompt = task.SystemPrompt
+
+	if cmdUserPrompt != "" {
+		userPrompt = cmdUserPrompt
+	} else {
+		userPrompt = task.UserPrompt
+	}
+
+	profileName, systemPrompt = applyDefaults(profileName, systemPrompt, cfg)
+
 	return strings.TrimSpace(profileName), strings.TrimSpace(systemPrompt), strings.TrimSpace(userPrompt), nil
+}
+
+func resolveDefaultConfiguration(cmdUserPrompt string, cfg *mdConfig.Config) (string, string, string, error) {
+	if cfg.Generate == nil || cfg.Generate.Default == nil {
+		return "", "", "", ErrNoDefaultConfigurationAvailable
+	}
+
+	profileName := strings.TrimSpace(cfg.Generate.Default.Profile)
+	systemPrompt := strings.TrimSpace(cfg.Generate.Default.SystemPrompt)
+	userPrompt := strings.TrimSpace(cmdUserPrompt)
+
+	return profileName, systemPrompt, userPrompt, nil
 }
 
 // applyDefaults applies default values for profile and system prompt if they are empty.

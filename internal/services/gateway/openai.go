@@ -40,9 +40,9 @@ type openaiGateway struct {
 	client *openai.Client
 }
 
-// NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
+// newOpenAIGateway creates and initializes a new unified OpenAIGateway.
 // It sets up the OpenAI client with the given base URL and API key.
-func newOpenAIGateway(baseURL, apiKey string) (Gateway, error) {
+func newOpenAIGateway(baseURL, apiKey string) Gateway {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
 	}
@@ -53,7 +53,7 @@ func newOpenAIGateway(baseURL, apiKey string) (Gateway, error) {
 
 	client := openai.NewClient(options...)
 
-	return &openaiGateway{client: &client}, nil
+	return &openaiGateway{client: &client}
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
@@ -104,8 +104,8 @@ func (g *openaiGateway) ComputeEmbeddings(
 	}
 
 	embeddings := make([]mdGateway.Embedding, 0, len(response.Data))
-	for _, value := range response.Data {
-		embeddings = append(embeddings, mdGateway.Embedding(value.Embedding))
+	for i := range response.Data {
+		embeddings = append(embeddings, mdGateway.Embedding(response.Data[i].Embedding))
 	}
 
 	return embeddings, nil

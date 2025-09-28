@@ -56,6 +56,7 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 			stderr := string(exitErr.Stderr)
 			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
 		}
+
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}
 	return string(out), nil

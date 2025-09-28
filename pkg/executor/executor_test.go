@@ -94,7 +94,7 @@ func TestWithRetryPolicy(t *testing.T) {
 
 func TestWithFeedbackHandler(t *testing.T) {
 	exec := NewExecutor()
-	handler := func(f Feedback) {}
+	handler := func(f *Feedback) {}
 	result := exec.WithFeedbackHandler(handler)
 	if result != exec {
 		t.Error("expected WithFeedbackHandler to return the executor")
@@ -191,7 +191,7 @@ func TestNoOpFeedbackHandler(t *testing.T) {
 	handler := NoOpFeedbackHandler
 
 	// Should not panic when called
-	feedback := Feedback{
+	feedback := &Feedback{
 		ActivityName: "test-activity",
 		Status:       StatusRunning,
 		Message:      "test message",
@@ -203,8 +203,8 @@ func TestNoOpFeedbackHandler(t *testing.T) {
 }
 
 func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
@@ -229,8 +229,8 @@ func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
 }
 
 func TestExecutorContextRetryWithDetails(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
@@ -262,8 +262,8 @@ func TestExecutorContextRetryWithDetails(t *testing.T) {
 }
 
 func TestExecutorContextFailedWithDetails(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
@@ -288,8 +288,8 @@ func TestExecutorContextFailedWithDetails(t *testing.T) {
 }
 
 func TestExecutorWithComplexActivity(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
@@ -332,8 +332,8 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 }
 
 func TestExecutorWithActivityThatFails(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
@@ -377,8 +377,8 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 }
 
 func TestExecutorFlowWithSubactivities(t *testing.T) {
-	feedbackCalls := []Feedback{}
-	handler := func(feedback Feedback) {
+	feedbackCalls := []*Feedback{}
+	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
