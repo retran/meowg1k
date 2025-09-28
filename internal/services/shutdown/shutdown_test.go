@@ -272,7 +272,7 @@ func TestListenForSignalsContextCancellation(t *testing.T) {
 
 	// Start ListenForSignals in a goroutine
 	done := make(chan bool, 1)
-	
+
 	go func() {
 		service.ListenForSignals()
 		done <- true
@@ -300,7 +300,7 @@ func TestListenForSignalsShutdown(t *testing.T) {
 
 	// Start ListenForSignals in a goroutine
 	done := make(chan bool, 1)
-	
+
 	go func() {
 		service.ListenForSignals()
 		done <- true

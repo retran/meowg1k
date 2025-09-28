@@ -156,21 +156,21 @@ func TestUpdateActivity(t *testing.T) {
 
 func TestStartAndStop(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Test Start
 	if tracker.isRunning {
 		t.Error("expected tracker to not be running initially")
 	}
-	
+
 	tracker.Start()
-	
+
 	if !tracker.isRunning {
 		t.Error("expected tracker to be running after Start()")
 	}
-	
+
 	// Test Stop
 	tracker.Stop()
-	
+
 	if tracker.isRunning {
 		t.Error("expected tracker to not be running after Stop()")
 	}
@@ -178,7 +178,7 @@ func TestStartAndStop(t *testing.T) {
 
 func TestUpdateActivitySilentMode(t *testing.T) {
 	tracker := NewExecutionTracker(true) // silent mode
-	
+
 	feedback := executor.Feedback{
 		ActivityName: "test",
 		Status:       executor.StatusStarted,
@@ -189,10 +189,10 @@ func TestUpdateActivitySilentMode(t *testing.T) {
 	// Should not panic in silent mode
 	tracker.UpdateActivity(feedback)
 
-	// Activity should not be tracked in silent mode  
+	// Activity should not be tracked in silent mode
 	tracker.mu.RLock()
 	defer tracker.mu.RUnlock()
-	
+
 	_, exists := tracker.executions["test"]
 	if exists {
 		t.Error("expected activity to not be created in silent mode")
@@ -205,14 +205,14 @@ func TestGetActivityDuration(t *testing.T) {
 
 	now := time.Now()
 	later := now.Add(5 * time.Second)
-	
+
 	// Test with completed activity
 	activityCompleted := &ExecutionProgress{
 		StartTime: now,
 		EndTime:   &later,
 		Status:    executor.StatusCompleted,
 	}
-	
+
 	duration := tracker.getActivityDuration(activityCompleted)
 	if duration == "" {
 		t.Error("expected non-empty duration for completed activity")
@@ -224,7 +224,7 @@ func TestGetActivityDuration(t *testing.T) {
 		EndTime:   nil,
 		Status:    executor.StatusStarted,
 	}
-	
+
 	duration = tracker.getActivityDuration(activityRunning)
 	if duration == "" {
 		t.Error("expected non-empty duration for running activity")
@@ -349,7 +349,7 @@ func TestUpdateDisplay(t *testing.T) {
 		Progress:     0.5,
 		Timestamp:    time.Now(),
 	}
-	
+
 	feedback2 := executor.Feedback{
 		ActivityName: "test-activity-2",
 		Status:       executor.StatusCompleted,
@@ -377,15 +377,15 @@ func TestFormatActivityLine(t *testing.T) {
 	defer tracker.Stop()
 
 	tests := []struct {
-		name           string
-		activity       *ExecutionProgress
-		spinnerIndex   int
-		shouldContain  string
+		name          string
+		activity      *ExecutionProgress
+		spinnerIndex  int
+		shouldContain string
 	}{
 		{
-			name: "nil activity",
-			activity: nil,
-			spinnerIndex: 0,
+			name:          "nil activity",
+			activity:      nil,
+			spinnerIndex:  0,
 			shouldContain: "", // should return empty string
 		},
 		{
@@ -398,7 +398,7 @@ func TestFormatActivityLine(t *testing.T) {
 				Progress:  0.5,
 				StartTime: time.Now(),
 			},
-			spinnerIndex: 1,
+			spinnerIndex:  1,
 			shouldContain: "Testing message",
 		},
 		{
@@ -412,7 +412,7 @@ func TestFormatActivityLine(t *testing.T) {
 				StartTime: time.Now().Add(-time.Second),
 				EndTime:   &[]time.Time{time.Now()}[0],
 			},
-			spinnerIndex: 0,
+			spinnerIndex:  0,
 			shouldContain: "Completed successfully",
 		},
 		{
@@ -424,7 +424,7 @@ func TestFormatActivityLine(t *testing.T) {
 				Level:     0,
 				StartTime: time.Now(),
 			},
-			spinnerIndex: 0,
+			spinnerIndex:  0,
 			shouldContain: "...",
 		},
 	}
@@ -432,7 +432,7 @@ func TestFormatActivityLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tracker.formatActivityLine(tt.activity, tt.spinnerIndex)
-			
+
 			if tt.shouldContain == "" {
 				if result != "" {
 					t.Errorf("Expected empty string for nil activity, got: %q", result)
@@ -448,13 +448,13 @@ func TestFormatActivityLine(t *testing.T) {
 
 func TestFormatActivityLineEdgeCases(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Test nil activity
 	result := tracker.formatActivityLine(nil, 0)
 	if result != "" {
 		t.Errorf("Expected empty string for nil activity, got: %q", result)
 	}
-	
+
 	// Test activity with retry metadata
 	activityWithRetry := &ExecutionProgress{
 		Name:      "retry-activity",
@@ -468,10 +468,10 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 	if !strings.Contains(result, "retry 3 - Original message") {
 		t.Errorf("Expected retry message, got: %q", result)
 	}
-	
+
 	// Test activity with progress
 	activityWithProgress := &ExecutionProgress{
-		Name:      "progress-activity", 
+		Name:      "progress-activity",
 		Status:    executor.StatusRunning,
 		Message:   "In progress",
 		Level:     0,
@@ -482,7 +482,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 	if !strings.Contains(result, "(75%)") {
 		t.Errorf("Expected progress percentage, got: %q", result)
 	}
-	
+
 	// Test failed activity with error
 	failedActivity := &ExecutionProgress{
 		Name:      "failed-activity",
@@ -500,7 +500,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 	if !strings.Contains(result, "detailed error message") {
 		t.Errorf("Expected error message, got: %q", result)
 	}
-	
+
 	// Test failed activity with very long error message (should be truncated)
 	longErrorActivity := &ExecutionProgress{
 		Name:      "long-error-activity",
@@ -515,7 +515,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 	if !strings.Contains(result, "...") {
 		t.Errorf("Expected truncated error message, got: %q", result)
 	}
-	
+
 	// Test unknown status (should return empty string)
 	unknownStatusActivity := &ExecutionProgress{
 		Name:      "unknown-activity",
@@ -533,7 +533,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 func TestUpdateDisplayComprehensive(t *testing.T) {
 	tracker := NewExecutionTracker(false)
 	tracker.Start() // Start the display loop
-	
+
 	// Add multiple activities using proper Feedback struct
 	activities := []executor.Feedback{
 		{ActivityName: "parent", Status: executor.StatusRunning, Message: "Parent activity", Timestamp: time.Now()},
@@ -541,25 +541,25 @@ func TestUpdateDisplayComprehensive(t *testing.T) {
 		{ActivityName: "parent.child2", Status: executor.StatusRunning, Message: "Child 2 running", Timestamp: time.Now()},
 		{ActivityName: "independent", Status: executor.StatusFailed, Message: "Failed independently", Error: fmt.Errorf("test error"), Timestamp: time.Now()},
 	}
-	
+
 	for _, feedback := range activities {
 		tracker.UpdateActivity(feedback)
 	}
-	
+
 	// Wait longer for display loop to process
 	time.Sleep(500 * time.Millisecond)
-	
+
 	// Stop the tracker
 	tracker.Stop()
-	
+
 	// Verify activities were added (can't easily capture stderr output in tests)
 	tracker.mu.RLock()
 	defer tracker.mu.RUnlock()
-	
+
 	if len(tracker.executions) != 4 {
 		t.Errorf("Expected 4 activities, got %d", len(tracker.executions))
 	}
-	
+
 	if tracker.executions["parent"] == nil {
 		t.Error("Expected parent activity to be tracked")
 	}
@@ -576,14 +576,14 @@ func TestUpdateDisplayComprehensive(t *testing.T) {
 
 func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Test adding activity with complex metadata
 	metadata := map[string]interface{}{
 		"retry_attempt": 2,
 		"custom_field":  "value",
 		"numeric_field": 123,
 	}
-	
+
 	feedback := executor.Feedback{
 		ActivityName: "complex.nested.activity",
 		Status:       executor.StatusRunning,
@@ -592,23 +592,23 @@ func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 		Timestamp:    time.Now(),
 	}
 	tracker.UpdateActivity(feedback)
-	
+
 	tracker.mu.RLock()
 	activity := tracker.executions["complex.nested.activity"]
 	tracker.mu.RUnlock()
-	
+
 	if activity == nil {
 		t.Fatalf("Activity not found")
 	}
-	
+
 	if activity.Level != 2 { // Should be calculated from name depth
 		t.Errorf("Expected level 2, got %d", activity.Level)
 	}
-	
+
 	if retryAttempt, ok := activity.Metadata["retry_attempt"].(int); !ok || retryAttempt != 2 {
 		t.Errorf("Expected retry_attempt=2 in metadata")
 	}
-	
+
 	// Test duplicate activity update
 	updateFeedback := executor.Feedback{
 		ActivityName: "complex.nested.activity",
@@ -617,11 +617,11 @@ func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 		Timestamp:    time.Now(),
 	}
 	tracker.UpdateActivity(updateFeedback)
-	
+
 	tracker.mu.RLock()
 	updatedActivity := tracker.executions["complex.nested.activity"]
 	tracker.mu.RUnlock()
-	
+
 	if updatedActivity.Status != executor.StatusCompleted {
 		t.Errorf("Expected activity to be updated to completed")
 	}
@@ -632,7 +632,7 @@ func TestAddActivityHierarchicallyEdgeCases(t *testing.T) {
 
 func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Add nested activities using proper Feedback
 	activities := []string{"root", "root.level1", "root.level1.level2", "root.level1.level2.level3"}
 	for _, name := range activities {
@@ -644,28 +644,28 @@ func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
 		}
 		tracker.UpdateActivity(feedback)
 	}
-	
+
 	runningWithAncestors := make(map[string]bool)
-	
+
 	// Mark deepest level and verify all ancestors get marked
 	tracker.markActivityAndAncestors("root.level1.level2.level3", runningWithAncestors)
-	
+
 	expectedMarked := []string{
 		"root.level1.level2.level3",
 		"root.level1.level2",
 		"root.level1",
 		"root",
 	}
-	
+
 	for _, activity := range expectedMarked {
 		if !runningWithAncestors[activity] {
 			t.Errorf("Expected activity %s to be marked", activity)
 		}
 	}
-	
+
 	// Test marking non-existent activity (should not panic)
 	tracker.markActivityAndAncestors("nonexistent", runningWithAncestors)
-	
+
 	// Test marking activity without parent structure
 	standalone := executor.Feedback{
 		ActivityName: "standalone",
@@ -675,7 +675,7 @@ func TestMarkActivityAndAncestorsEdgeCases(t *testing.T) {
 	}
 	tracker.UpdateActivity(standalone)
 	tracker.markActivityAndAncestors("standalone", runningWithAncestors)
-	
+
 	if !runningWithAncestors["standalone"] {
 		t.Errorf("Expected standalone activity to be marked")
 	}
@@ -707,7 +707,7 @@ func TestGetVisibleActivities(t *testing.T) {
 			Timestamp:    time.Now(),
 		}
 		tracker.UpdateActivity(feedback)
-		
+
 		// Set the level manually for testing
 		if activity, exists := tracker.executions[act.name]; exists {
 			activity.Level = act.level
@@ -743,7 +743,7 @@ func TestCreateHierarchicalOrder(t *testing.T) {
 	// Add hierarchical activities
 	activities := []string{
 		"root",
-		"root.child1", 
+		"root.child1",
 		"root.child2",
 		"root.child1.grandchild",
 		"another-root",
@@ -768,7 +768,7 @@ func TestCreateHierarchicalOrder(t *testing.T) {
 	// Root activities should come before their children
 	rootIndex := -1
 	childIndex := -1
-	
+
 	for i, name := range order {
 		if name == "root" {
 			rootIndex = i
@@ -844,10 +844,10 @@ func TestMarkActivityAndAncestors(t *testing.T) {
 
 func TestDisplayLoop(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Start the tracker to begin display loop
 	tracker.Start()
-	
+
 	// Add an activity to trigger display updates
 	feedback := executor.Feedback{
 		ActivityName: "test-display",
@@ -859,7 +859,7 @@ func TestDisplayLoop(t *testing.T) {
 
 	// Let it run briefly
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Stop should terminate the display loop
 	tracker.Stop()
 
@@ -898,14 +898,14 @@ func TestTrackerSpinnerUpdate(t *testing.T) {
 	tracker := NewExecutionTracker(false)
 
 	initialSpinner := atomic.LoadInt64(&tracker.spinnerIndex)
-	
+
 	// Start the tracker which should update spinner
 	tracker.Start()
 	time.Sleep(200 * time.Millisecond) // Let spinner update a few times
 	tracker.Stop()
 
 	finalSpinner := atomic.LoadInt64(&tracker.spinnerIndex)
-	
+
 	// Spinner should have incremented
 	if finalSpinner <= initialSpinner {
 		t.Error("Expected spinner index to increment during display loop")
@@ -914,17 +914,17 @@ func TestTrackerSpinnerUpdate(t *testing.T) {
 
 func TestTrackerStopEdgeCases(t *testing.T) {
 	tracker := NewExecutionTracker(false)
-	
+
 	// Test Stop without Start
 	tracker.Stop() // Should not panic
-	
+
 	// Test multiple Stop calls
 	tracker2 := NewExecutionTracker(false)
 	tracker2.Start()
 	tracker2.Stop()
-	
+
 	// Don't call Stop again as it may try to close already closed channel
-	
+
 	if tracker2.isRunning {
 		t.Error("Expected tracker to not be running after stop")
 	}

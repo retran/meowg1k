@@ -167,7 +167,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		// This will likely fail due to network call, but we test the setup
 		_, err = gateway.ComputeEmbeddings(ctx, request)
 		// We expect an error since we're not actually connecting to Voyage
@@ -210,7 +210,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 				)
 
 				ctx := context.Background()
-				
+
 				// Test that the request is properly formed with correct input type
 				_, err = gateway.ComputeEmbeddings(ctx, request)
 				// We expect a network error, not a validation error
@@ -241,7 +241,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		_, err = gateway.ComputeEmbeddings(ctx, request)
 		// We expect a network error, not a validation error
 		if err != nil {
@@ -264,7 +264,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		_, err = gateway.ComputeEmbeddings(ctx, request)
 		// This might be handled by the API or the client validation
 		if err != nil {
@@ -288,7 +288,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-		
+
 		_, err = gateway.ComputeEmbeddings(ctx, request)
 		if err == nil {
 			t.Fatal("Expected error for cancelled context")
@@ -331,7 +331,7 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 
 	t.Run("Different embedding dimensions", func(t *testing.T) {
 		testCases := []int{128, 256, 512, 1024}
-		
+
 		for _, dim := range testCases {
 			t.Run(fmt.Sprintf("Dimension_%d", dim), func(t *testing.T) {
 				chunks := []string{"Test chunk"}
@@ -343,7 +343,7 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 				)
 
 				ctx := context.Background()
-				
+
 				_, err := gateway.ComputeEmbeddings(ctx, request)
 				// We expect a network error, not a validation error
 				if err != nil {
@@ -363,7 +363,7 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		_, err := gateway.ComputeEmbeddings(ctx, request)
 		if err != nil {
 			t.Logf("Expected network error for single character chunks: %v", err)
@@ -386,7 +386,7 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		_, err := gateway.ComputeEmbeddings(ctx, request)
 		if err != nil {
 			t.Logf("Expected network error for special characters: %v", err)

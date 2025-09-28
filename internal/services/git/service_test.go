@@ -93,7 +93,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	// Change to temp directory
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Skipf("Failed to change to temp directory: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
 	// Change to temp directory
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Skipf("Failed to change to temp directory: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	// Change to temp directory
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
-	
+
 	if err := os.Chdir(tempDir); err != nil {
 		t.Skipf("Failed to change to temp directory: %v", err)
 	}

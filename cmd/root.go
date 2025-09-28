@@ -36,7 +36,7 @@ var rootCmd = &cobra.Command{
 		if cmd == nil {
 			return fmt.Errorf("command is nil")
 		}
-		
+
 		// Skip app initialization for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil

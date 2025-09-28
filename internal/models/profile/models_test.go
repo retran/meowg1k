@@ -27,7 +27,7 @@ import (
 func TestProfile(t *testing.T) {
 	// Test Profile type
 	profile := Profile("test-profile")
-	
+
 	if string(profile) != "test-profile" {
 		t.Errorf("Expected profile string 'test-profile', got '%s'", string(profile))
 	}

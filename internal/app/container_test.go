@@ -86,7 +86,7 @@ generate:
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
-	
+
 	// Set the config flag to point to our temp config
 	cmd.Flags().Set("config", configPath)
 
@@ -141,7 +141,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				return nil
 			},
 			expectError: true,
-			errorMsg:   "",
+			errorMsg:    "",
 		},
 		{
 			name: "Config service creation error - invalid config path",
@@ -155,7 +155,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				return cmd
 			},
 			expectError: true,
-			errorMsg:   "failed to read config file",
+			errorMsg:    "failed to read config file",
 		},
 		{
 			name: "Config service creation error - no config found",
@@ -169,7 +169,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				return cmd
 			},
 			expectError: true,
-			errorMsg:   "no configuration file found",
+			errorMsg:    "no configuration file found",
 		},
 	}
 
@@ -177,7 +177,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var container *AppContainer
 			var err error
-			
+
 			if tt.name == "Command service creation error" {
 				// Test panic recovery
 				defer func() {
@@ -212,11 +212,11 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 
 func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 	// Test getLogDir with various environment variable configurations
-	
+
 	// Save original environment variables
 	originalLocalAppData := os.Getenv("LOCALAPPDATA")
 	originalXDGCache := os.Getenv("XDG_CACHE_HOME")
-	
+
 	defer func() {
 		os.Setenv("LOCALAPPDATA", originalLocalAppData)
 		os.Setenv("XDG_CACHE_HOME", originalXDGCache)
@@ -226,12 +226,12 @@ func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		testLocalAppData := "C:\\Users\\Test\\AppData\\Local"
 		os.Setenv("LOCALAPPDATA", testLocalAppData)
-		
+
 		dir, err := getLogDir()
 		if err != nil {
 			t.Errorf("getLogDir failed: %v", err)
 		}
-		
+
 		expected := filepath.Join(testLocalAppData, "meow", "logs")
 		if dir != expected {
 			t.Errorf("Expected %s, got %s", expected, dir)
@@ -242,12 +242,12 @@ func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 		testXDGCache := "/tmp/test-cache"
 		os.Setenv("XDG_CACHE_HOME", testXDGCache)
-		
+
 		dir, err := getLogDir()
 		if err != nil {
 			t.Errorf("getLogDir failed: %v", err)
 		}
-		
+
 		expected := filepath.Join(testXDGCache, "meow", "logs")
 		if dir != expected {
 			t.Errorf("Expected %s, got %s", expected, dir)
@@ -257,11 +257,11 @@ func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 
 func TestGetLogDirFallbacks(t *testing.T) {
 	// Test fallback behavior when environment variables are empty
-	
+
 	// Save original environment variables
 	originalLocalAppData := os.Getenv("LOCALAPPDATA")
 	originalXDGCache := os.Getenv("XDG_CACHE_HOME")
-	
+
 	defer func() {
 		os.Setenv("LOCALAPPDATA", originalLocalAppData)
 		os.Setenv("XDG_CACHE_HOME", originalXDGCache)
@@ -270,12 +270,12 @@ func TestGetLogDirFallbacks(t *testing.T) {
 	// Test Windows fallback when LOCALAPPDATA is empty
 	if runtime.GOOS == "windows" {
 		os.Setenv("LOCALAPPDATA", "")
-		
+
 		dir, err := getLogDir()
 		if err != nil {
 			t.Errorf("getLogDir failed: %v", err)
 		}
-		
+
 		home, _ := os.UserHomeDir()
 		expected := filepath.Join(home, "AppData", "Local", "meow", "logs")
 		if dir != expected {
@@ -286,12 +286,12 @@ func TestGetLogDirFallbacks(t *testing.T) {
 	// Test Linux/Unix fallback when XDG_CACHE_HOME is empty
 	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 		os.Setenv("XDG_CACHE_HOME", "")
-		
+
 		dir, err := getLogDir()
 		if err != nil {
 			t.Errorf("getLogDir failed: %v", err)
 		}
-		
+
 		home, _ := os.UserHomeDir()
 		expected := filepath.Join(home, ".cache", "meow", "logs")
 		if dir != expected {
@@ -302,7 +302,7 @@ func TestGetLogDirFallbacks(t *testing.T) {
 
 func TestNewAppContainerServicesCreation(t *testing.T) {
 	// Test that all services are properly created and configured
-	
+
 	// Create a valid config
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
@@ -366,7 +366,7 @@ generate:
 	if config == nil {
 		t.Error("Config should not be nil")
 	}
-	
+
 	if len(config.Profiles) != 2 {
 		t.Errorf("Expected 2 profiles, got %d", len(config.Profiles))
 	}
@@ -374,7 +374,7 @@ generate:
 	if config.Generate == nil {
 		t.Error("Generate config should not be nil")
 	}
-	
+
 	// Note: Tasks are only created when they have explicit configuration beyond defaults
 	// Since we only have one explicit task "anthropic-task", expect 1 task
 	if config.Generate.Tasks == nil {
@@ -412,7 +412,7 @@ generate:
 
 func TestAppContainerKeyContextValue(t *testing.T) {
 	// Test that the context contains the correct value for AppContainerKey
-	
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "minimal-config.yaml")
 	configContent := `profiles:

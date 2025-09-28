@@ -37,7 +37,7 @@ func TestExecute(t *testing.T) {
 		os.Args = []string{"meow", "version"}
 
 		err := Execute()
-		
+
 		// Restore stdout
 		w.Close()
 		os.Stdout = old
@@ -65,7 +65,7 @@ func TestExecute(t *testing.T) {
 		os.Args = []string{"meow", "help"}
 
 		err := Execute()
-		
+
 		// Restore stdout
 		w.Close()
 		os.Stdout = old
@@ -96,7 +96,7 @@ func TestExecute(t *testing.T) {
 		os.Args = []string{"meow", "invalid-command"}
 
 		err := Execute()
-		
+
 		// Restore stderr
 		w.Close()
 		os.Stderr = old
@@ -239,7 +239,7 @@ func TestRootCmdContextHandling(t *testing.T) {
 
 		// Try to run the persistent pre-run
 		err := rootCmd.PersistentPreRunE(testCmd, []string{})
-		
+
 		if err != nil {
 			// Expected to fail due to missing dependencies, but verify it's the right error
 			t.Logf("Expected app initialization error: %v", err)
@@ -309,7 +309,7 @@ func TestRootCmdEdgeCases(t *testing.T) {
 	t.Run("Empty args", func(t *testing.T) {
 		// Create a command with empty args
 		testCmd := &cobra.Command{Use: "empty-args"}
-		
+
 		err := rootCmd.PersistentPreRunE(testCmd, []string{})
 		// Should handle empty args gracefully
 		if err != nil {
@@ -349,7 +349,7 @@ func TestRootCmdEdgeCases(t *testing.T) {
 		if err == nil {
 			t.Error("Expected error with nil command")
 		}
-		
+
 		// Any error is acceptable as long as it doesn't panic
 		t.Logf("Got expected error with nil command: %v", err)
 	})

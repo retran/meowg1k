@@ -34,7 +34,7 @@ func TestNewLlamaGateway(t *testing.T) {
 		if gateway == nil {
 			t.Fatal("Expected gateway to be non-nil")
 		}
-		
+
 		// Verify it implements GenerationGateway interface
 		var _ GenerationGateway = gateway
 		t.Log("LlamaGateway correctly implements GenerationGateway interface")
@@ -365,7 +365,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 
 	t.Run("Very long prompts", func(t *testing.T) {
 		longPrompt := strings.Repeat("This is a very long prompt that tests the limits of input handling. ", 100)
-		
+
 		request := mdGateway.NewGenerateContentRequest(
 			"llama2",
 			"You are a helpful assistant",

@@ -97,7 +97,7 @@ func TestGenerateContentRequestGetters(t *testing.T) {
 func TestEmbeddingType(t *testing.T) {
 	// Test that Embedding type works as expected
 	embedding := Embedding{0.1, 0.2, 0.3, 0.4, 0.5}
-	
+
 	if len(embedding) != 5 {
 		t.Errorf("Expected embedding length 5, got %d", len(embedding))
 	}
@@ -113,7 +113,7 @@ func TestEmbeddingType(t *testing.T) {
 
 func TestEmbeddingNil(t *testing.T) {
 	var embedding Embedding
-	
+
 	if len(embedding) != 0 {
 		t.Errorf("Expected nil embedding length 0, got %d", len(embedding))
 	}
@@ -121,7 +121,7 @@ func TestEmbeddingNil(t *testing.T) {
 
 func TestEmbeddingEmpty(t *testing.T) {
 	embedding := Embedding{}
-	
+
 	if len(embedding) != 0 {
 		t.Errorf("Expected empty embedding length 0, got %d", len(embedding))
 	}
@@ -220,7 +220,7 @@ func TestComputeEmbeddingsRequestGetters(t *testing.T) {
 		t.Errorf("TaskType() = %q, want %q", got, taskType)
 	}
 
-	// Test Dimensions() getter  
+	// Test Dimensions() getter
 	if got := request.Dimensions(); got != dimensions {
 		t.Errorf("Dimensions() = %d, want %d", got, dimensions)
 	}
@@ -303,7 +303,7 @@ func TestComputeEmbeddingsRequestLargeData(t *testing.T) {
 	}
 
 	request := NewComputeEmbeddingsRequest("large-model", chunks, Clustering)
-	
+
 	if len(request.Chunks()) != 1000 {
 		t.Errorf("Expected 1000 chunks, got %d", len(request.Chunks()))
 	}

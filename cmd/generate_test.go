@@ -87,14 +87,14 @@ func TestGenerateCmdRunE(t *testing.T) {
 	t.Run("Run without app container", func(t *testing.T) {
 		// Create a context without app container
 		ctx := context.Background()
-		
+
 		// Create a test command with the context
 		testCmd := &cobra.Command{Use: "test-generate"}
 		testCmd.SetContext(ctx)
 
 		// Try to run the generate command
 		err := generateCmd.RunE(testCmd, []string{})
-		
+
 		if err == nil {
 			t.Fatal("Expected error when app container is not initialized")
 		}
@@ -112,7 +112,7 @@ func TestGenerateCmdRunE(t *testing.T) {
 
 		// Try to run the generate command
 		err := generateCmd.RunE(testCmd, []string{})
-		
+
 		if err == nil {
 			t.Fatal("Expected error when context is nil")
 		}
@@ -290,7 +290,7 @@ func TestGenerateCmdEdgeCases(t *testing.T) {
 	t.Run("Empty flag values", func(t *testing.T) {
 		// Test setting flags to empty values
 		flags := []string{"task", "system-prompt", "user-prompt"}
-		
+
 		for _, flagName := range flags {
 			err := generateCmd.Flags().Set(flagName, "")
 			if err != nil {
@@ -334,9 +334,9 @@ func TestGenerateCmdEdgeCases(t *testing.T) {
 
 	t.Run("Very long flag values", func(t *testing.T) {
 		longValue := strings.Repeat("This is a very long string for testing purposes. ", 100)
-		
+
 		flags := []string{"task", "system-prompt", "user-prompt"}
-		
+
 		for _, flagName := range flags {
 			err := generateCmd.Flags().Set(flagName, longValue)
 			if err != nil {

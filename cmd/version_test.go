@@ -24,7 +24,7 @@ func TestVersionCommand(t *testing.T) {
 	// Since the version command uses fmt.Printf directly to stdout,
 	// we need to test it differently. Let's test that it runs without error
 	// and check the command structure instead.
-	
+
 	// Just run the command to ensure it doesn't panic
 	versionCmd.Run(versionCmd, []string{})
 

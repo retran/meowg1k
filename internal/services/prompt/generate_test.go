@@ -53,7 +53,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 			UserPrompt:   "Test user prompt",
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "test stdin content",
 	}
@@ -76,7 +76,7 @@ func TestGetSystemPrompt(t *testing.T) {
 			UserPrompt:   "Test user prompt",
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "",
 	}
@@ -103,7 +103,7 @@ func TestGetUserPrompt(t *testing.T) {
 			UserPrompt:   "Test user prompt",
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "",
 	}
@@ -131,7 +131,7 @@ func TestBuildUserPromptWithStdin(t *testing.T) {
 			UserPrompt:   "Test user prompt",
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "stdin content here",
 	}
@@ -159,7 +159,7 @@ func TestBuildUserPromptStdinOnly(t *testing.T) {
 			UserPrompt:   "", // Empty user prompt
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "stdin only content",
 	}
@@ -187,7 +187,7 @@ func TestBuildUserPromptEmpty(t *testing.T) {
 			UserPrompt:   "", // Empty user prompt
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "", // Empty stdin
 	}
@@ -215,7 +215,7 @@ func TestInterfaceImplementation(t *testing.T) {
 			UserPrompt:   "Test user prompt",
 		},
 	}
-	
+
 	mockCommand := &mockCommandService{
 		stdin: "",
 	}

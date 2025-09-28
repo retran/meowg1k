@@ -462,7 +462,7 @@ func TestGenerateContentFlowWithActivityError(t *testing.T) {
 	)
 
 	flow := flowFactory.NewFlow()
-	
+
 	// Mock executor that returns error
 	executorCtx := executor.NewExecutorContext("test-flow", executor.NoOpFeedbackHandler, &mockExecutorWithError{err: errors.New("activity execution failed")})
 

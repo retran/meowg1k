@@ -105,7 +105,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 	// Note: This test will need the actual Anthropic client to be properly mocked
 	// For now, we'll test the gateway creation and basic error handling
-	
+
 	t.Run("Generate content with valid request", func(t *testing.T) {
 		gateway, err := newAnthropicGateway("test-api-key")
 		if err != nil {
@@ -120,7 +120,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		// This will likely fail due to network call, but we test the setup
 		_, err = gateway.GenerateContent(ctx, request)
 		// We expect an error since we're not actually connecting to Anthropic
@@ -150,7 +150,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 		ctx := context.Background()
 		_, err = gateway.GenerateContent(ctx, request)
-		
+
 		if err == nil {
 			t.Fatal("Expected error for empty model")
 		}
@@ -173,7 +173,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 		)
 
 		ctx := context.Background()
-		
+
 		// This will likely fail due to network call, but we test the setup
 		_, err = gateway.GenerateContent(ctx, request)
 		// We expect an error since we're not actually connecting to Anthropic
@@ -207,7 +207,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 				)
 
 				ctx := context.Background()
-				
+
 				// Test that the request is properly formed
 				_, err = gateway.GenerateContent(ctx, request)
 				// We expect an error since we're not actually connecting to Anthropic
@@ -233,14 +233,14 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-		
+
 		_, err = gateway.GenerateContent(ctx, request)
 		if err == nil {
 			t.Fatal("Expected error for cancelled context")
 		}
 		// Should get context cancelled error or connection error
-		if !strings.Contains(err.Error(), "context canceled") && 
-		   !strings.Contains(err.Error(), "failed to generate content with Anthropic") {
+		if !strings.Contains(err.Error(), "context canceled") &&
+			!strings.Contains(err.Error(), "failed to generate content with Anthropic") {
 			t.Logf("Got expected error for cancelled context: %v", err)
 		}
 	})

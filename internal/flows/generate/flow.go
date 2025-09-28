@@ -74,8 +74,8 @@ func (f *GenerateContentFlowFactory) NewFlow() func(context.Context, *executor.E
 
 		status := "Generating content..."
 		if task.Name != "" {
-		 status = fmt.Sprintf("Executing task \"%s\"...", task.Name)
-    }
+			status = fmt.Sprintf("Executing task \"%s\"...", task.Name)
+		}
 		flowCtx.SendProgress(0.0, status)
 
 		activity := f.generateContentActivityFactory.NewActivity()

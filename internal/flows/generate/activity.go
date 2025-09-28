@@ -79,7 +79,7 @@ func (f *GenerateContentActivityFactory) NewActivity() func(context.Context, *ex
 
 		metadata := map[string]any{}
 
-		executorCtx.SendCompleted( "Generation request completed.")
+		executorCtx.SendCompleted("Generation request completed.")
 
 		return &GenerateContentOutput{
 			Content:  content,

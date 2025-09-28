@@ -27,12 +27,12 @@ func TestNewService(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	if service == nil {
 		t.Fatal("Service should not be nil")
 	}
@@ -44,7 +44,7 @@ func TestNewServicePanicsWithNilCommand(t *testing.T) {
 			t.Error("Expected panic when command is nil")
 		}
 	}()
-	
+
 	NewService(nil)
 }
 
@@ -52,12 +52,12 @@ func TestGetCommand(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	if service.GetCommand() != cmd {
 		t.Error("GetCommand should return the original command")
 	}
@@ -67,12 +67,12 @@ func TestGetCommandName(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "testcmd",
 	}
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	if service.GetCommandName() != "testcmd" {
 		t.Errorf("Expected command name 'testcmd', got '%s'", service.GetCommandName())
 	}
@@ -84,17 +84,17 @@ func TestGetConfigPath(t *testing.T) {
 	}
 	cmd.Flags().String("config", "", "config file path")
 	cmd.Flags().Set("config", "/path/to/config.yaml")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	configPath, err := service.GetConfigPath()
 	if err != nil {
 		t.Fatalf("GetConfigPath failed: %v", err)
 	}
-	
+
 	if configPath != "/path/to/config.yaml" {
 		t.Errorf("Expected config path '/path/to/config.yaml', got '%s'", configPath)
 	}
@@ -104,12 +104,12 @@ func TestGetConfigPathUndefined(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	_, err = service.GetConfigPath()
 	if err == nil {
 		t.Error("Expected error when config flag is not defined")
@@ -122,17 +122,17 @@ func TestGetTaskName(t *testing.T) {
 	}
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().Set("task", "mytask")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	taskName, err := service.GetTaskName()
 	if err != nil {
 		t.Fatalf("GetTaskName failed: %v", err)
 	}
-	
+
 	if taskName != "mytask" {
 		t.Errorf("Expected task name 'mytask', got '%s'", taskName)
 	}
@@ -144,17 +144,17 @@ func TestGetUserPrompt(t *testing.T) {
 	}
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Set("user-prompt", "hello world")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	userPrompt, err := service.GetUserPrompt()
 	if err != nil {
 		t.Fatalf("GetUserPrompt failed: %v", err)
 	}
-	
+
 	if userPrompt != "hello world" {
 		t.Errorf("Expected user prompt 'hello world', got '%s'", userPrompt)
 	}
@@ -166,17 +166,17 @@ func TestGetSilentFlag(t *testing.T) {
 	}
 	cmd.Flags().Bool("silent", false, "silent mode")
 	cmd.Flags().Set("silent", "true")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	silent, err := service.GetSilentFlag()
 	if err != nil {
 		t.Fatalf("GetSilentFlag failed: %v", err)
 	}
-	
+
 	if !silent {
 		t.Error("Expected silent flag to be true")
 	}
@@ -188,19 +188,19 @@ func TestGetStdIn(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	
+
 	// When run in test environment, stdin is typically empty
 	stdin := service.GetStdIn()
 	if stdin == "" {
 		// This is expected in test environment
 		t.Log("StdIn is empty as expected in test environment")
 	}
-	
+
 	// Test that GetStdIn returns a string (not nil)
 	_ = service.GetStdIn() // Should not panic
 }
@@ -208,7 +208,7 @@ func TestGetStdIn(t *testing.T) {
 func TestNewServiceStdinErrorPaths(t *testing.T) {
 	// These tests are challenging because they require manipulating stdin
 	// We can test the service creation works with various command configurations
-	
+
 	tests := []struct {
 		name        string
 		setupCmd    func() *cobra.Command
@@ -239,7 +239,7 @@ func TestNewServiceStdinErrorPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := tt.setupCmd()
 			service, err := NewService(cmd)
-			
+
 			if tt.expectError && err == nil {
 				t.Error("Expected error but got none")
 			}
@@ -351,53 +351,53 @@ func TestServiceMethodsWithDefinedButUnsetFlags(t *testing.T) {
 func TestGetMethodsWithVariousValues(t *testing.T) {
 	// Test with various flag values including edge cases
 	tests := []struct {
-		name          string
-		configValue   string
-		taskValue     string
-		promptValue   string
-		silentValue   string
+		name        string
+		configValue string
+		taskValue   string
+		promptValue string
+		silentValue string
 	}{
 		{
-			name:          "Normal values",
-			configValue:   "/etc/config.yaml",
-			taskValue:     "process-data",
-			promptValue:   "Process the input data",
-			silentValue:   "false",
+			name:        "Normal values",
+			configValue: "/etc/config.yaml",
+			taskValue:   "process-data",
+			promptValue: "Process the input data",
+			silentValue: "false",
 		},
 		{
-			name:          "Empty string values",
-			configValue:   "",
-			taskValue:     "",
-			promptValue:   "",
-			silentValue:   "false",
+			name:        "Empty string values",
+			configValue: "",
+			taskValue:   "",
+			promptValue: "",
+			silentValue: "false",
 		},
 		{
-			name:          "Special characters",
-			configValue:   "/path/with spaces/config.yaml",
-			taskValue:     "task-with-dashes_and_underscores",
-			promptValue:   "Prompt with \"quotes\" and 'apostrophes'",
-			silentValue:   "true",
+			name:        "Special characters",
+			configValue: "/path/with spaces/config.yaml",
+			taskValue:   "task-with-dashes_and_underscores",
+			promptValue: "Prompt with \"quotes\" and 'apostrophes'",
+			silentValue: "true",
 		},
 		{
-			name:          "Long values",
-			configValue:   "/very/long/path/to/configuration/file/that/might/cause/issues.yaml",
-			taskValue:     "very-long-task-name-that-exceeds-normal-length-expectations",
-			promptValue:   "This is a very long prompt that contains multiple sentences and might test the limits of string handling in the system.",
-			silentValue:   "true",
+			name:        "Long values",
+			configValue: "/very/long/path/to/configuration/file/that/might/cause/issues.yaml",
+			taskValue:   "very-long-task-name-that-exceeds-normal-length-expectations",
+			promptValue: "This is a very long prompt that contains multiple sentences and might test the limits of string handling in the system.",
+			silentValue: "true",
 		},
 		{
-			name:          "Unicode and special characters",
-			configValue:   "/config/αβγ/config.yaml",
-			taskValue:     "task-ñáéíóú",
-			promptValue:   "Prompt with 🚀 emoji and unicode αβγδε",
-			silentValue:   "false",
+			name:        "Unicode and special characters",
+			configValue: "/config/αβγ/config.yaml",
+			taskValue:   "task-ñáéíóú",
+			promptValue: "Prompt with 🚀 emoji and unicode αβγδε",
+			silentValue: "false",
 		},
 		{
-			name:          "Path with various separators",
-			configValue:   "C:\\Windows\\config.yaml",
-			taskValue:     "windows\\task",
-			promptValue:   "Path: C:\\Users\\test\\file.txt",
-			silentValue:   "true",
+			name:        "Path with various separators",
+			configValue: "C:\\Windows\\config.yaml",
+			taskValue:   "windows\\task",
+			promptValue: "Path: C:\\Users\\test\\file.txt",
+			silentValue: "true",
 		},
 	}
 
@@ -473,7 +473,7 @@ func TestCommandServiceStateManagement(t *testing.T) {
 	cmd := &cobra.Command{Use: "test-state"}
 	cmd.Flags().String("config", "initial-config", "config path")
 	cmd.Flags().String("task", "initial-task", "task name")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -501,7 +501,7 @@ func TestCommandServiceConcurrency(t *testing.T) {
 	cmd := &cobra.Command{Use: "concurrent-test"}
 	cmd.Flags().String("config", "test-config", "config path")
 	cmd.Flags().Bool("silent", false, "silent mode")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -509,35 +509,35 @@ func TestCommandServiceConcurrency(t *testing.T) {
 
 	// Test concurrent access to service methods
 	done := make(chan bool, 10)
-	
+
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			defer func() { done <- true }()
-			
+
 			// Multiple concurrent calls to various methods
 			_, err := service.GetConfigPath()
 			if err != nil {
 				t.Errorf("Goroutine %d: GetConfigPath failed: %v", id, err)
 				return
 			}
-			
+
 			name := service.GetCommandName()
 			if name != "concurrent-test" {
 				t.Errorf("Goroutine %d: Expected 'concurrent-test', got '%s'", id, name)
 				return
 			}
-			
+
 			_, err = service.GetSilentFlag()
 			if err != nil {
 				t.Errorf("Goroutine %d: GetSilentFlag failed: %v", id, err)
 				return
 			}
-			
+
 			stdin := service.GetStdIn()
 			_ = stdin // Just verify it doesn't panic
 		}(i)
 	}
-	
+
 	// Wait for all goroutines to complete
 	for i := 0; i < 10; i++ {
 		<-done
@@ -548,7 +548,7 @@ func TestCommandServiceErrorPropagation(t *testing.T) {
 	// Test that cobra flag errors are properly propagated
 	cmd := &cobra.Command{Use: "error-test"}
 	// Intentionally don't define flags to cause errors
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -585,7 +585,7 @@ func TestCommandServiceMemoryUsage(t *testing.T) {
 	cmd.Flags().String("config", "test-config", "config path")
 	cmd.Flags().String("task", "test-task", "task name")
 	cmd.Flags().Bool("silent", false, "silent mode")
-	
+
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
@@ -600,6 +600,6 @@ func TestCommandServiceMemoryUsage(t *testing.T) {
 		_ = service.GetStdIn()
 		_ = service.GetCommand()
 	}
-	
+
 	t.Log("Completed 1000 iterations without issues")
 }

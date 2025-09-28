@@ -162,7 +162,7 @@ func TestNewServiceWithoutConfig(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no configuration file found")
 	}
-	
+
 	// Check that error message is appropriate
 	if err != nil && err.Error() != "no configuration file found in standard locations" {
 		t.Errorf("Expected specific error message, got: %v", err)
@@ -171,12 +171,12 @@ func TestNewServiceWithoutConfig(t *testing.T) {
 
 func TestNewServiceWithSystemConfigDirs(t *testing.T) {
 	// Test with various XDG_CONFIG_DIRS and XDG_CONFIG_HOME scenarios
-	
+
 	// Save original environment variables
 	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
-	
+
 	defer func() {
 		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
@@ -187,7 +187,7 @@ func TestNewServiceWithSystemConfigDirs(t *testing.T) {
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "meowg1k")
 	os.MkdirAll(configDir, 0755)
-	
+
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
   default:
@@ -236,7 +236,7 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
-	
+
 	defer func() {
 		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
@@ -247,7 +247,7 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, "meowg1k")
 	os.MkdirAll(configDir, 0755)
-	
+
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
   user:
@@ -291,7 +291,7 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
-	
+
 	defer func() {
 		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
@@ -302,7 +302,7 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 	tempDir := t.TempDir()
 	homeConfigDir := filepath.Join(tempDir, ".config", "meowg1k")
 	os.MkdirAll(homeConfigDir, 0755)
-	
+
 	configPath := filepath.Join(homeConfigDir, "config.yaml")
 	configContent := `profiles:
   home:
@@ -319,7 +319,7 @@ generate:
 
 	// Test with HOME fallback (no XDG_CONFIG_HOME set)
 	os.Setenv("XDG_CONFIG_DIRS", "/etc/xdg") // Default, no config here
-	os.Setenv("XDG_CONFIG_HOME", "")        // Empty, should use HOME fallback
+	os.Setenv("XDG_CONFIG_HOME", "")         // Empty, should use HOME fallback
 	os.Setenv("HOME", tempDir)
 
 	cmd := &cobra.Command{Use: "test"}
@@ -346,7 +346,7 @@ func TestNewServiceWithCurrentDirectoryConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	configDir := filepath.Join(tempDir, ".meowg1k")
 	os.MkdirAll(configDir, 0755)
-	
+
 	configPath := filepath.Join(configDir, "config.yaml")
 	configContent := `profiles:
   local:
@@ -370,7 +370,7 @@ generate:
 	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
-	
+
 	defer func() {
 		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
@@ -402,12 +402,12 @@ generate:
 
 func TestNewServiceConfigMerging(t *testing.T) {
 	// Test configuration merging when multiple config files exist
-	
+
 	// Save original environment variables
 	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
-	
+
 	defer func() {
 		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
@@ -416,7 +416,7 @@ func TestNewServiceConfigMerging(t *testing.T) {
 
 	// Create temporary directories
 	tempDir := t.TempDir()
-	
+
 	// Create system config
 	systemConfigDir := filepath.Join(tempDir, "system", "meowg1k")
 	os.MkdirAll(systemConfigDir, 0755)
@@ -430,8 +430,8 @@ generate:
     profile: "system"
 `
 	os.WriteFile(systemConfigPath, []byte(systemConfigContent), 0644)
-	
-	// Create user config  
+
+	// Create user config
 	userConfigDir := filepath.Join(tempDir, "user", "meowg1k")
 	os.MkdirAll(userConfigDir, 0755)
 	userConfigPath := filepath.Join(userConfigDir, "config.yaml")
@@ -464,7 +464,7 @@ generate:
 	}
 
 	config := configSvc.GetConfig()
-	
+
 	// Should have both system and user profiles
 	if _, exists := config.Profiles["system"]; !exists {
 		t.Error("System profile should exist")
@@ -472,7 +472,7 @@ generate:
 	if _, exists := config.Profiles["user"]; !exists {
 		t.Error("User profile should exist")
 	}
-	
+
 	// User config should override system config
 	if config.Profiles["system"].Model != "user-override-model" {
 		t.Errorf("Expected user override, got %s", config.Profiles["system"].Model)

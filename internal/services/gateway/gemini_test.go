@@ -27,7 +27,7 @@ import (
 
 func TestNewGeminiGateway(t *testing.T) {
 	ctx := context.Background()
-	
+
 	t.Run("Valid API key", func(t *testing.T) {
 		gateway, err := newGeminiGateway(ctx, "test-api-key")
 		if err != nil {
@@ -38,7 +38,7 @@ func TestNewGeminiGateway(t *testing.T) {
 		if gateway == nil {
 			t.Fatal("Expected gateway to be non-nil")
 		}
-		
+
 		// Verify it implements both interfaces
 		var _ GenerationGateway = gateway
 		var _ EmbeddingsGateway = gateway
@@ -70,7 +70,7 @@ func TestNewGeminiGateway(t *testing.T) {
 
 func TestGeminiGateway_GenerateContent(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Try to create a gateway for testing
 	gateway, err := newGeminiGateway(ctx, "test-api-key")
 	if err != nil {
@@ -173,7 +173,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 
 func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Try to create a gateway for testing
 	gateway, err := newGeminiGateway(ctx, "test-api-key")
 	if err != nil {
@@ -268,7 +268,7 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 
 func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
 	ctx := context.Background()
-	
+
 	gateway, err := newGeminiGateway(ctx, "test-api-key")
 	if err != nil {
 		t.Skipf("Cannot create Gemini gateway for interface testing: %v", err)
@@ -279,7 +279,7 @@ func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
 	var _ GenerationGateway = gateway
 	var _ EmbeddingsGateway = gateway
 	var _ Gateway = gateway // Should implement the unified Gateway interface
-	
+
 	t.Log("GeminiGateway correctly implements GenerationGateway, EmbeddingsGateway, and Gateway interfaces")
 
 	// Test that it has the ComputeDistance method from mixin
@@ -298,7 +298,7 @@ func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
 
 func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 	ctx := context.Background()
-	
+
 	gateway, err := newGeminiGateway(ctx, "test-api-key")
 	if err != nil {
 		t.Skipf("Cannot create Gemini gateway for error testing: %v", err)
@@ -404,7 +404,7 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 
 func TestGeminiGateway_ParameterValidation(t *testing.T) {
 	ctx := context.Background()
-	
+
 	gateway, err := newGeminiGateway(ctx, "test-api-key")
 	if err != nil {
 		t.Skipf("Cannot create Gemini gateway for parameter testing: %v", err)

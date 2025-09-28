@@ -251,11 +251,11 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 	defer errorServer.Close()
 
 	profile := &mdProfile.ResolvedProfile{
-		Provider:  mdGateway.OpenAI,
-		Model:     "text-embedding-ada-002",
-		BaseURL:   errorServer.URL,
-		APIKey:    "test-api-key",
-		Timeout:   30 * time.Second,
+		Provider: mdGateway.OpenAI,
+		Model:    "text-embedding-ada-002",
+		BaseURL:  errorServer.URL,
+		APIKey:   "test-api-key",
+		Timeout:  30 * time.Second,
 	}
 
 	gateway, err := newOpenAIGateway(profile.BaseURL, profile.APIKey)

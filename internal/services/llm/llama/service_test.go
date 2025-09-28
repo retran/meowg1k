@@ -297,11 +297,11 @@ func TestCompletionRequestFieldsValidation(t *testing.T) {
 
 func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 	tests := []struct {
-		name           string
-		setupServer    func() *httptest.Server
-		request        *CompletionRequest
-		expectError    bool
-		errorMsg       string
+		name        string
+		setupServer func() *httptest.Server
+		request     *CompletionRequest
+		expectError bool
+		errorMsg    string
 	}{
 		{
 			name: "Request marshaling error - invalid request structure",
@@ -312,7 +312,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				}))
 			},
 			request: &CompletionRequest{
-				Prompt: "Test", // Valid request, test will use invalid JSON 
+				Prompt: "Test", // Valid request, test will use invalid JSON
 			},
 			expectError: false, // This specific case won't fail marshaling
 		},
@@ -326,10 +326,10 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:   "failed to create HTTP request",
+			errorMsg:    "failed to create HTTP request",
 		},
 		{
-			name: "Response body read error simulation", 
+			name: "Response body read error simulation",
 			setupServer: func() *httptest.Server {
 				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(200)
@@ -341,7 +341,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:   "failed to unmarshal response",
+			errorMsg:    "failed to unmarshal response",
 		},
 		{
 			name: "Various HTTP error status codes",
@@ -355,7 +355,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:   "API request failed with status 404",
+			errorMsg:    "API request failed with status 404",
 		},
 		{
 			name: "Client error status codes",
@@ -369,7 +369,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:   "API request failed with status 400",
+			errorMsg:    "API request failed with status 400",
 		},
 		{
 			name: "Malformed JSON response",
@@ -383,7 +383,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				Prompt: "Test prompt",
 			},
 			expectError: true,
-			errorMsg:   "failed to unmarshal response",
+			errorMsg:    "failed to unmarshal response",
 		},
 	}
 
@@ -391,12 +391,12 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var service Service
 			var err error
-			
+
 			if tt.name == "HTTP request creation with invalid URL characters" {
 				// Test with service that has invalid URL
 				service, err = NewService("ht tp://invalid url with spaces", "key")
 				require.NoError(t, err) // Service creation succeeds
-				
+
 				ctx := context.Background()
 				_, err = service.Complete(ctx, tt.request)
 				assert.Error(t, err)
@@ -441,9 +441,9 @@ func TestCompletionResponseValidation(t *testing.T) {
 			"presence_penalty":  0.2,
 			"repeat_penalty":    1.05,
 			"temperature":       0.7,
-			"top_k":            40,
-			"top_p":            0.9,
-			"typical_p":        1.0,
+			"top_k":             40,
+			"top_p":             0.9,
+			"typical_p":         1.0,
 		},
 		Prompt:   "Original prompt text",
 		Stop:     true,

@@ -269,17 +269,17 @@ func TestWaitAnyEmpty(t *testing.T) {
 
 func TestFutureCompleteMultipleTimes(t *testing.T) {
 	f := NewFuture[string]()
-	
+
 	// Complete the future
 	f.Complete("first")
-	
+
 	// Try to complete again - should be ignored
 	f.Complete("second")
-	
+
 	// Get should return the first value
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -291,20 +291,20 @@ func TestFutureCompleteMultipleTimes(t *testing.T) {
 
 func TestFutureCompleteWithErrorMultipleTimes(t *testing.T) {
 	f := NewFuture[int]()
-	
+
 	firstErr := errors.New("first error")
 	secondErr := errors.New("second error")
-	
+
 	// Complete with error
 	f.CompleteWithError(firstErr)
-	
+
 	// Try to complete with another error - should be ignored
 	f.CompleteWithError(secondErr)
-	
+
 	// Get should return the first error
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != firstErr {
 		t.Fatalf("Expected first error, got %v", err)
@@ -316,17 +316,17 @@ func TestFutureCompleteWithErrorMultipleTimes(t *testing.T) {
 
 func TestFutureCompleteAfterError(t *testing.T) {
 	f := NewFuture[string]()
-	
+
 	// Complete with error first
 	testErr := errors.New("test error")
 	f.CompleteWithError(testErr)
-	
+
 	// Try to complete with value - should be ignored
 	f.Complete("value")
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != testErr {
 		t.Fatalf("Expected test error, got %v", err)
@@ -338,16 +338,16 @@ func TestFutureCompleteAfterError(t *testing.T) {
 
 func TestFutureErrorAfterComplete(t *testing.T) {
 	f := NewFuture[string]()
-	
+
 	// Complete with value first
 	f.Complete("test value")
-	
+
 	// Try to complete with error - should be ignored
 	f.CompleteWithError(errors.New("should be ignored"))
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
@@ -359,14 +359,14 @@ func TestFutureErrorAfterComplete(t *testing.T) {
 
 func TestFutureGetAlreadyCompleted(t *testing.T) {
 	f := NewFuture[int]()
-	
+
 	// Complete the future
 	f.Complete(42)
-	
+
 	// Get should return immediately without waiting
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond) // Very short timeout
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != nil {
 		t.Fatalf("Expected no error for already completed future, got %v", err)
@@ -378,14 +378,14 @@ func TestFutureGetAlreadyCompleted(t *testing.T) {
 
 func TestFutureGetAlreadyCompletedWithError(t *testing.T) {
 	f := NewFuture[int]()
-	
+
 	testErr := errors.New("test error")
 	f.CompleteWithError(testErr)
-	
+
 	// Get should return immediately with error
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond) // Very short timeout
 	defer cancel()
-	
+
 	result, err := f.Get(ctx)
 	if err != testErr {
 		t.Fatalf("Expected test error, got %v", err)
@@ -399,7 +399,7 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	// Test TryGet on completed future
 	f1 := NewFuture[string]()
 	f1.Complete("completed")
-	
+
 	result, err, ok := f1.TryGet()
 	if !ok {
 		t.Error("Expected TryGet to return true for completed future")
@@ -410,12 +410,12 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	if result != "completed" {
 		t.Fatalf("Expected 'completed', got %v", result)
 	}
-	
+
 	// Test TryGet on future with error
 	f2 := NewFuture[string]()
 	testErr := errors.New("test error")
 	f2.CompleteWithError(testErr)
-	
+
 	result2, err2, ok2 := f2.TryGet()
 	if !ok2 {
 		t.Error("Expected TryGet to return true for future with error")
@@ -431,30 +431,30 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 func TestWaitAnyWithVariousCompletionOrders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	// Test completing the second future first
 	f1 := NewFuture[string]()
 	f2 := NewFuture[string]()
 	f3 := NewFuture[string]()
-	
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		f2.Complete("second") // Complete f2 first
 	}()
-	
+
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		f1.Complete("first")
 	}()
-	
+
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		f3.Complete("third")
 	}()
-	
+
 	futures := []*Future[string]{f1, f2, f3}
 	result, index, err := WaitAny(ctx, futures[0], futures[1], futures[2])
-	
+
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -469,23 +469,23 @@ func TestWaitAnyWithVariousCompletionOrders(t *testing.T) {
 func TestWaitAnyWithError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	f1 := NewFuture[int]()
 	f2 := NewFuture[int]()
-	
+
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		f1.CompleteWithError(errors.New("future 1 error"))
 	}()
-	
+
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		f2.Complete(42)
 	}()
-	
+
 	futures := []*Future[int]{f1, f2}
 	result, index, err := WaitAny(ctx, futures[0], futures[1])
-	
+
 	if err == nil {
 		t.Fatal("Expected error from first future")
 	}
@@ -500,17 +500,17 @@ func TestWaitAnyWithError(t *testing.T) {
 func TestWaitAnyWithSingleFuture(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	
+
 	f := NewFuture[string]()
-	
+
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		f.Complete("single")
 	}()
-	
+
 	futures := []*Future[string]{f}
 	result, index, err := WaitAny(ctx, futures[0])
-	
+
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -524,11 +524,11 @@ func TestWaitAnyWithSingleFuture(t *testing.T) {
 
 func TestFutureConcurrentOperations(t *testing.T) {
 	f := NewFuture[int]()
-	
+
 	// Start multiple goroutines trying to complete the future
 	var wg sync.WaitGroup
 	completed := make([]bool, 100)
-	
+
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func(index int) {
@@ -538,30 +538,30 @@ func TestFutureConcurrentOperations(t *testing.T) {
 			completed[index] = true
 		}(i)
 	}
-	
+
 	// Start multiple readers
 	results := make([]int, 10)
 	errors := make([]error, 10)
-	
+
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
-			
+
 			result, err := f.Get(ctx)
 			results[index] = result
 			errors[index] = err
 		}(i)
 	}
-	
+
 	wg.Wait()
-	
+
 	// All readers should get the same result
 	firstResult := results[0]
 	firstError := errors[0]
-	
+
 	for i := 1; i < 10; i++ {
 		if results[i] != firstResult {
 			t.Errorf("Reader %d got different result: %v vs %v", i, results[i], firstResult)
@@ -575,11 +575,11 @@ func TestFutureConcurrentOperations(t *testing.T) {
 func TestFutureZeroValue(t *testing.T) {
 	// Test that zero value future behaves correctly
 	var f Future[string]
-	
+
 	if f.IsDone() {
 		t.Error("Zero value future should not be done")
 	}
-	
+
 	result, err, ok := f.TryGet()
 	if ok {
 		t.Error("Zero value future TryGet should return false")
