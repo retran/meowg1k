@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"google.golang.org/genai"
 
@@ -118,7 +119,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 	if request.Dimensions() > 0 {
 		dimensions := request.Dimensions()
 		// Check for integer overflow when converting to int32
-		if dimensions > int(^uint32(0)>>1) {
+		if dimensions > math.MaxInt32 {
 			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
 		}
 
