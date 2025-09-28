@@ -23,10 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-	"github.com/spf13/cobra"
 )
 
 // Mock implementations for testing

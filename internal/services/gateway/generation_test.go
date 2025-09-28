@@ -3,9 +3,10 @@ package gateway
 import (
 	"testing"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 func TestNewGenerateContentRequest(t *testing.T) {

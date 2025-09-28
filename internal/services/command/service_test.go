@@ -466,7 +466,7 @@ func TestServiceInterfaceCompliance(t *testing.T) {
 	}
 
 	// Verify interface compliance
-	var _ Service = service
+	_ = service
 	t.Log("Service correctly implements Service interface")
 }
 

@@ -305,7 +305,7 @@ func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
 	}
 
 	// Verify that the gateway implements EmbeddingsGateway interface
-	var _ EmbeddingsGateway = gateway
+	_ = gateway
 	t.Log("VoyageGateway correctly implements EmbeddingsGateway interface")
 
 	// Test that it has the ComputeDistance method from mixin

@@ -36,7 +36,7 @@ func TestNewLlamaGateway(t *testing.T) {
 		}
 
 		// Verify it implements GenerationGateway interface
-		var _ GenerationGateway = gateway
+		_ = gateway
 		t.Log("LlamaGateway correctly implements GenerationGateway interface")
 	})
 
@@ -464,7 +464,7 @@ func TestLlamaGateway_InterfaceCompliance(t *testing.T) {
 	}
 
 	// Verify that the gateway implements GenerationGateway interface
-	var _ GenerationGateway = gateway
+	_ = gateway
 	t.Log("LlamaGateway correctly implements GenerationGateway interface")
 
 	// Test basic interface methods

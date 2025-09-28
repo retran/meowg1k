@@ -21,11 +21,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdLLM "github.com/retran/meowg1k/internal/models/llm"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewGatewayFactory(t *testing.T) {

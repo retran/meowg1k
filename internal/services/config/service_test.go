@@ -21,8 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/services/command"
 )
 
 func TestNewServiceWithSpecificConfig(t *testing.T) {

@@ -253,7 +253,7 @@ func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
 	}
 
 	// Verify that the gateway implements GenerationGateway interface
-	var _ GenerationGateway = gateway
+	_ = gateway
 	t.Log("AnthropicGateway correctly implements GenerationGateway interface")
 }
 

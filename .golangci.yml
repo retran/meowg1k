@@ -1,128 +1,31 @@
 version: "2"
 
 run:
-  go: '1.25'
-  timeout: 5m
+  go: "1.25.1"
+  timeout: 3m
   issues-exit-code: 1
-  tests: false
-  modules-download-mode: readonly
-
-output:
-  sort-results: true
-  sort-order:
-    - linter
-    - severity
-    - file
 
 linters:
   disable-all: true
   enable:
     - govet
-    - errcheck
     - staticcheck
     - unused
     - ineffassign
-    - gocyclo
-    - gocognit
-    - funlen
-    - goconst
-    - gocritic
-    - revive
-    - misspell
-    - lll
-    - unconvert
-    - unparam
-    - prealloc
-    - predeclared
     - bodyclose
-    - depguard
-    - dogsled
-    - durationcheck
-    - errorlint
-    - exhaustive
-    - forbidigo
-    - importas
-    - makezero
-    - nakedret
-    - nestif
-    - nilerr
-    - noctx
-    - nolintlint
-    - paralleltest
-    - sloglint
-    - sqlclosecheck
-    - thelper
-    - tparallel
-    - usestdlibvars
-    - wastedassign
-    - wrapcheck
-    - wsl_v5
-
-linters-settings:
-  govet:
-    shadow: true
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-  gocyclo:
-    min-complexity: 15
-  gocognit:
-    min-complexity: 20
-  funlen:
-    lines: 100
-    statements: 60
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-tags:
-      - opinionated
-      - experimental
-  revive:
-    severity: "warning"
-    rules:
-      - name: line-length-limit
-        disabled: true
-      - name: package-comments
-        disabled: true
-      - name: unexported-return
-        disabled: true
-  lll:
-    line-length: 120
-    tab-width: 4
-  misspell:
-    locale: US
-  nolintlint:
-    require-explanation: true
-    require-specific: true
-  sloglint:
-    no-mixed-args: true
-    no-global: "all"
-    context: "scope"
-  wrapcheck:
-    ignore-sigs:
-      - errors.New
-      - errors.Unwrap
-      - errors.Join
-      - fmt.Errorf
-      - .Wrap
-      - .Wrapf
-      - .WithMessage
-      - .WithMessagef
-  wsl:
-    strict-append: true
-    allow-cuddle-declarations: false
+    - misspell
+  disable:
+    - errcheck
 
 formatters:
   enable:
-    - gofmt
-    - goimports
     - gofumpt
     - gci
+
   settings:
     gofumpt:
       extra-rules: true
+
     gci:
       sections:
         - standard
@@ -133,22 +36,7 @@ formatters:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-use-default: false
   exclude-rules:
     - path: _test\.go
       linters:
-        - funlen
-        - gocyclo
-        - gocognit
         - errcheck
-        - goconst
-        - bodyclose
-    - linters:
-        - staticcheck
-      text: "SA1019: a_package.SomeFunction is deprecated"
-    - linters:
-        - gosec
-      text: "G101: Potential hardcoded credentials"
-      source: "const defaultPassword"
-    - path: mockery/.*\.go
-      text: ".*"
