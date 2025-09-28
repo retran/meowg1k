@@ -144,6 +144,7 @@ func NewExecutionTracker(silent bool) *ExecutionTracker {
 func (t *ExecutionTracker) Start() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
 	t.isRunning = true
 }
 
@@ -240,9 +241,11 @@ func (t *ExecutionTracker) displayLoop() {
 		case <-t.ticker.C:
 			atomic.AddInt64(&t.spinnerIndex, 1)
 			t.mu.RLock()
+
 			if t.isRunning {
 				t.updateDisplay()
 			}
+
 			t.mu.RUnlock()
 		case <-t.stopChan:
 			return

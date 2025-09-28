@@ -20,6 +20,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/retran/meowg1k/internal/app"
 	"github.com/retran/meowg1k/internal/flows/generate"
 	"github.com/retran/meowg1k/internal/services/gateway"
@@ -29,7 +31,6 @@ import (
 	"github.com/retran/meowg1k/internal/services/task"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/ui"
-	"github.com/spf13/cobra"
 )
 
 // ErrAppNotInitialized indicates the application container is not properly initialized

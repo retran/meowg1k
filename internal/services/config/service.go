@@ -22,9 +22,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/viper"
+
 	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	"github.com/retran/meowg1k/internal/services/command"
-	"github.com/spf13/viper"
 )
 
 // Configuration errors

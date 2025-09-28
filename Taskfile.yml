@@ -48,10 +48,6 @@ tasks:
     desc: Format Go code using golangci-lint
     cmds:
       - |
-        if ! command -v golangci-lint >/dev/null 2>&1; then
-          echo "Installing golangci-lint..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-        fi
       - echo "Formatting code with golangci-lint..."
       - golangci-lint run --fix
       - echo "✅ Go sources formatted"
@@ -93,11 +89,6 @@ tasks:
   lint:
     desc: Run golangci-lint
     cmds:
-      - |
-        if ! command -v golangci-lint >/dev/null 2>&1; then
-          echo "Installing golangci-lint..."
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-        fi
       - golangci-lint run --timeout=5m
 
   security:

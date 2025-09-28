@@ -21,8 +21,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/app"
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/app"
 )
 
 // ErrCommandIsNil indicates the command parameter is nil

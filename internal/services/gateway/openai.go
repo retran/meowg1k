@@ -23,6 +23,7 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 

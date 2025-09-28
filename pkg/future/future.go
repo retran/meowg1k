@@ -59,8 +59,10 @@ func (f *Future[T]) Complete(value T) {
 	}
 
 	f.done = true
+
 	f.val = value
 	f.ch <- result[T]{value: value}
+
 	close(f.ch)
 }
 
@@ -74,20 +76,24 @@ func (f *Future[T]) CompleteWithError(err error) {
 	}
 
 	f.done = true
+
 	f.err = err
 	f.ch <- result[T]{error: err}
+
 	close(f.ch)
 }
 
 // Get waits for the future to complete and returns the result
 func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	f.mu.RLock()
+
 	if f.done {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
 
 		return val, err
 	}
+
 	f.mu.RUnlock()
 
 	select {
@@ -110,12 +116,14 @@ func (f *Future[T]) IsDone() bool {
 // TryGet returns the result if available, or nil if not ready
 func (f *Future[T]) TryGet() (T, error, bool) {
 	f.mu.RLock()
+
 	if f.done {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
 
 		return val, err, true
 	}
+
 	f.mu.RUnlock()
 
 	select {

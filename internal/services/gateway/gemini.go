@@ -21,8 +21,9 @@ import (
 	"errors"
 	"fmt"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"google.golang.org/genai"
+
+	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 var (

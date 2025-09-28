@@ -26,7 +26,6 @@ import (
 	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/provider"
 )
