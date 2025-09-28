@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
@@ -43,8 +44,7 @@ type TaskConfiguration struct {
 
 // serviceImpl is the concrete implementation of the task resolver service.
 type serviceImpl struct {
-	profileService profile.Service
-	cachedConfig   *TaskConfiguration
+	cachedConfig *TaskConfiguration
 }
 
 // Compile-time interface satisfaction check
@@ -52,6 +52,64 @@ var _ Service = (*serviceImpl)(nil)
 
 // NewService creates a new task resolver service.
 // It loads and validates the task configuration at creation time.
+// resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
+func resolveTaskConfiguration(taskName string, cmdUserPrompt string, cfg *mdConfig.Config) (string, string, string, error) {
+	var profileName, systemPrompt, userPrompt string
+
+	if taskName != "" && cfg.Generate != nil && cfg.Generate.Tasks != nil {
+		task, exists := cfg.Generate.Tasks[taskName]
+		if !exists {
+			return "", "", "", fmt.Errorf("task '%s' not found in configuration", taskName)
+		}
+
+		profileName = task.Profile
+		systemPrompt = task.SystemPrompt
+		if cmdUserPrompt != "" {
+			userPrompt = cmdUserPrompt
+		} else {
+			userPrompt = task.UserPrompt
+		}
+
+		profileName, systemPrompt = applyDefaults(profileName, systemPrompt, cfg)
+	} else {
+		if cfg.Generate == nil || cfg.Generate.Default == nil {
+			return "", "", "", fmt.Errorf("no default configuration available")
+		}
+
+		profileName = cfg.Generate.Default.Profile
+		systemPrompt = cfg.Generate.Default.SystemPrompt
+		userPrompt = cmdUserPrompt
+	}
+
+	return strings.TrimSpace(profileName), strings.TrimSpace(systemPrompt), strings.TrimSpace(userPrompt), nil
+}
+
+// applyDefaults applies default values for profile and system prompt if they are empty.
+func applyDefaults(profileName, systemPrompt string, cfg *mdConfig.Config) (string, string) {
+	if profileName == "" && cfg.Generate.Default != nil {
+		profileName = cfg.Generate.Default.Profile
+	}
+
+	if systemPrompt == "" && cfg.Generate.Default != nil {
+		systemPrompt = cfg.Generate.Default.SystemPrompt
+	}
+
+	return profileName, systemPrompt
+}
+
+// validateConfiguration validates the resolved configuration.
+func validateConfiguration(taskName, profileName, userPrompt string) error {
+	if profileName == "" {
+		return fmt.Errorf("no profile configured")
+	}
+
+	if taskName == "" && userPrompt == "" {
+		return fmt.Errorf("user prompt is required (use -p or --user-prompt)")
+	}
+
+	return nil
+}
+
 func NewService(commandService command.Service, configService config.Service, profileService profile.Service) (Service, error) {
 	service := &serviceImpl{}
 
@@ -71,48 +129,13 @@ func NewService(commandService command.Service, configService config.Service, pr
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
 
-	var profileName, systemPrompt, userPrompt string
-	if taskName != "" && cfg.Generate != nil && cfg.Generate.Tasks != nil {
-		task, exists := cfg.Generate.Tasks[taskName]
-		if !exists {
-			return nil, fmt.Errorf("task '%s' not found in configuration", taskName)
-		}
-
-		profileName = task.Profile
-		systemPrompt = task.SystemPrompt
-		if cmdUserPrompt != "" {
-			userPrompt = cmdUserPrompt
-		} else {
-			userPrompt = task.UserPrompt
-		}
-
-		if profileName == "" && cfg.Generate.Default != nil {
-			profileName = cfg.Generate.Default.Profile
-		}
-
-		if systemPrompt == "" && cfg.Generate.Default != nil {
-			systemPrompt = cfg.Generate.Default.SystemPrompt
-		}
-	} else {
-		if cfg.Generate == nil || cfg.Generate.Default == nil {
-			return nil, fmt.Errorf("no default configuration available")
-		}
-
-		profileName = cfg.Generate.Default.Profile
-		systemPrompt = cfg.Generate.Default.SystemPrompt
-		userPrompt = cmdUserPrompt
+	profileName, systemPrompt, userPrompt, err := resolveTaskConfiguration(taskName, cmdUserPrompt, cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	profileName = strings.TrimSpace(profileName)
-	systemPrompt = strings.TrimSpace(systemPrompt)
-	userPrompt = strings.TrimSpace(userPrompt)
-
-	if profileName == "" {
-		return nil, fmt.Errorf("no profile configured")
-	}
-
-	if taskName == "" && userPrompt == "" {
-		return nil, fmt.Errorf("user prompt is required (use -p or --user-prompt)")
+	if err := validateConfiguration(taskName, profileName, userPrompt); err != nil {
+		return nil, err
 	}
 
 	resolvedProfile, err := profileService.Get(mdProfile.Profile(profileName))

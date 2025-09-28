@@ -82,10 +82,14 @@ func (e *ExecutorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 }
 
 // RunFlow runs a flow asynchronously and returns when it completes or fails
-func (e *ExecutorImpl) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *ExecutorContext) error) error {
+func (e *ExecutorImpl) RunFlow(
+	ctx context.Context,
+	flowName string,
+	flow func(context.Context, *ExecutorContext) error,
+) error {
 	fut := future.NewFuture[any]()
 	executorCtx := NewExecutorContext(flowName, e.FeedbackHandler, e)
-	executorCtx.SendPending(fmt.Sprintf("Flow \"%s\" is pending", flowName))
+	executorCtx.SendPending(fmt.Sprintf("Flow %q is pending", flowName))
 
 	go func() {
 		// Try to cast to a function with the right signature
@@ -102,7 +106,7 @@ func (e *ExecutorImpl) RunFlow(ctx context.Context, flowName string, flow func(c
 }
 
 // RunActivity runs a sub-activity asynchronously and returns a future for its result
-func (e *ExecutorImpl) RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
+func (e *ExecutorImpl) RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity, input any) *future.Future[any] {
 	future := future.NewFuture[any]()
 	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
 	activityCtx := NewExecutorContext(fullActivityName, parentCtx.feedbackFunc, e)

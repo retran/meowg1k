@@ -19,6 +19,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -31,6 +32,13 @@ import (
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/shutdown"
 	"github.com/spf13/cobra"
+)
+
+var (
+	// ErrInvalidLogFilename is returned when a log filename contains invalid characters.
+	ErrInvalidLogFilename = errors.New("log filename contains invalid characters or path separators")
+	// ErrLogPathOutsideDirectory is returned when a log path is outside the expected directory.
+	ErrLogPathOutsideDirectory = errors.New("log path is outside log directory")
 )
 
 // AppContainer is the main application struct that holds all cross-cutting services.
@@ -59,7 +67,7 @@ const (
 func validateLogPath(logDir, fileName string) error {
 	// Ensure filename doesn't contain path separators
 	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
-		return fmt.Errorf("invalid log filename: %s", fileName)
+		return fmt.Errorf("%w: %s", ErrInvalidLogFilename, fileName)
 	}
 
 	// Clean the logDir path to resolve any path issues
@@ -68,7 +76,7 @@ func validateLogPath(logDir, fileName string) error {
 
 	// Ensure the final path is within the expected log directory
 	if !strings.HasPrefix(logPath, cleanLogDir) {
-		return fmt.Errorf("log path %s is outside log directory %s", logPath, cleanLogDir)
+		return fmt.Errorf("%w: %s is outside %s", ErrLogPathOutsideDirectory, logPath, cleanLogDir)
 	}
 
 	return nil
@@ -88,6 +96,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
 	ctx = context.WithValue(ctx, AppContainerKey, container)
 
 	// Create logs directory in user's cache directory
@@ -102,6 +111,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	}
 
 	// Validate log path to prevent directory traversal
+
 	if err = validateLogPath(logDir, logFileName); err != nil {
 		return nil, fmt.Errorf("invalid log path: %w", err)
 	}
@@ -124,6 +134,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 				return fmt.Errorf("failed to close log file: %w", err)
 			}
 		}
+
 		return nil
 	})
 
@@ -161,12 +172,14 @@ func getLogDir() (string, error) {
 		if localAppData == "" {
 			localAppData = filepath.Join(homeDir, "AppData", "Local")
 		}
+
 		return filepath.Join(localAppData, "meow", "logs"), nil
 	default:
 		xdgCache := os.Getenv("XDG_CACHE_HOME")
 		if xdgCache == "" {
 			xdgCache = filepath.Join(homeDir, ".cache")
 		}
+
 		return filepath.Join(xdgCache, "meow", "logs"), nil
 	}
 }

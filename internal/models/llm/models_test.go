@@ -116,7 +116,10 @@ func TestTokenizerTypeComparison(t *testing.T) {
 		t.Error("Different tokenizer types should not be equal")
 	}
 
-	if TokenizerCL100K != TokenizerCL100K {
+	// Test self-equality
+	if TokenizerCL100K == TokenizerCL100K {
+		// This is expected behavior - same constant should equal itself
+	} else {
 		t.Error("Same tokenizer type should be equal to itself")
 	}
 }
@@ -132,8 +135,21 @@ func TestEmbeddingModelInfo(t *testing.T) {
 		DefaultEmbedDimension: 1024,
 	}
 
+	// Test embedding-specific fields
 	if embeddingModel.MaxOutputTokens != 0 {
 		t.Errorf("Expected MaxOutputTokens 0 for embedding model, got %d", embeddingModel.MaxOutputTokens)
+	}
+
+	if embeddingModel.DefaultEmbedDimension != 1024 {
+		t.Errorf("Expected DefaultEmbedDimension 1024, got %d", embeddingModel.DefaultEmbedDimension)
+	}
+
+	if embeddingModel.Provider != "Voyage" {
+		t.Errorf("Expected Provider 'Voyage', got %q", embeddingModel.Provider)
+	}
+
+	if embeddingModel.TokenizerType != TokenizerCL100K {
+		t.Errorf("Expected TokenizerType %v, got %v", TokenizerCL100K, embeddingModel.TokenizerType)
 	}
 
 	if embeddingModel.DefaultEmbedDimension != 1024 {

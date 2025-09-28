@@ -49,8 +49,8 @@ type Feedback struct {
 // FeedbackHandler processes feedback from activities
 type FeedbackHandler func(feedback Feedback)
 
-// ExecutorContext provides feedback capabilities to activities and access to the executor
-type ExecutorContext struct {
+// ExecutorExecutorContext provides feedback capabilities to activities and access to the executor
+type ExecutorExecutorContext struct {
 	name         string
 	feedbackFunc FeedbackHandler
 	executor     Executor // Interface for running sub-activities
@@ -59,7 +59,7 @@ type ExecutorContext struct {
 // Executor defines the interface for executing flows and activities
 type Executor interface {
 	RunFlow(ctx context.Context, flowName string, flow func(context.Context, *ExecutorContext) error) error
-	RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity any, input any) *future.Future[any]
+	RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity, input any) *future.Future[any]
 }
 
 // NewExecutorContext creates a new activity context with executor access

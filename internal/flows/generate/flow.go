@@ -28,6 +28,11 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+var (
+	// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
+	ErrInvalidActivityOutputType = errors.New("invalid output type from GenerateContent activity")
+)
+
 type FlowFactory struct {
 	taskService          task.Service
 	userPromptProvider   prompt.UserPromptProvider
@@ -56,13 +61,15 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext)
 
 		subject := "Content generation"
 		if task.Name != "" {
-			subject = fmt.Sprintf("Task \"%s\"", task.Name)
+			subject = fmt.Sprintf("Task %q", task.Name)
 		}
 
 		flowCtx.SendProgress(0.0, fmt.Sprintf("Starting %s...", subject))
 
 		flowCtx.SendProgress(0.0, "Preparing prompts...")
+
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
+
 		if err != nil {
 			return fmt.Errorf("failed to get user prompt: %w", err)
 		}
@@ -74,8 +81,9 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext)
 
 		status := "Generating content..."
 		if task.Name != "" {
-			status = fmt.Sprintf("Executing task \"%s\"...", task.Name)
+			status = fmt.Sprintf("Executing task %q...", task.Name)
 		}
+
 		flowCtx.SendProgress(0.0, status)
 
 		activity := f.activityFactory.NewActivity()
@@ -93,9 +101,11 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.ExecutorContext)
 		}
 
 		flowCtx.SendProgress(0.0, "Processing result...")
+
 		generateOutput, ok := output.(*ContentOutput)
+
 		if !ok {
-			return errors.New("invalid output type from \"GenerateContent\" activity")
+			return ErrInvalidActivityOutputType
 		}
 
 		flowCtx.SendCompleted(fmt.Sprintf("%s completed.", subject))

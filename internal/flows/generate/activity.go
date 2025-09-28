@@ -55,12 +55,12 @@ func (f *ActivityFactory) NewActivity() func(
 		executorCtx.SendProgress(0.0, "Preparing generation request...")
 
 		if input == nil {
-			return nil, fmt.Errorf("input cannot be nil")
+			return nil, ErrInputCannotBeNil
 		}
 
 		generateInput, ok := input.(*ContentInput)
 		if !ok {
-			return nil, fmt.Errorf("invalid input type: %T", input)
+			return nil, fmt.Errorf("%w: %T", ErrInvalidInputType, input)
 		}
 
 		executorCtx.SendProgress(0.0, "Sending generation request to large language model...")

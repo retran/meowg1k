@@ -1,7 +1,7 @@
 run:
   timeout: 5m
   modules-download-mode: readonly
-  go: "1.25"
+  go: "1.23"
 
 output:
   formats:

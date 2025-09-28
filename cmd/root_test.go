@@ -162,11 +162,11 @@ func TestRootCmd(t *testing.T) {
 func TestRootCmdPersistentPreRunE(t *testing.T) {
 	t.Run("Skip app initialization for version command", func(t *testing.T) {
 		// Create a mock version command
-		versionCmd := &cobra.Command{
+		localVersionCmd := &cobra.Command{
 			Use: "version",
 		}
 
-		err := rootCmd.PersistentPreRunE(versionCmd, []string{})
+		err := rootCmd.PersistentPreRunE(localVersionCmd, []string{})
 		if err != nil {
 			t.Errorf("PersistentPreRunE should not return error for version command: %v", err)
 		}
