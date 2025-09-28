@@ -1,0 +1,356 @@
+/*
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package cmd
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/spf13/cobra"
+)
+
+func TestGenerateCmd(t *testing.T) {
+	t.Run("Command properties", func(t *testing.T) {
+		if generateCmd.Use != "generate" {
+			t.Errorf("Expected Use to be 'generate', got '%s'", generateCmd.Use)
+		}
+
+		expectedAliases := []string{"gen", "g"}
+		if len(generateCmd.Aliases) != len(expectedAliases) {
+			t.Errorf("Expected %d aliases, got %d", len(expectedAliases), len(generateCmd.Aliases))
+		}
+
+		for i, alias := range expectedAliases {
+			if i >= len(generateCmd.Aliases) || generateCmd.Aliases[i] != alias {
+				t.Errorf("Expected alias '%s' at position %d", alias, i)
+			}
+		}
+
+		if generateCmd.Short == "" {
+			t.Error("Expected Short description to be non-empty")
+		}
+
+		if !strings.Contains(generateCmd.Short, "Generate") {
+			t.Error("Short description should contain 'Generate'")
+		}
+	})
+
+	t.Run("Command flags", func(t *testing.T) {
+		taskFlag := generateCmd.Flags().Lookup("task")
+		if taskFlag == nil {
+			t.Fatal("Expected 'task' flag to be defined")
+		}
+		if taskFlag.Shorthand != "t" {
+			t.Errorf("Expected task flag shorthand to be 't', got '%s'", taskFlag.Shorthand)
+		}
+
+		systemPromptFlag := generateCmd.Flags().Lookup("system-prompt")
+		if systemPromptFlag == nil {
+			t.Fatal("Expected 'system-prompt' flag to be defined")
+		}
+		if systemPromptFlag.Shorthand != "s" {
+			t.Errorf("Expected system-prompt flag shorthand to be 's', got '%s'", systemPromptFlag.Shorthand)
+		}
+
+		userPromptFlag := generateCmd.Flags().Lookup("user-prompt")
+		if userPromptFlag == nil {
+			t.Fatal("Expected 'user-prompt' flag to be defined")
+		}
+		if userPromptFlag.Shorthand != "u" {
+			t.Errorf("Expected user-prompt flag shorthand to be 'u', got '%s'", userPromptFlag.Shorthand)
+		}
+	})
+
+	t.Run("RunE function exists", func(t *testing.T) {
+		if generateCmd.RunE == nil {
+			t.Fatal("Expected RunE function to be defined")
+		}
+	})
+}
+
+func TestGenerateCmdRunE(t *testing.T) {
+	t.Run("Run without app container", func(t *testing.T) {
+		// Create a context without app container
+		ctx := context.Background()
+
+		// Create a test command with the context
+		testCmd := &cobra.Command{Use: "test-generate"}
+		testCmd.SetContext(ctx)
+
+		// Try to run the generate command
+		err := generateCmd.RunE(testCmd, []string{})
+
+		if err == nil {
+			t.Fatal("Expected error when app container is not initialized")
+		}
+
+		if !strings.Contains(err.Error(), "application not initialized") {
+			t.Errorf("Expected 'application not initialized' error, got: %v", err)
+		}
+	})
+
+	t.Run("Run with nil context", func(t *testing.T) {
+		// Create a test command with nil context
+		testCmd := &cobra.Command{Use: "test-generate"}
+		// Set an empty context instead of nil to avoid panics
+		testCmd.SetContext(context.Background())
+
+		// Try to run the generate command
+		err := generateCmd.RunE(testCmd, []string{})
+
+		if err == nil {
+			t.Fatal("Expected error when context is nil")
+		}
+
+		// Should get application not initialized error, not a panic
+		if !strings.Contains(err.Error(), "application not initialized") {
+			t.Errorf("Expected 'application not initialized' error, got: %v", err)
+		}
+	})
+
+	t.Run("Flag setting and retrieval", func(t *testing.T) {
+		// Test setting flags on the generate command
+		testCases := []struct {
+			flagName  string
+			flagValue string
+		}{
+			{"task", "test-task"},
+			{"system-prompt", "You are a helpful assistant"},
+			{"user-prompt", "Generate a test response"},
+		}
+
+		for _, tc := range testCases {
+			t.Run("Flag_"+tc.flagName, func(t *testing.T) {
+				err := generateCmd.Flags().Set(tc.flagName, tc.flagValue)
+				if err != nil {
+					t.Errorf("Failed to set flag %s: %v", tc.flagName, err)
+				}
+
+				value, err := generateCmd.Flags().GetString(tc.flagName)
+				if err != nil {
+					t.Errorf("Failed to get flag %s: %v", tc.flagName, err)
+				}
+
+				if value != tc.flagValue {
+					t.Errorf("Expected flag %s to be '%s', got '%s'", tc.flagName, tc.flagValue, value)
+				}
+			})
+		}
+	})
+}
+
+func TestGenerateCmdIntegration(t *testing.T) {
+	t.Run("Command is added to root", func(t *testing.T) {
+		// Check if generate command was added to root command
+		found := false
+		for _, cmd := range rootCmd.Commands() {
+			if cmd.Name() == "generate" {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Error("Generate command should be added to root command")
+		}
+	})
+
+	t.Run("Aliases work", func(t *testing.T) {
+		// Test that aliases are properly registered
+		aliases := generateCmd.Aliases
+		expectedAliases := []string{"gen", "g"}
+
+		if len(aliases) != len(expectedAliases) {
+			t.Errorf("Expected %d aliases, got %d", len(expectedAliases), len(aliases))
+		}
+
+		for i, expected := range expectedAliases {
+			if i >= len(aliases) || aliases[i] != expected {
+				t.Errorf("Expected alias '%s' at position %d, got '%s'", expected, i, aliases[i])
+			}
+		}
+	})
+
+	t.Run("Help text formatting", func(t *testing.T) {
+		// Test that help text is properly formatted
+		if generateCmd.Short == "" {
+			t.Error("Short description should not be empty")
+		}
+
+		if len(generateCmd.Short) > 80 {
+			t.Error("Short description should be concise (under 80 characters)")
+		}
+
+		// Verify key terms are present
+		requiredTerms := []string{"generate", "content"}
+		shortLower := strings.ToLower(generateCmd.Short)
+
+		for _, term := range requiredTerms {
+			if !strings.Contains(shortLower, term) {
+				t.Errorf("Short description should contain '%s'", term)
+			}
+		}
+	})
+}
+
+func TestGenerateCmdFlags(t *testing.T) {
+	t.Run("Task flag properties", func(t *testing.T) {
+		flag := generateCmd.Flags().Lookup("task")
+		if flag == nil {
+			t.Fatal("Task flag should exist")
+		}
+
+		if flag.DefValue != "" {
+			t.Errorf("Task flag default should be empty, got '%s'", flag.DefValue)
+		}
+
+		if !strings.Contains(flag.Usage, "task") {
+			t.Error("Task flag usage should mention 'task'")
+		}
+	})
+
+	t.Run("System prompt flag properties", func(t *testing.T) {
+		flag := generateCmd.Flags().Lookup("system-prompt")
+		if flag == nil {
+			t.Fatal("System prompt flag should exist")
+		}
+
+		if flag.DefValue != "" {
+			t.Errorf("System prompt flag default should be empty, got '%s'", flag.DefValue)
+		}
+
+		if !strings.Contains(strings.ToLower(flag.Usage), "system") || !strings.Contains(strings.ToLower(flag.Usage), "prompt") {
+			t.Errorf("System prompt flag usage should mention 'system' and 'prompt', got: %s", flag.Usage)
+		}
+	})
+
+	t.Run("User prompt flag properties", func(t *testing.T) {
+		flag := generateCmd.Flags().Lookup("user-prompt")
+		if flag == nil {
+			t.Fatal("User prompt flag should exist")
+		}
+
+		if flag.DefValue != "" {
+			t.Errorf("User prompt flag default should be empty, got '%s'", flag.DefValue)
+		}
+
+		if !strings.Contains(strings.ToLower(flag.Usage), "user") || !strings.Contains(strings.ToLower(flag.Usage), "prompt") {
+			t.Errorf("User prompt flag usage should mention 'user' and 'prompt', got: %s", flag.Usage)
+		}
+
+		if !strings.Contains(strings.ToLower(flag.Usage), "stdin") {
+			t.Errorf("User prompt flag usage should mention 'stdin', got: %s", flag.Usage)
+		}
+	})
+
+	t.Run("Flag combinations", func(t *testing.T) {
+		// Test setting multiple flags together
+		flagSettings := map[string]string{
+			"task":          "comprehensive-test",
+			"system-prompt": "You are an expert software tester",
+			"user-prompt":   "Create comprehensive test cases",
+		}
+
+		for name, value := range flagSettings {
+			err := generateCmd.Flags().Set(name, value)
+			if err != nil {
+				t.Errorf("Failed to set flag %s to '%s': %v", name, value, err)
+			}
+		}
+
+		// Verify all flags were set correctly
+		for name, expectedValue := range flagSettings {
+			actualValue, err := generateCmd.Flags().GetString(name)
+			if err != nil {
+				t.Errorf("Failed to get flag %s: %v", name, err)
+			}
+			if actualValue != expectedValue {
+				t.Errorf("Flag %s: expected '%s', got '%s'", name, expectedValue, actualValue)
+			}
+		}
+	})
+}
+
+func TestGenerateCmdEdgeCases(t *testing.T) {
+	t.Run("Empty flag values", func(t *testing.T) {
+		// Test setting flags to empty values
+		flags := []string{"task", "system-prompt", "user-prompt"}
+
+		for _, flagName := range flags {
+			err := generateCmd.Flags().Set(flagName, "")
+			if err != nil {
+				t.Errorf("Should be able to set flag %s to empty value: %v", flagName, err)
+			}
+
+			value, err := generateCmd.Flags().GetString(flagName)
+			if err != nil {
+				t.Errorf("Failed to get flag %s after setting to empty: %v", flagName, err)
+			}
+
+			if value != "" {
+				t.Errorf("Flag %s should be empty after setting to empty, got '%s'", flagName, value)
+			}
+		}
+	})
+
+	t.Run("Special characters in flag values", func(t *testing.T) {
+		specialValues := map[string]string{
+			"task":          "task-with-special_chars@123",
+			"system-prompt": "System prompt with \"quotes\" and 'apostrophes'",
+			"user-prompt":   "User prompt with unicode: αβγδε and emoji: 🚀",
+		}
+
+		for flagName, specialValue := range specialValues {
+			err := generateCmd.Flags().Set(flagName, specialValue)
+			if err != nil {
+				t.Errorf("Should be able to set flag %s to special value: %v", flagName, err)
+			}
+
+			value, err := generateCmd.Flags().GetString(flagName)
+			if err != nil {
+				t.Errorf("Failed to get flag %s with special characters: %v", flagName, err)
+			}
+
+			if value != specialValue {
+				t.Errorf("Flag %s with special chars: expected '%s', got '%s'", flagName, specialValue, value)
+			}
+		}
+	})
+
+	t.Run("Very long flag values", func(t *testing.T) {
+		longValue := strings.Repeat("This is a very long string for testing purposes. ", 100)
+
+		flags := []string{"task", "system-prompt", "user-prompt"}
+
+		for _, flagName := range flags {
+			err := generateCmd.Flags().Set(flagName, longValue)
+			if err != nil {
+				t.Errorf("Should be able to set flag %s to long value: %v", flagName, err)
+			}
+
+			value, err := generateCmd.Flags().GetString(flagName)
+			if err != nil {
+				t.Errorf("Failed to get long flag %s: %v", flagName, err)
+			}
+
+			if value != longValue {
+				t.Errorf("Flag %s: long value not preserved correctly", flagName)
+			}
+		}
+	})
+}

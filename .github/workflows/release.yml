@@ -28,7 +28,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5.5.0
         with:
-          go-version: "1.24"
+          go-version: "1.25.1"
 
       - name: Install cosign (for keyless signing)
         uses: sigstore/cosign-installer@v3.9.2
