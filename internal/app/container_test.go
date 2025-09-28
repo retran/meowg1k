@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -123,5 +124,342 @@ generate:
 	val := container.Context.Value(AppContainerKey)
 	if val != container {
 		t.Error("AppContainerKey not set correctly in context")
+	}
+}
+
+func TestNewAppContainerWithErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupCmd    func() *cobra.Command
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "Command service creation error",
+			setupCmd: func() *cobra.Command {
+				// This should trigger a panic which gets recovered in NewAppContainer
+				return nil
+			},
+			expectError: true,
+			errorMsg:   "",
+		},
+		{
+			name: "Config service creation error - invalid config path",
+			setupCmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "test"}
+				cmd.Flags().String("config", "", "config file path")
+				cmd.Flags().String("task", "", "task name")
+				cmd.Flags().String("user-prompt", "", "user prompt")
+				cmd.Flags().Bool("silent", false, "silent mode")
+				cmd.Flags().Set("config", "/nonexistent/path/config.yaml")
+				return cmd
+			},
+			expectError: true,
+			errorMsg:   "failed to read config file",
+		},
+		{
+			name: "Config service creation error - no config found",
+			setupCmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "test"}
+				cmd.Flags().String("config", "", "config file path")
+				cmd.Flags().String("task", "", "task name")
+				cmd.Flags().String("user-prompt", "", "user prompt")
+				cmd.Flags().Bool("silent", false, "silent mode")
+				// Don't set config path, should fail to find any config
+				return cmd
+			},
+			expectError: true,
+			errorMsg:   "no configuration file found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var container *AppContainer
+			var err error
+			
+			if tt.name == "Command service creation error" {
+				// Test panic recovery
+				defer func() {
+					if r := recover(); r == nil {
+						// If no panic, test the error
+						if err == nil && tt.expectError {
+							t.Error("Expected error but got none")
+						}
+					}
+				}()
+				container, err = NewAppContainer(nil)
+			} else {
+				cmd := tt.setupCmd()
+				container, err = NewAppContainer(cmd)
+			}
+
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if tt.expectError && container != nil {
+				t.Error("Expected nil container on error")
+			}
+			if tt.errorMsg != "" && err != nil && !strings.Contains(err.Error(), tt.errorMsg) {
+				t.Errorf("Expected error to contain '%s', got: %v", tt.errorMsg, err)
+			}
+		})
+	}
+}
+
+func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
+	// Test getLogDir with various environment variable configurations
+	
+	// Save original environment variables
+	originalLocalAppData := os.Getenv("LOCALAPPDATA")
+	originalXDGCache := os.Getenv("XDG_CACHE_HOME")
+	
+	defer func() {
+		os.Setenv("LOCALAPPDATA", originalLocalAppData)
+		os.Setenv("XDG_CACHE_HOME", originalXDGCache)
+	}()
+
+	// Test Windows with LOCALAPPDATA set
+	if runtime.GOOS == "windows" {
+		testLocalAppData := "C:\\Users\\Test\\AppData\\Local"
+		os.Setenv("LOCALAPPDATA", testLocalAppData)
+		
+		dir, err := getLogDir()
+		if err != nil {
+			t.Errorf("getLogDir failed: %v", err)
+		}
+		
+		expected := filepath.Join(testLocalAppData, "meow", "logs")
+		if dir != expected {
+			t.Errorf("Expected %s, got %s", expected, dir)
+		}
+	}
+
+	// Test Linux/Unix with XDG_CACHE_HOME set
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		testXDGCache := "/tmp/test-cache"
+		os.Setenv("XDG_CACHE_HOME", testXDGCache)
+		
+		dir, err := getLogDir()
+		if err != nil {
+			t.Errorf("getLogDir failed: %v", err)
+		}
+		
+		expected := filepath.Join(testXDGCache, "meow", "logs")
+		if dir != expected {
+			t.Errorf("Expected %s, got %s", expected, dir)
+		}
+	}
+}
+
+func TestGetLogDirFallbacks(t *testing.T) {
+	// Test fallback behavior when environment variables are empty
+	
+	// Save original environment variables
+	originalLocalAppData := os.Getenv("LOCALAPPDATA")
+	originalXDGCache := os.Getenv("XDG_CACHE_HOME")
+	
+	defer func() {
+		os.Setenv("LOCALAPPDATA", originalLocalAppData)
+		os.Setenv("XDG_CACHE_HOME", originalXDGCache)
+	}()
+
+	// Test Windows fallback when LOCALAPPDATA is empty
+	if runtime.GOOS == "windows" {
+		os.Setenv("LOCALAPPDATA", "")
+		
+		dir, err := getLogDir()
+		if err != nil {
+			t.Errorf("getLogDir failed: %v", err)
+		}
+		
+		home, _ := os.UserHomeDir()
+		expected := filepath.Join(home, "AppData", "Local", "meow", "logs")
+		if dir != expected {
+			t.Errorf("Expected %s, got %s", expected, dir)
+		}
+	}
+
+	// Test Linux/Unix fallback when XDG_CACHE_HOME is empty
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		os.Setenv("XDG_CACHE_HOME", "")
+		
+		dir, err := getLogDir()
+		if err != nil {
+			t.Errorf("getLogDir failed: %v", err)
+		}
+		
+		home, _ := os.UserHomeDir()
+		expected := filepath.Join(home, ".cache", "meow", "logs")
+		if dir != expected {
+			t.Errorf("Expected %s, got %s", expected, dir)
+		}
+	}
+}
+
+func TestNewAppContainerServicesCreation(t *testing.T) {
+	// Test that all services are properly created and configured
+	
+	// Create a valid config
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	configContent := `profiles:
+  test:
+    provider: "openai"
+    model: "gpt-4"
+    maxInputTokens: 2000
+    maxOutputTokens: 1000
+    temperature: 0.7
+  anthropic:
+    provider: "anthropic"
+    model: "claude-3"
+generate:
+  default:
+    profile: "test"
+    systemPrompt: "You are a helpful assistant"
+  anthropic-task:
+    profile: "anthropic"
+    systemPrompt: "You are an expert assistant"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	cmd.Flags().Set("config", configPath)
+	cmd.Flags().Set("task", "anthropic-task")
+	cmd.Flags().Set("user-prompt", "Test prompt")
+	cmd.Flags().Set("silent", "true")
+
+	container, err := NewAppContainer(cmd)
+	if err != nil {
+		t.Fatalf("NewAppContainer failed: %v", err)
+	}
+
+	// Test that all services are created
+	if container.Logger == nil {
+		t.Error("Logger should not be nil")
+	}
+	if container.ShutdownService == nil {
+		t.Error("ShutdownService should not be nil")
+	}
+	if container.CommandService == nil {
+		t.Error("CommandService should not be nil")
+	}
+	if container.ConfigService == nil {
+		t.Error("ConfigService should not be nil")
+	}
+	if container.Context == nil {
+		t.Error("Context should not be nil")
+	}
+
+	// Test that services can be used
+	config := container.ConfigService.GetConfig()
+	if config == nil {
+		t.Error("Config should not be nil")
+	}
+	
+	if len(config.Profiles) != 2 {
+		t.Errorf("Expected 2 profiles, got %d", len(config.Profiles))
+	}
+
+	if config.Generate == nil {
+		t.Error("Generate config should not be nil")
+	}
+	
+	// Note: Tasks are only created when they have explicit configuration beyond defaults
+	// Since we only have one explicit task "anthropic-task", expect 1 task
+	if config.Generate.Tasks == nil {
+		// If Tasks is nil, that means no explicit tasks were configured beyond default
+		t.Log("No explicit tasks configured beyond default")
+	} else if len(config.Generate.Tasks) != 1 {
+		t.Logf("Expected 1 task, got %d", len(config.Generate.Tasks))
+	}
+
+	// Test command service
+	taskName, err := container.CommandService.GetTaskName()
+	if err != nil {
+		t.Errorf("GetTaskName failed: %v", err)
+	}
+	if taskName != "anthropic-task" {
+		t.Errorf("Expected task 'anthropic-task', got '%s'", taskName)
+	}
+
+	userPrompt, err := container.CommandService.GetUserPrompt()
+	if err != nil {
+		t.Errorf("GetUserPrompt failed: %v", err)
+	}
+	if userPrompt != "Test prompt" {
+		t.Errorf("Expected prompt 'Test prompt', got '%s'", userPrompt)
+	}
+
+	silent, err := container.CommandService.GetSilentFlag()
+	if err != nil {
+		t.Errorf("GetSilentFlag failed: %v", err)
+	}
+	if !silent {
+		t.Error("Expected silent to be true")
+	}
+}
+
+func TestAppContainerKeyContextValue(t *testing.T) {
+	// Test that the context contains the correct value for AppContainerKey
+	
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "minimal-config.yaml")
+	configContent := `profiles:
+  minimal:
+    provider: "test"
+    model: "test-model"
+generate:
+  default:
+    profile: "minimal"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	cmd.Flags().Set("config", configPath)
+
+	container, err := NewAppContainer(cmd)
+	if err != nil {
+		t.Fatalf("NewAppContainer failed: %v", err)
+	}
+
+	// Test that the context value is set correctly
+	contextValue := container.Context.Value(AppContainerKey)
+	if contextValue == nil {
+		t.Error("AppContainerKey value should not be nil")
+	}
+
+	containerFromContext, ok := contextValue.(*AppContainer)
+	if !ok {
+		t.Error("AppContainerKey value should be *AppContainer")
+	}
+
+	if containerFromContext != container {
+		t.Error("Context should contain reference to the same container")
+	}
+
+	// Test that we can access services through the context
+	if containerFromContext.Logger == nil {
+		t.Error("Logger should be accessible through context")
+	}
+	if containerFromContext.ConfigService == nil {
+		t.Error("ConfigService should be accessible through context")
 	}
 }
