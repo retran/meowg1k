@@ -52,7 +52,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the command service.
 type serviceImpl struct {
-	Service
 	cmd   *cobra.Command
 	stdin string
 }
@@ -67,15 +66,18 @@ func NewService(cmd *cobra.Command) (Service, error) {
 	}
 
 	stdin := ""
+
 	stat, err := os.Stdin.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to stat stdin: %w", err)
 	}
+
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
 		input, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read from stdin: %w", err)
 		}
+
 		stdin = strings.TrimSpace(string(input))
 	}
 

@@ -18,14 +18,31 @@ package gateway
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 )
 
-// GatewayFactory is the interface for creating LLM gateways.
-type GatewayFactory interface {
+var (
+	ErrGeminiAPIKeyRequired            = errors.New("gemini provider requires an API key")
+	ErrLlamaBaseURLRequired            = errors.New("llama provider requires a base URL")
+	ErrOpenAIAPIKeyRequired            = errors.New("openai provider requires an API key")
+	ErrOpenRouterAPIKeyRequired        = errors.New("openrouter provider requires an API key")
+	ErrVoyageNoContentGeneration       = errors.New("voyage provider only supports embeddings, not content generation")
+	ErrOpenAICompatibleBaseURLRequired = errors.New("openai-compatible provider requires a base URL")
+	ErrProviderNotSpecified            = errors.New("a provider must be specified with WithProvider()")
+	ErrProfileCannotBeNil              = errors.New("profile cannot be nil")
+	ErrLlamaEmbeddingsNotImplemented   = errors.New("llama embedding gateway is not yet implemented")
+	ErrAnthropicNoEmbeddings           = errors.New(
+		"anthropic provider does not provide embedding models " +
+			"(use voyage provider for embeddings recommended by Anthropic)",
+	)
+	ErrVoyageAPIKeyRequired = errors.New("voyage provider requires an API key")
+)
+
+// Factory is the interface for creating LLM gateways.
+type Factory interface {
 	// NewGenerationGateway creates a new generation gateway based on the provided profile.
 	NewGenerationGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (GenerationGateway, error)
 	// NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
@@ -33,87 +50,101 @@ type GatewayFactory interface {
 }
 
 // gatewayFactory is the implementation of GatewayFactory.
-type gatewayFactory struct {
-	GatewayFactory
-}
+type gatewayFactory struct{}
 
-// NewGatewayFactory creates a new gateway factory.
-func NewGatewayFactory() GatewayFactory {
+// NewFactory creates a new gateway factory.
+func NewFactory() Factory {
 	return &gatewayFactory{}
 }
 
 // NewGenerationGateway creates a new generation gateway based on the provided profile.
-func (f *gatewayFactory) NewGenerationGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (GenerationGateway, error) {
+func (f *gatewayFactory) NewGenerationGateway(
+	ctx context.Context,
+	profile *mdProfile.ResolvedProfile,
+) (GenerationGateway, error) {
 	switch profile.Provider {
 	case mdGateway.Gemini:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("gemini provider requires an API key")
+			return nil, ErrGeminiAPIKeyRequired
 		}
+
 		return newGeminiGateway(ctx, profile.APIKey)
 	case mdGateway.Llama:
 		if profile.BaseURL == "" {
-			return nil, fmt.Errorf("llama provider requires a base URL")
+			return nil, ErrLlamaBaseURLRequired
 		}
+
 		return newLlamaGateway(profile.BaseURL, profile.APIKey)
 	case mdGateway.OpenAI:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openai provider requires an API key")
+			return nil, ErrOpenAIAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openrouter provider requires an API key")
+			return nil, ErrOpenRouterAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Anthropic:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("anthropic provider requires an API key")
+			return nil, ErrAnthropicAPIKeyRequired
 		}
+
 		return newAnthropicGateway(profile.APIKey)
 	case mdGateway.Voyage:
-		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
+		return nil, ErrVoyageNoContentGeneration
 	case mdGateway.OpenAICompatible:
 		if profile.BaseURL == "" {
-			return nil, fmt.Errorf("openai-compatible provider requires a base URL")
+			return nil, ErrOpenAICompatibleBaseURLRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	default:
-		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
+		return nil, ErrProviderNotSpecified
 	}
 }
 
 // NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
-func (f *gatewayFactory) NewEmbeddingsGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (EmbeddingsGateway, error) {
+func (f *gatewayFactory) NewEmbeddingsGateway(
+	ctx context.Context,
+	profile *mdProfile.ResolvedProfile,
+) (EmbeddingsGateway, error) {
 	if profile == nil {
-		return nil, fmt.Errorf("profile cannot be nil")
+		return nil, ErrProfileCannotBeNil
 	}
 
 	switch profile.Provider {
 	case mdGateway.Gemini:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("gemini provider requires an API key")
+			return nil, ErrGeminiAPIKeyRequired
 		}
+
 		return newGeminiGateway(ctx, profile.APIKey)
 	case mdGateway.Llama:
-		return nil, fmt.Errorf("llama embedding gateway is not yet implemented")
+		return nil, ErrLlamaEmbeddingsNotImplemented
 	case mdGateway.Anthropic:
-		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
+		return nil, ErrAnthropicNoEmbeddings
 	case mdGateway.OpenAI:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openai provider requires an API key")
+			return nil, ErrOpenAIAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openrouter provider requires an API key")
+			return nil, ErrOpenRouterAPIKeyRequired
 		}
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey)
+
+		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Voyage:
 		if profile.APIKey == "" {
-			return nil, fmt.Errorf("voyage provider requires an API key")
+			return nil, ErrVoyageAPIKeyRequired
 		}
+
 		return newVoyageGateway(profile.APIKey)
 	default:
-		return nil, fmt.Errorf("a provider must be specified with WithProvider()")
+		return nil, ErrProviderNotSpecified
 	}
 }

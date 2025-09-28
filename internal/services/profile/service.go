@@ -18,6 +18,7 @@ limitations under the License.
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -25,9 +26,19 @@ import (
 	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/provider"
+)
+
+// Profile service errors
+var (
+	ErrNoProfilesDefined          = errors.New("no profiles defined in configuration")
+	ErrProfileNotFound            = errors.New("profile not found in configuration")
+	ErrResolvedProfileCannotBeNil = errors.New("resolved profile cannot be nil")
+	ErrTimeoutTooSmall            = errors.New("timeout must be at least 1 second")
+	ErrMaxOutputTokensTooLarge    = errors.New("max output tokens too large")
+	ErrMaxInputTokensTooLarge     = errors.New("max input tokens too large")
+	ErrModelNameRequired          = errors.New("model name is required")
 )
 
 // Service provides profile configuration resolution capabilities.
@@ -38,7 +49,6 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the profile resolver service.
 type serviceImpl struct {
-	Service
 	providerService  provider.Service
 	configService    config.Service
 	resolvedProfiles map[mdProfile.Profile]*mdProfile.ResolvedProfile
@@ -65,24 +75,29 @@ func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile
 	}
 
 	cfg := s.configService.GetConfig()
+
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	s.resolvedProfiles[profile] = resolved
+
 	return resolved, nil
 }
 
 // resolveProfileInternal performs the actual profile resolution logic.
-func (s *serviceImpl) resolveProfileInternal(profile mdProfile.Profile, cfg *mdConfig.Config) (*mdProfile.ResolvedProfile, error) {
+func (s *serviceImpl) resolveProfileInternal(
+	profile mdProfile.Profile,
+	cfg *mdConfig.Config,
+) (*mdProfile.ResolvedProfile, error) {
 	if cfg.Profiles == nil {
-		return nil, fmt.Errorf("no profiles defined in configuration")
+		return nil, ErrNoProfilesDefined
 	}
 
 	profileDef, exists := cfg.Profiles[string(profile)]
 	if !exists {
-		return nil, fmt.Errorf("profile '%s' not found in configuration", profile)
+		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
 	}
 
 	providerDef, err := s.providerService.Get(mdGateway.Provider(profileDef.Provider))
@@ -100,29 +115,12 @@ func (s *serviceImpl) resolveProfileInternal(profile mdProfile.Profile, cfg *mdC
 		TokenizerType:   profileDef.TokenizerType,
 	}
 
-	if resolved.Model == "" {
-		resolved.Model = providerDef.DefaultModel
-	}
-
-	if resolved.MaxInputTokens == 0 {
-		resolved.MaxInputTokens = providerDef.MaxInputTokens
-	}
-
-	if resolved.MaxOutputTokens == 0 {
-		resolved.MaxOutputTokens = providerDef.MaxOutputTokens
-	}
-
-	if resolved.Timeout == 0 {
-		resolved.Timeout = providerDef.DefaultTimeout
-	}
-
-	if resolved.TokenizerType == "" {
-		resolved.TokenizerType = providerDef.TokenizerType
-	}
-
-	if resolved.BaseURL == "" {
-		resolved.BaseURL = providerDef.DefaultBaseURL
-	}
+	resolved.Model = defaultValue(resolved.Model, providerDef.DefaultModel)
+	resolved.MaxInputTokens = defaultValue(resolved.MaxInputTokens, providerDef.MaxInputTokens)
+	resolved.MaxOutputTokens = defaultValue(resolved.MaxOutputTokens, providerDef.MaxOutputTokens)
+	resolved.Timeout = defaultValue(resolved.Timeout, providerDef.DefaultTimeout)
+	resolved.TokenizerType = defaultValue(resolved.TokenizerType, providerDef.TokenizerType)
+	resolved.BaseURL = defaultValue(resolved.BaseURL, providerDef.DefaultBaseURL)
 
 	apiKeyEnv := profileDef.APIKeyEnv
 	if apiKeyEnv == "" && providerDef.DefaultEnvVar != "" {
@@ -143,24 +141,33 @@ func (s *serviceImpl) resolveProfileInternal(profile mdProfile.Profile, cfg *mdC
 // validateResolvedProfile validates a resolved profile configuration.
 func (s *serviceImpl) validateResolvedProfile(resolved *mdProfile.ResolvedProfile) error {
 	if resolved == nil {
-		return fmt.Errorf("resolved profile cannot be nil")
+		return ErrResolvedProfileCannotBeNil
 	}
 
 	if resolved.Timeout < time.Second {
-		return fmt.Errorf("timeout must be at least 1 second, got %v", resolved.Timeout)
+		return fmt.Errorf("%w, got %v", ErrTimeoutTooSmall, resolved.Timeout)
 	}
 
 	if resolved.MaxOutputTokens > 200000 {
-		return fmt.Errorf("max output tokens too large: %d (max 200000)", resolved.MaxOutputTokens)
+		return fmt.Errorf("%w: %d (max 200000)", ErrMaxOutputTokensTooLarge, resolved.MaxOutputTokens)
 	}
 
 	if resolved.MaxInputTokens > 2000000 {
-		return fmt.Errorf("max input tokens too large: %d (max 2000000)", resolved.MaxInputTokens)
+		return fmt.Errorf("%w: %d (max 2000000)", ErrMaxInputTokensTooLarge, resolved.MaxInputTokens)
 	}
 
 	if resolved.Model == "" {
-		return fmt.Errorf("model name is required")
+		return ErrModelNameRequired
 	}
 
 	return nil
+}
+
+func defaultValue[T comparable](value, fallback T) T {
+	var zero T
+	if value != zero {
+		return value
+	}
+
+	return fallback
 }
