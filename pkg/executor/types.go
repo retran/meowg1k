@@ -49,8 +49,8 @@ type Feedback struct {
 // FeedbackHandler processes feedback from activities
 type FeedbackHandler func(feedback Feedback)
 
-// ExecutorExecutorContext provides feedback capabilities to activities and access to the executor
-type ExecutorExecutorContext struct {
+// ExecutorContext provides feedback capabilities to activities and access to the executor
+type ExecutorContext struct {
 	name         string
 	feedbackFunc FeedbackHandler
 	executor     Executor // Interface for running sub-activities
