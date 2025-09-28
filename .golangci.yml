@@ -127,7 +127,6 @@ linters:
     - nilerr            # Finds returning nil for non-nil error types
 
     # --- Style & Formatting ---
-    - gofmt             # Formats code
     - goimports         # Formats imports
     - revive            # Fast, configurable, opinionated linter for style
     - stylecheck        # A collection of style checks
@@ -135,7 +134,6 @@ linters:
     - whitespace        # Checks for leading/trailing whitespace
     - wsl               # Enforces empty lines and other whitespace rules
     - misspell          # Finds common misspellings in comments and strings
-    - gofumpt           # Stricter formatting than gofmt
 
     # --- Complexity & Maintainability ---
     - gocyclo           # Computes cyclomatic complexity

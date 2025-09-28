@@ -62,13 +62,13 @@ func TestNewService(t *testing.T) {
 			service, err := NewService(tt.baseURL, tt.apiKey)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, service)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, service)
 				impl := service.(*serviceImpl)
 				assert.Equal(t, tt.baseURL, impl.baseURL)
@@ -284,13 +284,13 @@ func TestCompletionRequestFieldsValidation(t *testing.T) {
 
 	// Test marshaling works
 	data, err := json.Marshal(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, data)
 
 	// Test unmarshaling works
 	var unmarshaledReq CompletionRequest
 	err = json.Unmarshal(data, &unmarshaledReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.InEpsilon(t, req.Temperature, unmarshaledReq.Temperature, 0.001)
 	assert.Equal(t, req.TopK, unmarshaledReq.TopK)
 	assert.Equal(t, req.Stop, unmarshaledReq.Stop)
@@ -400,7 +400,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 
 				ctx := context.Background()
 				_, err = service.Complete(ctx, tt.request)
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
 			} else {
 				server := tt.setupServer()
@@ -467,13 +467,13 @@ func TestCompletionResponseValidation(t *testing.T) {
 
 	// Test marshaling
 	data, err := json.Marshal(response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, data)
 
 	// Test unmarshaling
 	var unmarshaledResp CompletionResponse
 	err = json.Unmarshal(data, &unmarshaledResp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, response.Content, unmarshaledResp.Content)
 	assert.Equal(t, response.Model, unmarshaledResp.Model)
 	assert.Equal(t, response.TokensEvaluated, unmarshaledResp.TokensEvaluated)

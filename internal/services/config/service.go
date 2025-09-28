@@ -68,6 +68,7 @@ func NewService(commandSvc command.Service) (Service, error) {
 	} else {
 		err = loadDefaultConfigFiles(v)
 	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -79,6 +80,7 @@ func NewService(commandSvc command.Service) (Service, error) {
 	}
 
 	service.config = &cfg
+
 	return service, nil
 }
 
@@ -91,8 +93,10 @@ func loadSpecificConfigFile(v *viper.Viper, configPath string) error {
 		if errors.As(err, &configFileNotFoundError) {
 			return fmt.Errorf("%w: %s", ErrSpecifiedConfigFileNotFound, configPath)
 		}
+
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
+
 	return nil
 }
 
@@ -118,6 +122,7 @@ func loadDefaultConfigFiles(v *viper.Viper) error {
 	if !foundAny {
 		return ErrNoConfigFoundInStdLocations
 	}
+
 	return nil
 }
 

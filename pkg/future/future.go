@@ -85,6 +85,7 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	if f.done {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
+
 		return val, err
 	}
 	f.mu.RUnlock()
@@ -102,6 +103,7 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 func (f *Future[T]) IsDone() bool {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+
 	return f.done
 }
 
@@ -111,6 +113,7 @@ func (f *Future[T]) TryGet() (T, error, bool) {
 	if f.done {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
+
 		return val, err, true
 	}
 	f.mu.RUnlock()
@@ -172,7 +175,9 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 }
 
 // WaitAllMap waits for all futures in a map and returns results with the same keys
-func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[T]) (results map[K]T, errors map[K]error) {
+func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[T]) (
+	results map[K]T, errors map[K]error,
+) {
 	results = make(map[K]T)
 	errors = make(map[K]error)
 

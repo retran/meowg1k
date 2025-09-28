@@ -265,9 +265,9 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}
 	for i, filename := range testFiles {
 		content := fmt.Sprintf("Content of file %d", i+1)
-		err := os.WriteFile(filename, []byte(content), 0o644)
-		if err != nil {
-			t.Fatalf("Failed to create %s: %v", filename, err)
+		writeErr := os.WriteFile(filename, []byte(content), 0o644)
+		if writeErr != nil {
+			t.Fatalf("Failed to create %s: %v", filename, writeErr)
 		}
 		err = exec.Command("git", "add", filename).Run()
 		if err != nil {

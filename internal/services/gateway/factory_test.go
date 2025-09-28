@@ -436,13 +436,13 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 			gateway, err := factory.NewEmbeddingsGateway(ctx, tt.profile)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, gateway)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, gateway)
 			}
 		})

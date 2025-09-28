@@ -29,6 +29,12 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+var (
+	errDetailed = fmt.Errorf("detailed error message")
+	errLong     = fmt.Errorf("this is a very long error message that should be truncated because it exceeds fifty characters")
+	errTest     = fmt.Errorf("test error")
+)
+
 func TestSanitizeDescription(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -73,7 +79,7 @@ func TestParseActivityHierarchy(t *testing.T) {
 func TestNewExecutionTracker(t *testing.T) {
 	tracker := NewExecutionTracker(false)
 	if tracker == nil {
-		t.Error("expected tracker to be created")
+		t.Fatal("expected tracker to be created")
 	}
 	if tracker.silent {
 		t.Error("expected silent to be false")
@@ -491,7 +497,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 		Level:     0,
 		StartTime: time.Now(),
 		EndTime:   &[]time.Time{time.Now()}[0],
-		Error:     fmt.Errorf("detailed error message"),
+		Error:     errDetailed,
 	}
 	result = tracker.formatActivityLine(failedActivity, 0)
 	if !strings.Contains(result, "Failed operation") {
@@ -509,7 +515,7 @@ func TestFormatActivityLineEdgeCases(t *testing.T) {
 		Level:     0,
 		StartTime: time.Now(),
 		EndTime:   &[]time.Time{time.Now()}[0],
-		Error:     fmt.Errorf("this is a very long error message that should be truncated because it exceeds fifty characters"),
+		Error:     errLong,
 	}
 	result = tracker.formatActivityLine(longErrorActivity, 0)
 	if !strings.Contains(result, "...") {
@@ -539,7 +545,7 @@ func TestUpdateDisplayComprehensive(t *testing.T) {
 		{ActivityName: "parent", Status: executor.StatusRunning, Message: "Parent activity", Timestamp: time.Now()},
 		{ActivityName: "parent.child1", Status: executor.StatusCompleted, Message: "Child 1 completed", Timestamp: time.Now()},
 		{ActivityName: "parent.child2", Status: executor.StatusRunning, Message: "Child 2 running", Timestamp: time.Now()},
-		{ActivityName: "independent", Status: executor.StatusFailed, Message: "Failed independently", Error: fmt.Errorf("test error"), Timestamp: time.Now()},
+		{ActivityName: "independent", Status: executor.StatusFailed, Message: "Failed independently", Error: errTest, Timestamp: time.Now()},
 	}
 
 	for _, feedback := range activities {
@@ -885,13 +891,10 @@ func TestTrackerWithManyActivities(t *testing.T) {
 		tracker.UpdateActivity(feedback)
 	}
 
-	visible := tracker.getVisibleActivities()
+	tracker.getVisibleActivities()
 
 	// Note: the actual filtering logic may show all activities if they fit certain criteria
 	// This test verifies the function doesn't crash and returns something reasonable
-	if len(visible) < 0 {
-		t.Error("Expected non-negative number of visible activities")
-	}
 }
 
 func TestTrackerSpinnerUpdate(t *testing.T) {

@@ -68,13 +68,13 @@ func TestNewService(t *testing.T) {
 			service, err := NewService(tt.baseURL, tt.apiKey, tt.timeout)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, service)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, service)
 
 				impl := service.(*serviceImpl)
@@ -250,13 +250,13 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			result, err := service.CreateEmbeddings(ctx, tt.request)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, result)
 				assert.Equal(t, tt.mockResponse.Object, result.Object)
 				assert.Equal(t, tt.mockResponse.Model, result.Model)
@@ -290,7 +290,7 @@ func TestServiceImpl_CreateEmbeddingsWithContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Create a context that will be cancelled
+	// Create a context that will be canceled
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -299,7 +299,7 @@ func TestServiceImpl_CreateEmbeddingsWithContext(t *testing.T) {
 	}
 
 	_, err = service.CreateEmbeddings(ctx, request)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
 
@@ -315,13 +315,13 @@ func TestEmbeddingRequestSerialization(t *testing.T) {
 
 	// Test marshaling works
 	data, err := json.Marshal(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, data)
 
 	// Test unmarshaling works
 	var unmarshaledReq EmbeddingRequest
 	err = json.Unmarshal(data, &unmarshaledReq)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, req.Input, unmarshaledReq.Input)
 	assert.Equal(t, req.Model, unmarshaledReq.Model)
 	assert.Equal(t, req.InputType, unmarshaledReq.InputType)

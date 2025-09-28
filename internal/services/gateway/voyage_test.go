@@ -272,7 +272,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 	})
 
-	t.Run("Compute embeddings with cancelled context", func(t *testing.T) {
+	t.Run("Compute embeddings with canceled context", func(t *testing.T) {
 		gateway, err := newVoyageGateway("test-api-key")
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -291,10 +291,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 
 		_, err = gateway.ComputeEmbeddings(ctx, request)
 		if err == nil {
-			t.Fatal("Expected error for cancelled context")
+			t.Fatal("Expected error for canceled context")
 		}
-		// Should get context cancelled error or connection error
-		t.Logf("Got expected error for cancelled context: %v", err)
+		// Should get context canceled error or connection error
+		t.Logf("Got expected error for canceled context: %v", err)
 	})
 }
 

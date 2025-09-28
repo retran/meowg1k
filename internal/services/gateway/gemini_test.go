@@ -151,7 +151,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 		}
 	})
 
-	t.Run("Generate content with cancelled context", func(t *testing.T) {
+	t.Run("Generate content with canceled context", func(t *testing.T) {
 		request := mdGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"You are a helpful assistant",
@@ -164,10 +164,10 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 
 		_, err := gateway.GenerateContent(cancelCtx, request)
 		if err == nil {
-			t.Fatal("Expected error for cancelled context")
+			t.Fatal("Expected error for canceled context")
 		}
-		// Should get context cancelled error or connection error
-		t.Logf("Got expected error for cancelled context: %v", err)
+		// Should get context canceled error or connection error
+		t.Logf("Got expected error for canceled context: %v", err)
 	})
 }
 
@@ -246,7 +246,7 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 		}
 	})
 
-	t.Run("Compute embeddings with cancelled context", func(t *testing.T) {
+	t.Run("Compute embeddings with canceled context", func(t *testing.T) {
 		chunks := []string{"Test chunk"}
 		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
@@ -260,9 +260,9 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 
 		_, err := gateway.ComputeEmbeddings(cancelCtx, request)
 		if err == nil {
-			t.Fatal("Expected error for cancelled context")
+			t.Fatal("Expected error for canceled context")
 		}
-		t.Logf("Got expected error for cancelled context: %v", err)
+		t.Logf("Got expected error for canceled context: %v", err)
 	})
 }
 

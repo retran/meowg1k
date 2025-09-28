@@ -186,5 +186,6 @@ func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*Co
 	if err := json.Unmarshal(bodyBytes, &completionResp); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFailedToUnmarshalResponse, err)
 	}
+
 	return &completionResp, nil
 }

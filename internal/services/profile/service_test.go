@@ -29,6 +29,8 @@ import (
 
 // Mock implementations for testing
 
+var errProviderNotFound = fmt.Errorf("provider not found")
+
 type mockConfigService struct {
 	config *mdConfig.Config
 }
@@ -45,7 +47,7 @@ func (m *mockProviderService) Get(providerType mdGateway.Provider) (mdConfig.Pro
 	if provider, exists := m.providers[providerType]; exists {
 		return provider, nil
 	}
-	return mdConfig.ProviderDefinition{}, fmt.Errorf("provider '%s' not found", providerType)
+	return mdConfig.ProviderDefinition{}, fmt.Errorf("%w: '%s'", errProviderNotFound, providerType)
 }
 
 func TestNewService(t *testing.T) {

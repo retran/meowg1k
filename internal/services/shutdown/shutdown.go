@@ -55,9 +55,11 @@ type Callback func(ctx context.Context) error
 // timeout sets the maximum time to wait for all callbacks to complete.
 func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) Service {
 	ctx, cancel := context.WithCancel(ctx)
+
 	if logger == nil {
 		logger = slog.Default()
 	}
+
 	return &serviceImpl{
 		ctx:       ctx,
 		cancel:    cancel,
@@ -72,6 +74,7 @@ func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration)
 func (m *serviceImpl) Context() context.Context {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.ctx
 }
 
@@ -102,10 +105,17 @@ func (m *serviceImpl) ListenForSignals() bool {
 
 	select {
 	case sig := <-sigChan:
-		m.logger.InfoContext(m.ctx, "Received shutdown signal",
-			"signal", sig.String(),
-			"signal_number", int(sig.(syscall.Signal)))
+		if syscallSig, ok := sig.(syscall.Signal); ok {
+			m.logger.InfoContext(m.ctx, "Received shutdown signal",
+				"signal", sig.String(),
+				"signal_number", int(syscallSig))
+		} else {
+			m.logger.InfoContext(m.ctx, "Received shutdown signal",
+				"signal", sig.String())
+		}
+
 		m.shutdown()
+
 		return true
 	case <-m.ctx.Done():
 		m.logger.DebugContext(context.Background(), "Signal listener canceled by context")
@@ -140,6 +150,7 @@ func (m *serviceImpl) shutdown() {
 	// Execute all shutdown callbacks
 	for i, callback := range callbacks {
 		callbackStart := time.Now()
+
 		m.logger.DebugContext(shutdownCtx, "Executing shutdown callback",
 			"callback_index", i,
 			"remaining_callbacks", len(callbacks)-i-1)
@@ -159,6 +170,7 @@ func (m *serviceImpl) shutdown() {
 			m.logger.WarnContext(shutdownCtx, "Shutdown timeout reached, canceling remaining callbacks",
 				"completed_callbacks", i+1,
 				"remaining_callbacks", len(callbacks)-i-1)
+
 			return
 		}
 	}

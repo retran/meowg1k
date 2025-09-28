@@ -101,6 +101,7 @@ func (e *Impl) RunFlow(
 	}()
 
 	_, err := fut.Get(ctx)
+
 	return err
 }
 

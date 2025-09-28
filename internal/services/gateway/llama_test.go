@@ -200,7 +200,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 		}
 	})
 
-	t.Run("Generate content with cancelled context", func(t *testing.T) {
+	t.Run("Generate content with canceled context", func(t *testing.T) {
 		request := mdGateway.NewGenerateContentRequest(
 			"llama2",
 			"You are a helpful assistant",
@@ -213,10 +213,10 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 
 		_, err := gateway.GenerateContent(cancelCtx, request)
 		if err == nil {
-			t.Fatal("Expected error for cancelled context")
+			t.Fatal("Expected error for canceled context")
 		}
-		// Should get context cancelled error or connection error
-		t.Logf("Got expected error for cancelled context: %v", err)
+		// Should get context canceled error or connection error
+		t.Logf("Got expected error for canceled context: %v", err)
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewGenerateContentRequest(t *testing.T) {
@@ -151,12 +152,12 @@ func TestComputeDistanceMixin(t *testing.T) {
 			result, err := mixin.ComputeDistance(tt.a, tt.b)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.InDelta(t, tt.expected, result, 1e-10) // Allow for floating point precision
 			}
 		})
@@ -244,25 +245,25 @@ func TestComputeDistance(t *testing.T) {
 
 	// Test distance between different vectors
 	distance12, err := mixin.ComputeDistance(embedding1, embedding2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.InDelta(t, 0.0, distance12, 0.001) // Should be 0 for orthogonal vectors
 
 	// Test distance between identical vectors
 	distance13, err := mixin.ComputeDistance(embedding1, embedding3)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.InDelta(t, 1.0, distance13, 0.001) // Should be 1 for identical vectors
 
 	// Test empty vectors
 	empty1 := mdGateway.Embedding{}
 	empty2 := mdGateway.Embedding{}
 	_, err = mixin.ComputeDistance(empty1, empty2)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vectors must not be empty")
 
 	// Test vectors of different lengths
 	short := mdGateway.Embedding{1.0}
 	long := mdGateway.Embedding{1.0, 0.0, 0.0}
 	_, err = mixin.ComputeDistance(short, long)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vectors must have the same length")
 }

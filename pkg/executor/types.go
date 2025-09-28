@@ -61,6 +61,7 @@ func (f *Feedback) String() string {
 				f.ActivityName, f.Status, f.Message, f.Progress*100, f.Error,
 			)
 		}
+
 		return fmt.Sprintf("[%s] %s: %s (%v)", f.ActivityName, f.Status, f.Message, f.Error)
 	}
 

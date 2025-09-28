@@ -83,6 +83,7 @@ func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile
 	}
 
 	s.resolvedProfiles[profile] = resolved
+
 	return resolved, nil
 }
 

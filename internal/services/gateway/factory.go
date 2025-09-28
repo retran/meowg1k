@@ -72,6 +72,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.BaseURL == "" {
 			return nil, ErrLlamaBaseURLRequired
 		}
+
 		return newLlamaGateway(profile.BaseURL, profile.APIKey)
 	case mdGateway.OpenAI:
 		if profile.APIKey == "" {
@@ -87,6 +88,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.APIKey == "" {
 			return nil, ErrAnthropicAPIKeyRequired
 		}
+
 		return newAnthropicGateway(profile.APIKey)
 	case mdGateway.Voyage:
 		return nil, ErrVoyageNoContentGeneration
@@ -94,6 +96,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.BaseURL == "" {
 			return nil, ErrOpenAICompatibleBaseURLRequired
 		}
+
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	default:
 		return nil, ErrProviderNotSpecified
@@ -114,6 +117,7 @@ func (f *gatewayFactory) NewEmbeddingsGateway(
 		if profile.APIKey == "" {
 			return nil, ErrGeminiAPIKeyRequired
 		}
+
 		return newGeminiGateway(ctx, profile.APIKey)
 	case mdGateway.Llama:
 		return nil, ErrLlamaEmbeddingsNotImplemented
@@ -133,6 +137,7 @@ func (f *gatewayFactory) NewEmbeddingsGateway(
 		if profile.APIKey == "" {
 			return nil, ErrVoyageAPIKeyRequired
 		}
+
 		return newVoyageGateway(profile.APIKey)
 	default:
 		return nil, ErrProviderNotSpecified

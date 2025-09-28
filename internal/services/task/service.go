@@ -66,9 +66,7 @@ var _ Service = (*serviceImpl)(nil)
 func resolveTaskConfiguration(
 	taskName, cmdUserPrompt string,
 	cfg *mdConfig.Config,
-) (string, string, string, error) {
-	var profileName, systemPrompt, userPrompt string
-
+) (profileName, systemPrompt, userPrompt string, err error) {
 	if taskName == "" || cfg.Generate == nil || cfg.Generate.Tasks == nil {
 		return resolveDefaultConfiguration(cmdUserPrompt, cfg)
 	}
@@ -92,29 +90,37 @@ func resolveTaskConfiguration(
 	return strings.TrimSpace(profileName), strings.TrimSpace(systemPrompt), strings.TrimSpace(userPrompt), nil
 }
 
-func resolveDefaultConfiguration(cmdUserPrompt string, cfg *mdConfig.Config) (string, string, string, error) {
+func resolveDefaultConfiguration(
+	cmdUserPrompt string, cfg *mdConfig.Config,
+) (profileName, systemPrompt, userPrompt string, err error) {
 	if cfg.Generate == nil || cfg.Generate.Default == nil {
-		return "", "", "", ErrNoDefaultConfigurationAvailable
+		err = ErrNoDefaultConfigurationAvailable
+		return profileName, systemPrompt, userPrompt, err
 	}
 
-	profileName := strings.TrimSpace(cfg.Generate.Default.Profile)
-	systemPrompt := strings.TrimSpace(cfg.Generate.Default.SystemPrompt)
-	userPrompt := strings.TrimSpace(cmdUserPrompt)
+	profileName = strings.TrimSpace(cfg.Generate.Default.Profile)
+	systemPrompt = strings.TrimSpace(cfg.Generate.Default.SystemPrompt)
+	userPrompt = strings.TrimSpace(cmdUserPrompt)
 
-	return profileName, systemPrompt, userPrompt, nil
+	return profileName, systemPrompt, userPrompt, err
 }
 
 // applyDefaults applies default values for profile and system prompt if they are empty.
-func applyDefaults(profileName, systemPrompt string, cfg *mdConfig.Config) (string, string) {
-	if profileName == "" && cfg.Generate.Default != nil {
-		profileName = cfg.Generate.Default.Profile
+func applyDefaults(
+	profileName, systemPrompt string, cfg *mdConfig.Config,
+) (finalProfileName, finalSystemPrompt string) {
+	finalProfileName = profileName
+	finalSystemPrompt = systemPrompt
+
+	if finalProfileName == "" && cfg.Generate.Default != nil {
+		finalProfileName = cfg.Generate.Default.Profile
 	}
 
-	if systemPrompt == "" && cfg.Generate.Default != nil {
-		systemPrompt = cfg.Generate.Default.SystemPrompt
+	if finalSystemPrompt == "" && cfg.Generate.Default != nil {
+		finalSystemPrompt = cfg.Generate.Default.SystemPrompt
 	}
 
-	return profileName, systemPrompt
+	return finalProfileName, finalSystemPrompt
 }
 
 // validateConfiguration validates the resolved configuration.
