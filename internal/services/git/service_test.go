@@ -17,6 +17,10 @@ limitations under the License.
 package git
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -75,5 +79,221 @@ func TestServiceImpl_ReadOriginalFileContent(t *testing.T) {
 	// This should fail since the file is not in HEAD
 	if err == nil {
 		t.Logf("ReadOriginalFileContent() unexpectedly succeeded for nonexistent file")
+	}
+}
+
+func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
+	// Create a temporary git repository for more comprehensive testing
+	tempDir, err := os.MkdirTemp("", "git_test")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+
+	if chdirErr := os.Chdir(tempDir); chdirErr != nil {
+		t.Skipf("Failed to change to temp directory: %v", chdirErr)
+	}
+
+	// Initialize git repo
+	if initErr := exec.Command("git", "init").Run(); initErr != nil {
+		t.Skipf("Failed to init git repo: %v", initErr)
+	}
+
+	// Configure git user (required for commits)
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	service := NewService()
+
+	// Test with empty repository (no staged files)
+	files, err := service.ReadStagedFiles()
+	if err != nil {
+		t.Errorf("ReadStagedFiles() failed in empty repo: %v", err)
+	}
+	if len(files) != 0 {
+		t.Errorf("Expected no staged files in empty repo, got %d", len(files))
+	}
+
+	// Create and stage a file
+	testFile := "test.txt"
+	testContent := "Hello, world!"
+	err = os.WriteFile(testFile, []byte(testContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	err = exec.Command("git", "add", testFile).Run()
+	if err != nil {
+		t.Fatalf("Failed to stage test file: %v", err)
+	}
+
+	// Test ReadStagedFiles with staged file
+	files, err = service.ReadStagedFiles()
+	if err != nil {
+		t.Errorf("ReadStagedFiles() failed: %v", err)
+	}
+	if len(files) != 1 || files[0] != testFile {
+		t.Errorf("Expected [%s], got %v", testFile, files)
+	}
+
+	// Test ReadStagedFileContent
+	content, err := service.ReadStagedFileContent(testFile)
+	if err != nil {
+		t.Errorf("ReadStagedFileContent() failed: %v", err)
+	}
+	if strings.TrimSpace(content) != testContent {
+		t.Errorf("Expected '%s', got '%s'", testContent, strings.TrimSpace(content))
+	}
+
+	// Test ReadStagedChanges
+	changes, err := service.ReadStagedChanges(testFile)
+	if err != nil {
+		t.Errorf("ReadStagedChanges() failed: %v", err)
+	}
+	if !strings.Contains(changes, testContent) {
+		t.Errorf("Expected changes to contain '%s', got '%s'", testContent, changes)
+	}
+
+	// Commit the file to test ReadOriginalFileContent
+	if commitErr := exec.Command("git", "commit", "-m", "Initial commit").Run(); commitErr != nil {
+		t.Fatalf("Failed to commit: %v", commitErr)
+	}
+
+	// Test ReadOriginalFileContent
+	originalContent, err := service.ReadOriginalFileContent(testFile)
+	if err != nil {
+		t.Errorf("ReadOriginalFileContent() failed: %v", err)
+	}
+	if strings.TrimSpace(originalContent) != testContent {
+		t.Errorf("Expected '%s', got '%s'", testContent, strings.TrimSpace(originalContent))
+	}
+}
+
+func TestServiceImpl_RunGitCommandErrorHandling(t *testing.T) {
+	service := &serviceImpl{}
+
+	// Test with invalid git command to trigger error handling
+	_, err := service.runGitCommand("invalid-command", "nonexistent")
+	if err == nil {
+		t.Error("Expected error for invalid git command")
+	}
+
+	// Error message should contain useful information
+	if !strings.Contains(err.Error(), "git command failed") {
+		t.Errorf("Expected error message to contain 'git command failed', got: %v", err)
+	}
+}
+
+func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_empty")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	service := NewService()
+
+	// Test ReadStagedFiles with no staged files (empty output handling)
+	files, err := service.ReadStagedFiles()
+	if err != nil {
+		t.Errorf("ReadStagedFiles() failed: %v", err)
+	}
+
+	// Should return empty slice, not nil
+	if files == nil {
+		t.Error("ReadStagedFiles() returned nil instead of empty slice")
+	}
+	if len(files) != 0 {
+		t.Errorf("Expected empty slice, got %v", files)
+	}
+}
+
+func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_multiple")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Change to temp directory
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	// Configure git user
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	service := NewService()
+
+	// Create multiple files and stage them
+	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}
+	for i, filename := range testFiles {
+		content := fmt.Sprintf("Content of file %d", i+1)
+		writeErr := os.WriteFile(filename, []byte(content), 0o644)
+		if writeErr != nil {
+			t.Fatalf("Failed to create %s: %v", filename, writeErr)
+		}
+		err = exec.Command("git", "add", filename).Run()
+		if err != nil {
+			t.Fatalf("Failed to stage %s: %v", filename, err)
+		}
+	}
+
+	// Test ReadStagedFiles with multiple files
+	files, err := service.ReadStagedFiles()
+	if err != nil {
+		t.Errorf("ReadStagedFiles() failed: %v", err)
+	}
+
+	if len(files) != len(testFiles) {
+		t.Errorf("Expected %d files, got %d", len(testFiles), len(files))
+	}
+
+	// Verify all files are present (order may vary)
+	fileSet := make(map[string]bool)
+	for _, file := range files {
+		fileSet[file] = true
+	}
+
+	for _, expectedFile := range testFiles {
+		if !fileSet[expectedFile] {
+			t.Errorf("Expected file %s not found in staged files", expectedFile)
+		}
 	}
 }

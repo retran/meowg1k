@@ -23,6 +23,7 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
@@ -31,14 +32,16 @@ var (
 	_ EmbeddingsGateway = (*openaiGateway)(nil)
 )
 
+var ErrNoChoices = errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
+
 type openaiGateway struct {
 	ComputeDistanceMixin
 	client *openai.Client
 }
 
-// NewOpenAIGateway creates and initializes a new unified OpenAIGateway.
+// newOpenAIGateway creates and initializes a new unified OpenAIGateway.
 // It sets up the OpenAI client with the given base URL and API key.
-func newOpenAIGateway(baseURL string, apiKey string) (Gateway, error) {
+func newOpenAIGateway(baseURL, apiKey string) Gateway {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
 	}
@@ -49,11 +52,14 @@ func newOpenAIGateway(baseURL string, apiKey string) (Gateway, error) {
 
 	client := openai.NewClient(options...)
 
-	return &openaiGateway{client: &client}, nil
+	return &openaiGateway{client: &client}
 }
 
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
-func (g *openaiGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
+func (g *openaiGateway) GenerateContent(
+	ctx context.Context,
+	request *mdGateway.GenerateContentRequest,
+) (string, error) {
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
@@ -67,19 +73,22 @@ func (g *openaiGateway) GenerateContent(ctx context.Context, request *mdGateway.
 	}
 
 	if len(response.Choices) == 0 {
-		return "", errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
+		return "", ErrNoChoices
 	}
 
 	return response.Choices[0].Message.Content, nil
 }
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
-func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *mdGateway.ComputeEmbeddingsRequest) ([]mdGateway.Embedding, error) {
+func (g *openaiGateway) ComputeEmbeddings(
+	ctx context.Context,
+	request *mdGateway.ComputeEmbeddingsRequest,
+) ([]mdGateway.Embedding, error) {
 	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.Chunks(),
 		},
-		Model: openai.EmbeddingModel(request.Model()),
+		Model: request.Model(),
 	}
 
 	// Set dimensions if specified
@@ -88,14 +97,13 @@ func (g *openaiGateway) ComputeEmbeddings(ctx context.Context, request *mdGatewa
 	}
 
 	response, err := g.client.Embeddings.New(ctx, params)
-
 	if err != nil {
 		return []mdGateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
 	embeddings := make([]mdGateway.Embedding, 0, len(response.Data))
-	for _, value := range response.Data {
-		embeddings = append(embeddings, mdGateway.Embedding(value.Embedding))
+	for i := range response.Data {
+		embeddings = append(embeddings, mdGateway.Embedding(response.Data[i].Embedding))
 	}
 
 	return embeddings, nil

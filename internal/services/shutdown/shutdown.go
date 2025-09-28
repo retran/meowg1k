@@ -28,9 +28,10 @@ import (
 	"time"
 )
 
+// Service interface provides methods for managing graceful shutdown.
 type Service interface {
 	Context() context.Context
-	Register(callback ShutdownCallback)
+	Register(callback Callback)
 	ListenForSignals() bool
 	Shutdown()
 }
@@ -38,43 +39,48 @@ type Service interface {
 // serviceImpl handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
 type serviceImpl struct {
-	Service
 	mu        sync.RWMutex
-	ctx       context.Context
+	ctx       context.Context //nolint:containedctx // stored to expose shutdown context to consumers
 	cancel    context.CancelFunc
 	logger    *slog.Logger
-	callbacks []ShutdownCallback
+	callbacks []Callback
 	timeout   time.Duration
 }
 
-// ShutdownCallback is a function called during graceful shutdown.
+// Callback is a function called during graceful shutdown.
 // It should complete cleanup and return within a reasonable time.
-type ShutdownCallback func(ctx context.Context) error
+type Callback func(ctx context.Context) error
 
 // NewService creates a new shutdown manager with the specified timeout.
 // timeout sets the maximum time to wait for all callbacks to complete.
 func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) Service {
 	ctx, cancel := context.WithCancel(ctx)
+
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return &serviceImpl{
 		ctx:       ctx,
 		cancel:    cancel,
-		logger:    slog.Default(),
-		callbacks: make([]ShutdownCallback, 0),
+		logger:    logger,
+		callbacks: make([]Callback, 0),
 		timeout:   timeout,
 	}
 }
 
 // Context returns the shutdown context.
-// This context is cancelled when shutdown begins.
+// This context is canceled when shutdown begins.
 func (m *serviceImpl) Context() context.Context {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
 	return m.ctx
 }
 
 // Register adds a callback to be executed during shutdown.
 // Callbacks are executed in the order they were registered.
-func (m *serviceImpl) Register(callback ShutdownCallback) {
+func (m *serviceImpl) Register(callback Callback) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -87,8 +93,8 @@ func (m *serviceImpl) Register(callback ShutdownCallback) {
 }
 
 // ListenForSignals starts listening for shutdown signals (SIGINT, SIGTERM).
-// This function blocks until a signal is received or the context is cancelled.
-// Returns true if shutdown was triggered by a signal, false if context was cancelled.
+// This function blocks until a signal is received or the context is canceled.
+// Returns true if shutdown was triggered by a signal, false if context was canceled.
 func (m *serviceImpl) ListenForSignals() bool {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -99,13 +105,20 @@ func (m *serviceImpl) ListenForSignals() bool {
 
 	select {
 	case sig := <-sigChan:
-		m.logger.InfoContext(m.ctx, "Received shutdown signal",
-			"signal", sig.String(),
-			"signal_number", int(sig.(syscall.Signal)))
+		if syscallSig, ok := sig.(syscall.Signal); ok {
+			m.logger.InfoContext(m.ctx, "Received shutdown signal",
+				"signal", sig.String(),
+				"signal_number", int(syscallSig))
+		} else {
+			m.logger.InfoContext(m.ctx, "Received shutdown signal",
+				"signal", sig.String())
+		}
+
 		m.shutdown()
+
 		return true
 	case <-m.ctx.Done():
-		m.logger.DebugContext(context.Background(), "Signal listener cancelled by context")
+		m.logger.DebugContext(context.Background(), "Signal listener canceled by context")
 		return false
 	}
 }
@@ -130,13 +143,14 @@ func (m *serviceImpl) shutdown() {
 	defer shutdownCancel()
 
 	m.mu.RLock()
-	callbacks := make([]ShutdownCallback, len(m.callbacks))
+	callbacks := make([]Callback, len(m.callbacks))
 	copy(callbacks, m.callbacks)
 	m.mu.RUnlock()
 
 	// Execute all shutdown callbacks
 	for i, callback := range callbacks {
 		callbackStart := time.Now()
+
 		m.logger.DebugContext(shutdownCtx, "Executing shutdown callback",
 			"callback_index", i,
 			"remaining_callbacks", len(callbacks)-i-1)
@@ -152,15 +166,12 @@ func (m *serviceImpl) shutdown() {
 				"execution_time", time.Since(callbackStart))
 		}
 
-		// Check if we're running out of time
-		select {
-		case <-shutdownCtx.Done():
-			m.logger.WarnContext(shutdownCtx, "Shutdown timeout reached, cancelling remaining callbacks",
+		if shutdownCtx.Err() != nil {
+			m.logger.WarnContext(shutdownCtx, "Shutdown timeout reached, canceling remaining callbacks",
 				"completed_callbacks", i+1,
 				"remaining_callbacks", len(callbacks)-i-1)
+
 			return
-		default:
-			// Continue with next callback
 		}
 	}
 

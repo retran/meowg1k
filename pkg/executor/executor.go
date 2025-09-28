@@ -20,19 +20,18 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// RetryPolicy defines how activities should be retried on failure
-type RetryPolicy struct {
-	MaxAttempts  int           `json:"max_attempts"`
-	InitialDelay time.Duration `json:"initial_delay"`
-	MaxDelay     time.Duration `json:"max_delay"`
-	Multiplier   float64       `json:"multiplier"`
-}
+var (
+	ErrActivityInvalidType  = errors.New("activity has invalid type")
+	ErrFlowFailed           = errors.New("flow is failed")
+	ErrUnexpectedEndOfRetry = errors.New("unexpected end of retry loop")
+)
 
 // DefaultRetryPolicy returns a sensible default retry policy
 func DefaultRetryPolicy() *RetryPolicy {
@@ -54,41 +53,45 @@ func NoRetryPolicy() RetryPolicy {
 	}
 }
 
-// ExecutorImpl is the central component for running activities
+// Impl is the central component for running activities
 // It handles retry logic, feedback, and will handle caching/rate limiting in the future
-type ExecutorImpl struct {
+type Impl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
 }
 
 // NewExecutor creates a new activity executor with the given configuration
-func NewExecutor() *ExecutorImpl {
-	return &ExecutorImpl{
+func NewExecutor() *Impl {
+	return &Impl{
 		RetryPolicy:     DefaultRetryPolicy(),
 		FeedbackHandler: NoOpFeedbackHandler,
 	}
 }
 
 // WithRetryPolicy sets the retry policy for this executor
-func (e *ExecutorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
+func (e *Impl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	e.RetryPolicy = policy
 	return e
 }
 
 // WithFeedbackHandler sets the feedback handler for this executor
-func (e *ExecutorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
+func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	e.FeedbackHandler = handler
 	return e
 }
 
 // RunFlow runs a flow asynchronously and returns when it completes or fails
-func (e *ExecutorImpl) RunFlow(ctx context.Context, flowName string, flow func(context.Context, *ExecutorContext) error) error {
+func (e *Impl) RunFlow(
+	ctx context.Context,
+	flowName string,
+	flow Flow,
+	retryPolicy *RetryPolicy,
+) error {
 	fut := future.NewFuture[any]()
-	executorCtx := NewExecutorContext(flowName, e.FeedbackHandler, e)
-	executorCtx.SendPending(fmt.Sprintf("Flow \"%s\" is pending", flowName))
+	executorCtx := NewContext(flowName, e.FeedbackHandler, e)
+	executorCtx.SendPending(fmt.Sprintf("Flow %q is pending", flowName))
 
 	go func() {
-		// Try to cast to a function with the right signature
 		err := e.executeFlow(ctx, executorCtx, flow)
 		if err != nil {
 			fut.CompleteWithError(err)
@@ -98,58 +101,61 @@ func (e *ExecutorImpl) RunFlow(ctx context.Context, flowName string, flow func(c
 	}()
 
 	_, err := fut.Get(ctx)
+
 	return err
 }
 
 // RunActivity runs a sub-activity asynchronously and returns a future for its result
-func (e *ExecutorImpl) RunActivity(ctx context.Context, parentCtx *ExecutorContext, activityName string, activity any, input any) *future.Future[any] {
-	future := future.NewFuture[any]()
+func (e *Impl) RunActivity(
+	ctx context.Context,
+	parentCtx *Context,
+	activityName string,
+	activity Activity[any, any],
+	input any,
+) *future.Future[any] {
+	fut := future.NewFuture[any]()
 	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
-	activityCtx := NewExecutorContext(fullActivityName, parentCtx.feedbackFunc, e)
-	activityCtx.SendPending(fmt.Sprintf("Activity \"%s\" is pending", activityName))
+	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
+	activityCtx.SendPending(fmt.Sprintf("Activity %q is pending", activityName))
 
 	go func() {
-		if activityFunc, ok := activity.(func(context.Context, *ExecutorContext, any) (any, error)); ok {
-			result, err := e.executeActivity(ctx, activityCtx, activityFunc, input, e.RetryPolicy)
-			if err != nil {
-				future.CompleteWithError(err)
-			} else {
-				future.Complete(result)
-			}
+		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
+		if err != nil {
+			fut.CompleteWithError(err)
 		} else {
-			future.CompleteWithError(fmt.Errorf("activity \"%s\" has invalid type", activityName))
+			fut.Complete(result)
 		}
 	}()
 
-	return future
+	return fut
 }
 
-func (e *ExecutorImpl) executeFlow(
+func (e *Impl) executeFlow(
 	ctx context.Context,
-	flowCtx *ExecutorContext,
-	flow func(context.Context, *ExecutorContext) error,
+	flowCtx *Context,
+	flow func(context.Context, *Context) error,
 ) error {
 	select {
 	case <-ctx.Done():
-		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow \"%s\" is cancelled", flowCtx.name))
-		return fmt.Errorf("flow \"%s\" is cancelled: %w", flowCtx.name, ctx.Err())
+		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow %q is canceled", flowCtx.name))
+		return fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err())
 	default:
 	}
 
 	err := flow(ctx, flowCtx)
 	if err != nil {
-		flowCtx.SendFailed(err, fmt.Sprintf("Flow \"%s\" is failed", flowCtx.name))
-		return fmt.Errorf("flow \"%s\" is failed: %v", flowCtx.name, err)
+		flowCtx.SendFailed(err, fmt.Sprintf("Flow %q is failed", flowCtx.name))
+		return fmt.Errorf("%w: %s: %w", ErrFlowFailed, flowCtx.name, err)
 	}
 
 	return nil
 }
 
 // executeActivity handles typed sub-activities with retry logic
-func (e *ExecutorImpl) executeActivity(
+func (e *Impl) executeActivity(
 	ctx context.Context,
-	activityCtx *ExecutorContext,
-	activity func(context.Context, *ExecutorContext, any) (any, error),
+	activityCtx *Context,
+	activity Activity[any, any],
 	input any,
 	policy *RetryPolicy,
 ) (any, error) {
@@ -157,11 +163,11 @@ func (e *ExecutorImpl) executeActivity(
 	delay := policy.InitialDelay
 
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
-		// Check if context is cancelled before each attempt
+		// Check if context is canceled before each attempt
 		select {
 		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity \"%s\" is cancelled", activityCtx.name))
-			return nil, fmt.Errorf("activity \"%s\" is cancelled: %w", activityCtx.name, ctx.Err())
+			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+			return nil, fmt.Errorf("activity %q is canceled: %w", activityCtx.name, ctx.Err())
 		default:
 		}
 
@@ -172,8 +178,8 @@ func (e *ExecutorImpl) executeActivity(
 
 		// If this was the last attempt, return the error
 		if attempt == policy.MaxAttempts {
-			activityCtx.SendFailed(err, fmt.Sprintf("Activity \"%s\" failed after %d attempts", name, attempt))
-			return nil, fmt.Errorf("activity \"%s\" failed after %d attempts: %w", name, attempt, err)
+			activityCtx.SendFailed(err, fmt.Sprintf("Activity %q failed after %d attempts", name, attempt))
+			return nil, fmt.Errorf("activity %q failed after %d attempts: %w", name, attempt, err)
 		}
 
 		// Send retry feedback
@@ -182,8 +188,8 @@ func (e *ExecutorImpl) executeActivity(
 		// Wait before retry with exponential backoff
 		select {
 		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity \"%s\" is cancelled", activityCtx.name))
-			return nil, fmt.Errorf("activity \"%s\" is cancelled: %w", activityCtx.name, ctx.Err())
+			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+			return nil, fmt.Errorf("activity %q is canceled: %w", activityCtx.name, ctx.Err())
 		case <-time.After(delay):
 			// Calculate next delay with exponential backoff
 			delay = min(time.Duration(float64(delay)*policy.Multiplier), policy.MaxDelay)
@@ -191,5 +197,5 @@ func (e *ExecutorImpl) executeActivity(
 	}
 
 	// This should never be reached, but just in case
-	return nil, fmt.Errorf("activity \"%s\": unexpected end of retry loop", name)
+	return nil, fmt.Errorf("%w: %s", ErrUnexpectedEndOfRetry, name)
 }

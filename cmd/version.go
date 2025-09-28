@@ -19,8 +19,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/version"
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/version"
 )
 
 var versionCmd = &cobra.Command{

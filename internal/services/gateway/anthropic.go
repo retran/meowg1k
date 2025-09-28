@@ -18,11 +18,20 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
+)
+
+var (
+	ErrAnthropicAPIKeyRequired          = errors.New("anthropic API key is required")
+	ErrModelRequired                    = errors.New("model is required")
+	ErrNoContentInResponseFromAnthropic = errors.New("no content in response from Anthropic")
+	ErrNoTextContentFoundInResponse     = errors.New("no text content found in Anthropic response")
 )
 
 // Compile-time interface satisfaction check
@@ -36,7 +45,7 @@ type anthropicGateway struct {
 // NewAnthropicGateway creates a new Anthropic gateway.
 func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("anthropic API key is required")
+		return nil, ErrAnthropicAPIKeyRequired
 	}
 
 	client := anthropic.NewClient(
@@ -49,10 +58,13 @@ func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 }
 
 // GenerateContent generates content using Anthropic's API.
-func (g *anthropicGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
+func (g *anthropicGateway) GenerateContent(
+	ctx context.Context,
+	request *mdGateway.GenerateContentRequest,
+) (string, error) {
 	model := request.Model()
 	if model == "" {
-		return "", fmt.Errorf("model is required")
+		return "", ErrModelRequired
 	}
 
 	// Prepare messages for the API
@@ -82,16 +94,16 @@ func (g *anthropicGateway) GenerateContent(ctx context.Context, request *mdGatew
 
 	// Extract text content from response
 	if len(response.Content) == 0 {
-		return "", fmt.Errorf("no content in response from Anthropic")
+		return "", ErrNoContentInResponseFromAnthropic
 	}
 
 	// Find the first text block in the response
-	for _, content := range response.Content {
-		if content.Type == "text" {
-			textBlock := content.AsText()
+	for i := range response.Content {
+		if response.Content[i].Type == "text" {
+			textBlock := response.Content[i].AsText()
 			return textBlock.Text, nil
 		}
 	}
 
-	return "", fmt.Errorf("no text content found in Anthropic response")
+	return "", ErrNoTextContentFoundInResponse
 }

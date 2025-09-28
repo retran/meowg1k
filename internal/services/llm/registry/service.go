@@ -33,7 +33,6 @@ type Service interface {
 
 // serviceImpl is the private implementation of the Service interface.
 type serviceImpl struct {
-	Service
 	models map[string]modelsLLM.ModelInfo
 }
 
@@ -90,6 +89,7 @@ func (r *serviceImpl) GetMaxOutputTokens(modelName string) int {
 	if maxOutputTokens <= 0 {
 		return 4096 // Safe default
 	}
+
 	return maxOutputTokens
 }
 
@@ -99,6 +99,7 @@ func (r *serviceImpl) ListKnownModels() []string {
 	for model := range r.models {
 		models = append(models, model)
 	}
+
 	return models
 }
 

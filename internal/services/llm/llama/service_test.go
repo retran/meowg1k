@@ -62,13 +62,13 @@ func TestNewService(t *testing.T) {
 			service, err := NewService(tt.baseURL, tt.apiKey)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, service)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, service)
 				impl := service.(*serviceImpl)
 				assert.Equal(t, tt.baseURL, impl.baseURL)
@@ -114,7 +114,7 @@ func TestServiceImpl_Complete(t *testing.T) {
 			mockStatusCode: 500,
 			mockError:      "Internal Server Error",
 			expectError:    true,
-			errorMsg:       "API request failed with status 500",
+			errorMsg:       "API request failed: status 500: Internal Server Error",
 		},
 		{
 			name: "Invalid JSON response",
@@ -158,19 +158,20 @@ func TestServiceImpl_Complete(t *testing.T) {
 			result, err := service.Complete(ctx, tt.request)
 
 			if tt.expectError {
-				assert.Error(t, err)
-				assert.Nil(t, result)
+				require.Error(t, err)
+				require.Nil(t, result)
 				if tt.errorMsg != "" {
 					assert.Contains(t, err.Error(), tt.errorMsg)
 				}
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
-				assert.Equal(t, tt.mockResponse.Content, result.Content)
-				assert.Equal(t, tt.mockResponse.Model, result.Model)
-				assert.Equal(t, tt.mockResponse.TokensEvaluated, result.TokensEvaluated)
-				assert.Equal(t, tt.mockResponse.TokensCached, result.TokensCached)
+				return
 			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.mockResponse.Content, result.Content)
+			assert.Equal(t, tt.mockResponse.Model, result.Model)
+			assert.Equal(t, tt.mockResponse.TokensEvaluated, result.TokensEvaluated)
+			assert.Equal(t, tt.mockResponse.TokensCached, result.TokensCached)
 		})
 	}
 }
@@ -199,7 +200,7 @@ func TestServiceImpl_CompleteWithAuthHeader(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
@@ -226,7 +227,7 @@ func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestServiceImpl_CompleteWithContext(t *testing.T) {
@@ -244,7 +245,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	service, err := NewService(server.URL, "test-key")
 	require.NoError(t, err)
 
-	// Create a context that will be cancelled
+	// Create a context that will be canceled
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -253,7 +254,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
 
@@ -283,14 +284,203 @@ func TestCompletionRequestFieldsValidation(t *testing.T) {
 
 	// Test marshaling works
 	data, err := json.Marshal(req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, data)
 
 	// Test unmarshaling works
 	var unmarshaledReq CompletionRequest
 	err = json.Unmarshal(data, &unmarshaledReq)
-	assert.NoError(t, err)
-	assert.Equal(t, req.Temperature, unmarshaledReq.Temperature)
+	require.NoError(t, err)
+	assert.InEpsilon(t, req.Temperature, unmarshaledReq.Temperature, 0.001)
 	assert.Equal(t, req.TopK, unmarshaledReq.TopK)
 	assert.Equal(t, req.Stop, unmarshaledReq.Stop)
+}
+
+func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupServer func() *httptest.Server
+		request     *CompletionRequest
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "Request marshaling error - invalid request structure",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(200)
+					w.Write([]byte(`{"content": "test"}`))
+				}))
+			},
+			request: &CompletionRequest{
+				Prompt: "Test", // Valid request, test will use invalid JSON
+			},
+			expectError: false, // This specific case won't fail marshaling
+		},
+		{
+			name: "HTTP request creation with invalid URL characters",
+			setupServer: func() *httptest.Server {
+				// This will be overridden with invalid URL
+				return nil
+			},
+			request: &CompletionRequest{
+				Prompt: "Test prompt",
+			},
+			expectError: true,
+			errorMsg:    "failed to create HTTP request",
+		},
+		{
+			name: "Response body read error simulation",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(200)
+					// Write invalid JSON to test unmarshaling error path
+					w.Write([]byte(`{"invalid": json}`))
+				}))
+			},
+			request: &CompletionRequest{
+				Prompt: "Test prompt",
+			},
+			expectError: true,
+			errorMsg:    "failed to unmarshal response",
+		},
+		{
+			name: "Various HTTP error status codes",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(404)
+					w.Write([]byte("Not Found"))
+				}))
+			},
+			request: &CompletionRequest{
+				Prompt: "Test prompt",
+			},
+			expectError: true,
+			errorMsg:    "API request failed: status 404: Not Found",
+		},
+		{
+			name: "Client error status codes",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(400)
+					w.Write([]byte("Bad Request"))
+				}))
+			},
+			request: &CompletionRequest{
+				Prompt: "Test prompt",
+			},
+			expectError: true,
+			errorMsg:    "API request failed: status 400: Bad Request",
+		},
+		{
+			name: "Malformed JSON response",
+			setupServer: func() *httptest.Server {
+				return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(200)
+					w.Write([]byte(`{"content": "incomplete json`))
+				}))
+			},
+			request: &CompletionRequest{
+				Prompt: "Test prompt",
+			},
+			expectError: true,
+			errorMsg:    "failed to unmarshal response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var service Service
+			var err error
+
+			if tt.name == "HTTP request creation with invalid URL characters" {
+				// Test with service that has invalid URL
+				service, err = NewService("ht tp://invalid url with spaces", "key")
+				require.NoError(t, err) // Service creation succeeds
+
+				ctx := context.Background()
+				_, err = service.Complete(ctx, tt.request)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				server := tt.setupServer()
+				if server != nil {
+					defer server.Close()
+					service, err = NewService(server.URL, "test-key")
+				} else {
+					service, err = NewService("http://localhost:8080", "test-key")
+				}
+				require.NoError(t, err)
+
+				ctx := context.Background()
+				result, err := service.Complete(ctx, tt.request)
+
+				if tt.expectError {
+					require.Error(t, err)
+					assert.Nil(t, result)
+					if tt.errorMsg != "" {
+						assert.Contains(t, err.Error(), tt.errorMsg)
+					}
+				} else {
+					require.NoError(t, err)
+					assert.NotNil(t, result)
+				}
+			}
+		})
+	}
+}
+
+func TestCompletionResponseValidation(t *testing.T) {
+	// Test comprehensive response structure
+	response := CompletionResponse{
+		Content:         "Generated content here",
+		Model:           "llama-3.2-90b-instruct",
+		TokensEvaluated: 150,
+		TokensCached:    50,
+		GenerationSettings: map[string]any{
+			"frequency_penalty": 0.1,
+			"presence_penalty":  0.2,
+			"repeat_penalty":    1.05,
+			"temperature":       0.7,
+			"top_k":             40,
+			"top_p":             0.9,
+			"typical_p":         1.0,
+		},
+		Prompt:   "Original prompt text",
+		Stop:     true,
+		StopType: "stop_word",
+		Timings: map[string]any{
+			"predicted_n":  150,
+			"predicted_ms": 2500.5,
+		},
+		Tokens:    []int{1, 2, 3, 4, 5},
+		Truncated: false,
+		Probs: []TokenProb{
+			{
+				ID:      1,
+				Token:   "test",
+				Logprob: -0.5,
+				Bytes:   []int{116, 101, 115, 116},
+			},
+		},
+	}
+
+	// Test marshaling
+	data, err := json.Marshal(response)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	// Test unmarshaling
+	var unmarshaledResp CompletionResponse
+	err = json.Unmarshal(data, &unmarshaledResp)
+	require.NoError(t, err)
+	assert.Equal(t, response.Content, unmarshaledResp.Content)
+	assert.Equal(t, response.Model, unmarshaledResp.Model)
+	assert.Equal(t, response.TokensEvaluated, unmarshaledResp.TokensEvaluated)
+	assert.Equal(t, response.TokensCached, unmarshaledResp.TokensCached)
+	assert.Equal(t, response.GenerationSettings["temperature"], unmarshaledResp.GenerationSettings["temperature"])
+	// Use type assertion for map values that could be different numeric types
+	assert.InEpsilon(t, float64(150), unmarshaledResp.Timings["predicted_n"], 0.001)
+	assert.Equal(t, len(response.Tokens), len(unmarshaledResp.Tokens))
+	assert.Equal(t, len(response.Probs), len(unmarshaledResp.Probs))
 }
