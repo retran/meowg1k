@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [dev]
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".vscode/**"
   pull_request:
     branches: [dev]
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".vscode/**"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,100 +20,25 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
   checks: write
+  pull-requests: write
+
+env:
+  COVERAGE_THRESHOLD: "90.0"
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.25.1"
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Run tests with coverage
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: Check and expose test coverage
-        id: coverage
-        run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-          echo "COVERAGE_PERCENT=${COVERAGE}" >> $GITHUB_ENV
-          echo "Test coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 90.0" | bc -l) )); then
-            echo "❌ Test coverage ${COVERAGE}% is below 90% threshold"
-            exit 1
-          else
-            echo "✅ Test coverage ${COVERAGE}% meets the 90% threshold"
-          fi
-
-      - name: Comment PR with coverage
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        with:
-          script: |
-            const fs = require('fs');
-            if (fs.existsSync('coverage.out')) {
-              const coverage = `${{ env.COVERAGE_PERCENT }}`;
-              const body = `## 🧪 Test Coverage Report
-
-              **Coverage: ${coverage}%** ${parseFloat(coverage) >= 90 ? '✅' : '❌'}
-
-              ${parseFloat(coverage) >= 90 ?
-                '✅ Meets the 90% coverage threshold!' :
-                '❌ Below the 90% coverage threshold. Please add more tests.'}
-              `;
-
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: body
-              });
-            }
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          file: ./coverage.out
-          fail_ci_if_error: false
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25.1"
+          go-version-file: go.mod
+          cache: true
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
@@ -116,58 +49,97 @@ jobs:
   security:
     name: Security
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25.1"
+          go-version-file: go.mod
+          cache: true
 
-      - name: Run Gosec Security Scanner
-        uses: securego/gosec@master
-        with:
-          args: ./...
-
-      - name: Run govulncheck
+      - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [test, lint, security]
+      - name: Gosec
+        uses: securego/gosec@master
+        with:
+          args: ./...
 
+  test:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.25.1"
+          go-version-file: go.mod
+          cache: true
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-
-      - name: Build binary
-        run: task build
-
-      - name: Test binary
+      - name: Ensure modules are tidy
         run: |
-          ./bin/meow version
-          ./bin/meow --help
+          go mod tidy
+          git diff --exit-code go.mod go.sum || (echo "::error::Run 'go mod tidy' locally and commit changes"; exit 1)
 
-      - name: Upload binary artifact
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: Enforce coverage threshold
+        id: coverage
+        shell: bash
+        run: |
+          total="$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')"
+          echo "COVERAGE_PERCENT=$total" >> "$GITHUB_ENV"
+          awk -v total="$total" -v th="${COVERAGE_THRESHOLD}" 'BEGIN{ if (total+0 < th+0) { exit 1 } }' \
+          || (echo "::error::Coverage ${total}% is below threshold ${COVERAGE_THRESHOLD}%"; exit 1)
+          echo "Coverage ${total}% >= ${COVERAGE_THRESHOLD}%"
+
+      - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: meow-binary
-          path: bin/meow
+          name: coverage-out
+          path: coverage.out
           retention-days: 7
+
+      - name: Comment PR with coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const pct = process.env.COVERAGE_PERCENT ?? 'n/a';
+            const threshold = process.env.COVERAGE_THRESHOLD ?? '90.0';
+            const ok = !Number.isNaN(parseFloat(pct)) && (parseFloat(pct) >= parseFloat(threshold));
+            const marker = '<!-- coverage-comment -->';
+            const lines = [
+              marker,
+              '## Test Coverage',
+              `Coverage: ${pct}% ${ok ? '(meets threshold)' : '(below threshold)'}`,
+              `Threshold: ${threshold}%`
+            ];
+            const body = lines.join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const prev = comments.find(c => typeof c.body === 'string' && c.body.includes(marker));
+            if (prev) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: prev.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
