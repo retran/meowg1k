@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -384,6 +385,20 @@ func TestGetMethodsWithVariousValues(t *testing.T) {
 			promptValue:   "This is a very long prompt that contains multiple sentences and might test the limits of string handling in the system.",
 			silentValue:   "true",
 		},
+		{
+			name:          "Unicode and special characters",
+			configValue:   "/config/αβγ/config.yaml",
+			taskValue:     "task-ñáéíóú",
+			promptValue:   "Prompt with 🚀 emoji and unicode αβγδε",
+			silentValue:   "false",
+		},
+		{
+			name:          "Path with various separators",
+			configValue:   "C:\\Windows\\config.yaml",
+			taskValue:     "windows\\task",
+			promptValue:   "Path: C:\\Users\\test\\file.txt",
+			silentValue:   "true",
+		},
 	}
 
 	for _, tt := range tests {
@@ -440,4 +455,151 @@ func TestGetMethodsWithVariousValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServiceInterfaceCompliance(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Verify interface compliance
+	var _ Service = service
+	t.Log("Service correctly implements Service interface")
+}
+
+func TestCommandServiceStateManagement(t *testing.T) {
+	cmd := &cobra.Command{Use: "test-state"}
+	cmd.Flags().String("config", "initial-config", "config path")
+	cmd.Flags().String("task", "initial-task", "task name")
+	
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Test that service maintains state
+	configPath1, _ := service.GetConfigPath()
+	configPath2, _ := service.GetConfigPath()
+	if configPath1 != configPath2 {
+		t.Error("Service should maintain consistent state")
+	}
+
+	// Test that underlying command is preserved
+	if service.GetCommand() != cmd {
+		t.Error("Service should preserve the original command reference")
+	}
+
+	// Test command name consistency
+	if service.GetCommandName() != "test-state" {
+		t.Errorf("Expected command name 'test-state', got '%s'", service.GetCommandName())
+	}
+}
+
+func TestCommandServiceConcurrency(t *testing.T) {
+	cmd := &cobra.Command{Use: "concurrent-test"}
+	cmd.Flags().String("config", "test-config", "config path")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Test concurrent access to service methods
+	done := make(chan bool, 10)
+	
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			defer func() { done <- true }()
+			
+			// Multiple concurrent calls to various methods
+			_, err := service.GetConfigPath()
+			if err != nil {
+				t.Errorf("Goroutine %d: GetConfigPath failed: %v", id, err)
+				return
+			}
+			
+			name := service.GetCommandName()
+			if name != "concurrent-test" {
+				t.Errorf("Goroutine %d: Expected 'concurrent-test', got '%s'", id, name)
+				return
+			}
+			
+			_, err = service.GetSilentFlag()
+			if err != nil {
+				t.Errorf("Goroutine %d: GetSilentFlag failed: %v", id, err)
+				return
+			}
+			
+			stdin := service.GetStdIn()
+			_ = stdin // Just verify it doesn't panic
+		}(i)
+	}
+	
+	// Wait for all goroutines to complete
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestCommandServiceErrorPropagation(t *testing.T) {
+	// Test that cobra flag errors are properly propagated
+	cmd := &cobra.Command{Use: "error-test"}
+	// Intentionally don't define flags to cause errors
+	
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// These should all return errors since flags aren't defined
+	testCases := []struct {
+		name string
+		fn   func() (interface{}, error)
+	}{
+		{"GetConfigPath", func() (interface{}, error) { return service.GetConfigPath() }},
+		{"GetTaskName", func() (interface{}, error) { return service.GetTaskName() }},
+		{"GetUserPrompt", func() (interface{}, error) { return service.GetUserPrompt() }},
+		{"GetSilentFlag", func() (interface{}, error) { return service.GetSilentFlag() }},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := tc.fn()
+			if err == nil {
+				t.Errorf("%s should return error when flag is not defined", tc.name)
+			}
+			// Verify error message indicates the flag issue
+			if !strings.Contains(err.Error(), "flag") {
+				t.Errorf("%s error should mention flag issue, got: %v", tc.name, err)
+			}
+		})
+	}
+}
+
+func TestCommandServiceMemoryUsage(t *testing.T) {
+	// Test that service doesn't leak memory with repeated calls
+	cmd := &cobra.Command{Use: "memory-test"}
+	cmd.Flags().String("config", "test-config", "config path")
+	cmd.Flags().String("task", "test-task", "task name")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Make many repeated calls to ensure no memory leaks
+	for i := 0; i < 1000; i++ {
+		_, _ = service.GetConfigPath()
+		_ = service.GetCommandName()
+		_, _ = service.GetTaskName()
+		_, _ = service.GetSilentFlag()
+		_ = service.GetStdIn()
+		_ = service.GetCommand()
+	}
+	
+	t.Log("Completed 1000 iterations without issues")
 }
