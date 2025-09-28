@@ -38,17 +38,87 @@ tasks:
         echo "✅ meow installed to $BIN_DIR!"
 
   check:
-    desc: Run all checks
+    desc: Run all checks (fmt, vet, test, lint)
+    cmds:
+      - task: fmt-check
+      - task: vet
+      - task: test
+      - task: lint
+
+  fmt:
+    desc: Format Go code
     cmds:
       - go fmt ./...
+
+  fmt-check:
+    desc: Check if code is formatted
+    cmds:
+      - |
+        if [ -n "$(go fmt ./...)" ]; then
+          echo "❌ Code is not formatted properly. Please run 'task fmt'"
+          exit 1
+        fi
+        echo "✅ Code is properly formatted"
+
+  vet:
+    desc: Run go vet
+    cmds:
       - go vet ./...
-      - go test ./...
 
   test:
     desc: Run tests with coverage
     cmds:
-      - go test -v -race -coverprofile=coverage.out ./...
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -html=coverage.out -o coverage.html
+      - task: coverage-check
+
+  test-short:
+    desc: Run tests without coverage
+    cmds:
+      - go test -v -race -short ./...
+
+  coverage-check:
+    desc: Check test coverage meets 90% threshold
+    cmds:
+      - |
+        if [ ! -f coverage.out ]; then
+          echo "❌ Coverage file not found. Run 'task test' first."
+          exit 1
+        fi
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Test coverage: ${COVERAGE}%"
+        if (( $(echo "$COVERAGE < 90.0" | bc -l) )); then
+          echo "❌ Test coverage ${COVERAGE}% is below 90% threshold"
+          exit 1
+        else
+          echo "✅ Test coverage ${COVERAGE}% meets the 90% threshold"
+        fi
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - |
+        if ! command -v golangci-lint >/dev/null 2>&1; then
+          echo "Installing golangci-lint..."
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+        fi
+        golangci-lint run --timeout=5m
+
+  security:
+    desc: Run security checks
+    cmds:
+      - |
+        if ! command -v gosec >/dev/null 2>&1; then
+          echo "Installing gosec..."
+          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        fi
+        gosec ./...
+      - |
+        if ! command -v govulncheck >/dev/null 2>&1; then
+          echo "Installing govulncheck..."
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+        fi
+        govulncheck ./...
 
   clean:
     desc: Clean build artifacts
@@ -135,14 +205,16 @@ tasks:
       - echo "✅ Man pages installed to ~/.local/share/man (run 'man meow')"
 
   pre-commit:
-    desc: Fast checks before committing (fmt vet tests man completions)
+    desc: Fast checks before committing (fmt, vet, tests, coverage, lint, man, completions)
     cmds:
-      - echo "🧹 go fmt"
-      - go fmt ./...
+      - echo "🧹 Formatting check"
+      - task: fmt-check
       - echo "🔎 go vet"
-      - go vet ./...
-      - echo "✅ short tests"
-      - go test -race -run . -count=1 ./...
+      - task: vet
+      - echo "✅ Running tests with coverage"
+      - task: test
+      - echo "🔍 Running linter"
+      - task: lint
       - echo "📄 man check"
       - task: man:check
       - echo "🧩 generate completions"

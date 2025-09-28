@@ -1,0 +1,91 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+jobs:
+  validate:
+    name: Validate PR
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version: "1.24"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Format check
+        run: task fmt-check
+
+      - name: Vet check
+        run: task vet
+
+      - name: Run tests with coverage
+        run: task test
+
+      - name: Lint check
+        run: task lint
+
+      - name: Build check
+        run: task build
+
+      - name: Comment PR with coverage
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('coverage.out')) {
+              const { execSync } = require('child_process');
+              const coverage = execSync('go tool cover -func=coverage.out | grep total | awk \'{print $3}\'').toString().trim();
+              
+              const body = `## 🧪 Test Coverage Report
+              
+              **Coverage: ${coverage}** ${parseFloat(coverage) >= 90 ? '✅' : '❌'}
+              
+              ${parseFloat(coverage) >= 90 ? 
+                '✅ Meets the 90% coverage threshold!' : 
+                '❌ Below the 90% coverage threshold. Please add more tests.'}
+              `;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            }
