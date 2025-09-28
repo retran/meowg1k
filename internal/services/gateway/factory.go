@@ -67,6 +67,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.APIKey == "" {
 			return nil, ErrGeminiAPIKeyRequired
 		}
+
 		return newGeminiGateway(ctx, profile.APIKey)
 	case mdGateway.Llama:
 		if profile.BaseURL == "" {
@@ -78,11 +79,13 @@ func (f *gatewayFactory) NewGenerationGateway(
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
+
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
+
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Anthropic:
 		if profile.APIKey == "" {
@@ -127,11 +130,13 @@ func (f *gatewayFactory) NewEmbeddingsGateway(
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
+
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
+
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
 	case mdGateway.Voyage:
 		if profile.APIKey == "" {

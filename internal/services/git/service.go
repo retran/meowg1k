@@ -47,6 +47,7 @@ func NewService() Service {
 // runGitCommand is a helper function that executes any git command and returns its output.
 func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
+
 	out, err := cmd.Output()
 	if err != nil {
 		// If an error occurs, try to get more detailed information from stderr.

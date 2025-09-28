@@ -38,51 +38,23 @@ tasks:
         echo "✅ meow installed to $BIN_DIR!"
 
   check:
-    desc: Run all checks (fmt, vet, test, lint)
+    desc: Run all checks (vet, test, lint)
     cmds:
-      - task: fmt-check
       - task: vet
       - task: test
       - task: lint
 
   fmt:
-    desc: Format Go code
+    desc: Format Go code using golangci-lint
     cmds:
       - |
-        if ! command -v goimports >/dev/null 2>&1; then
-          echo "Installing goimports..."
-          go install golang.org/x/tools/cmd/goimports@latest
+        if ! command -v golangci-lint >/dev/null 2>&1; then
+          echo "Installing golangci-lint..."
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
         fi
-      - |
-        FILES="$(git ls-files '*.go')"
-        if [ -z "$FILES" ]; then
-          echo "No Go files to format."
-        else
-          goimports -w $FILES
-          echo "✅ Go sources formatted with goimports"
-        fi
-
-  fmt-check:
-    desc: Check if code is formatted
-    cmds:
-      - |
-        if ! command -v goimports >/dev/null 2>&1; then
-          echo "Installing goimports..."
-          go install golang.org/x/tools/cmd/goimports@latest
-        fi
-        FILES="$(git ls-files '*.go')"
-        if [ -z "$FILES" ]; then
-          echo "✅ No Go files to check"
-          exit 0
-        fi
-        GOIMPORTS_OUT="$(goimports -l $FILES)"
-        if [ -n "$GOIMPORTS_OUT" ]; then
-          echo "❌ goimports found formatting issues:"
-          echo "$GOIMPORTS_OUT"
-          echo "❌ Code is not formatted properly. Please run 'task fmt'"
-          exit 1
-        fi
-        echo "✅ Code is properly formatted"
+      - echo "Formatting code with golangci-lint..."
+      - golangci-lint run --fix
+      - echo "✅ Go sources formatted"
 
   vet:
     desc: Run go vet
@@ -126,7 +98,7 @@ tasks:
           echo "Installing golangci-lint..."
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
         fi
-        golangci-lint run --timeout=5m
+      - golangci-lint run --timeout=5m
 
   security:
     desc: Run security checks
@@ -229,10 +201,8 @@ tasks:
       - echo "✅ Man pages installed to ~/.local/share/man (run 'man meow')"
 
   pre-commit:
-    desc: Fast checks before committing (fmt, vet, tests, coverage, lint, man, completions)
+    desc: Fast checks before committing (vet, tests, lint, man, completions)
     cmds:
-      - echo "🧹 Formatting check"
-      - task: fmt-check
       - echo "🔎 go vet"
       - task: vet
       - echo "✅ Running tests with coverage"

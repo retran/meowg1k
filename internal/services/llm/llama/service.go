@@ -156,6 +156,7 @@ func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*Co
 	}
 
 	url := c.baseURL + "/completion"
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateRequest, err)

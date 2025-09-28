@@ -341,6 +341,7 @@ func (t *ExecutionTracker) formatActivityLine(activityItem *ExecutionProgress, s
 				errorMsg = errorMsg[:47] + "..."
 			}
 		}
+
 		return fmt.Sprintf("%s%s✗%s %s(%s)%s %s%s",
 			prefix, colorRed, colorReset, colorGray, duration, colorReset, message, errorMsg)
 

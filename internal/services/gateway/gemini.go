@@ -92,6 +92,7 @@ func (g *geminiGateway) GenerateContent(
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
 			return "", fmt.Errorf("%w: %s", ErrRequestBlocked, result.PromptFeedback.BlockReason)
 		}
+
 		return "", ErrEmptyResponse
 	}
 

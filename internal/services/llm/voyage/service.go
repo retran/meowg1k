@@ -142,6 +142,7 @@ func (c *serviceImpl) CreateEmbeddings(ctx context.Context, req EmbeddingRequest
 		if err := json.Unmarshal(body, &errorResp); err != nil {
 			return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(body))
 		}
+
 		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, errorResp.Error.Message)
 	}
 

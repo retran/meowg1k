@@ -227,7 +227,7 @@ func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
 	}
 
 	_, err = service.Complete(ctx, request)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestServiceImpl_CompleteWithContext(t *testing.T) {
@@ -416,13 +416,13 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				result, err := service.Complete(ctx, tt.request)
 
 				if tt.expectError {
-					assert.Error(t, err)
+					require.Error(t, err)
 					assert.Nil(t, result)
 					if tt.errorMsg != "" {
 						assert.Contains(t, err.Error(), tt.errorMsg)
 					}
 				} else {
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.NotNil(t, result)
 				}
 			}

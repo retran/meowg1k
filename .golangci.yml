@@ -12,12 +12,7 @@ output:
   sort-results: true
 
 linters-settings:
-  gofmt:
-    simplify: true
-    rewrite-rules:
-      - pattern: 'interface{}'
-        replacement: 'any'
-  goimports:
+  gofumpt:
     local-prefixes: github.com/retran/meowg1k
   govet:
     enable-all: true
@@ -115,54 +110,54 @@ linters:
   disable-all: true
   enable:
     # --- Core & Correctness ---
-    - errcheck          # Checks for unchecked errors
-    - govet             # Reports suspicious constructs
-    - staticcheck       # Huge set of static analysis checks
-    - unused            # Checks for unused code
-    - ineffassign       # Checks for ineffectual assignments
-    - typecheck         # Ensures code type-checks
-    - bodyclose         # Checks for unclosed HTTP response bodies
-    - rowserrcheck      # Checks for unchecked errors on sql.Rows
-    - sqlclosecheck     # Checks for unclosed sql.Rows or sql.Stmt
-    - nilerr            # Finds returning nil for non-nil error types
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - typecheck
+    - bodyclose
+    - rowserrcheck
+    - sqlclosecheck
+    - nilerr
 
     # --- Style & Formatting ---
-    - goimports         # Formats imports
-    - revive            # Fast, configurable, opinionated linter for style
-    - stylecheck        # A collection of style checks
-    - lll               # Line length linter
-    - whitespace        # Checks for leading/trailing whitespace
-    - wsl               # Enforces empty lines and other whitespace rules
-    - misspell          # Finds common misspellings in comments and strings
+    - gofumpt
+    - revive
+    - stylecheck
+    - lll
+    - whitespace
+    - wsl
+    - misspell
 
     # --- Complexity & Maintainability ---
-    - gocyclo           # Computes cyclomatic complexity
-    - funlen            # Checks function length
-    - dupl              # Finds duplicate code
-    - goconst           # Finds repeated strings that could be constants
-    - godox             # Finds TODOs, FIXMEs, etc.
-    - forbidigo         # Forbids usage of specified functions (e.g., print)
-    - nestif            # Reports deeply nested if statements
-    - depguard          # Manages package import restrictions
+    - gocyclo
+    - funlen
+    - dupl
+    - goconst
+    - godox
+    - forbidigo
+    - nestif
+    - depguard
 
     # --- Performance ---
-    - gocritic          # Provides diagnostics on style, performance, and bugs
-    - prealloc          # Finds slice declarations that could be preallocated
-    - unconvert         # Removes unnecessary type conversions
+    - gocritic
+    - prealloc
+    - unconvert
 
     # --- Modern Go & Best Practices ---
-    - copyloopvar       # Finds variables captured by reference in loops (Go 1.22+)
-    - errorlint         # Linter for error handling common mistakes
-    - err113            # Checks for proper error wrapping
-    - containedctx      # Checks for contexts stored in structs
-    - noctx             # Finds functions that should probably accept a context
-    - unparam           # Reports unused function parameters
+    - copyloopvar
+    - errorlint
+    - err113
+    - containedctx
+    - noctx
+    - unparam
 
     # --- Testing ---
-    - testifylint       # Checks for common mistakes in testify assertions
+    - testifylint
 
     # --- Security ---
-    - gosec             # Go security checker
+    - gosec
 
 issues:
   max-issues-per-linter: 50
@@ -172,7 +167,6 @@ issues:
   uniq-by-line: true
   exclude-use-default: true
   exclude-rules:
-    # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
         - gomnd
@@ -199,7 +193,6 @@ issues:
         - godox
         - exhaustive
 
-    # Exclude cmd package from magic number checks
     - path: cmd/
       linters:
         - gomnd
@@ -207,35 +200,29 @@ issues:
         - gochecknoinits
         - forbidigo
 
-    # Exclude main functions from some checks
     - path: main\.go
       linters:
         - gochecknoinits
         - forbidigo
 
-    # Exclude generated files
     - path: ".*\\.pb\\.go"
       linters:
         - all
 
-    # Allow weak crypto in tests (for mocking)
     - text: "weak cryptographic primitive"
       linters:
         - gosec
 
-    # Allow package comments to be missing for internal packages
     - text: "should have a package comment"
       linters:
         - revive
       path: internal/
 
-    # Allow magic numbers in configuration
     - text: "Magic number"
       linters:
         - gomnd
       path: "config|version"
 
-    # Allow long lines in generated files
     - text: "line is \\d+ characters"
       linters:
         - lll
