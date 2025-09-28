@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -602,4 +603,46 @@ func TestCommandServiceMemoryUsage(t *testing.T) {
 	}
 
 	t.Log("Completed 1000 iterations without issues")
+}
+
+func TestGetStdInWithPipedInput(t *testing.T) {
+	// Save original stdin
+	oldStdin := os.Stdin
+	defer func() {
+		os.Stdin = oldStdin
+	}()
+
+	// Create a pipe
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	// Set stdin to the read end of the pipe
+	os.Stdin = r
+
+	// Write test data to the write end
+	testInput := "piped input data\nwith multiple lines"
+	_, err = w.WriteString(testInput)
+	if err != nil {
+		t.Fatalf("Failed to write to pipe: %v", err)
+	}
+	w.Close() // Close writer to signal EOF
+
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	stdin := service.GetStdIn()
+	expected := strings.TrimSpace(testInput)
+	if stdin != expected {
+		t.Errorf("Expected stdin '%s', got '%s'", expected, stdin)
+	}
 }

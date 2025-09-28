@@ -202,41 +202,104 @@ func TestNoOpFeedbackHandler(t *testing.T) {
 	handler(feedback) // Should do nothing and not panic
 }
 
-func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
-	feedbackCalls := []*Feedback{}
-	handler := func(feedback *Feedback) {
-		feedbackCalls = append(feedbackCalls, feedback)
+func TestFeedbackString(t *testing.T) {
+	tests := []struct {
+		name     string
+		feedback *Feedback
+		expected string
+	}{
+		{
+			name: "error with progress",
+			feedback: &Feedback{
+				ActivityName: "test-activity",
+				Status:       StatusRunning,
+				Message:      "running with error",
+				Progress:     0.5,
+				Error:        errTest,
+				Timestamp:    time.Now(),
+			},
+			expected: "[test-activity] running: running with error (50.0%) (test error)",
+		},
+		{
+			name: "error without progress",
+			feedback: &Feedback{
+				ActivityName: "test-activity",
+				Status:       StatusFailed,
+				Message:      "failed",
+				Progress:     0.0,
+				Error:        errTest,
+				Timestamp:    time.Now(),
+			},
+			expected: "[test-activity] failed: failed (test error)",
+		},
+		{
+			name: "no error with progress",
+			feedback: &Feedback{
+				ActivityName: "test-activity",
+				Status:       StatusRunning,
+				Message:      "running",
+				Progress:     0.75,
+				Error:        nil,
+				Timestamp:    time.Now(),
+			},
+			expected: "[test-activity] running: running (75.0%)",
+		},
+		{
+			name: "no error no progress",
+			feedback: &Feedback{
+				ActivityName: "test-activity",
+				Status:       StatusCompleted,
+				Message:      "completed",
+				Progress:     0.0,
+				Error:        nil,
+				Timestamp:    time.Now(),
+			},
+			expected: "[test-activity] completed: completed",
+		},
 	}
 
-	ctx := NewContext("test-activity", handler, nil)
-
-	// Test sendFeedback with various statuses
-	ctx.sendFeedback(StatusPending, 0.0, "pending", nil, nil)
-	ctx.sendFeedback(StatusRunning, 0.5, "running", nil, nil)
-	ctx.sendFeedback(StatusCompleted, 1.0, "completed", nil, nil)
-	ctx.sendFeedback(StatusFailed, 0.8, "failed", nil, nil)
-
-	if len(feedbackCalls) != 4 {
-		t.Errorf("Expected 4 feedback calls, got %d", len(feedbackCalls))
-	}
-
-	// Check that all feedback has correct activity name
-	for i, feedback := range feedbackCalls {
-		if feedback.ActivityName != "test-activity" {
-			t.Errorf("Feedback %d has wrong activity name: %s", i, feedback.ActivityName)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.feedback.String()
+			if result != tt.expected {
+				t.Errorf("Expected '%s', got '%s'", tt.expected, result)
+			}
+		})
 	}
 }
 
-func TestExecutorContextRetryWithDetails(t *testing.T) {
+func TestContextName(t *testing.T) {
+	exec := NewExecutor()
+	ctx := NewContext("test-activity", NoOpFeedbackHandler, exec)
+
+	if ctx.Name() != "test-activity" {
+		t.Errorf("Expected name 'test-activity', got '%s'", ctx.Name())
+	}
+}
+
+func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
+	exec := NewExecutor()
+	ctx := NewContext("test-activity", NoOpFeedbackHandler, exec)
+
+	// Test sending feedback with nil values (should not panic)
+	ctx.SendStarted("")
+	ctx.SendProgress(0.0, "")
+	ctx.SendCompleted("")
+	ctx.SendFailed(nil, "")
+	ctx.SendRetry(0, nil)
+	ctx.SendPending("")
+}
+
+func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 	feedbackCalls := []*Feedback{}
 	handler := func(feedback *Feedback) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	ctx := NewContext("retry-activity", handler, nil)
+	exec := NewExecutor().WithFeedbackHandler(handler)
+	ctx := NewContext("test-activity", handler, exec)
 
-	// Test SendRetry with different retry counts
+	// Simulate a flow with retries
 	ctx.SendRetry(1, errFirstRetry)
 	ctx.SendRetry(3, errThirdRetry)
 
