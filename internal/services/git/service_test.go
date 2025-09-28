@@ -121,7 +121,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	// Create and stage a file
 	testFile := "test.txt"
 	testContent := "Hello, world!"
-	err = os.WriteFile(testFile, []byte(testContent), 0644)
+	err = os.WriteFile(testFile, []byte(testContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
@@ -265,7 +265,7 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}
 	for i, filename := range testFiles {
 		content := fmt.Sprintf("Content of file %d", i+1)
-		err := os.WriteFile(filename, []byte(content), 0644)
+		err := os.WriteFile(filename, []byte(content), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to create %s: %v", filename, err)
 		}

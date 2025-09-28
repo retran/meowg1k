@@ -462,7 +462,6 @@ func TestWaitAnyWithVariousCompletionOrders(t *testing.T) {
 
 	futures := []*Future[string]{f1, f2, f3}
 	result, index, err := WaitAny(ctx, futures[0], futures[1], futures[2])
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -518,7 +517,6 @@ func TestWaitAnyWithSingleFuture(t *testing.T) {
 
 	futures := []*Future[string]{f}
 	result, index, err := WaitAny(ctx, futures[0])
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

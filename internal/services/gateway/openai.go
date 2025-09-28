@@ -31,9 +31,7 @@ var (
 	_ EmbeddingsGateway = (*openaiGateway)(nil)
 )
 
-var (
-	ErrNoChoices = errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
-)
+var ErrNoChoices = errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
 
 type openaiGateway struct {
 	ComputeDistanceMixin
@@ -98,7 +96,6 @@ func (g *openaiGateway) ComputeEmbeddings(
 	}
 
 	response, err := g.client.Embeddings.New(ctx, params)
-
 	if err != nil {
 		return []mdGateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}

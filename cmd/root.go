@@ -25,10 +25,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	// ErrCommandIsNil indicates the command parameter is nil
-	ErrCommandIsNil = errors.New("command is nil")
-)
+// ErrCommandIsNil indicates the command parameter is nil
+var ErrCommandIsNil = errors.New("command is nil")
 
 func Execute() error {
 	return rootCmd.Execute()

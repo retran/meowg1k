@@ -30,8 +30,10 @@ type GeneratePromptService struct {
 }
 
 // Compile-time interface satisfaction check
-var _ SystemPromptProvider = (*GeneratePromptService)(nil)
-var _ UserPromptProvider = (*GeneratePromptService)(nil)
+var (
+	_ SystemPromptProvider = (*GeneratePromptService)(nil)
+	_ UserPromptProvider   = (*GeneratePromptService)(nil)
+)
 
 // NewGeneratePromptService creates a new instance of the prompt service for generate command.
 func NewGeneratePromptService(

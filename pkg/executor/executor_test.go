@@ -419,7 +419,6 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 	// Execute the flow
 	ctx := context.Background()
 	err := executor.RunFlow(ctx, "test-flow", testFlow, DefaultRetryPolicy())
-
 	if err != nil {
 		t.Fatalf("Expected no error from flow, got %v", err)
 	}

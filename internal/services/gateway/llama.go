@@ -26,9 +26,7 @@ import (
 	"github.com/retran/meowg1k/internal/services/llm/llama"
 )
 
-var (
-	ErrBaseURLRequired = errors.New("base URL is required")
-)
+var ErrBaseURLRequired = errors.New("base URL is required")
 
 var _ GenerationGateway = (*llamaGateway)(nil)
 

@@ -282,7 +282,6 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 	// Test successful execution
 	ctx := context.Background()
 	result, err := activity(ctx, executorCtx, input)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -378,7 +377,6 @@ func TestGenerateContentFlowExecution(t *testing.T) {
 	// Test flow execution
 	ctx := context.Background()
 	err := flow(ctx, executorCtx)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}

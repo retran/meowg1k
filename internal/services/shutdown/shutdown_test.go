@@ -26,9 +26,7 @@ import (
 	"time"
 )
 
-var (
-	errTestCallback = errors.New("test callback error")
-)
+var errTestCallback = errors.New("test callback error")
 
 func TestNewService(t *testing.T) {
 	logger := slog.Default()

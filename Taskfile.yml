@@ -48,13 +48,54 @@ tasks:
   fmt:
     desc: Format Go code
     cmds:
-      - go fmt ./...
+      - |
+        if ! command -v goimports >/dev/null 2>&1; then
+          echo "Installing goimports..."
+          go install golang.org/x/tools/cmd/goimports@latest
+        fi
+      - |
+        if ! command -v gofumpt >/dev/null 2>&1; then
+          echo "Installing gofumpt..."
+          go install mvdan.cc/gofumpt@latest
+        fi
+      - |
+        FILES="$(git ls-files '*.go')"
+        if [ -z "$FILES" ]; then
+          echo "No Go files to format."
+        else
+          goimports -w $FILES
+          gofumpt -w $FILES
+          echo "✅ Go sources formatted with goimports and gofumpt"
+        fi
 
   fmt-check:
     desc: Check if code is formatted
     cmds:
       - |
-        if [ -n "$(go fmt ./...)" ]; then
+        if ! command -v goimports >/dev/null 2>&1; then
+          echo "Installing goimports..."
+          go install golang.org/x/tools/cmd/goimports@latest
+        fi
+        if ! command -v gofumpt >/dev/null 2>&1; then
+          echo "Installing gofumpt..."
+          go install mvdan.cc/gofumpt@latest
+        fi
+        FILES="$(git ls-files '*.go')"
+        if [ -z "$FILES" ]; then
+          echo "✅ No Go files to check"
+          exit 0
+        fi
+        GOIMPORTS_OUT="$(goimports -l $FILES)"
+        GOFUMPT_OUT="$(gofumpt -l $FILES)"
+        if [ -n "$GOIMPORTS_OUT" ]; then
+          echo "❌ goimports found formatting issues:"
+          echo "$GOIMPORTS_OUT"
+        fi
+        if [ -n "$GOFUMPT_OUT" ]; then
+          echo "❌ gofumpt found formatting issues:"
+          echo "$GOFUMPT_OUT"
+        fi
+        if [ -n "$GOIMPORTS_OUT$GOFUMPT_OUT" ]; then
           echo "❌ Code is not formatted properly. Please run 'task fmt'"
           exit 1
         fi

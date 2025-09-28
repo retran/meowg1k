@@ -117,7 +117,6 @@ func TestNewServiceSuccess(t *testing.T) {
 
 	// Test successful service creation
 	service, err := NewService(commandSvc, configSvc, profileSvc)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -182,7 +181,6 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 	}
 
 	service, err := NewService(commandSvc, configSvc, profileSvc)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -242,7 +240,6 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 	}
 
 	service, err := NewService(commandSvc, configSvc, profileSvc)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}

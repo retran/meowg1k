@@ -118,7 +118,6 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	// Test successful generation
 	ctx := context.Background()
 	content, err := gateway.GenerateContent(ctx, request)
-
 	if err != nil {
 		t.Fatalf("GenerateContent failed: %v", err)
 	}
@@ -188,7 +187,6 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	// Test successful embeddings computation
 	ctx := context.Background()
 	embeddings, err := gateway.ComputeEmbeddings(ctx, request)
-
 	if err != nil {
 		t.Fatalf("ComputeEmbeddings failed: %v", err)
 	}
@@ -326,7 +324,6 @@ func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
 	// Test embeddings computation with dimensions
 	ctx := context.Background()
 	embeddings, err := gateway.ComputeEmbeddings(ctx, request)
-
 	if err != nil {
 		t.Fatalf("ComputeEmbeddings with dimensions failed: %v", err)
 	}

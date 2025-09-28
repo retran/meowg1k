@@ -28,10 +28,8 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-var (
-	// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
-	ErrInvalidActivityOutputType = errors.New("invalid output type from GenerateContent activity")
-)
+// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
+var ErrInvalidActivityOutputType = errors.New("invalid output type from GenerateContent activity")
 
 type FlowFactory struct {
 	taskService          task.Service
@@ -69,7 +67,6 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		flowCtx.SendProgress(0.0, "Preparing prompts...")
 
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
-
 		if err != nil {
 			return fmt.Errorf("failed to get user prompt: %w", err)
 		}

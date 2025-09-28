@@ -106,7 +106,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	}
 
 	// Ensure log directory exists
-	if err = os.MkdirAll(logDir, 0750); err != nil {
+	if err = os.MkdirAll(logDir, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
@@ -116,7 +116,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("invalid log path: %w", err)
 	}
 
-	logFile, err := os.OpenFile(filepath.Join(logDir, logFileName), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	logFile, err := os.OpenFile(filepath.Join(logDir, logFileName), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}

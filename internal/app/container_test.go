@@ -72,7 +72,7 @@ generate:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
@@ -324,7 +324,7 @@ generate:
     profile: "anthropic"
     systemPrompt: "You are an expert assistant"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}
@@ -423,7 +423,7 @@ generate:
   default:
     profile: "minimal"
 `
-	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)
 	}

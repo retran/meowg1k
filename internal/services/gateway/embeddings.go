@@ -39,8 +39,7 @@ type EmbeddingsGateway interface {
 	ComputeDistance(first, second mdGateway.Embedding) (float64, error)
 }
 
-type ComputeDistanceMixin struct {
-}
+type ComputeDistanceMixin struct{}
 
 // ComputeDistance calculates the cosine similarity between two embeddings.
 // It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.

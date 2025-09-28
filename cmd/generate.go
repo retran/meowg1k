@@ -32,10 +32,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	// ErrAppNotInitialized indicates the application container is not properly initialized
-	ErrAppNotInitialized = errors.New("application not initialized")
-)
+// ErrAppNotInitialized indicates the application container is not properly initialized
+var ErrAppNotInitialized = errors.New("application not initialized")
 
 var generateCmd = &cobra.Command{
 	Use:     "generate",
