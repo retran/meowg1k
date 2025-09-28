@@ -123,7 +123,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
 		}
 
-		dims := int32(dimensions)
+		dims := int32(dimensions) //nolint:g115 // overflow checked above
 		config.OutputDimensionality = &dims
 	}
 
