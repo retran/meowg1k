@@ -19,19 +19,11 @@ package generate
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
-)
-
-var (
-	// ErrInputCannotBeNil indicates that the input parameter is nil
-	ErrInputCannotBeNil = errors.New("input cannot be nil")
-	// ErrInvalidInputType indicates that the input type is not supported
-	ErrInvalidInputType = errors.New("invalid input type")
 )
 
 // ActivityFactory creates instances of the generate activity with injected dependencies.
@@ -55,12 +47,12 @@ func (f *ActivityFactory) NewActivity() func(
 		executorCtx.SendProgress(0.0, "Preparing generation request...")
 
 		if input == nil {
-			return nil, ErrInputCannotBeNil
+			return nil, executor.ErrInputCannotBeNil
 		}
 
-		generateInput, ok := input.(*ContentInput)
+		generateInput, ok := input.(*Input)
 		if !ok {
-			return nil, fmt.Errorf("%w: %T", ErrInvalidInputType, input)
+			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, input)
 		}
 
 		executorCtx.SendProgress(0.0, "Sending generation request to large language model...")

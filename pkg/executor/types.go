@@ -19,10 +19,18 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/pkg/future"
+)
+
+var (
+	// ErrInputCannotBeNil indicates that the input parameter is nil
+	ErrInputCannotBeNil = errors.New("input cannot be nil")
+	// ErrInvalidInputType indicates that the input type is not supported
+	ErrInvalidInputType = errors.New("invalid input type")
 )
 
 // Status represents the current status of an activity.
@@ -156,6 +164,11 @@ func (c *Context) SendRetry(attempt int, err error) {
 
 // Activity defines a function that can be executed by the executor.
 type Activity[T any, K any] func(ctx context.Context, activityCtx *Context, input T) (K, error)
+
+// ActivityFactory creates new instances of activities.
+type ActivityFactory interface {
+	NewActivity() Activity[any, any]
+}
 
 // Flow defines a function that can be executed by the executor.
 type Flow func(ctx context.Context, flowCtx *Context) error

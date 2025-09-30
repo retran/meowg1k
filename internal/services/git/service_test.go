@@ -24,15 +24,23 @@ import (
 	"testing"
 )
 
+type mockWorkspaceService struct{}
+
+func (m *mockWorkspaceService) GetWorkspaceDir() (string, error) {
+	return ".", nil
+}
+
 func TestNewService(t *testing.T) {
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 	if service == nil {
 		t.Errorf("NewService() returned nil")
 	}
 }
 
 func TestServiceImpl_ReadStagedFiles(t *testing.T) {
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// This test assumes we're in a git repository
 	// It may fail if there are no staged files or if not in a git repo
@@ -50,7 +58,8 @@ func TestServiceImpl_ReadStagedFiles(t *testing.T) {
 }
 
 func TestServiceImpl_ReadStagedChanges(t *testing.T) {
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Test with a file that likely doesn't exist in staging
 	_, err := service.ReadStagedChanges("nonexistent.txt")
@@ -61,7 +70,8 @@ func TestServiceImpl_ReadStagedChanges(t *testing.T) {
 }
 
 func TestServiceImpl_ReadStagedFileContent(t *testing.T) {
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Test with a file that likely doesn't exist in staging
 	_, err := service.ReadStagedFileContent("nonexistent.txt")
@@ -72,7 +82,8 @@ func TestServiceImpl_ReadStagedFileContent(t *testing.T) {
 }
 
 func TestServiceImpl_ReadOriginalFileContent(t *testing.T) {
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Test with a file that likely doesn't exist in HEAD
 	_, err := service.ReadOriginalFileContent("nonexistent.txt")
@@ -107,7 +118,8 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	exec.Command("git", "config", "user.name", "Test User").Run()
 	exec.Command("git", "config", "user.email", "test@example.com").Run()
 
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Test with empty repository (no staged files)
 	files, err := service.ReadStagedFiles()
@@ -213,7 +225,8 @@ func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Test ReadStagedFiles with no staged files (empty output handling)
 	files, err := service.ReadStagedFiles()
@@ -259,7 +272,8 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	exec.Command("git", "config", "user.name", "Test User").Run()
 	exec.Command("git", "config", "user.email", "test@example.com").Run()
 
-	service := NewService()
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
 
 	// Create multiple files and stage them
 	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}

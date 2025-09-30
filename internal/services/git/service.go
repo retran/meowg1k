@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package git provides functionalities to interact with Git repositories.
 package git
 
 import (
@@ -21,6 +22,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/retran/meowg1k/internal/services/workspace"
 )
 
 // Git command errors
@@ -37,11 +40,15 @@ type Service interface {
 }
 
 // serviceImpl implements GitService.
-type serviceImpl struct{}
+type serviceImpl struct {
+	worspaceService workspace.Service
+}
 
 // NewService creates a new Git service.
-func NewService() Service {
-	return &serviceImpl{}
+func NewService(workspaceService workspace.Service) Service {
+	return &serviceImpl{
+		worspaceService: workspaceService,
+	}
 }
 
 // runGitCommand is a helper function that executes any git command and returns its output.
@@ -65,7 +72,12 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 
 // ReadStagedFiles returns a list of files that are currently staged.
 func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
-	out, err := g.runGitCommand("diff", "--cached", "--name-only")
+	workspaceDir, err := g.worspaceService.GetWorkspaceDir()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := g.runGitCommand("diff", "--cached", "--name-only", "-C", workspaceDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}

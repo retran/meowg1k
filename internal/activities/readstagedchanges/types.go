@@ -14,21 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generate
+package readstagedchanges
 
-import (
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
-)
-
-// Input represents the input for the generate activity
 type Input struct {
-	Profile      *mdProfile.ResolvedProfile
-	UserPrompt   string
-	SystemPrompt string
+	Filename string
 }
 
-// ContentOutput represents the output from the generate activity
-type ContentOutput struct {
-	Content  string
-	Metadata map[string]any
+type Output struct {
+	Filename            string
+	Change              string
+	OriginalFileContent string
+	StagedFileContent   string
 }

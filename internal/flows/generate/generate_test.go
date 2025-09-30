@@ -97,7 +97,7 @@ func TestContentInput(t *testing.T) {
 		TokenizerType:   mdLLM.TokenizerCL100K,
 	}
 
-	input := ContentInput{
+	input := Input{
 		Profile:      profile,
 		UserPrompt:   "Test user prompt",
 		SystemPrompt: "Test system prompt",
@@ -195,7 +195,7 @@ func TestNewContentFlowFactory(t *testing.T) {
 }
 
 func TestContentInputZeroValues(t *testing.T) {
-	input := ContentInput{}
+	input := Input{}
 
 	if input.Profile != nil {
 		t.Error("Expected nil Profile")
@@ -237,7 +237,7 @@ func TestContentInputWithVariousPrompts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			input := ContentInput{
+			input := Input{
 				UserPrompt:   tc.userPrompt,
 				SystemPrompt: tc.systemPrompt,
 			}
@@ -273,7 +273,7 @@ func TestGenerateContentActivityExecution(t *testing.T) {
 		TokenizerType:   mdLLM.TokenizerCL100K,
 	}
 
-	input := &ContentInput{
+	input := &Input{
 		Profile:      profile,
 		UserPrompt:   "Test prompt",
 		SystemPrompt: "Test system",

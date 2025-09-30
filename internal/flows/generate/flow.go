@@ -84,7 +84,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		flowCtx.SendProgress(0.0, status)
 
 		activity := f.activityFactory.NewActivity()
-		input := &ContentInput{
+		input := &Input{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
 			SystemPrompt: systemPrompt,

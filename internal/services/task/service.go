@@ -60,8 +60,6 @@ type serviceImpl struct {
 // Compile-time interface satisfaction check
 var _ Service = (*serviceImpl)(nil)
 
-// NewService creates a new task resolver service.
-// It loads and validates the task configuration at creation time.
 // resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
 func resolveTaskConfiguration(
 	taskName, cmdUserPrompt string,
@@ -136,6 +134,7 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 	return nil
 }
 
+// NewService creates a new task resolver service.
 func NewService(
 	commandService command.Service,
 	configService config.Service,

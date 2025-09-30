@@ -29,6 +29,9 @@ import (
 // ErrCommandIsNil indicates the command parameter is nil
 var ErrCommandIsNil = errors.New("command is nil")
 
+// ErrAppNotInitialized indicates the application container is not properly initialized
+var ErrAppNotInitialized = errors.New("application not initialized")
+
 func Execute() error {
 	return rootCmd.Execute()
 }

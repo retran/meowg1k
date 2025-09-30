@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -32,9 +31,6 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/ui"
 )
-
-// ErrAppNotInitialized indicates the application container is not properly initialized
-var ErrAppNotInitialized = errors.New("application not initialized")
 
 var generateCmd = &cobra.Command{
 	Use:     "generate",

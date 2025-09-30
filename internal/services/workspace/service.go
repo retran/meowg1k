@@ -14,21 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generate
+package workspace
 
 import (
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
+	"fmt"
+	"os"
 )
 
-// Input represents the input for the generate activity
-type Input struct {
-	Profile      *mdProfile.ResolvedProfile
-	UserPrompt   string
-	SystemPrompt string
+type Service interface {
+	GetWorkspaceDir() (string, error)
 }
 
-// ContentOutput represents the output from the generate activity
-type ContentOutput struct {
-	Content  string
-	Metadata map[string]any
+type serviceImpl struct{}
+
+func NewService() Service {
+	return &serviceImpl{}
+}
+
+func (g *serviceImpl) GetWorkspaceDir() (string, error) {
+	path, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
+	}
+	return path, nil
 }
