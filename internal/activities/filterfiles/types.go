@@ -14,17 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package readstagedchanges
+package filterfiles
 
-// Input defines the input structure for the ReadStagedChanges activity.
+// Input defines the input structure for the FilterFiles activity.
 type Input struct {
-	Filename string
+	Files []string
 }
 
-// Output defines the output structure for the ReadStagedChanges activity.
+// Output defines the output structure for the FilterFiles activity.
 type Output struct {
-	Filename            string
-	Change              string
-	OriginalFileContent string
-	StagedFileContent   string
+	Files []string
 }

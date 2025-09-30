@@ -31,6 +31,8 @@ var (
 	ErrInputCannotBeNil = errors.New("input cannot be nil")
 	// ErrInvalidInputType indicates that the input type is not supported
 	ErrInvalidInputType = errors.New("invalid input type")
+	// ErrInvalidOutputType indicates that the output type is not supported
+	ErrInvalidOutputType = errors.New("invalid output type")
 )
 
 // Status represents the current status of an activity.

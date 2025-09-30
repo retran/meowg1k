@@ -14,45 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package readstagedfiles provides an activity to read staged files from a git repository.
-package readstagedfiles
+package summarizechanges
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Factory creates instances of the generate activity with injected dependencies.
 type Factory struct {
-	gitService git.Service
 }
 
 // NewFactory creates a new generate activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
-	return &Factory{
-		gitService: gitService,
-	}
+func NewFactory() *Factory {
+	return &Factory{}
 }
 
 // NewActivity creates and returns the generate activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		executorCtx.SendProgress(0.0, "Reading staged files from git...")
 
-		files, err := f.gitService.ReadStagedFiles()
-		if err != nil {
-			return nil, fmt.Errorf("failed to read staged files: %w", err)
-		}
-
-		executorCtx.SendCompleted("Completed reading staged files.")
-
-		return &Output{
-			Files: files,
-		}, nil
+		return nil, nil
 	}
 }

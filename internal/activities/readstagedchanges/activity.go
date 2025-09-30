@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package readstagedchanges contains the activity to read staged changes from a git repository.
 package readstagedchanges
 
 import (
