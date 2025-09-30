@@ -44,9 +44,11 @@ func NewFactory(
 // NewFlow creates and returns the generate activity function with improved, multi-step status reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
+
+		flowCtx.SendStarted("Reading staged changes...")
+
 		readStagedFiles := f.readStagedFilesActivityFactory.NewActivity()
 
-		readStagedChanges := f.readStagedChangesActivityFactory.NewActivity()
 
 		filesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ReadStagedFiles", readStagedFiles, nil)
 		files, err := filesFuture.Get(ctx)
@@ -56,6 +58,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		futures := make([]*future.Future[any], 0)
 		for _, file := range files.(*readstagedfiles.Output).Files {
+		  readStagedChanges := f.readStagedChangesActivityFactory.NewActivity()
 			future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ReadStagedChanges", readStagedChanges, &readstagedchanges.Input{
 				Filename: file,
 			})

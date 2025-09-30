@@ -51,19 +51,23 @@ func NewService(workspaceService workspace.Service) Service {
 	}
 }
 
-// runGitCommand is a helper function that executes any git command and returns its output.
+// runGitCommand executes a git command with the provided arguments in the workspace directory.
 func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	workspaceDir, err := g.worspaceService.GetWorkspaceDir()
+	if err != nil {
+		return "", fmt.Errorf("could not get workspace directory: %w", err)
+	}
+
+	finalArgs := append([]string{"-C", workspaceDir}, args...)
+	cmd := exec.Command("git", finalArgs...)
 
 	out, err := cmd.Output()
 	if err != nil {
-		// If an error occurs, try to get more detailed information from stderr.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
 			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
 		}
-
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}
 
@@ -72,12 +76,7 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 
 // ReadStagedFiles returns a list of files that are currently staged.
 func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
-	workspaceDir, err := g.worspaceService.GetWorkspaceDir()
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := g.runGitCommand("diff", "--cached", "--name-only", "-C", workspaceDir)
+	out, err := g.runGitCommand("diff", "--cached", "--name-only")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}
@@ -92,7 +91,7 @@ func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
 
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
 func (g *serviceImpl) ReadStagedChanges(filePath string) (string, error) {
-	return g.runGitCommand("diff", "--cached", "--unified=0", filePath)
+	return g.runGitCommand("diff", "--cached", "--unified=0", "--", filePath)
 }
 
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
