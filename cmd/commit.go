@@ -21,12 +21,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/retran/meowg1k/internal/app"
-	"github.com/retran/meowg1k/internal/flows/commit"
-
 	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/readstagedchanges"
 	"github.com/retran/meowg1k/internal/activities/readstagedfiles"
+	"github.com/retran/meowg1k/internal/app"
+	"github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/internal/services/workspace"

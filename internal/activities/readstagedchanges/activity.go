@@ -65,7 +65,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		originalFileContent, err := f.gitService.ReadOriginalFileContent(input.Filename)
 		if err != nil {
 			originalFileContent = "" // File might be new, so original content is empty
-			//return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
+			// return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 		}
 
 		stagedFileContent, err := f.gitService.ReadStagedFileContent(input.Filename)

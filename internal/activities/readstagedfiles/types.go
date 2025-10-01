@@ -17,8 +17,7 @@ limitations under the License.
 package readstagedfiles
 
 // Input defines the input structure for the ReadStagedFiles activity.
-type Input struct {
-}
+type Input struct{}
 
 // Output defines the output structure for the ReadStagedFiles activity.
 type Output struct {

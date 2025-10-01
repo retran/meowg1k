@@ -16,8 +16,6 @@ limitations under the License.
 
 package summarizechanges
 
-type Input struct {
-}
+type Input struct{}
 
-type Output struct {
-}
+type Output struct{}

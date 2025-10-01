@@ -123,14 +123,14 @@ summarize:
     profile: "fast"
     strategy:
       type: "plaintext"
-      sendFullFile: false
+      includeFullFile: false
     systemPrompt: "Briefly describe the main change in the following input."
   rules:
     - match: "*.go"
       profile: "smart"
       strategy:
         type: "plaintext"
-        sendFullFile: true
+        includeFullFile: true
       systemPrompt: "Describe the changes in the following Go code."
     - match: "LICENSE"
       skip: true
@@ -138,7 +138,7 @@ summarize:
       profile: "fast"
       strategy:
         type: "plaintext"
-        sendFullFile: false
+        includeFullFile: false
       systemPrompt: "Summarize the documentation changes."
 
 commit:

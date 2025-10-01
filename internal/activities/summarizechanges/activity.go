@@ -23,8 +23,7 @@ import (
 )
 
 // Factory creates instances of the generate activity with injected dependencies.
-type Factory struct {
-}
+type Factory struct{}
 
 // NewFactory creates a new generate activity factory with injected services.
 func NewFactory() *Factory {
@@ -34,7 +33,6 @@ func NewFactory() *Factory {
 // NewActivity creates and returns the generate activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-
 		return nil, nil
 	}
 }
