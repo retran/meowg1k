@@ -179,9 +179,7 @@ func TestExecutorContext(t *testing.T) {
 	}
 
 	// Test feedback methods don't panic
-	ctx.SendPending("pending")
-	ctx.SendStarted("started")
-	ctx.SendProgress(0.5, "progress")
+	ctx.SendRunning("started")
 	ctx.SendCompleted("completed")
 	ctx.SendFailed(errFailed, "failed")
 	ctx.SendRetry(1, errRetry)
@@ -282,12 +280,10 @@ func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
 	ctx := NewContext("test-activity", NoOpFeedbackHandler, exec)
 
 	// Test sending feedback with nil values (should not panic)
-	ctx.SendStarted("")
-	ctx.SendProgress(0.0, "")
+	ctx.SendRunning("")
 	ctx.SendCompleted("")
 	ctx.SendFailed(nil, "")
 	ctx.SendRetry(0, nil)
-	ctx.SendPending("")
 }
 
 func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
@@ -361,13 +357,11 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	// Define a complex activity that sends multiple feedback updates
 	complexActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		inputStr := input.(string)
-		executorCtx.SendStarted("Starting complex operation")
+		executorCtx.SendRunning("Starting complex operation")
 
-		// Simulate some work with progress updates
+		// Simulate some work
 		for i := 1; i <= 3; i++ {
 			time.Sleep(10 * time.Millisecond)
-			progress := float64(i) / 3.0
-			executorCtx.SendProgress(progress, fmt.Sprintf("Step %d of 3", i))
 		}
 
 		executorCtx.SendCompleted("Complex operation completed")
@@ -388,9 +382,9 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 		t.Errorf("Expected 'result-test-input', got %v", result)
 	}
 
-	// Check that we received multiple feedback updates
-	if len(feedbackCalls) < 5 { // At least started, 3 progress, completed
-		t.Errorf("Expected at least 5 feedback calls, got %d", len(feedbackCalls))
+	// Check that we received feedback updates (started and completed)
+	if len(feedbackCalls) < 2 { // At least started and completed
+		t.Errorf("Expected at least 2 feedback calls, got %d", len(feedbackCalls))
 	}
 }
 
@@ -404,7 +398,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 
 	// Define an activity that fails
 	failingActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
-		executorCtx.SendStarted("Starting operation that will fail")
+		executorCtx.SendRunning("Starting operation that will fail")
 
 		time.Sleep(10 * time.Millisecond)
 
@@ -450,7 +444,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 	// Define a simple activity
 	simpleActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
 		inputStr := input.(string)
-		executorCtx.SendStarted("Processing " + inputStr)
+		executorCtx.SendRunning("Processing " + inputStr)
 		time.Sleep(10 * time.Millisecond)
 		result := "processed-" + inputStr
 		executorCtx.SendCompleted("Finished processing")
@@ -459,7 +453,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 
 	// Define a flow that runs multiple activities
 	testFlow := func(ctx context.Context, executorCtx *Context) error {
-		executorCtx.SendStarted("Starting flow")
+		executorCtx.SendRunning("Starting flow")
 
 		// Run first activity
 		future1 := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "activity1", simpleActivity, "input1")
@@ -497,8 +491,7 @@ func TestExecutorContextWithNilHandler(t *testing.T) {
 	ctx := NewContext("test-activity", nil, nil)
 
 	// These should not panic
-	ctx.SendStarted("started")
-	ctx.SendProgress(0.5, "progress")
+	ctx.SendRunning("started")
 	ctx.SendCompleted("completed")
 	ctx.SendFailed(errNilHandler, "failed")
 	ctx.SendRetry(1, errNilRetry)

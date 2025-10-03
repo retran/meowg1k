@@ -17,24 +17,12 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
-	"github.com/retran/meowg1k/internal/flows/generate"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/services/prompt"
-	"github.com/retran/meowg1k/internal/services/provider"
-	"github.com/retran/meowg1k/internal/services/task"
-	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/ui"
 )
-
-// ErrAppNotInitialized indicates the application container is not properly initialized
-var ErrAppNotInitialized = errors.New("application not initialized")
 
 var generateCmd = &cobra.Command{
 	Use:     "generate",
@@ -48,53 +36,13 @@ var generateCmd = &cobra.Command{
 			return ErrAppNotInitialized
 		}
 
-		providerService := provider.NewService()
-
-		profileService := profile.NewService(
-			appContainer.ConfigService,
-			providerService,
-		)
-
-		taskService, err := task.NewService(
-			appContainer.CommandService,
-			appContainer.ConfigService,
-			profileService,
-		)
+		flow, err := appContainer.CreateGenerateFlow()
 		if err != nil {
-			return fmt.Errorf("failed to create task service: %w", err)
+			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
-		generatePromptService, err := prompt.NewGeneratePromptService(
-			appContainer.CommandService,
-			taskService,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create prompt service: %w", err)
-		}
-
-		gatewayFactory := gateway.NewFactory()
-		activityFactory := generate.NewActivityFactory(gatewayFactory)
-		flowFactory := generate.NewFlowFactory(
-			taskService,
-			generatePromptService,
-			generatePromptService,
-			activityFactory,
-		)
-		flow := flowFactory.NewFlow()
-
-		silent, err := appContainer.CommandService.GetSilentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get silent flag: %w", err)
-		}
-
-		executionTracker := ui.NewExecutionTracker(silent)
-		executionTracker.Start()
-		defer executionTracker.Stop()
-
-		exec := executor.NewExecutor().
-			WithFeedbackHandler(executionTracker.FeedbackHandler())
-
-		return exec.RunFlow(appContainer.ShutdownService.Context(), "GenerateContent", flow, executor.DefaultRetryPolicy())
+		runner := app.NewFlowRunner(appContainer)
+		return runner.RunFlow(ctx, "GenerateContent", flow)
 	},
 }
 

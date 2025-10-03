@@ -85,14 +85,11 @@ func TestGenerateCmd(t *testing.T) {
 
 func TestGenerateCmdRunE(t *testing.T) {
 	t.Run("Run without app container", func(t *testing.T) {
-		// Create a context without app container
 		ctx := context.Background()
 
-		// Create a test command with the context
 		testCmd := &cobra.Command{Use: "test-generate"}
 		testCmd.SetContext(ctx)
 
-		// Try to run the generate command
 		err := generateCmd.RunE(testCmd, []string{})
 
 		if err == nil {
@@ -105,26 +102,21 @@ func TestGenerateCmdRunE(t *testing.T) {
 	})
 
 	t.Run("Run with nil context", func(t *testing.T) {
-		// Create a test command with nil context
 		testCmd := &cobra.Command{Use: "test-generate"}
-		// Set an empty context instead of nil to avoid panics
 		testCmd.SetContext(context.Background())
 
-		// Try to run the generate command
 		err := generateCmd.RunE(testCmd, []string{})
 
 		if err == nil {
 			t.Fatal("Expected error when context is nil")
 		}
 
-		// Should get application not initialized error, not a panic
 		if !strings.Contains(err.Error(), "application not initialized") {
 			t.Errorf("Expected 'application not initialized' error, got: %v", err)
 		}
 	})
 
 	t.Run("Flag setting and retrieval", func(t *testing.T) {
-		// Test setting flags on the generate command
 		testCases := []struct {
 			flagName  string
 			flagValue string
@@ -156,7 +148,6 @@ func TestGenerateCmdRunE(t *testing.T) {
 
 func TestGenerateCmdIntegration(t *testing.T) {
 	t.Run("Command is added to root", func(t *testing.T) {
-		// Check if generate command was added to root command
 		found := false
 		for _, cmd := range rootCmd.Commands() {
 			if cmd.Name() == "generate" {
@@ -171,7 +162,6 @@ func TestGenerateCmdIntegration(t *testing.T) {
 	})
 
 	t.Run("Aliases work", func(t *testing.T) {
-		// Test that aliases are properly registered
 		aliases := generateCmd.Aliases
 		expectedAliases := []string{"gen", "g"}
 
@@ -187,7 +177,6 @@ func TestGenerateCmdIntegration(t *testing.T) {
 	})
 
 	t.Run("Help text formatting", func(t *testing.T) {
-		// Test that help text is properly formatted
 		if generateCmd.Short == "" {
 			t.Error("Short description should not be empty")
 		}
@@ -196,7 +185,6 @@ func TestGenerateCmdIntegration(t *testing.T) {
 			t.Error("Short description should be concise (under 80 characters)")
 		}
 
-		// Verify key terms are present
 		requiredTerms := []string{"generate", "content"}
 		shortLower := strings.ToLower(generateCmd.Short)
 
@@ -259,7 +247,6 @@ func TestGenerateCmdFlags(t *testing.T) {
 	})
 
 	t.Run("Flag combinations", func(t *testing.T) {
-		// Test setting multiple flags together
 		flagSettings := map[string]string{
 			"task":          "comprehensive-test",
 			"system-prompt": "You are an expert software tester",
@@ -273,7 +260,6 @@ func TestGenerateCmdFlags(t *testing.T) {
 			}
 		}
 
-		// Verify all flags were set correctly
 		for name, expectedValue := range flagSettings {
 			actualValue, err := generateCmd.Flags().GetString(name)
 			if err != nil {
@@ -288,7 +274,6 @@ func TestGenerateCmdFlags(t *testing.T) {
 
 func TestGenerateCmdEdgeCases(t *testing.T) {
 	t.Run("Empty flag values", func(t *testing.T) {
-		// Test setting flags to empty values
 		flags := []string{"task", "system-prompt", "user-prompt"}
 
 		for _, flagName := range flags {

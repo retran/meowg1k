@@ -19,12 +19,10 @@ package prompt
 import (
 	"testing"
 
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/retran/meowg1k/internal/services/command"
+	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/task"
 )
-
-// Mock implementations for testing
 
 type mockTaskService struct {
 	task.Service
@@ -48,7 +46,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 	mockTask := &mockTaskService{
 		config: &task.Configuration{
 			Name:         "test-task",
-			Profile:      &mdProfile.ResolvedProfile{},
+			Profile:      &profile.ResolvedProfile{},
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
@@ -206,26 +204,4 @@ func TestBuildUserPromptEmpty(t *testing.T) {
 	if userPrompt != expected {
 		t.Errorf("Expected empty user prompt, got '%s'", userPrompt)
 	}
-}
-
-func TestInterfaceImplementation(t *testing.T) {
-	mockTask := &mockTaskService{
-		config: &task.Configuration{
-			SystemPrompt: "Test system prompt",
-			UserPrompt:   "Test user prompt",
-		},
-	}
-
-	mockCommand := &mockCommandService{
-		stdin: "",
-	}
-
-	service, err := NewGeneratePromptService(mockCommand, mockTask)
-	if err != nil {
-		t.Fatalf("NewGeneratePromptService failed: %v", err)
-	}
-
-	// Test that service implements both interfaces
-	var _ SystemPromptProvider = service
-	var _ UserPromptProvider = service
 }
