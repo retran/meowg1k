@@ -64,5 +64,7 @@ func init() {
 	rootCmd.AddCommand(prCmd)
 	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the PR (can also be provided via stdin)")
 	prCmd.Flags().StringP("base", "b", "", "Base branch to compare against (required)")
-	prCmd.MarkFlagRequired("base")
+	if err := prCmd.MarkFlagRequired("base"); err != nil {
+		panic(err)
+	}
 }
