@@ -55,18 +55,6 @@ func TestActivityInvalidInput(t *testing.T) {
 	}
 }
 
-type mockActivityFactory struct{}
-
-func (m *mockActivityFactory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
-		return &summarizefile.Output{
-			Filename: "test.go",
-			Summary:  "test summary",
-			Skipped:  false,
-		}, nil
-	}
-}
-
 type mockSummarizeFactory struct{}
 
 func (m *mockSummarizeFactory) NewActivity() executor.Activity[any, any] {

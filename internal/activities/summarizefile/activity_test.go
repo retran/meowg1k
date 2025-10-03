@@ -17,9 +17,10 @@ limitations under the License.
 package summarizefile
 
 import (
-"context"
-"testing"
-"github.com/retran/meowg1k/pkg/executor"
+	"context"
+	"testing"
+
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 func TestNewFactory(t *testing.T) {

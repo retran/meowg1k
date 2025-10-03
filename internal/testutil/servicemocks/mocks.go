@@ -27,8 +27,10 @@ import (
 )
 
 // Re-export mocks for backward compatibility
-type MockConfigService = configmocks.MockConfigService
-type MockProfileService = profilemocks.MockProfileService
-type MockGenerationGateway = gatewaymocks.MockGenerationGateway
-type MockGatewayFactory = gatewaymocks.MockGatewayFactory
-type MockCommandService = commandmocks.MockCommandService
+type (
+	MockConfigService     = configmocks.MockConfigService
+	MockProfileService    = profilemocks.MockProfileService
+	MockGenerationGateway = gatewaymocks.MockGenerationGateway
+	MockGatewayFactory    = gatewaymocks.MockGatewayFactory
+	MockCommandService    = commandmocks.MockCommandService
+)
