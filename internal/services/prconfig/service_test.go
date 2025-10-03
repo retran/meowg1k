@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package commitconfig
+package prconfig
 
 import (
 	"testing"
@@ -34,7 +34,7 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestGetCommitConfig(t *testing.T) {
+func TestGetPRConfig(t *testing.T) {
 	resolvedProfile := &profile.ResolvedProfile{
 		Provider: "openai",
 		Model:    "gpt-4",
@@ -42,9 +42,9 @@ func TestGetCommitConfig(t *testing.T) {
 
 	configSvc := &servicemocks.MockConfigService{
 		Cfg: &config.Config{
-			Commit: &config.CommandConfig{
+			PR: &config.CommandConfig{
 				Profile:      "test",
-				SystemPrompt: "Test prompt",
+				SystemPrompt: "Test PR prompt",
 			},
 		},
 	}
@@ -54,21 +54,21 @@ func TestGetCommitConfig(t *testing.T) {
 
 	service := NewService(configSvc, profileSvc)
 
-	result, err := service.GetCommitConfig()
+	result, err := service.GetPRConfig()
 	if err != nil {
-		t.Errorf("GetCommitConfig failed: %v", err)
+		t.Errorf("GetPRConfig failed: %v", err)
 	}
 
 	if result.Profile != resolvedProfile {
 		t.Error("Profile not set correctly")
 	}
 
-	if result.SystemPrompt != "Test prompt" {
-		t.Errorf("Expected 'Test prompt', got '%s'", result.SystemPrompt)
+	if result.SystemPrompt != "Test PR prompt" {
+		t.Errorf("Expected 'Test PR prompt', got '%s'", result.SystemPrompt)
 	}
 }
 
-func TestGetCommitConfigDefault(t *testing.T) {
+func TestGetPRConfigDefault(t *testing.T) {
 	resolvedProfile := &profile.ResolvedProfile{
 		Provider: "openai",
 		Model:    "gpt-4",
@@ -76,7 +76,7 @@ func TestGetCommitConfigDefault(t *testing.T) {
 
 	configSvc := &servicemocks.MockConfigService{
 		Cfg: &config.Config{
-			Commit: nil,
+			PR: nil,
 		},
 	}
 	profileSvc := &servicemocks.MockProfileService{
@@ -85,18 +85,18 @@ func TestGetCommitConfigDefault(t *testing.T) {
 
 	service := NewService(configSvc, profileSvc)
 
-	result, err := service.GetCommitConfig()
+	result, err := service.GetPRConfig()
 	if err != nil {
-		t.Errorf("GetCommitConfig failed: %v", err)
+		t.Errorf("GetPRConfig failed: %v", err)
 	}
 
-	expectedPrompt := "You are an expert software engineer. Write a clear and descriptive commit message in the Conventional Commits format based on the provided change summaries."
+	expectedPrompt := "You are an expert software engineer. Write a clear and detailed Pull Request description based on the provided change summaries. Include a concise title and a detailed description explaining what changed and why."
 	if result.SystemPrompt != expectedPrompt {
 		t.Errorf("Expected default prompt, got '%s'", result.SystemPrompt)
 	}
 }
 
-func TestGetCommitConfigProfileError(t *testing.T) {
+func TestGetPRConfigProfileError(t *testing.T) {
 	configSvc := &servicemocks.MockConfigService{
 		Cfg: &config.Config{},
 	}
@@ -106,7 +106,7 @@ func TestGetCommitConfigProfileError(t *testing.T) {
 
 	service := NewService(configSvc, profileSvc)
 
-	_, err := service.GetCommitConfig()
+	_, err := service.GetPRConfig()
 	if err != profile.ErrProfileNotFound {
 		t.Errorf("Expected ErrProfileNotFound, got %v", err)
 	}

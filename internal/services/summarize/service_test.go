@@ -21,17 +21,10 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/testutil/configmocks"
 )
 
 // Mock implementations for testing
-
-type mockConfigService struct {
-	config *config.Config
-}
-
-func (m *mockConfigService) GetConfig() *config.Config {
-	return m.config
-}
 
 type mockProfileService struct {
 	profiles map[profile.Profile]*profile.ResolvedProfile
@@ -46,7 +39,7 @@ func (m *mockProfileService) Get(p profile.Profile) (*profile.ResolvedProfile, e
 }
 
 func TestNewService(t *testing.T) {
-	configSvc := &mockConfigService{}
+	configSvc := &configmocks.MockConfigService{}
 	profileSvc := &mockProfileService{}
 	svc := NewService(configSvc, profileSvc)
 	if svc == nil {
@@ -55,8 +48,8 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
-	configSvc := &mockConfigService{
-		config: &config.Config{},
+	configSvc := &configmocks.MockConfigService{
+		Cfg: &config.Config{},
 	}
 	profileSvc := &mockProfileService{}
 	svc := NewService(configSvc, profileSvc)
@@ -71,8 +64,8 @@ func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_SkipRule(t *testing.T) {
-	configSvc := &mockConfigService{
-		config: &config.Config{
+	configSvc := &configmocks.MockConfigService{
+		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
 					{
@@ -99,8 +92,8 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
-	configSvc := &mockConfigService{
-		config: &config.Config{
+	configSvc := &configmocks.MockConfigService{
+		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
 					Profile:      "default",
@@ -150,8 +143,8 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
-	configSvc := &mockConfigService{
-		config: &config.Config{
+	configSvc := &configmocks.MockConfigService{
+		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
 					{
@@ -210,8 +203,8 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_ProfileError(t *testing.T) {
-	configSvc := &mockConfigService{
-		config: &config.Config{
+	configSvc := &configmocks.MockConfigService{
+		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
 					Profile: "nonexistent",

@@ -24,7 +24,7 @@ permissions:
   pull-requests: write
 
 env:
-  COVERAGE_THRESHOLD: "70.0"
+  COVERAGE_THRESHOLD: "75.0"
 
 jobs:
   lint:
@@ -93,7 +93,9 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+        run: |
+          COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
+          go test -race -covermode=atomic -coverpkg="$COVERPKGS" -coverprofile=coverage.out ./...
 
       - name: Enforce coverage threshold
         id: coverage
@@ -102,8 +104,8 @@ jobs:
           total="$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')"
           echo "COVERAGE_PERCENT=$total" >> "$GITHUB_ENV"
           awk -v total="$total" -v th="${COVERAGE_THRESHOLD}" 'BEGIN{ if (total+0 < th+0) { exit 1 } }' \
-          || (echo "::error::Coverage ${total}% is below threshold ${COVERAGE_THRESHOLD}%"; exit 1)
-          echo "Coverage ${total}% >= ${COVERAGE_THRESHOLD}%"
+          || (echo "::error::Coverage ${total}% is below threshold ${COVERAGE_THRESHOLD}% (excluding testutil packages)"; exit 1)
+          echo "Coverage ${total}% >= ${COVERAGE_THRESHOLD}% (excluding testutil packages)"
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
@@ -118,14 +120,16 @@ jobs:
         with:
           script: |
             const pct = process.env.COVERAGE_PERCENT ?? 'n/a';
-            const threshold = process.env.COVERAGE_THRESHOLD ?? '70.0';
+            const threshold = process.env.COVERAGE_THRESHOLD ?? '75.0';
             const ok = !Number.isNaN(parseFloat(pct)) && (parseFloat(pct) >= parseFloat(threshold));
             const marker = '<!-- coverage-comment -->';
             const lines = [
               marker,
               '## Test Coverage',
-              `Coverage: ${pct}% ${ok ? '(meets threshold)' : '(below threshold)'}`,
-              `Threshold: ${threshold}%`
+              `Coverage: ${pct}% ${ok ? '✅ (meets threshold)' : '❌ (below threshold)'}`,
+              `Threshold: ${threshold}%`,
+              '',
+              '_Note: testutil packages are excluded from coverage calculation_'
             ];
             const body = lines.join('\n');
             const { owner, repo } = context.repo;

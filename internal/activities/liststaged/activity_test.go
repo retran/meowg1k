@@ -20,50 +20,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// mockGitService is a mock implementation of git.Service for testing.
-type mockGitService struct {
-	stagedFiles   []string
-	branchFiles   []string
-	currentBranch string
-}
-
-func (m *mockGitService) ReadStagedFiles() ([]string, error) {
-	return m.stagedFiles, nil
-}
-
-func (m *mockGitService) ReadStagedChanges(filePath string) (string, error) {
-	return "", nil
-}
-
-func (m *mockGitService) ReadStagedFileContent(filePath string) (string, error) {
-	return "", nil
-}
-
-func (m *mockGitService) ReadOriginalFileContent(filePath string) (string, error) {
-	return "", nil
-}
-
-func (m *mockGitService) GetCurrentBranch() (string, error) {
-	return m.currentBranch, nil
-}
-
-func (m *mockGitService) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
-	return m.branchFiles, nil
-}
-
-func (m *mockGitService) GetBranchDiff(filePath, targetBranch string) (string, error) {
-	return "", nil
-}
-
-// Compile-time check that mockGitService implements git.Service
-var _ git.Service = (*mockGitService)(nil)
-
 func TestNewFactory(t *testing.T) {
-	gitSvc := &mockGitService{}
+	gitSvc := &testutil.MockGitService{}
 	factory := NewFactory(gitSvc)
 
 	if factory == nil {
@@ -72,7 +34,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewActivity(t *testing.T) {
-	gitSvc := &mockGitService{}
+	gitSvc := &testutil.MockGitService{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -82,8 +44,10 @@ func TestNewActivity(t *testing.T) {
 }
 
 func TestActivityExecute(t *testing.T) {
-	gitSvc := &mockGitService{
-		stagedFiles: []string{"file1.txt", "file2.go"},
+	gitSvc := &testutil.MockGitService{
+		ReadStagedFilesFunc: func() ([]string, error) {
+			return []string{"file1.txt", "file2.go"}, nil
+		},
 	}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
@@ -116,7 +80,7 @@ func TestActivityExecute(t *testing.T) {
 }
 
 func TestActivityExecuteNilInput(t *testing.T) {
-	gitSvc := &mockGitService{}
+	gitSvc := &testutil.MockGitService{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -130,7 +94,7 @@ func TestActivityExecuteNilInput(t *testing.T) {
 }
 
 func TestActivityExecuteInvalidInput(t *testing.T) {
-	gitSvc := &mockGitService{}
+	gitSvc := &testutil.MockGitService{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
