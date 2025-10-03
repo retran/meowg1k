@@ -6,7 +6,7 @@
 
 <div align="center">
 
-  ![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)
+  ![Go](https://img.shields.io/badge/Go-1.25.1+-00ADD8?style=for-the-badge&logo=go)
   ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)
   ![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge)
   ![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge)
@@ -161,7 +161,7 @@ This principle ensures that operational expenses are a transparent and manageabl
 
 ## Prerequisites
 
-- **Go**: version 1.24 or newer
+- **Go**: version 1.25.1 or newer
 - **Internet connection** for cloud models (Gemini, OpenAI, OpenRouter)
 - **API key** for your chosen provider:
   - Gemini: `MEOW_GEMINI_API_KEY`
