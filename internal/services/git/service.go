@@ -74,6 +74,7 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 	}
 
 	finalArgs := append([]string{"-C", workspaceDir}, args...)
+	// #nosec G204 - git command with controlled arguments, not shell execution
 	cmd := exec.Command("git", finalArgs...)
 
 	out, err := cmd.Output()

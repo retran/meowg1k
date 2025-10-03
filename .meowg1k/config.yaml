@@ -42,22 +42,6 @@ generate:
 
         If the code is fine, state so concisely and suggest minor polish only.
 
-    commit:
-      profile: "smart"
-      userPrompt: >-
-        Generate a Conventional Commit message for the provided changes.
-
-        Rules:
-          - Use one of: feat, fix, refactor, perf, docs, test, chore, build, ci.
-          - Subject: imperative, ≤72 chars, no trailing period; include scope if inferable (e.g., core, http, cli).
-          - Body: wrap at ~72 cols; explain motivation and user impact.
-          - Footer: add "BREAKING CHANGE:" only if truly breaking.
-
-        Output:
-          - Single-line header
-          - Optional body
-          - Optional footers
-
     doc:
       profile: "smart"
       userPrompt: >-
