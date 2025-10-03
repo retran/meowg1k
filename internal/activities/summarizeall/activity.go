@@ -72,7 +72,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 				Filename:            change.Filename,
 				Change:              change.Change,
 				OriginalFileContent: change.OriginalFileContent,
-				StagedFileContent:   change.StagedFileContent,
+				StagedFileContent:   change.ChangedFileContent,
 			})
 			summarizeFutures = append(summarizeFutures, future)
 		}

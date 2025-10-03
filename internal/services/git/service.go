@@ -36,7 +36,7 @@ type FileChange struct {
 	Filename            string
 	Change              string
 	OriginalFileContent string
-	StagedFileContent   string
+	ChangedFileContent  string
 }
 
 // Service provides Git repository operations.

@@ -82,7 +82,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 					Filename:            input.Filename,
 					Change:              change,
 					OriginalFileContent: originalFileContent,
-					StagedFileContent:   "", // Empty for deleted files
+					ChangedFileContent:  "", // Empty for deleted files
 				}, nil
 			}
 			return nil, fmt.Errorf("failed to read staged file content of %s: %w", input.Filename, err)
@@ -94,7 +94,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			Filename:            input.Filename,
 			Change:              change,
 			OriginalFileContent: originalFileContent,
-			StagedFileContent:   stagedFileContent,
+			ChangedFileContent:  stagedFileContent,
 		}, nil
 	}
 }

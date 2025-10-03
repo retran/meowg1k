@@ -32,14 +32,6 @@ type Input struct {
 	TargetBranch string
 }
 
-// Output defines the output structure for the FetchBranchFileDiff activity.
-type Output struct {
-	Filename            string
-	Change              string
-	OriginalFileContent string
-	ChangedFileContent  string
-}
-
 // Factory creates instances of the FetchBranchFileDiff activity with injected dependencies.
 type Factory struct {
 	gitService git.Service
@@ -89,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			if strings.Contains(err.Error(), "does not exist") {
 				// File was deleted - return with empty staged content
 				executorCtx.SendCompleted("Deleted")
-				return &Output{
+				return &git.FileChange{
 					Filename:            input.Filename,
 					Change:              change,
 					OriginalFileContent: originalFileContent,
@@ -101,7 +93,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		executorCtx.SendCompleted("")
 
-		return &Output{
+		return &git.FileChange{
 			Filename:            input.Filename,
 			Change:              change,
 			OriginalFileContent: originalFileContent,
