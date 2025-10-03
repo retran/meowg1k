@@ -241,9 +241,12 @@ pr:
 
     Structure (use Markdown):
 
+    # <Concise PR Title>
+    - A short, clear title summarizing the PR's purpose
+
     ## Summary
     2-4 sentences explaining what this PR does and why. Be clear and specific.
-    Start with "This PR..." or similar action statement.
+    Start with "This pull request..." or similar action statement.
 
     ## Motivation
     Explain the problem or need that drove these changes:
