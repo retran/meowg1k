@@ -19,9 +19,9 @@ package prompt
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/internal/testutil/commandmocks"
 )
 
 type mockTaskService struct {
@@ -31,15 +31,6 @@ type mockTaskService struct {
 
 func (m *mockTaskService) Get() *task.Configuration {
 	return m.config
-}
-
-type mockCommandService struct {
-	command.Service
-	stdin string
-}
-
-func (m *mockCommandService) GetStdIn() string {
-	return m.stdin
 }
 
 func TestNewGeneratePromptService(t *testing.T) {
@@ -52,8 +43,8 @@ func TestNewGeneratePromptService(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "test stdin content",
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "test stdin content",
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)
@@ -75,8 +66,8 @@ func TestGetSystemPrompt(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "",
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "",
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)
@@ -102,8 +93,8 @@ func TestGetUserPrompt(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "",
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "",
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)
@@ -130,8 +121,8 @@ func TestBuildUserPromptWithStdin(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "stdin content here",
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "stdin content here",
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)
@@ -158,8 +149,8 @@ func TestBuildUserPromptStdinOnly(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "stdin only content",
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "stdin only content",
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)
@@ -186,8 +177,8 @@ func TestBuildUserPromptEmpty(t *testing.T) {
 		},
 	}
 
-	mockCommand := &mockCommandService{
-		stdin: "", // Empty stdin
+	mockCommand := &commandmocks.MockCommandService{
+		StdIn: "", // Empty stdin
 	}
 
 	service, err := NewGeneratePromptService(mockCommand, mockTask)

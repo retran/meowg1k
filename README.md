@@ -1,5 +1,7 @@
 # 🐱 meowg1k
 
+> ⚠️ **WIP: This documentation may be outdated as the project is under active development.**
+
 > Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal.
 
 <div align="center">
