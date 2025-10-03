@@ -28,21 +28,17 @@ import (
 
 func TestExecute(t *testing.T) {
 	t.Run("Execute with version command", func(t *testing.T) {
-		// Capture output
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		// Set args to version command
 		os.Args = []string{"meow", "version"}
 
 		err := Execute()
 
-		// Restore stdout
 		w.Close()
 		os.Stdout = old
 
-		// Read captured output
 		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		output := buf.String()
@@ -51,26 +47,21 @@ func TestExecute(t *testing.T) {
 			t.Errorf("Execute with version command failed: %v", err)
 		}
 
-		// Version command should work without app initialization
 		t.Logf("Version command output: %s", output)
 	})
 
 	t.Run("Execute with help command", func(t *testing.T) {
-		// Capture output
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		// Set args to help command
 		os.Args = []string{"meow", "help"}
 
 		err := Execute()
 
-		// Restore stdout
 		w.Close()
 		os.Stdout = old
 
-		// Read captured output
 		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		output := buf.String()
@@ -79,7 +70,6 @@ func TestExecute(t *testing.T) {
 			t.Errorf("Execute with help command failed: %v", err)
 		}
 
-		// Help should contain usage information
 		if !strings.Contains(output, "meow") {
 			t.Error("Help output should contain 'meow'")
 		}
@@ -87,21 +77,17 @@ func TestExecute(t *testing.T) {
 	})
 
 	t.Run("Execute with invalid command", func(t *testing.T) {
-		// Capture stderr
 		old := os.Stderr
 		r, w, _ := os.Pipe()
 		os.Stderr = w
 
-		// Set args to invalid command
 		os.Args = []string{"meow", "invalid-command"}
 
 		err := Execute()
 
-		// Restore stderr
 		w.Close()
 		os.Stderr = old
 
-		// Read captured output
 		var buf bytes.Buffer
 		buf.ReadFrom(r)
 		output := buf.String()
@@ -161,7 +147,6 @@ func TestRootCmd(t *testing.T) {
 
 func TestRootCmdPersistentPreRunE(t *testing.T) {
 	t.Run("Skip app initialization for version command", func(t *testing.T) {
-		// Create a mock version command
 		localVersionCmd := &cobra.Command{
 			Use: "version",
 		}
@@ -173,7 +158,6 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 	})
 
 	t.Run("Skip app initialization for help command", func(t *testing.T) {
-		// Create a mock help command
 		helpCmd := &cobra.Command{
 			Use: "help",
 		}
@@ -185,7 +169,6 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 	})
 
 	t.Run("Skip app initialization for meow command", func(t *testing.T) {
-		// Create a mock meow root command
 		meowCmd := &cobra.Command{
 			Use: "meow",
 		}
@@ -197,7 +180,6 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 	})
 
 	t.Run("Skip app initialization for completion command", func(t *testing.T) {
-		// Create a mock completion command
 		completionCmd := &cobra.Command{
 			Use: "completion",
 		}
@@ -209,16 +191,13 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 	})
 
 	t.Run("App initialization for other commands", func(t *testing.T) {
-		// Create a mock generate command that requires app initialization
 		generateCmd := &cobra.Command{
 			Use: "generate",
 		}
 
-		// This will likely fail due to missing config or dependencies, but that's expected
 		err := rootCmd.PersistentPreRunE(generateCmd, []string{})
 		if err != nil {
 			t.Logf("Expected error for generate command (app initialization): %v", err)
-			// Should be app initialization error, not a nil pointer or similar
 			if strings.Contains(err.Error(), "failed to initialize app") {
 				t.Log("Got expected app initialization error")
 			} else {
@@ -232,19 +211,15 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 
 func TestRootCmdContextHandling(t *testing.T) {
 	t.Run("Context setting for commands requiring app", func(t *testing.T) {
-		// Create a mock command that requires app initialization
 		testCmd := &cobra.Command{
 			Use: "test-context",
 		}
 
-		// Try to run the persistent pre-run
 		err := rootCmd.PersistentPreRunE(testCmd, []string{})
 
 		if err != nil {
-			// Expected to fail due to missing dependencies, but verify it's the right error
 			t.Logf("Expected app initialization error: %v", err)
 		} else {
-			// If it succeeds, verify context was set
 			ctx := testCmd.Context()
 			if ctx == nil {
 				t.Error("Context should be set when app initialization succeeds")
@@ -259,7 +234,6 @@ func TestRootCmdContextHandling(t *testing.T) {
 
 func TestRootCmdFlags(t *testing.T) {
 	t.Run("Config flag behavior", func(t *testing.T) {
-		// Test setting config flag
 		err := rootCmd.PersistentFlags().Set("config", "/test/config.yaml")
 		if err != nil {
 			t.Errorf("Failed to set config flag: %v", err)
@@ -276,7 +250,6 @@ func TestRootCmdFlags(t *testing.T) {
 	})
 
 	t.Run("Silent flag behavior", func(t *testing.T) {
-		// Test setting silent flag
 		err := rootCmd.PersistentFlags().Set("silent", "true")
 		if err != nil {
 			t.Errorf("Failed to set silent flag: %v", err)
@@ -307,11 +280,9 @@ func TestRootCmdFlags(t *testing.T) {
 
 func TestRootCmdEdgeCases(t *testing.T) {
 	t.Run("Empty args", func(t *testing.T) {
-		// Create a command with empty args
 		testCmd := &cobra.Command{Use: "empty-args"}
 
 		err := rootCmd.PersistentPreRunE(testCmd, []string{})
-		// Should handle empty args gracefully
 		if err != nil {
 			t.Logf("Error with empty args: %v", err)
 		}
@@ -320,7 +291,7 @@ func TestRootCmdEdgeCases(t *testing.T) {
 	t.Run("Command name variations", func(t *testing.T) {
 		commandNames := []string{
 			"version",
-			"VERSION", // Case shouldn't matter for name comparison
+			"VERSION",
 			"help",
 			"HELP",
 			"meow",
@@ -333,9 +304,7 @@ func TestRootCmdEdgeCases(t *testing.T) {
 			t.Run("Name_"+name, func(t *testing.T) {
 				testCmd := &cobra.Command{Use: name}
 				err := rootCmd.PersistentPreRunE(testCmd, []string{})
-				// These commands should not require app initialization
 				if err != nil && name != strings.ToUpper(name) {
-					// Only lowercase versions should be recognized
 					t.Logf("Command name %s resulted in error: %v", name, err)
 				}
 			})
@@ -343,14 +312,11 @@ func TestRootCmdEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Nil command", func(t *testing.T) {
-		// Test with nil command - this is expected to fail gracefully
-		// but shouldn't cause panics in production
 		err := rootCmd.PersistentPreRunE(nil, []string{})
 		if err == nil {
 			t.Error("Expected error with nil command")
 		}
 
-		// Any error is acceptable as long as it doesn't panic
 		t.Logf("Got expected error with nil command: %v", err)
 	})
 }

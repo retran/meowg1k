@@ -23,8 +23,6 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
-
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 var (
@@ -42,7 +40,7 @@ type anthropicGateway struct {
 	client anthropic.Client
 }
 
-// NewAnthropicGateway creates a new Anthropic gateway.
+// NewAnthropicGateway creates a new Anthropic
 func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 	if apiKey == "" {
 		return nil, ErrAnthropicAPIKeyRequired
@@ -60,44 +58,38 @@ func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 // GenerateContent generates content using Anthropic's API.
 func (g *anthropicGateway) GenerateContent(
 	ctx context.Context,
-	request *mdGateway.GenerateContentRequest,
+	request *GenerateContentRequest,
 ) (string, error) {
 	model := request.Model()
 	if model == "" {
 		return "", ErrModelRequired
 	}
 
-	// Prepare messages for the API
 	messages := []anthropic.MessageParam{
 		anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
 	}
 
-	// Create the request parameters
 	params := anthropic.MessageNewParams{
 		Model:     anthropic.Model(model),
 		Messages:  messages,
 		MaxTokens: int64(request.MaxOutputTokens()),
 	}
 
-	// Add system prompt if provided
 	if systemPrompt := request.SystemPrompt(); systemPrompt != "" {
 		params.System = []anthropic.TextBlockParam{
 			{Text: systemPrompt},
 		}
 	}
 
-	// Make the API call
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content with Anthropic: %w", err)
 	}
 
-	// Extract text content from response
 	if len(response.Content) == 0 {
 		return "", ErrNoContentInResponseFromAnthropic
 	}
 
-	// Find the first text block in the response
 	for i := range response.Content {
 		if response.Content[i].Type == "text" {
 			textBlock := response.Content[i].AsText()

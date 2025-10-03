@@ -20,8 +20,7 @@ import (
 	"testing"
 	"time"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdLLM "github.com/retran/meowg1k/internal/models/llm"
+	"github.com/retran/meowg1k/internal/services/llm"
 )
 
 func TestNewService(t *testing.T) {
@@ -35,14 +34,14 @@ func TestGetValidProviders(t *testing.T) {
 	service := NewService()
 
 	// Test all valid providers
-	validProviders := []mdGateway.Provider{
-		mdGateway.Gemini,
-		mdGateway.OpenAI,
-		mdGateway.Anthropic,
-		mdGateway.Llama,
-		mdGateway.OpenRouter,
-		mdGateway.Voyage,
-		mdGateway.OpenAICompatible,
+	validProviders := []Provider{
+		Gemini,
+		OpenAI,
+		Anthropic,
+		Llama,
+		OpenRouter,
+		Voyage,
+		OpenAICompatible,
 	}
 
 	for _, providerType := range validProviders {
@@ -78,7 +77,7 @@ func TestGetInvalidProvider(t *testing.T) {
 	service := NewService()
 
 	// Test with invalid provider
-	invalidProvider := mdGateway.Provider("invalid-provider")
+	invalidProvider := Provider("invalid-provider")
 	_, err := service.Get(invalidProvider)
 	if err == nil {
 		t.Error("Expected error for invalid provider")
@@ -92,7 +91,7 @@ func TestGetInvalidProvider(t *testing.T) {
 
 func TestGeminiProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.Gemini)
+	provider, err := service.Get(Gemini)
 	if err != nil {
 		t.Fatalf("Failed to get Gemini provider: %v", err)
 	}
@@ -117,8 +116,8 @@ func TestGeminiProviderConfiguration(t *testing.T) {
 		t.Error("Gemini should not require base URL")
 	}
 
-	if provider.TokenizerType != mdLLM.TokenizerGemini {
-		t.Errorf("Expected tokenizer type %s, got %s", mdLLM.TokenizerGemini, provider.TokenizerType)
+	if provider.TokenizerType != llm.TokenizerGemini {
+		t.Errorf("Expected tokenizer type %s, got %s", llm.TokenizerGemini, provider.TokenizerType)
 	}
 
 	if provider.MaxInputTokens != 1000000 {
@@ -132,7 +131,7 @@ func TestGeminiProviderConfiguration(t *testing.T) {
 
 func TestOpenAIProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.OpenAI)
+	provider, err := service.Get(OpenAI)
 	if err != nil {
 		t.Fatalf("Failed to get OpenAI provider: %v", err)
 	}
@@ -160,7 +159,7 @@ func TestOpenAIProviderConfiguration(t *testing.T) {
 
 func TestAnthropicProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.Anthropic)
+	provider, err := service.Get(Anthropic)
 	if err != nil {
 		t.Fatalf("Failed to get Anthropic provider: %v", err)
 	}
@@ -180,7 +179,7 @@ func TestAnthropicProviderConfiguration(t *testing.T) {
 
 func TestLlamaProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.Llama)
+	provider, err := service.Get(Llama)
 	if err != nil {
 		t.Fatalf("Failed to get Llama provider: %v", err)
 	}
@@ -208,7 +207,7 @@ func TestLlamaProviderConfiguration(t *testing.T) {
 
 func TestVoyageProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.Voyage)
+	provider, err := service.Get(Voyage)
 	if err != nil {
 		t.Fatalf("Failed to get Voyage provider: %v", err)
 	}
@@ -228,7 +227,7 @@ func TestVoyageProviderConfiguration(t *testing.T) {
 
 func TestOpenAICompatibleProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(mdGateway.OpenAICompatible)
+	provider, err := service.Get(OpenAICompatible)
 	if err != nil {
 		t.Fatalf("Failed to get OpenAI Compatible provider: %v", err)
 	}

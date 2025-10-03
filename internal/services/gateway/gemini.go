@@ -23,8 +23,6 @@ import (
 	"math"
 
 	"google.golang.org/genai"
-
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 var (
@@ -67,7 +65,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 // GenerateContent sends a content generation request to the Google Gemini API.
 func (g *geminiGateway) GenerateContent(
 	ctx context.Context,
-	request *mdGateway.GenerateContentRequest,
+	request *GenerateContentRequest,
 ) (string, error) {
 	generationConfig := &genai.GenerateContentConfig{}
 
@@ -104,8 +102,8 @@ func (g *geminiGateway) GenerateContent(
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
 func (g *geminiGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *mdGateway.ComputeEmbeddingsRequest,
-) ([]mdGateway.Embedding, error) {
+	request *ComputeEmbeddingsRequest,
+) ([]Embedding, error) {
 	contents := make([]*genai.Content, 0, len(request.Chunks()))
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
@@ -115,10 +113,8 @@ func (g *geminiGateway) ComputeEmbeddings(
 		TaskType: string(request.TaskType()),
 	}
 
-	// Set output dimensionality if specified
 	if request.Dimensions() > 0 {
 		dimensions := request.Dimensions()
-		// Check for integer overflow when converting to int32
 		if dimensions > math.MaxInt32 {
 			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
 		}
@@ -133,10 +129,10 @@ func (g *geminiGateway) ComputeEmbeddings(
 		config,
 	)
 	if err != nil {
-		return []mdGateway.Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
+		return []Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
 	}
 
-	embeddings := make([]mdGateway.Embedding, 0, len(response.Embeddings))
+	embeddings := make([]Embedding, 0, len(response.Embeddings))
 
 	for _, value := range response.Embeddings {
 		values := make([]float64, len(value.Values))
@@ -144,7 +140,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 			values[i] = float64(v)
 		}
 
-		embeddings = append(embeddings, mdGateway.Embedding(values))
+		embeddings = append(embeddings, Embedding(values))
 	}
 
 	return embeddings, nil

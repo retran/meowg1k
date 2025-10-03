@@ -19,9 +19,11 @@ package gateway
 import (
 	"context"
 	"errors"
+	"sync"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
+	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 var (
@@ -31,7 +33,7 @@ var (
 	ErrOpenRouterAPIKeyRequired        = errors.New("openrouter provider requires an API key")
 	ErrVoyageNoContentGeneration       = errors.New("voyage provider only supports embeddings, not content generation")
 	ErrOpenAICompatibleBaseURLRequired = errors.New("openai-compatible provider requires a base URL")
-	ErrProviderNotSpecified            = errors.New("a provider must be specified with WithProvider()")
+	ErrProviderNotSpecified            = errors.New("a provider must be specified with Withgateway.Provider()")
 	ErrProfileCannotBeNil              = errors.New("profile cannot be nil")
 	ErrLlamaEmbeddingsNotImplemented   = errors.New("llama embedding gateway is not yet implemented")
 	ErrAnthropicNoEmbeddings           = errors.New(
@@ -44,101 +46,158 @@ var (
 // Factory is the interface for creating LLM gateways.
 type Factory interface {
 	// NewGenerationGateway creates a new generation gateway based on the provided profile.
-	NewGenerationGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (GenerationGateway, error)
+	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (GenerationGateway, error)
 	// NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
-	NewEmbeddingsGateway(ctx context.Context, profile *mdProfile.ResolvedProfile) (EmbeddingsGateway, error)
+	NewEmbeddingsGateway(ctx context.Context, profile *profile.ResolvedProfile) (EmbeddingsGateway, error)
 }
 
 // gatewayFactory is the implementation of GatewayFactory.
-type gatewayFactory struct{}
+type gatewayFactory struct {
+	mu       sync.Mutex
+	limiters map[string]*ratelimit.Limiter // key is profile name
+}
 
 // NewFactory creates a new gateway factory.
 func NewFactory() Factory {
-	return &gatewayFactory{}
+	return &gatewayFactory{
+		limiters: make(map[string]*ratelimit.Limiter),
+	}
+}
+
+// getRateLimiter returns or creates a rate limiter for the given profile.
+// This method is thread-safe. Each unique profile gets its own rate limiter instance.
+func (f *gatewayFactory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Limiter {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	key := profile.Name
+	if key == "" {
+		key = string(profile.Provider) + ":" + profile.Model
+	}
+
+	if limiter, exists := f.limiters[key]; exists {
+		return limiter
+	}
+
+	config := ratelimit.Config{
+		RequestsPerMinute: profile.RateLimit.RequestsPerMinute,
+		TokensPerMinute:   profile.RateLimit.TokensPerMinute,
+		RequestsPerDay:    profile.RateLimit.RequestsPerDay,
+	}
+
+	// If no limits are set, use unlimited
+	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
+		config = ratelimit.Unlimited
+	}
+
+	limiter := ratelimit.NewLimiter(config)
+	f.limiters[key] = limiter
+
+	return limiter
 }
 
 // NewGenerationGateway creates a new generation gateway based on the provided profile.
 func (f *gatewayFactory) NewGenerationGateway(
 	ctx context.Context,
-	profile *mdProfile.ResolvedProfile,
+	profile *profile.ResolvedProfile,
 ) (GenerationGateway, error) {
+	var gateway GenerationGateway
+	var err error
+
 	switch profile.Provider {
-	case mdGateway.Gemini:
+	case provider.Gemini:
 		if profile.APIKey == "" {
 			return nil, ErrGeminiAPIKeyRequired
 		}
 
-		return newGeminiGateway(ctx, profile.APIKey)
-	case mdGateway.Llama:
+		gateway, err = newGeminiGateway(ctx, profile.APIKey)
+	case provider.Llama:
 		if profile.BaseURL == "" {
 			return nil, ErrLlamaBaseURLRequired
 		}
 
-		return newLlamaGateway(profile.BaseURL, profile.APIKey)
-	case mdGateway.OpenAI:
+		gateway, err = newLlamaGateway(profile.BaseURL, profile.APIKey)
+	case provider.OpenAI:
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
 
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
-	case mdGateway.OpenRouter:
+		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	case provider.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
 
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
-	case mdGateway.Anthropic:
+		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	case provider.Anthropic:
 		if profile.APIKey == "" {
 			return nil, ErrAnthropicAPIKeyRequired
 		}
 
-		return newAnthropicGateway(profile.APIKey)
-	case mdGateway.Voyage:
+		gateway, err = newAnthropicGateway(profile.APIKey)
+	case provider.Voyage:
 		return nil, ErrVoyageNoContentGeneration
-	case mdGateway.OpenAICompatible:
+	case provider.OpenAICompatible:
 		if profile.BaseURL == "" {
 			return nil, ErrOpenAICompatibleBaseURLRequired
 		}
 
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
+		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	default:
 		return nil, ErrProviderNotSpecified
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine max concurrency based on rate limits
+	// Use RPM (requests per minute) as a guide for concurrency
+	// TODO review this logic
+	maxConcurrency := profile.RateLimit.RequestsPerMinute
+	if maxConcurrency == 0 {
+		maxConcurrency = 10 // Default to 10 concurrent requests if unlimited
+	}
+
+	gateway = newWorkerPoolGateway(gateway, maxConcurrency)
+
+	limiter := f.getRateLimiter(profile)
+	return newRateLimitedGenerationGateway(gateway, limiter), nil
 }
 
 // NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
 func (f *gatewayFactory) NewEmbeddingsGateway(
 	ctx context.Context,
-	profile *mdProfile.ResolvedProfile,
+	profile *profile.ResolvedProfile,
 ) (EmbeddingsGateway, error) {
 	if profile == nil {
 		return nil, ErrProfileCannotBeNil
 	}
 
 	switch profile.Provider {
-	case mdGateway.Gemini:
+	case provider.Gemini:
 		if profile.APIKey == "" {
 			return nil, ErrGeminiAPIKeyRequired
 		}
 
 		return newGeminiGateway(ctx, profile.APIKey)
-	case mdGateway.Llama:
+	case provider.Llama:
 		return nil, ErrLlamaEmbeddingsNotImplemented
-	case mdGateway.Anthropic:
+	case provider.Anthropic:
 		return nil, ErrAnthropicNoEmbeddings
-	case mdGateway.OpenAI:
+	case provider.OpenAI:
 		if profile.APIKey == "" {
 			return nil, ErrOpenAIAPIKeyRequired
 		}
 
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
-	case mdGateway.OpenRouter:
+	case provider.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
 
 		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
-	case mdGateway.Voyage:
+	case provider.Voyage:
 		if profile.APIKey == "" {
 			return nil, ErrVoyageAPIKeyRequired
 		}

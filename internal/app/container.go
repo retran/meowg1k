@@ -32,6 +32,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/internal/services/shutdown"
 )
 
@@ -55,27 +56,26 @@ type Container struct {
 
 	// ConfigService manages application configuration.
 	ConfigService config.Service
+
+	// OutputService handles application output to stdout/stderr.
+	OutputService output.Service
 }
 
 const (
 	logFileName = "meow.log"
-	// Operating system constants
-	osWindows = "windows"
-	osDarwin  = "darwin"
+	osWindows   = "windows"
+	osDarwin    = "darwin"
 )
 
 // validateLogPath validates the log path to prevent directory traversal attacks
 func validateLogPath(logDir, fileName string) error {
-	// Ensure filename doesn't contain path separators
 	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
 		return fmt.Errorf("%w: %s", ErrInvalidLogFilename, fileName)
 	}
 
-	// Clean the logDir path to resolve any path issues
 	cleanLogDir := filepath.Clean(logDir)
 	logPath := filepath.Join(cleanLogDir, fileName)
 
-	// Ensure the final path is within the expected log directory
 	if !strings.HasPrefix(logPath, cleanLogDir) {
 		return fmt.Errorf("%w: %s is outside %s", ErrLogPathOutsideDirectory, logPath, cleanLogDir)
 	}
@@ -98,20 +98,14 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		ctx = context.Background()
 	}
 
-	ctx = context.WithValue(ctx, AppContainerKey, container)
-
-	// Create logs directory in user's cache directory
 	logDir, err := getLogDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get log directory: %w", err)
 	}
 
-	// Ensure log directory exists
 	if err = os.MkdirAll(logDir, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
-
-	// Validate log path to prevent directory traversal
 
 	if err = validateLogPath(logDir, logFileName); err != nil {
 		return nil, fmt.Errorf("invalid log path: %w", err)
@@ -156,10 +150,19 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, err
 	}
 
+	outputService := output.NewService(output.Stdout)
+	shutdownService.Register(func(ctx context.Context) error {
+		return outputService.Flush()
+	})
+
 	container.Logger = logger
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
+	container.OutputService = outputService
+
+	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
+	cmd.SetContext(shutdownCtx)
 
 	return container, nil
 }

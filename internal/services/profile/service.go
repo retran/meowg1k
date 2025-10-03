@@ -21,12 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
-	mdConfig "github.com/retran/meowg1k/internal/models/config"
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/llm"
 	"github.com/retran/meowg1k/internal/services/provider"
 )
 
@@ -41,17 +40,42 @@ var (
 	ErrModelNameRequired          = errors.New("model name is required")
 )
 
+// Profile defines an enumeration for configured profile names.
+type Profile string
+
+// RateLimitConfig contains rate limiting configuration for a profile.
+type RateLimitConfig struct {
+	RequestsPerMinute int
+	TokensPerMinute   int
+	RequestsPerDay    int
+}
+
+// ResolvedProfile represents a profile with all values resolved.
+type ResolvedProfile struct {
+	Name            string
+	Provider        provider.Provider
+	Model           string
+	MaxInputTokens  int
+	MaxOutputTokens int
+	Timeout         time.Duration
+	BaseURL         string
+	APIKey          string
+	TokenizerType   llm.TokenizerType
+	RateLimit       RateLimitConfig
+}
+
 // Service provides profile configuration resolution capabilities.
 type Service interface {
 	// Get retrieves a profile with validation using the current config.
-	Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error)
+	Get(profile Profile) (*ResolvedProfile, error)
 }
 
 // serviceImpl is the concrete implementation of the profile resolver service.
 type serviceImpl struct {
 	providerService  provider.Service
 	configService    config.Service
-	resolvedProfiles map[mdProfile.Profile]*mdProfile.ResolvedProfile
+	resolvedProfiles map[Profile]*ResolvedProfile
+	mu               sync.RWMutex
 }
 
 // Compile-time interface satisfaction check
@@ -62,14 +86,24 @@ func NewService(configService config.Service, providerService provider.Service) 
 	service := &serviceImpl{
 		providerService:  providerService,
 		configService:    configService,
-		resolvedProfiles: make(map[mdProfile.Profile]*mdProfile.ResolvedProfile),
+		resolvedProfiles: make(map[Profile]*ResolvedProfile),
 	}
 
 	return service
 }
 
 // Get retrieves a profile using cached data from initialization.
-func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error) {
+func (s *serviceImpl) Get(profile Profile) (*ResolvedProfile, error) {
+	s.mu.RLock()
+	if resolved, exists := s.resolvedProfiles[profile]; exists {
+		s.mu.RUnlock()
+		return resolved, nil
+	}
+	s.mu.RUnlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if resolved, exists := s.resolvedProfiles[profile]; exists {
 		return resolved, nil
 	}
@@ -88,9 +122,9 @@ func (s *serviceImpl) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile
 
 // resolveProfileInternal performs the actual profile resolution logic.
 func (s *serviceImpl) resolveProfileInternal(
-	profile mdProfile.Profile,
-	cfg *mdConfig.Config,
-) (*mdProfile.ResolvedProfile, error) {
+	profile Profile,
+	cfg *config.Config,
+) (*ResolvedProfile, error) {
 	if cfg.Profiles == nil {
 		return nil, ErrNoProfilesDefined
 	}
@@ -100,12 +134,13 @@ func (s *serviceImpl) resolveProfileInternal(
 		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
 	}
 
-	providerDef, err := s.providerService.Get(mdGateway.Provider(profileDef.Provider))
+	providerDef, err := s.providerService.Get(provider.Provider(profileDef.Provider))
 	if err != nil {
 		return nil, fmt.Errorf("unknown provider '%s' in profile '%s': %w", profileDef.Provider, profile, err)
 	}
 
-	resolved := &mdProfile.ResolvedProfile{
+	resolved := &ResolvedProfile{
+		Name:            string(profile),
 		Provider:        providerDef.Type,
 		Model:           profileDef.Model,
 		MaxInputTokens:  profileDef.MaxInputTokens,
@@ -113,6 +148,11 @@ func (s *serviceImpl) resolveProfileInternal(
 		Timeout:         profileDef.Timeout,
 		BaseURL:         profileDef.BaseURL,
 		TokenizerType:   profileDef.TokenizerType,
+		RateLimit: RateLimitConfig{
+			RequestsPerMinute: profileDef.RequestsPerMinute,
+			TokensPerMinute:   profileDef.TokensPerMinute,
+			RequestsPerDay:    profileDef.RequestsPerDay,
+		},
 	}
 
 	resolved.Model = defaultValue(resolved.Model, providerDef.DefaultModel)
@@ -139,7 +179,7 @@ func (s *serviceImpl) resolveProfileInternal(
 }
 
 // validateResolvedProfile validates a resolved profile configuration.
-func (s *serviceImpl) validateResolvedProfile(resolved *mdProfile.ResolvedProfile) error {
+func (s *serviceImpl) validateResolvedProfile(resolved *ResolvedProfile) error {
 	if resolved == nil {
 		return ErrResolvedProfileCannotBeNil
 	}
