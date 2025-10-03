@@ -74,7 +74,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 1: List staged files
 		listStaged := f.listStagedActivityFactory.NewActivity()
-		stagedFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListStagedFiles", listStaged, nil)
+		stagedFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListStagedFiles", listStaged, &liststaged.Input{})
 		stagedFilesRaw, err := stagedFilesFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to list staged files: %w", err)

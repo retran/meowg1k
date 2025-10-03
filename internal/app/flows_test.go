@@ -169,3 +169,47 @@ generate:
 		t.Error("CreateGenerateFlow returned nil")
 	}
 }
+
+func TestCreateGenerateFlowWithMissingProfile(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	// Create config with missing profile reference
+	configContent := `profiles:
+  test:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+generate:
+  default:
+    profile: "nonexistent"
+    systemPrompt: "You are a helpful assistant"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+
+	cmd.Flags().Set("config", configPath)
+
+	container, err := NewAppContainer(cmd)
+	if err != nil {
+		t.Fatalf("NewAppContainer returned error: %v", err)
+	}
+
+	flow, err := container.CreateGenerateFlow()
+	// This should return an error because the profile doesn't exist
+	if err == nil {
+		t.Error("CreateGenerateFlow should return error for missing profile")
+	}
+	if flow != nil {
+		t.Error("CreateGenerateFlow should return nil flow on error")
+	}
+}

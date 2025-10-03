@@ -240,9 +240,3 @@ commit:
       BREAKING CHANGE: ValidationError interface changed
 
     Generate only the commit message, nothing else.
-
-pr:
-  profile: "smart"
-  systemPrompt: |
-    You are an AI assistant writing a Pull Request description.
-    Based on the user's input, write a clear and detailed PR description.

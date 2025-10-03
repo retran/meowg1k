@@ -92,6 +92,16 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 	}
 }
 
+// mockOutputService is a mock implementation of output.Service for testing
+type mockOutputService struct {
+	flushError error
+}
+
+func (m *mockOutputService) Print(content string)              {}
+func (m *mockOutputService) PrintLine(content string)          {}
+func (m *mockOutputService) Printf(format string, args ...any) {}
+func (m *mockOutputService) Flush() error                      { return m.flushError }
+
 func TestNewFlowRunner(t *testing.T) {
 	container := &Container{
 		Logger: slog.Default(),
@@ -103,7 +113,104 @@ func TestNewFlowRunner(t *testing.T) {
 		t.Fatal("NewFlowRunner() returned nil")
 	}
 
-	if runner == nil {
+	if runner.container != container {
 		t.Error("NewFlowRunner() did not properly initialize runner")
+	}
+}
+
+func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("silent", true, "silent flag")
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	// Create a mock output service that will fail on flush
+	mockOutput := &mockOutputService{
+		flushError: context.DeadlineExceeded,
+	}
+
+	container := &Container{
+		Logger:         slog.Default(),
+		CommandService: commandService,
+		OutputService:  mockOutput,
+	}
+
+	runner := NewFlowRunner(container)
+
+	// Use a flow that succeeds, but flush will fail
+	flow := mockFlow(nil)
+
+	err = runner.RunFlow(context.Background(), "TestFlow", flow)
+
+	if err == nil {
+		t.Error("RunFlow() expected error from flush, got nil")
+	}
+}
+
+func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("silent", true, "silent flag")
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	// Create a mock output service that will fail on flush
+	mockOutput := &mockOutputService{
+		flushError: context.DeadlineExceeded,
+	}
+
+	container := &Container{
+		Logger:         slog.Default(),
+		CommandService: commandService,
+		OutputService:  mockOutput,
+	}
+
+	runner := NewFlowRunner(container)
+
+	// Use a flow that also fails
+	flow := mockFlow(context.Canceled)
+
+	err = runner.RunFlow(context.Background(), "TestFlow", flow)
+
+	if err == nil {
+		t.Error("RunFlow() expected error, got nil")
+	}
+}
+
+func TestFlowRunner_RunFlowWithGetSilentFlagError(t *testing.T) {
+	// Create a command without the silent flag defined
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	// Don't define the silent flag to cause GetSilentFlag to fail
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	container := &Container{
+		Logger:         slog.Default(),
+		CommandService: commandService,
+		OutputService:  output.NewService(output.Stdout),
+	}
+
+	runner := NewFlowRunner(container)
+
+	flow := mockFlow(nil)
+
+	err = runner.RunFlow(context.Background(), "TestFlow", flow)
+
+	if err == nil {
+		t.Error("RunFlow() expected error from GetSilentFlag, got nil")
 	}
 }

@@ -59,6 +59,7 @@ var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 type ExecutionTracker struct {
 	silent       bool
 	wg           sync.WaitGroup
+	mu           sync.RWMutex // Protects executions and order
 	executions   map[string]*ExecutionProgress
 	order        []string // Preserves insertion order for stable output
 	feedbackChan chan *executor.Feedback
@@ -156,6 +157,7 @@ func (t *ExecutionTracker) redraw() {
 	var output strings.Builder
 	var newLinesCount int
 
+	t.mu.RLock()
 	for _, name := range t.order {
 		exec, exists := t.executions[name]
 		if !exists || exec.Level > 1 { // We only display level 0 and 1
@@ -173,6 +175,7 @@ func (t *ExecutionTracker) redraw() {
 		output.WriteString(t.formatLine(exec, style))
 		newLinesCount++
 	}
+	t.mu.RUnlock()
 
 	output.WriteString("\033[J") // Clear screen from cursor down
 	fmt.Fprint(os.Stderr, output.String())
@@ -191,6 +194,9 @@ func (t *ExecutionTracker) updateExecution(feedback *executor.Feedback) {
 	if feedback.ActivityName == "" {
 		return
 	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	exec, exists := t.executions[feedback.ActivityName]
 	if !exists {
@@ -377,4 +383,29 @@ func getDurationString(exec *ExecutionProgress) string {
 	default:
 		return fmt.Sprintf("%.1fm", duration.Minutes())
 	}
+}
+
+// GetExecution returns a copy of the execution progress for the given name.
+// Returns nil if the execution doesn't exist.
+// This method is thread-safe and primarily intended for testing.
+func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	exec, exists := t.executions[name]
+	if !exists {
+		return nil
+	}
+
+	// Return a shallow copy to avoid race conditions
+	copyExec := *exec
+	return &copyExec
+}
+
+// GetExecutionCount returns the number of tracked executions.
+// This method is thread-safe and primarily intended for testing.
+func (t *ExecutionTracker) GetExecutionCount() int {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.executions)
 }
