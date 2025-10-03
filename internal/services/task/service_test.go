@@ -69,6 +69,10 @@ func (m *mockCommandService) GetTargetBranchFlag() (string, error) {
 	return "", nil
 }
 
+func (m *mockCommandService) GetBaseBranchFlag() (string, error) {
+	return "", nil
+}
+
 func (m *mockCommandService) GetStdIn() string {
 	return ""
 }

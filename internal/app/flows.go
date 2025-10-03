@@ -20,6 +20,7 @@ package app
 import (
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/composepr"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
@@ -30,10 +31,12 @@ import (
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
+	"github.com/retran/meowg1k/internal/flows/pr"
 	"github.com/retran/meowg1k/internal/services/commitconfig"
 	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/services/prconfig"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/prompt"
 	"github.com/retran/meowg1k/internal/services/provider"
@@ -123,4 +126,44 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	)
 
 	return flowFactory.NewFlow(), nil
+}
+
+// CreatePRFlow creates a complete PR flow with all dependencies.
+func (c *Container) CreatePRFlow() executor.Flow {
+	workspaceService := workspace.NewService()
+	gitService := git.NewService(workspaceService)
+	filterService := filter.NewService(c.ConfigService)
+
+	providerService := provider.NewService()
+	profileService := profile.NewService(c.ConfigService, providerService)
+
+	summarizeService := summarize.NewService(c.ConfigService, profileService)
+
+	prConfigService := prconfig.NewService(c.ConfigService, profileService)
+
+	gatewayFactory := gateway.NewFactory()
+
+	// Activities for branch diff mode
+	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)
+	fetchBranchFileDiffActivityFactory := fetchbranchfilediff.NewFactory(gitService)
+	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+
+	// Common activities
+	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
+	summarizeFileFactory := summarizefile.NewFactory(gatewayFactory, summarizeService)
+	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
+	composePRFactory := composepr.NewFactory(gatewayFactory)
+
+	flowFactory := pr.NewFactory(
+		listBranchFilesActivityFactory,
+		applyFiltersActivityFactory,
+		fetchAllBranchDiffsFactory,
+		summarizeAllFactory,
+		composePRFactory,
+		prConfigService,
+		c.CommandService,
+		c.OutputService,
+	)
+
+	return flowFactory.NewFlow()
 }
