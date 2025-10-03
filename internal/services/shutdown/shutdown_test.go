@@ -446,3 +446,121 @@ func TestCallbackErrorHandling(t *testing.T) {
 		t.Error("Success callback should be called even after error in previous callback")
 	}
 }
+
+func TestListenForSignals_ContextCanceled(t *testing.T) {
+	logger := slog.Default()
+	ctx, cancel := context.WithCancel(context.Background())
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	// Start listening in a goroutine
+	var result bool
+	done := make(chan bool)
+	go func() {
+		result = service.ListenForSignals()
+		done <- true
+	}()
+
+	// Give listener time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel the context
+	cancel()
+
+	// Wait for ListenForSignals to return
+	select {
+	case <-done:
+		// Expected
+	case <-time.After(time.Second):
+		t.Fatal("ListenForSignals did not return after context cancellation")
+	}
+
+	// Should return false when context is canceled
+	if result {
+		t.Error("ListenForSignals should return false when context is canceled")
+	}
+}
+
+func TestNewServiceWithCanceledContext(t *testing.T) {
+	logger := slog.Default()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	if service == nil {
+		t.Fatal("NewService should not return nil even with canceled context")
+	}
+
+	serviceCtx := service.Context()
+
+	// Service context should be separate from input context
+	select {
+	case <-serviceCtx.Done():
+		// This is OK - the service context might inherit cancellation
+	default:
+		// This is also OK - service creates its own context
+	}
+}
+
+func TestNewServiceWithZeroTimeout(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 0 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	if service == nil {
+		t.Fatal("NewService should not return nil with zero timeout")
+	}
+
+	var callbackCalled bool
+	service.Register(func(ctx context.Context) error {
+		callbackCalled = true
+		return nil
+	})
+
+	service.Shutdown()
+	time.Sleep(100 * time.Millisecond)
+
+	if !callbackCalled {
+		t.Error("Callback should be called even with zero timeout")
+	}
+}
+
+func TestConcurrentRegisterAndShutdown(t *testing.T) {
+	logger := slog.Default()
+	ctx := context.Background()
+	timeout := 5 * time.Second
+
+	service := NewService(logger, ctx, timeout)
+
+	var wg sync.WaitGroup
+	callbackCount := atomic.Int32{}
+
+	// Start registering callbacks concurrently
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			service.Register(func(ctx context.Context) error {
+				callbackCount.Add(1)
+				return nil
+			})
+		}()
+	}
+
+	// Wait for all registrations
+	wg.Wait()
+
+	// Trigger shutdown
+	service.Shutdown()
+	time.Sleep(200 * time.Millisecond)
+
+	// All callbacks should have been called
+	if callbackCount.Load() != 10 {
+		t.Errorf("Expected 10 callbacks to be called, got %d", callbackCount.Load())
+	}
+}

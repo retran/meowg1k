@@ -52,11 +52,20 @@ func NewMatcher(lines []string) *Matcher {
 
 // parsePattern converts a single rule string into a compiled pattern struct.
 func parsePattern(line string) *pattern {
+	// Return nil for empty patterns
+	if line == "" {
+		return nil
+	}
+
 	p := &pattern{raw: line}
 
 	if strings.HasPrefix(line, "!") {
 		p.negation = true
 		line = line[1:]
+		// After removing negation, check if pattern is empty
+		if line == "" {
+			return nil
+		}
 	}
 
 	if strings.HasPrefix(line, `\`) && (len(line) > 1 && (line[1] == '!' || line[1] == '#')) {
@@ -126,6 +135,10 @@ func parsePattern(line string) *pattern {
 // path is the relative path from the root.
 func (m *Matcher) Match(path string, isDir bool) bool {
 	path = filepath.ToSlash(path)
+
+	if isDir && !strings.HasSuffix(path, "/") {
+		path += "/"
+	}
 
 	var finalMatch *pattern
 	for _, p := range m.patterns {

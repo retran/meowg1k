@@ -35,7 +35,10 @@ type serviceImpl struct {
 
 // NewService creates a new instance of the filter service.
 func NewService(configService config.Service) Service {
-	patterns := configService.GetConfig().Filter.Ignore
+	var patterns []string
+	if config := configService.GetConfig(); config.Filter != nil {
+		patterns = config.Filter.Ignore
+	}
 	matcher := gitignore.NewMatcher(patterns)
 
 	return &serviceImpl{

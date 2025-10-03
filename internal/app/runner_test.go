@@ -39,11 +39,25 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 		name      string
 		flowError error
 		wantError bool
+		silent    bool
 	}{
 		{
 			name:      "successful flow execution",
 			flowError: nil,
 			wantError: false,
+			silent:    true,
+		},
+		{
+			name:      "successful flow execution with output",
+			flowError: nil,
+			wantError: false,
+			silent:    false,
+		},
+		{
+			name:      "flow execution with error",
+			flowError: context.DeadlineExceeded,
+			wantError: true,
+			silent:    true,
 		},
 	}
 
@@ -52,7 +66,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 			cmd := &cobra.Command{
 				Use: "test",
 			}
-			cmd.Flags().Bool("silent", true, "silent flag")
+			cmd.Flags().Bool("silent", tt.silent, "silent flag")
 
 			commandService, err := command.NewService(cmd)
 			if err != nil {

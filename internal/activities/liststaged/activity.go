@@ -52,6 +52,17 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
 		executorCtx.SendRunning("Listing staged files")
 
+		if activityInput == nil {
+			return nil, executor.ErrInputCannotBeNil
+		}
+
+		input, ok := activityInput.(*Input)
+		if !ok {
+			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		}
+
+		_ = input // input is empty struct, but we validate it
+
 		files, err := f.gitService.ReadStagedFiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged files: %w", err)

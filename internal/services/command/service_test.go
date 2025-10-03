@@ -646,3 +646,41 @@ func TestGetStdInWithPipedInput(t *testing.T) {
 		t.Errorf("Expected stdin '%s', got '%s'", expected, stdin)
 	}
 }
+
+func TestGetIntentFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("intent", "", "intent flag")
+	cmd.Flags().Set("intent", "commit")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	intent, err := service.GetIntentFlag()
+	if err != nil {
+		t.Fatalf("GetIntentFlag failed: %v", err)
+	}
+
+	if intent != "commit" {
+		t.Errorf("Expected intent 'commit', got '%s'", intent)
+	}
+}
+
+func TestGetIntentFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetIntentFlag()
+	if err == nil {
+		t.Error("Expected error when intent flag is not defined")
+	}
+}
