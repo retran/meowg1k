@@ -21,7 +21,7 @@ import (
 	"slices"
 	"testing"
 
-	mdLLM "github.com/retran/meowg1k/internal/models/llm"
+	"github.com/retran/meowg1k/internal/services/llm"
 )
 
 func TestNewService(t *testing.T) {
@@ -42,16 +42,16 @@ func TestGetModelInfo(t *testing.T) {
 	if info.MaxContextTokens != 128000 {
 		t.Errorf("Expected MaxContextTokens 128000, got %d", info.MaxContextTokens)
 	}
-	if info.TokenizerType != mdLLM.TokenizerCL100K {
+	if info.TokenizerType != llm.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K, got %s", info.TokenizerType)
 	}
 
 	// Test unknown model
 	unknownInfo := service.GetModelInfo("unknown-model")
-	expected := mdLLM.ModelInfo{
+	expected := llm.ModelInfo{
 		Provider:         "unknown",
 		MaxContextTokens: 8192,
-		TokenizerType:    mdLLM.TokenizerUnknown,
+		TokenizerType:    llm.TokenizerUnknown,
 		Description:      "Unknown model",
 	}
 	if !reflect.DeepEqual(unknownInfo, expected) {
@@ -80,25 +80,25 @@ func TestGetTokenizerType(t *testing.T) {
 
 	// Test CL100K tokenizer
 	tokenizerType := service.GetTokenizerType("gpt-4o")
-	if tokenizerType != mdLLM.TokenizerCL100K {
+	if tokenizerType != llm.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K for gpt-4o, got %s", tokenizerType)
 	}
 
 	// Test Gemini tokenizer
 	tokenizerType = service.GetTokenizerType("gemini-2.5-pro")
-	if tokenizerType != mdLLM.TokenizerGemini {
+	if tokenizerType != llm.TokenizerGemini {
 		t.Errorf("Expected TokenizerGemini for gemini-2.5-pro, got %s", tokenizerType)
 	}
 
 	// Test Llama tokenizer
 	tokenizerType = service.GetTokenizerType("meta-llama/llama-3.3-70b-instruct")
-	if tokenizerType != mdLLM.TokenizerLlama {
+	if tokenizerType != llm.TokenizerLlama {
 		t.Errorf("Expected TokenizerLlama for llama model, got %s", tokenizerType)
 	}
 
 	// Test unknown model
 	tokenizerType = service.GetTokenizerType("unknown-model")
-	if tokenizerType != mdLLM.TokenizerUnknown {
+	if tokenizerType != llm.TokenizerUnknown {
 		t.Errorf("Expected TokenizerUnknown for unknown model, got %s", tokenizerType)
 	}
 }

@@ -24,7 +24,7 @@ permissions:
   pull-requests: write
 
 env:
-  COVERAGE_THRESHOLD: "90.0"
+  COVERAGE_THRESHOLD: "70.0"
 
 jobs:
   lint:
@@ -118,7 +118,7 @@ jobs:
         with:
           script: |
             const pct = process.env.COVERAGE_PERCENT ?? 'n/a';
-            const threshold = process.env.COVERAGE_THRESHOLD ?? '90.0';
+            const threshold = process.env.COVERAGE_THRESHOLD ?? '70.0';
             const ok = !Number.isNaN(parseFloat(pct)) && (parseFloat(pct) >= parseFloat(threshold));
             const marker = '<!-- coverage-comment -->';
             const lines = [

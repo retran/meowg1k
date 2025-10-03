@@ -21,11 +21,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/viper"
 
-	mdConfig "github.com/retran/meowg1k/internal/models/config"
 	"github.com/retran/meowg1k/internal/services/command"
+	"github.com/retran/meowg1k/internal/services/llm"
 )
 
 // Configuration errors
@@ -40,15 +41,174 @@ const (
 	configFileName   = "config"
 )
 
+// Config represents the complete meowg1k configuration.
+type Config struct {
+	// Profiles define reusable LLM request configurations
+	Profiles map[string]*ProfileDefinition `yaml:"profiles" mapstructure:"profiles"`
+
+	// Generate command configuration
+	Generate *GenerateConfig `yaml:"generate" mapstructure:"generate"`
+
+	// Filter configuration for pre-analysis noise filtering
+	Filter *FilterConfig `yaml:"filter" mapstructure:"filter"`
+
+	// Summarize engine configuration ("Map" phase)
+	Summarize *SummarizeConfig `yaml:"summarize" mapstructure:"summarize"`
+
+	// Commit command configuration ("Reduce" phase)
+	Commit *CommandConfig `yaml:"commit" mapstructure:"commit"`
+
+	// PR command configuration ("Reduce" phase)
+	PR *CommandConfig `yaml:"pr" mapstructure:"pr"`
+}
+
+// ProfileDefinition defines a reusable LLM configuration that can be referenced by different commands.
+// Profiles allow you to define provider settings once and reuse them across tasks.
+type ProfileDefinition struct {
+	// Provider specifies the LLM provider to use
+	Provider string `yaml:"provider" mapstructure:"provider"`
+
+	// Model specifies the model name (optional, uses smart defaults if omitted)
+	Model string `yaml:"model" mapstructure:"model"`
+
+	// MaxInputTokens sets the maximum input token limit (optional, defaults to model limits)
+	MaxInputTokens int `yaml:"maxInputTokens" mapstructure:"maxInputTokens"`
+
+	// MaxOutputTokens sets the maximum output token limit (optional, defaults to model limits)
+	MaxOutputTokens int `yaml:"maxOutputTokens" mapstructure:"maxOutputTokens"`
+
+	// Timeout sets the request timeout duration (optional, defaults to 5m)
+	Timeout time.Duration `yaml:"timeout" mapstructure:"timeout"`
+
+	// BaseURL sets the API base URL (required for "llama" and "openai-compatible" providers)
+	BaseURL string `yaml:"baseURL" mapstructure:"baseURL"`
+
+	// APIKeyEnv specifies the environment variable containing the API key (optional, uses smart defaults)
+	APIKeyEnv string `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
+
+	// TokenizerType specifies the tokenizer to use (optional, auto-detected from model)
+	TokenizerType llm.TokenizerType `yaml:"tokenizerType" mapstructure:"tokenizerType"`
+
+	// RequestsPerMinute sets the maximum requests per minute (0 = unlimited)
+	RequestsPerMinute int `yaml:"requestsPerMinute" mapstructure:"requestsPerMinute"`
+
+	// TokensPerMinute sets the maximum tokens per minute (0 = unlimited)
+	TokensPerMinute int `yaml:"tokensPerMinute" mapstructure:"tokensPerMinute"`
+
+	// RequestsPerDay sets the maximum requests per day (0 = unlimited)
+	RequestsPerDay int `yaml:"requestsPerDay" mapstructure:"requestsPerDay"`
+}
+
+// GenerateConfig holds configuration for the generate command.
+type GenerateConfig struct {
+	// Default settings used when no task is specified
+	Default *GenerateDefault `yaml:"default" mapstructure:"default"`
+
+	// Tasks define named generation tasks with specific prompts and settings
+	Tasks map[string]*GenerateTask `yaml:"tasks" mapstructure:"tasks"`
+}
+
+// GenerateDefault defines default settings for the generate command.
+type GenerateDefault struct {
+	// Profile references a profile defined in the profiles section
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// SystemPrompt sets the default system prompt for all generation requests
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+}
+
+// GenerateTask defines a specific generation task.
+// Tasks allow predefined prompts and settings for common use cases.
+type GenerateTask struct {
+	// Profile references a profile defined in the profiles section (optional)
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// SystemPrompt overrides the default system prompt for this task (optional)
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+
+	// UserPrompt sets the task-specific user prompt
+	UserPrompt string `yaml:"userPrompt" mapstructure:"userPrompt"`
+}
+
+// FilterConfig defines files to ignore during analysis.
+type FilterConfig struct {
+	// Ignore specifies glob patterns for files to exclude from analysis
+	Ignore []string `yaml:"ignore" mapstructure:"ignore"`
+}
+
+// Strategy defines summarization strategy with its settings.
+type Strategy struct {
+	// Type specifies the summarization approach
+	Type string `yaml:"type" mapstructure:"type"`
+
+	// IncludeOriginalFile determines whether to send the original file content
+	IncludeOriginalFile bool `yaml:"includeOriginalFile" mapstructure:"includeOriginalFile"`
+
+	// IncludeChangedFile determines whether to send the changed file content
+	IncludeChangedFile bool `yaml:"includeChangedFile" mapstructure:"includeChangedFile"`
+}
+
+// SummarizeConfig holds configuration for the summarization engine.
+// Used during the "Map" phase of change analysis.
+type SummarizeConfig struct {
+	// Default summarization settings used when no rule matches
+	Default *SummarizeDefault `yaml:"default" mapstructure:"default"`
+
+	// Rules define file-specific summarization behavior
+	Rules []*SummarizeRule `yaml:"rules" mapstructure:"rules"`
+}
+
+// SummarizeDefault defines default summarization settings.
+type SummarizeDefault struct {
+	// Profile references a profile defined in the profiles section
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// Strategy defines how files should be processed
+	Strategy *Strategy `yaml:"strategy" mapstructure:"strategy"`
+
+	// SystemPrompt sets the default system prompt for summarization
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+}
+
+// SummarizeRule defines file-specific summarization rules.
+// Rules allow customized processing based on file patterns.
+type SummarizeRule struct {
+	// Match specifies a gitignore-style pattern for files this rule applies to.
+	// Supports glob patterns like *.go, **/*.go, internal/**, etc.
+	Match string `yaml:"match" mapstructure:"match"`
+
+	// Profile references a profile defined in the profiles section (optional)
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// Strategy defines how matching files should be processed (optional)
+	Strategy *Strategy `yaml:"strategy" mapstructure:"strategy"`
+
+	// SystemPrompt overrides the default system prompt for matching files (optional)
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+
+	// Skip indicates whether to skip processing matching files entirely
+	Skip bool `yaml:"skip" mapstructure:"skip"`
+}
+
+// CommandConfig defines configuration for commit and PR commands.
+// Used during the "Reduce" phase of change analysis.
+type CommandConfig struct {
+	// Profile references a profile defined in the profiles section
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// SystemPrompt sets the system prompt for the command
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+}
+
 // Service provides configuration loading and management capabilities.
 type Service interface {
 	// GetConfig returns the loaded configuration.
-	GetConfig() *mdConfig.Config
+	GetConfig() *Config
 }
 
 // serviceImpl is the concrete implementation of the config service.
 type serviceImpl struct {
-	config *mdConfig.Config
+	config *Config
 }
 
 // Compile-time interface satisfaction check
@@ -74,8 +234,7 @@ func NewService(commandSvc command.Service) (Service, error) {
 		return nil, err
 	}
 
-	// Unmarshal into config struct
-	var cfg mdConfig.Config
+	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
@@ -187,6 +346,6 @@ func getConfigPaths() []string {
 }
 
 // GetConfig returns the loaded configuration.
-func (s *serviceImpl) GetConfig() *mdConfig.Config {
+func (s *serviceImpl) GetConfig() *Config {
 	return s.config
 }

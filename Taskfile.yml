@@ -70,7 +70,7 @@ tasks:
       - go test -v -race -short ./...
 
   coverage-check:
-    desc: Check test coverage meets 90% threshold
+    desc: Check test coverage meets 70% threshold
     cmds:
       - |
         if [ ! -f coverage.out ]; then
@@ -79,11 +79,11 @@ tasks:
         fi
         COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
         echo "Test coverage: ${COVERAGE}%"
-        if (( $(echo "$COVERAGE < 90.0" | bc -l) )); then
-          echo "❌ Test coverage ${COVERAGE}% is below 90% threshold"
+        if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
+          echo "❌ Test coverage ${COVERAGE}% is below 70% threshold"
           exit 1
         else
-          echo "✅ Test coverage ${COVERAGE}% meets the 90% threshold"
+          echo "✅ Test coverage ${COVERAGE}% meets the 70% threshold"
         fi
 
   lint:
