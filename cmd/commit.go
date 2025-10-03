@@ -25,10 +25,16 @@ import (
 var commitCmd = &cobra.Command{
 	Use:     "commit",
 	Aliases: []string{"c"},
-	Short:   "Generate commit message based on staged changes in repository",
-	Long: `Generate a commit message based on staged changes in the repository.
+	Short:   "Generate commit message based on staged changes or branch diff",
+	Long: `Generate a commit message based on staged changes or branch diff.
 
-The tool analyzes staged files, summarizes changes, and generates a conventional commit message.
+By default, the tool analyzes staged files and generates a commit message.
+
+For squash commits, specify the target branch to generate a commit message
+based on the diff between the current branch and the target branch:
+
+   meow commit --target-branch dev
+
 You can provide your intent or context in two ways:
 
 1. Via command line flag:
@@ -56,4 +62,5 @@ The intent will be included in the prompt to help generate a more accurate commi
 func init() {
 	rootCmd.AddCommand(commitCmd)
 	commitCmd.Flags().StringP("intent", "i", "", "Developer intent for the commit (can also be provided via stdin)")
+	commitCmd.Flags().StringP("target-branch", "t", "", "Target branch to compare against for squash commit (enables squash mode)")
 }

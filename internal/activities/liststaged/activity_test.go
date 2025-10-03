@@ -26,7 +26,9 @@ import (
 
 // mockGitService is a mock implementation of git.Service for testing.
 type mockGitService struct {
-	stagedFiles []string
+	stagedFiles   []string
+	branchFiles   []string
+	currentBranch string
 }
 
 func (m *mockGitService) ReadStagedFiles() ([]string, error) {
@@ -42,6 +44,18 @@ func (m *mockGitService) ReadStagedFileContent(filePath string) (string, error) 
 }
 
 func (m *mockGitService) ReadOriginalFileContent(filePath string) (string, error) {
+	return "", nil
+}
+
+func (m *mockGitService) GetCurrentBranch() (string, error) {
+	return m.currentBranch, nil
+}
+
+func (m *mockGitService) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
+	return m.branchFiles, nil
+}
+
+func (m *mockGitService) GetBranchDiff(filePath, targetBranch string) (string, error) {
 	return "", nil
 }
 

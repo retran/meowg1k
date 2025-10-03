@@ -65,6 +65,10 @@ func (m *mockCommandService) GetSilentFlag() (bool, error) {
 	return false, nil
 }
 
+func (m *mockCommandService) GetTargetBranchFlag() (string, error) {
+	return "", nil
+}
+
 func (m *mockCommandService) GetStdIn() string {
 	return ""
 }

@@ -20,8 +20,11 @@ package app
 import (
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
+	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
+	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
@@ -55,19 +58,28 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 
 	gatewayFactory := gateway.NewFactory()
 
+	// Activities for regular staged commit mode
 	listStagedActivityFactory := liststaged.NewFactory(gitService)
-	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
 	fetchFileDiffActivityFactory := fetchfilediff.NewFactory(gitService)
-
 	fetchAllDiffsFactory := fetchalldiffs.NewFactory(fetchFileDiffActivityFactory)
+
+	// Activities for squash/branch diff mode
+	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)
+	fetchBranchFileDiffActivityFactory := fetchbranchfilediff.NewFactory(gitService)
+	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+
+	// Common activities
+	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
 	summarizeFileFactory := summarizefile.NewFactory(gatewayFactory, summarizeService)
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
 	composeCommitFactory := composecommit.NewFactory(gatewayFactory)
 
 	flowFactory := commit.NewFactory(
 		listStagedActivityFactory,
+		listBranchFilesActivityFactory,
 		applyFiltersActivityFactory,
 		fetchAllDiffsFactory,
+		fetchAllBranchDiffsFactory,
 		summarizeAllFactory,
 		composeCommitFactory,
 		commitConfigService,

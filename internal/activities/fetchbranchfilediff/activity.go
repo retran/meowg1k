@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchfilediff contains the activity to fetch the diff for a staged file from a git repository.
-package fetchfilediff
+// Package fetchbranchfilediff contains the activity to fetch the diff for a file in branch compared to target branch.
+package fetchbranchfilediff
 
 import (
 	"context"
@@ -26,17 +26,26 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Input defines the input structure for the FetchFileDiff activity.
+// Input defines the input structure for the FetchBranchFileDiff activity.
 type Input struct {
-	Filename string
+	Filename     string
+	TargetBranch string
 }
 
-// Factory creates instances of the FetchFileDiff activity with injected dependencies.
+// Output defines the output structure for the FetchBranchFileDiff activity.
+type Output struct {
+	Filename            string
+	Change              string
+	OriginalFileContent string
+	ChangedFileContent  string
+}
+
+// Factory creates instances of the FetchBranchFileDiff activity with injected dependencies.
 type Factory struct {
 	gitService git.Service
 }
 
-// NewFactory creates a new FetchFileDiff activity factory with injected services.
+// NewFactory creates a new FetchBranchFileDiff activity factory with injected services.
 func NewFactory(
 	gitService git.Service,
 ) *Factory {
@@ -45,7 +54,7 @@ func NewFactory(
 	}
 }
 
-// NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
+// NewActivity creates and returns the FetchBranchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
 		if activityInput == nil {
@@ -57,44 +66,46 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
-		executorCtx.SendRunning("Fetching diff")
+		executorCtx.SendRunning("Fetching branch diff")
 
-		change, err := f.gitService.ReadStagedChanges(input.Filename)
+		change, err := f.gitService.GetBranchDiff(input.Filename, input.TargetBranch)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read staged changes in %s: %w", input.Filename, err)
+			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
+		// For branch diff, we get content from target branch (base) and current HEAD
 		originalFileContent, err := f.gitService.ReadOriginalFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
-				originalFileContent = "" // File is new or was deleted
+				originalFileContent = "" // File is new
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 			}
 		}
 
+		// For branch diff, "staged" content is actually current HEAD content
 		stagedFileContent, err := f.gitService.ReadStagedFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") {
-				// File was deleted - return with empty staged content but include original content and diff
+				// File was deleted - return with empty staged content
 				executorCtx.SendCompleted("Deleted")
-				return &git.FileChange{
+				return &Output{
 					Filename:            input.Filename,
 					Change:              change,
 					OriginalFileContent: originalFileContent,
-					StagedFileContent:   "", // Empty for deleted files
+					ChangedFileContent:  "", // Empty for deleted files
 				}, nil
 			}
-			return nil, fmt.Errorf("failed to read staged file content of %s: %w", input.Filename, err)
+			return nil, fmt.Errorf("failed to read current file content of %s: %w", input.Filename, err)
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &git.FileChange{
+		return &Output{
 			Filename:            input.Filename,
 			Change:              change,
 			OriginalFileContent: originalFileContent,
-			StagedFileContent:   stagedFileContent,
+			ChangedFileContent:  stagedFileContent,
 		}, nil
 	}
 }

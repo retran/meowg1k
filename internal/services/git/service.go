@@ -31,12 +31,23 @@ var (
 	ErrGitCommandFailed = errors.New("git command failed")
 )
 
+// FileChange defines the output structure for the FetchFileDiff activity.
+type FileChange struct {
+	Filename            string
+	Change              string
+	OriginalFileContent string
+	StagedFileContent   string
+}
+
 // Service provides Git repository operations.
 type Service interface {
 	ReadStagedFiles() ([]string, error)
 	ReadStagedChanges(filePath string) (string, error)
 	ReadStagedFileContent(filePath string) (string, error)
 	ReadOriginalFileContent(filePath string) (string, error)
+	GetCurrentBranch() (string, error)
+	GetChangedFilesInBranch(targetBranch string) ([]string, error)
+	GetBranchDiff(filePath, targetBranch string) (string, error)
 }
 
 // serviceImpl implements GitService.
@@ -118,4 +129,54 @@ func (g *serviceImpl) ReadOriginalFileContent(filePath string) (string, error) {
 	defer func() { <-g.semaphore }()
 
 	return g.runGitCommand("show", "HEAD:"+filePath)
+}
+
+// GetCurrentBranch returns the name of the current Git branch.
+func (g *serviceImpl) GetCurrentBranch() (string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	branch, err := g.runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+	return strings.TrimSpace(branch), nil
+}
+
+// GetChangedFilesInBranch returns the list of files that differ between the current branch and the target branch.
+func (g *serviceImpl) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("diff", "--name-only", targetBranch+"...HEAD")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
+	}
+
+	if output == "" {
+		return []string{}, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			files = append(files, trimmed)
+		}
+	}
+
+	return files, nil
+}
+
+// GetBranchDiff returns the diff of a specific file between the current branch and the target branch.
+func (g *serviceImpl) GetBranchDiff(filePath, targetBranch string) (string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	diff, err := g.runGitCommand("diff", "--unified=0", targetBranch+"...HEAD", "--", filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch diff for %s: %w", filePath, err)
+	}
+	return diff, nil
 }

@@ -49,6 +49,9 @@ type Service interface {
 	// GetIntentFlag retrieves the intent flag from command flags.
 	GetIntentFlag() (string, error)
 
+	// GetTargetBranchFlag retrieves the target-branch flag from command flags.
+	GetTargetBranchFlag() (string, error)
+
 	// GetStdIn retrieves the standard input sent to the command.
 	GetStdIn() string
 }
@@ -123,6 +126,11 @@ func (s *serviceImpl) GetSilentFlag() (bool, error) {
 // GetIntentFlag retrieves the intent flag from command flags.
 func (s *serviceImpl) GetIntentFlag() (string, error) {
 	return s.cmd.Flags().GetString("intent")
+}
+
+// GetTargetBranchFlag retrieves the target-branch flag from command flags.
+func (s *serviceImpl) GetTargetBranchFlag() (string, error) {
+	return s.cmd.Flags().GetString("target-branch")
 }
 
 // GetStdIn retrieves the standard input sent to the command.

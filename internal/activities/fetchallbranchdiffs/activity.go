@@ -14,44 +14,45 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchalldiffs contains the parent activity to fetch diffs for multiple files in parallel.
-package fetchalldiffs
+// Package fetchallbranchdiffs contains the parent activity to fetch branch diffs for multiple files in parallel.
+package fetchallbranchdiffs
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
+	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// Input defines the input structure for the FetchAllDiffs activity.
+// Input defines the input structure for the FetchAllBranchDiffs activity.
 type Input struct {
-	Files []string
+	Files        []string
+	TargetBranch string
 }
 
-// Output defines the output structure for the FetchAllDiffs activity.
+// Output defines the output structure for the FetchAllBranchDiffs activity.
 type Output struct {
 	Changes []*git.FileChange
 }
 
-// Factory creates instances of the FetchAllDiffs activity with injected dependencies.
+// Factory creates instances of the FetchAllBranchDiffs activity with injected dependencies.
 type Factory struct {
-	fetchFileDiffActivityFactory executor.ActivityFactory
+	fetchBranchFileDiffActivityFactory executor.ActivityFactory
 }
 
-// NewFactory creates a new FetchAllDiffs activity factory with injected services.
+// NewFactory creates a new FetchAllBranchDiffs activity factory with injected services.
 func NewFactory(
-	fetchFileDiffActivityFactory executor.ActivityFactory,
+	fetchBranchFileDiffActivityFactory executor.ActivityFactory,
 ) *Factory {
 	return &Factory{
-		fetchFileDiffActivityFactory: fetchFileDiffActivityFactory,
+		fetchBranchFileDiffActivityFactory: fetchBranchFileDiffActivityFactory,
 	}
 }
 
-// NewActivity creates and returns the FetchAllDiffs activity function with added progress reporting.
+// NewActivity creates and returns the FetchAllBranchDiffs activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
 		if activityInput == nil {
@@ -63,13 +64,14 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files", len(input.Files)))
+		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
 
 		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
 		for _, file := range input.Files {
-			fetchFileDiff := f.fetchFileDiffActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchFileDiff, &fetchfilediff.Input{
-				Filename: file,
+			fetchBranchFileDiff := f.fetchBranchFileDiffActivityFactory.NewActivity()
+			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchBranchFileDiff, &fetchbranchfilediff.Input{
+				Filename:     file,
+				TargetBranch: input.TargetBranch,
 			})
 			readChangesFutures = append(readChangesFutures, future)
 		}
@@ -77,7 +79,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
 		for _, err := range errs {
 			if err != nil {
-				return nil, fmt.Errorf("failed to read staged changes: %w", err)
+				return nil, fmt.Errorf("failed to read branch diffs: %w", err)
 			}
 		}
 

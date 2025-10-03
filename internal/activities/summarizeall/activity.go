@@ -21,15 +21,15 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
+	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the input structure for the SummarizeAll activity.
 type Input struct {
-	Changes []*fetchfilediff.Output
+	Changes []*git.FileChange
 }
 
 // Output defines the output structure for the SummarizeAll activity.
