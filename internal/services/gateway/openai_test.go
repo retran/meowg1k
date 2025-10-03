@@ -92,6 +92,29 @@ func handleOpenAIEmbeddings(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func TestNewOpenAIGateway(t *testing.T) {
+	t.Run("with API key", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "test-api-key")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil")
+		}
+	})
+
+	t.Run("without API key", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil even without API key")
+		}
+	})
+
+	t.Run("with custom base URL", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://custom.example.com/v1", "test-key")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil with custom URL")
+		}
+	})
+}
+
 func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	// Create mock server
 	mockServer := createOpenAIMockServer()

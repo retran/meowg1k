@@ -56,6 +56,54 @@ func TestGetLogDir(t *testing.T) {
 	}
 }
 
+func TestGetLogDirWithXDGCacheHome(t *testing.T) {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("XDG_CACHE_HOME test only applies to Linux/Unix systems")
+	}
+
+	// Save original XDG_CACHE_HOME
+	originalXDG := os.Getenv("XDG_CACHE_HOME")
+	defer os.Setenv("XDG_CACHE_HOME", originalXDG)
+
+	// Test with custom XDG_CACHE_HOME
+	customCache := "/tmp/custom_cache"
+	os.Setenv("XDG_CACHE_HOME", customCache)
+
+	dir, err := getLogDir()
+	if err != nil {
+		t.Errorf("getLogDir returned error: %v", err)
+	}
+
+	expected := filepath.Join(customCache, "meow", "logs")
+	if dir != expected {
+		t.Errorf("expected %s, got %s", expected, dir)
+	}
+}
+
+func TestGetLogDirWithLocalAppData(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("LOCALAPPDATA test only applies to Windows")
+	}
+
+	// Save original LOCALAPPDATA
+	originalLocalAppData := os.Getenv("LOCALAPPDATA")
+	defer os.Setenv("LOCALAPPDATA", originalLocalAppData)
+
+	// Test with custom LOCALAPPDATA
+	customLocalAppData := "C:\\CustomAppData"
+	os.Setenv("LOCALAPPDATA", customLocalAppData)
+
+	dir, err := getLogDir()
+	if err != nil {
+		t.Errorf("getLogDir returned error: %v", err)
+	}
+
+	expected := filepath.Join(customLocalAppData, "meow", "logs")
+	if dir != expected {
+		t.Errorf("expected %s, got %s", expected, dir)
+	}
+}
+
 func TestNewAppContainer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
