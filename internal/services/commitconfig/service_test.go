@@ -21,36 +21,12 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
-)
-
-// mockConfigService is a mock implementation of config.Service for testing.
-type mockConfigService struct {
-	cfg *config.Config
-}
-
-func (m *mockConfigService) GetConfig() *config.Config {
-	return m.cfg
-}
-
-// mockProfileService is a mock implementation of profile.Service for testing.
-type mockProfileService struct {
-	profile *profile.ResolvedProfile
-	err     error
-}
-
-func (m *mockProfileService) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
-	return m.profile, m.err
-}
-
-// Compile-time checks
-var (
-	_ config.Service  = (*mockConfigService)(nil)
-	_ profile.Service = (*mockProfileService)(nil)
+	"github.com/retran/meowg1k/internal/testutil/servicemocks"
 )
 
 func TestNewService(t *testing.T) {
-	configSvc := &mockConfigService{}
-	profileSvc := &mockProfileService{}
+	configSvc := &servicemocks.MockConfigService{}
+	profileSvc := &servicemocks.MockProfileService{}
 	service := NewService(configSvc, profileSvc)
 
 	if service == nil {
@@ -64,16 +40,16 @@ func TestGetCommitConfig(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &mockConfigService{
-		cfg: &config.Config{
+	configSvc := &servicemocks.MockConfigService{
+		Cfg: &config.Config{
 			Commit: &config.CommandConfig{
 				Profile:      "test",
 				SystemPrompt: "Test prompt",
 			},
 		},
 	}
-	profileSvc := &mockProfileService{
-		profile: resolvedProfile,
+	profileSvc := &servicemocks.MockProfileService{
+		Profile: resolvedProfile,
 	}
 
 	service := NewService(configSvc, profileSvc)
@@ -98,13 +74,13 @@ func TestGetCommitConfigDefault(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &mockConfigService{
-		cfg: &config.Config{
+	configSvc := &servicemocks.MockConfigService{
+		Cfg: &config.Config{
 			Commit: nil,
 		},
 	}
-	profileSvc := &mockProfileService{
-		profile: resolvedProfile,
+	profileSvc := &servicemocks.MockProfileService{
+		Profile: resolvedProfile,
 	}
 
 	service := NewService(configSvc, profileSvc)
@@ -121,11 +97,11 @@ func TestGetCommitConfigDefault(t *testing.T) {
 }
 
 func TestGetCommitConfigProfileError(t *testing.T) {
-	configSvc := &mockConfigService{
-		cfg: &config.Config{},
+	configSvc := &servicemocks.MockConfigService{
+		Cfg: &config.Config{},
 	}
-	profileSvc := &mockProfileService{
-		err: profile.ErrProfileNotFound,
+	profileSvc := &servicemocks.MockProfileService{
+		Err: profile.ErrProfileNotFound,
 	}
 
 	service := NewService(configSvc, profileSvc)

@@ -20,19 +20,8 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/testutil/servicemocks"
 )
-
-// mockConfigService is a mock implementation of config.Service for testing.
-type mockConfigService struct {
-	cfg *config.Config
-}
-
-// Compile-time check that mockConfigService implements config.Service
-var _ config.Service = (*mockConfigService)(nil)
-
-func (m *mockConfigService) GetConfig() *config.Config {
-	return m.cfg
-}
 
 func TestNewService(t *testing.T) {
 	cfg := &config.Config{
@@ -40,7 +29,7 @@ func TestNewService(t *testing.T) {
 			Ignore: []string{"*.tmp", ".git/**"},
 		},
 	}
-	configSvc := &mockConfigService{cfg: cfg}
+	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
 
 	service := NewService(configSvc)
 
@@ -53,7 +42,7 @@ func TestNewServiceNilFilter(t *testing.T) {
 	cfg := &config.Config{
 		Filter: nil,
 	}
-	configSvc := &mockConfigService{cfg: cfg}
+	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
 
 	service := NewService(configSvc)
 
@@ -68,7 +57,7 @@ func TestIsIgnoredFile(t *testing.T) {
 			Ignore: []string{"*.tmp", ".git/**"},
 		},
 	}
-	configSvc := &mockConfigService{cfg: cfg}
+	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
 
 	service := NewService(configSvc)
 
@@ -96,7 +85,7 @@ func TestIsIgnoredFileNoPatterns(t *testing.T) {
 			Ignore: []string{},
 		},
 	}
-	configSvc := &mockConfigService{cfg: cfg}
+	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
 
 	service := NewService(configSvc)
 

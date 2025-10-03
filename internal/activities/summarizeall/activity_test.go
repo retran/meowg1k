@@ -14,34 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fetchfilediff
+package summarizeall
 
 import (
 	"context"
 	"testing"
 
+	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 func TestNewFactory(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
-
+	factory := NewFactory(nil)
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
 func TestActivityNilInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
+	factory := NewFactory(nil)
 	activity := factory.NewActivity()
-
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-
 	_, err := activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
@@ -49,39 +45,49 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivityInvalidInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
+	factory := NewFactory(nil)
 	activity := factory.NewActivity()
-
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-
 	_, err := activity(ctx, execCtx, "invalid")
 	if err == nil {
 		t.Error("Expected error for invalid input type")
 	}
 }
 
-func TestActivitySuccess(t *testing.T) {
-	gitSvc := &testutil.MockGitService{
-		ReadStagedChangesFunc: func(filePath string) (string, error) {
-			return "diff content", nil
-		},
-		ReadStagedFileContentFunc: func(filePath string) (string, error) {
-			return "new content", nil
-		},
-		ReadOriginalFileContentFunc: func(filePath string) (string, error) {
-			return "old content", nil
-		},
-	}
-	factory := NewFactory(gitSvc)
-	activity := factory.NewActivity()
+type mockActivityFactory struct{}
 
+func (m *mockActivityFactory) NewActivity() executor.Activity[any, any] {
+	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
+		return &summarizefile.Output{
+			Filename: "test.go",
+			Summary:  "test summary",
+			Skipped:  false,
+		}, nil
+	}
+}
+
+type mockSummarizeFactory struct{}
+
+func (m *mockSummarizeFactory) NewActivity() executor.Activity[any, any] {
+	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
+		return &summarizefile.Output{
+			Filename: "test.go",
+			Summary:  "test summary",
+			Skipped:  false,
+		}, nil
+	}
+}
+
+func TestActivitySuccess(t *testing.T) {
+	mockFactory := &mockSummarizeFactory{}
+	factory := NewFactory((*summarizefile.Factory)(nil))
+	activity := factory.NewActivity()
 	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
+	execCtx := executor.NewContext("test", nil, &testutil.MockExecutor{})
 
 	input := &Input{
-		Filename: "test.go",
+		Changes: []*git.FileChange{},
 	}
 
 	result, err := activity(ctx, execCtx, input)
@@ -89,16 +95,14 @@ func TestActivitySuccess(t *testing.T) {
 		t.Errorf("Activity failed: %v", err)
 	}
 
-	output, ok := result.(*git.FileChange)
+	output, ok := result.(*Output)
 	if !ok {
-		t.Errorf("Expected *git.FileChange, got %T", result)
+		t.Errorf("Expected *Output, got %T", result)
 	}
 
-	if output.Filename != "test.go" {
-		t.Errorf("Expected filename 'test.go', got '%s'", output.Filename)
+	if output.Summaries == nil {
+		t.Error("Expected summaries to be non-nil")
 	}
 
-	if output.Change != "diff content" {
-		t.Errorf("Expected change 'diff content', got '%s'", output.Change)
-	}
+	_ = mockFactory
 }

@@ -14,34 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fetchfilediff
+package listbranchfiles
 
 import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 func TestNewFactory(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
-
+	factory := NewFactory(nil)
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
 func TestActivityNilInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
+	factory := NewFactory(nil)
 	activity := factory.NewActivity()
-
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-
 	_, err := activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
@@ -49,13 +43,10 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivityInvalidInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
-	factory := NewFactory(gitSvc)
+	factory := NewFactory(nil)
 	activity := factory.NewActivity()
-
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-
 	_, err := activity(ctx, execCtx, "invalid")
 	if err == nil {
 		t.Error("Expected error for invalid input type")
@@ -64,24 +55,17 @@ func TestActivityInvalidInput(t *testing.T) {
 
 func TestActivitySuccess(t *testing.T) {
 	gitSvc := &testutil.MockGitService{
-		ReadStagedChangesFunc: func(filePath string) (string, error) {
-			return "diff content", nil
-		},
-		ReadStagedFileContentFunc: func(filePath string) (string, error) {
-			return "new content", nil
-		},
-		ReadOriginalFileContentFunc: func(filePath string) (string, error) {
-			return "old content", nil
+		GetChangedFilesInBranchFunc: func(targetBranch string) ([]string, error) {
+			return []string{"file1.go", "file2.go"}, nil
 		},
 	}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
-
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
-		Filename: "test.go",
+		TargetBranch: "main",
 	}
 
 	result, err := activity(ctx, execCtx, input)
@@ -89,16 +73,12 @@ func TestActivitySuccess(t *testing.T) {
 		t.Errorf("Activity failed: %v", err)
 	}
 
-	output, ok := result.(*git.FileChange)
+	output, ok := result.(*Output)
 	if !ok {
-		t.Errorf("Expected *git.FileChange, got %T", result)
+		t.Errorf("Expected *Output, got %T", result)
 	}
 
-	if output.Filename != "test.go" {
-		t.Errorf("Expected filename 'test.go', got '%s'", output.Filename)
-	}
-
-	if output.Change != "diff content" {
-		t.Errorf("Expected change 'diff content', got '%s'", output.Change)
+	if len(output.Files) != 2 {
+		t.Errorf("Expected 2 files, got %d", len(output.Files))
 	}
 }

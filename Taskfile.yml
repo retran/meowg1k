@@ -58,9 +58,11 @@ tasks:
       - go vet ./...
 
   test:
-    desc: Run tests with coverage
+    desc: Run tests with coverage (excluding testutil packages)
     cmds:
-      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - |
+        COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
+        go test -v -race -coverpkg="$COVERPKGS" -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -html=coverage.out -o coverage.html
       - task: coverage-check
 
@@ -70,7 +72,7 @@ tasks:
       - go test -v -race -short ./...
 
   coverage-check:
-    desc: Check test coverage meets 70% threshold
+    desc: Check test coverage meets 75% threshold (excluding testutil)
     cmds:
       - |
         if [ ! -f coverage.out ]; then
@@ -78,12 +80,12 @@ tasks:
           exit 1
         fi
         COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Test coverage: ${COVERAGE}%"
-        if (( $(echo "$COVERAGE < 70.0" | bc -l) )); then
-          echo "❌ Test coverage ${COVERAGE}% is below 70% threshold"
+        echo "Test coverage: ${COVERAGE}% (excluding testutil packages)"
+        if (( $(echo "$COVERAGE < 75.0" | bc -l) )); then
+          echo "❌ Test coverage ${COVERAGE}% is below 75% threshold"
           exit 1
         else
-          echo "✅ Test coverage ${COVERAGE}% meets the 70% threshold"
+          echo "✅ Test coverage ${COVERAGE}% meets the 75% threshold"
         fi
 
   lint:
