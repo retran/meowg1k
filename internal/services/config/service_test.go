@@ -479,3 +479,107 @@ generate:
 		t.Errorf("Expected user override, got %s", config.Profiles["system"].Model)
 	}
 }
+
+func TestNewServiceWithInvalidYAMLInPrimaryConfig(t *testing.T) {
+	// Test handling of invalid YAML in primary config location
+
+	// Save original environment variables
+	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	// Create temporary directory and invalid config file
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "meowg1k")
+	os.MkdirAll(configDir, 0o755)
+
+	configPath := filepath.Join(configDir, "config.yaml")
+	invalidContent := `profiles:
+  test:
+    provider: "openai"
+	invalid_indent: "broken yaml"
+`
+	os.WriteFile(configPath, []byte(invalidContent), 0o644)
+
+	// Set environment to use this config
+	os.Setenv("XDG_CONFIG_DIRS", tempDir)
+	os.Setenv("XDG_CONFIG_HOME", "/nonexistent")
+	os.Setenv("HOME", "/nonexistent")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	_, err = NewService(commandSvc)
+	if err == nil {
+		t.Error("Expected error when primary config has invalid YAML")
+	}
+}
+
+func TestNewServiceWithInvalidYAMLInSecondaryConfig(t *testing.T) {
+	// Test handling of invalid YAML in secondary config (merge scenario)
+
+	// Save original environment variables
+	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	// Create temporary directories
+	tempDir := t.TempDir()
+
+	// Create valid primary config
+	primaryDir := filepath.Join(tempDir, "primary", "meowg1k")
+	os.MkdirAll(primaryDir, 0o755)
+	primaryPath := filepath.Join(primaryDir, "config.yaml")
+	primaryContent := `profiles:
+  primary:
+    provider: "openai"
+    model: "gpt-4"
+`
+	os.WriteFile(primaryPath, []byte(primaryContent), 0o644)
+
+	// Create invalid secondary config
+	secondaryDir := filepath.Join(tempDir, "secondary", "meowg1k")
+	os.MkdirAll(secondaryDir, 0o755)
+	secondaryPath := filepath.Join(secondaryDir, "config.yaml")
+	invalidContent := `profiles:
+  secondary:
+    provider: "anthropic"
+	bad_indentation: "broken"
+`
+	os.WriteFile(secondaryPath, []byte(invalidContent), 0o644)
+
+	// Set environment to load primary first, then try to merge secondary
+	os.Setenv("XDG_CONFIG_DIRS", filepath.Join(tempDir, "primary"))
+	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "secondary"))
+	os.Setenv("HOME", "")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	_, err = NewService(commandSvc)
+	if err == nil {
+		t.Error("Expected error when secondary config has invalid YAML")
+	}
+}

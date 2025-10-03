@@ -23,8 +23,6 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
-
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 var (
@@ -39,8 +37,7 @@ type openaiGateway struct {
 	client *openai.Client
 }
 
-// newOpenAIGateway creates and initializes a new unified OpenAIGateway.
-// It sets up the OpenAI client with the given base URL and API key.
+// newOpenAIGateway creates and initializes a new OpenAI-compatible gateway.
 func newOpenAIGateway(baseURL, apiKey string) Gateway {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
@@ -58,7 +55,7 @@ func newOpenAIGateway(baseURL, apiKey string) Gateway {
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
 func (g *openaiGateway) GenerateContent(
 	ctx context.Context,
-	request *mdGateway.GenerateContentRequest,
+	request *GenerateContentRequest,
 ) (string, error) {
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
@@ -82,8 +79,8 @@ func (g *openaiGateway) GenerateContent(
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
 func (g *openaiGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *mdGateway.ComputeEmbeddingsRequest,
-) ([]mdGateway.Embedding, error) {
+	request *ComputeEmbeddingsRequest,
+) ([]Embedding, error) {
 	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.Chunks(),
@@ -91,19 +88,18 @@ func (g *openaiGateway) ComputeEmbeddings(
 		Model: request.Model(),
 	}
 
-	// Set dimensions if specified
 	if request.Dimensions() > 0 {
 		params.Dimensions = openai.Int(int64(request.Dimensions()))
 	}
 
 	response, err := g.client.Embeddings.New(ctx, params)
 	if err != nil {
-		return []mdGateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
-	embeddings := make([]mdGateway.Embedding, 0, len(response.Data))
+	embeddings := make([]Embedding, 0, len(response.Data))
 	for i := range response.Data {
-		embeddings = append(embeddings, mdGateway.Embedding(response.Data[i].Embedding))
+		embeddings = append(embeddings, Embedding(response.Data[i].Embedding))
 	}
 
 	return embeddings, nil

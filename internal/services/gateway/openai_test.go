@@ -25,8 +25,7 @@ import (
 	"testing"
 	"time"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
+	"github.com/retran/meowg1k/internal/services/profile"
 )
 
 // Mock HTTP server responses for OpenAI API
@@ -93,13 +92,36 @@ func handleOpenAIEmbeddings(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+func TestNewOpenAIGateway(t *testing.T) {
+	t.Run("with API key", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "test-api-key")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil")
+		}
+	})
+
+	t.Run("without API key", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil even without API key")
+		}
+	})
+
+	t.Run("with custom base URL", func(t *testing.T) {
+		gateway := newOpenAIGateway("https://custom.example.com/v1", "test-key")
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil with custom URL")
+		}
+	})
+}
+
 func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	// Create mock server
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
 	// Create profile with mock server URL
-	profile := &mdProfile.ResolvedProfile{
+	profile := &profile.ResolvedProfile{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
@@ -108,7 +130,7 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create test request
-	request := mdGateway.NewGenerateContentRequest(
+	request := NewGenerateContentRequest(
 		"gpt-4",
 		"You are a helpful assistant.",
 		"Hello, how are you?",
@@ -139,14 +161,14 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 	}))
 	defer errorServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
+	profile := &profile.ResolvedProfile{
 		BaseURL: errorServer.URL,
 		APIKey:  "test-api-key",
 	}
 
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
-	request := mdGateway.NewGenerateContentRequest(
+	request := NewGenerateContentRequest(
 		"gpt-4",
 		"You are a helpful assistant.",
 		"Hello, how are you?",
@@ -170,7 +192,7 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	profile := &mdProfile.ResolvedProfile{
+	profile := &profile.ResolvedProfile{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
@@ -178,10 +200,10 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create embeddings request
-	request := mdGateway.NewComputeEmbeddingsRequest(
+	request := NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
 		[]string{"Hello world", "This is a test"},
-		mdGateway.RetrievalQuery,
+		RetrievalQuery,
 	)
 
 	// Test successful embeddings computation
@@ -222,10 +244,10 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 
 	gateway := newOpenAIGateway(errorServer.URL, "test-api-key")
 
-	request := mdGateway.NewComputeEmbeddingsRequest(
+	request := NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
 		[]string{"Hello world"},
-		mdGateway.RetrievalQuery,
+		RetrievalQuery,
 	)
 
 	ctx := context.Background()
@@ -258,7 +280,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 
 	gateway := newOpenAIGateway(emptyServer.URL, "test-api-key")
 
-	request := mdGateway.NewGenerateContentRequest(
+	request := NewGenerateContentRequest(
 		"gpt-4",
 		"System prompt",
 		"User prompt",
@@ -288,7 +310,7 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 
 	gateway := newOpenAIGateway(slowServer.URL, "test-api-key")
 
-	request := mdGateway.NewGenerateContentRequest(
+	request := NewGenerateContentRequest(
 		"gpt-4",
 		"System prompt",
 		"User prompt",
@@ -314,10 +336,10 @@ func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
 	gateway := newOpenAIGateway(mockServer.URL, "test-api-key")
 
 	// Create embeddings request with dimensions
-	request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+	request := NewComputeEmbeddingsRequestWithDimensions(
 		"text-embedding-ada-002",
 		[]string{"Hello world"},
-		mdGateway.RetrievalQuery,
+		RetrievalQuery,
 		512, // This should trigger the dimensions parameter setting
 	)
 

@@ -24,8 +24,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 )
 
 func TestNewVoyageGateway(t *testing.T) {
@@ -56,17 +54,17 @@ func TestNewVoyageGateway(t *testing.T) {
 
 func TestMapTaskTypeToInputType(t *testing.T) {
 	testCases := []struct {
-		taskType     mdGateway.TaskType
+		taskType     TaskType
 		expectedType string
 	}{
-		{mdGateway.RetrievalDocument, "document"},
-		{mdGateway.RetrievalQuery, "query"},
-		{mdGateway.CodeRetrievalQuery, "query"},
-		{mdGateway.Classification, "classification"},
-		{mdGateway.Clustering, "clustering"},
-		{mdGateway.SemanticSimilarity, "query"},
-		{mdGateway.QuestionAnswering, "query"},
-		{mdGateway.FactVerification, "query"},
+		{RetrievalDocument, "document"},
+		{RetrievalQuery, "query"},
+		{CodeRetrievalQuery, "query"},
+		{Classification, "classification"},
+		{Clustering, "clustering"},
+		{SemanticSimilarity, "query"},
+		{QuestionAnswering, "query"},
+		{FactVerification, "query"},
 	}
 
 	for _, tc := range testCases {
@@ -79,7 +77,7 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 	}
 
 	t.Run("Unknown task type", func(t *testing.T) {
-		unknownType := mdGateway.TaskType("unknown")
+		unknownType := TaskType("unknown")
 		result := mapTaskTypeToInputType(unknownType)
 		if result != "query" {
 			t.Errorf("Expected 'query' for unknown task type, got %s", result)
@@ -87,7 +85,7 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 	})
 
 	t.Run("Empty task type", func(t *testing.T) {
-		emptyType := mdGateway.TaskType("")
+		emptyType := TaskType("")
 		result := mapTaskTypeToInputType(emptyType)
 		if result != "query" {
 			t.Errorf("Expected 'query' for empty task type, got %s", result)
@@ -159,10 +157,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		chunks := []string{"Hello world", "How are you?"}
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			mdGateway.RetrievalQuery,
+			RetrievalQuery,
 			256,
 		)
 
@@ -188,22 +186,22 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 
 		testCases := []struct {
 			name     string
-			taskType mdGateway.TaskType
+			taskType TaskType
 		}{
-			{"Retrieval Document", mdGateway.RetrievalDocument},
-			{"Retrieval Query", mdGateway.RetrievalQuery},
-			{"Code Retrieval Query", mdGateway.CodeRetrievalQuery},
-			{"Classification", mdGateway.Classification},
-			{"Clustering", mdGateway.Clustering},
-			{"Semantic Similarity", mdGateway.SemanticSimilarity},
-			{"Question Answering", mdGateway.QuestionAnswering},
-			{"Fact Verification", mdGateway.FactVerification},
+			{"Retrieval Document", RetrievalDocument},
+			{"Retrieval Query", RetrievalQuery},
+			{"Code Retrieval Query", CodeRetrievalQuery},
+			{"Classification", Classification},
+			{"Clustering", Clustering},
+			{"Semantic Similarity", SemanticSimilarity},
+			{"Question Answering", QuestionAnswering},
+			{"Fact Verification", FactVerification},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				chunks := []string{"Test chunk for " + tc.name}
-				request := mdGateway.NewComputeEmbeddingsRequest(
+				request := NewComputeEmbeddingsRequest(
 					"voyage-large-2",
 					chunks,
 					tc.taskType,
@@ -233,10 +231,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 			largeChunks[i] = strings.Repeat("This is a test chunk ", 50) // ~1000 characters each
 		}
 
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			largeChunks,
-			mdGateway.RetrievalDocument,
+			RetrievalDocument,
 			256,
 		)
 
@@ -256,10 +254,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		emptyChunks := []string{}
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			emptyChunks,
-			mdGateway.RetrievalQuery,
+			RetrievalQuery,
 			256,
 		)
 
@@ -279,10 +277,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		chunks := []string{"Test chunk"}
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			mdGateway.RetrievalQuery,
+			RetrievalQuery,
 			256,
 		)
 
@@ -310,8 +308,8 @@ func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
 
 	// Test that it has the ComputeDistance method from mixin
 	// Create dummy embeddings for distance computation
-	embedding1 := mdGateway.Embedding{0.1, 0.2, 0.3}
-	embedding2 := mdGateway.Embedding{0.4, 0.5, 0.6}
+	embedding1 := Embedding{0.1, 0.2, 0.3}
+	embedding2 := Embedding{0.4, 0.5, 0.6}
 
 	distance, err := gateway.ComputeDistance(embedding1, embedding2)
 	if err != nil {
@@ -335,10 +333,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		for _, dim := range testCases {
 			t.Run(fmt.Sprintf("Dimension_%d", dim), func(t *testing.T) {
 				chunks := []string{"Test chunk"}
-				request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+				request := NewComputeEmbeddingsRequestWithDimensions(
 					"voyage-large-2",
 					chunks,
-					mdGateway.RetrievalQuery,
+					RetrievalQuery,
 					dim,
 				)
 
@@ -355,10 +353,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 
 	t.Run("Single character chunks", func(t *testing.T) {
 		chunks := []string{"a", "b", "c", "d", "e"}
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			mdGateway.RetrievalQuery,
+			RetrievalQuery,
 			256,
 		)
 
@@ -378,10 +376,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 			"Newlines\nand\ttabs",
 			"\"Quotes\" and 'apostrophes'",
 		}
-		request := mdGateway.NewComputeEmbeddingsRequestWithDimensions(
+		request := NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			mdGateway.RetrievalQuery,
+			RetrievalQuery,
 			256,
 		)
 
