@@ -14,23 +14,37 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package readstagedchanges contains the activity to read staged changes from a git repository.
-package readstagedchanges
+// Package fetchfilediff contains the activity to fetch the diff for a staged file from a git repository.
+package fetchfilediff
 
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the generate activity with injected dependencies.
+// Input defines the input structure for the FetchFileDiff activity.
+type Input struct {
+	Filename string
+}
+
+// Output defines the output structure for the FetchFileDiff activity.
+type Output struct {
+	Filename            string
+	Change              string
+	OriginalFileContent string
+	StagedFileContent   string
+}
+
+// Factory creates instances of the FetchFileDiff activity with injected dependencies.
 type Factory struct {
 	gitService git.Service
 }
 
-// NewFactory creates a new generate activity factory with injected services.
+// NewFactory creates a new FetchFileDiff activity factory with injected services.
 func NewFactory(
 	gitService git.Service,
 ) *Factory {
@@ -39,41 +53,50 @@ func NewFactory(
 	}
 }
 
-// NewActivity creates and returns the generate activity function with added progress reporting.
+// NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		executorCtx.SendProgress(0.0, "Preparing to read staged changes...")
-
 		if activityInput == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
 
 		input, ok := activityInput.(*Input)
 		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, input)
+			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
-		executorCtx.SendProgress(0.0, fmt.Sprintf("Reading staged changes in %s...", input.Filename))
+		executorCtx.SendRunning("Fetching diff")
 
 		change, err := f.gitService.ReadStagedChanges(input.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged changes in %s: %w", input.Filename, err)
 		}
 
-		executorCtx.SendProgress(0.5, "Reading original and staged file contents...")
-
 		originalFileContent, err := f.gitService.ReadOriginalFileContent(input.Filename)
 		if err != nil {
-			originalFileContent = "" // File might be new, so original content is empty
-			// return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
+			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
+				originalFileContent = "" // File is new or was deleted
+			} else {
+				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
+			}
 		}
 
 		stagedFileContent, err := f.gitService.ReadStagedFileContent(input.Filename)
 		if err != nil {
+			if strings.Contains(err.Error(), "does not exist") {
+				// File was deleted - return with empty staged content but include original content and diff
+				executorCtx.SendCompleted("Deleted")
+				return &Output{
+					Filename:            input.Filename,
+					Change:              change,
+					OriginalFileContent: originalFileContent,
+					StagedFileContent:   "", // Empty for deleted files
+				}, nil
+			}
 			return nil, fmt.Errorf("failed to read staged file content of %s: %w", input.Filename, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Successfully read staged changes in %s.", input.Filename))
+		executorCtx.SendCompleted("")
 
 		return &Output{
 			Filename:            input.Filename,

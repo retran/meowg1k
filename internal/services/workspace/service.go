@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package workspace provides services for workspace directory management.
 package workspace
 
 import (
@@ -21,12 +22,15 @@ import (
 	"os"
 )
 
+// Service provides workspace directory operations.
 type Service interface {
+	// GetWorkspaceDir returns the current workspace directory path.
 	GetWorkspaceDir() (string, error)
 }
 
 type serviceImpl struct{}
 
+// NewService creates a new workspace service instance.
 func NewService() Service {
 	return &serviceImpl{}
 }

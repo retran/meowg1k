@@ -46,6 +46,9 @@ type Service interface {
 	// GetSilentFlag retrieves the silent flag from command flags.
 	GetSilentFlag() (bool, error)
 
+	// GetIntentFlag retrieves the intent flag from command flags.
+	GetIntentFlag() (string, error)
+
 	// GetStdIn retrieves the standard input sent to the command.
 	GetStdIn() string
 }
@@ -115,6 +118,11 @@ func (s *serviceImpl) GetUserPrompt() (string, error) {
 // GetSilentFlag retrieves the silent flag from command flags.
 func (s *serviceImpl) GetSilentFlag() (bool, error) {
 	return s.cmd.Flags().GetBool("silent")
+}
+
+// GetIntentFlag retrieves the intent flag from command flags.
+func (s *serviceImpl) GetIntentFlag() (string, error) {
+	return s.cmd.Flags().GetString("intent")
 }
 
 // GetStdIn retrieves the standard input sent to the command.

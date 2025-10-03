@@ -23,48 +23,50 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/services/gateway"
+	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/internal/services/prompt"
 	"github.com/retran/meowg1k/internal/services/task"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
-var ErrInvalidActivityOutputType = errors.New("invalid output type from GenerateContent activity")
+var ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
 
+// FlowFactory creates instances of the generate flow with injected dependencies.
 type FlowFactory struct {
 	taskService          task.Service
 	userPromptProvider   prompt.UserPromptProvider
 	systemPromptProvider prompt.SystemPromptProvider
-	activityFactory      *ActivityFactory
+	invokeLLMFactory     *invokellm.Factory
+	outputService        output.Service
 }
 
+// NewFlowFactory creates a new generate flow factory with injected services.
 func NewFlowFactory(
 	taskService task.Service,
 	userPromptProvider prompt.UserPromptProvider,
 	systemPromptProvider prompt.SystemPromptProvider,
-	activityFactory *ActivityFactory,
+	gatewayFactory gateway.Factory,
+	outputService output.Service,
 ) *FlowFactory {
+	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 	return &FlowFactory{
 		taskService:          taskService,
 		userPromptProvider:   userPromptProvider,
 		systemPromptProvider: systemPromptProvider,
-		activityFactory:      activityFactory,
+		invokeLLMFactory:     invokeLLMFactory,
+		outputService:        outputService,
 	}
 }
 
-// NewFlow creates and returns the generate activity function with improved, multi-step status reporting.
+// NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		task := f.taskService.Get()
 
-		subject := "Content generation"
-		if task.Name != "" {
-			subject = fmt.Sprintf("Task %q", task.Name)
-		}
-
-		flowCtx.SendProgress(0.0, fmt.Sprintf("Starting %s...", subject))
-
-		flowCtx.SendProgress(0.0, "Preparing prompts...")
+		flowCtx.SendRunning("Generating content")
 
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
 		if err != nil {
@@ -76,40 +78,31 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return fmt.Errorf("failed to get system prompt: %w", err)
 		}
 
-		status := "Generating content..."
-		if task.Name != "" {
-			status = fmt.Sprintf("Executing task %q...", task.Name)
-		}
-
-		flowCtx.SendProgress(0.0, status)
-
-		activity := f.activityFactory.NewActivity()
-		input := &Input{
+		activity := f.invokeLLMFactory.NewActivity()
+		input := &invokellm.Input{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
 			SystemPrompt: systemPrompt,
 		}
 
-		future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "GenerateContent", activity, input)
+		future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "InvokeLLM", activity, input)
 
 		output, err := future.Get(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to execute \"GenerateContent\" activity: %w", err)
+			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
 		}
 
-		flowCtx.SendProgress(0.0, "Processing result...")
-
-		generateOutput, ok := output.(*ContentOutput)
+		invokeOutput, ok := output.(*invokellm.Output)
 
 		if !ok {
 			return ErrInvalidActivityOutputType
 		}
 
-		flowCtx.SendCompleted(fmt.Sprintf("%s completed.", subject))
+		flowCtx.SendCompleted("")
 
 		time.Sleep(300 * time.Millisecond)
 
-		fmt.Println(generateOutput.Content)
+		f.outputService.PrintLine(invokeOutput.Content)
 
 		return nil
 	}

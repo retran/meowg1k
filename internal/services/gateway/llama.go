@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"strings"
 
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
 	"github.com/retran/meowg1k/internal/services/llm/llama"
 )
 
@@ -30,7 +29,8 @@ var ErrBaseURLRequired = errors.New("base URL is required")
 
 var _ GenerationGateway = (*llamaGateway)(nil)
 
-// var _ EmbeddingGateway = (*llamaGateway)(nil) // Uncomment when embedding is implemented
+// TODO Uncomment when implemented
+// var _ EmbeddingGateway = (*llamaGateway)(nil)
 
 // llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
 type llamaGateway struct {
@@ -62,7 +62,7 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *llamaGateway) GenerateContent(ctx context.Context, request *mdGateway.GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {

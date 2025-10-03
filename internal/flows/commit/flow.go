@@ -14,100 +14,154 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package commit provides a flow to generate a commit message based on staged changes.
+// Package commit provides a flow to compose a commit message based on staged changes.
 package commit
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
-	"github.com/retran/meowg1k/internal/activities/readstagedchanges"
-	"github.com/retran/meowg1k/internal/activities/readstagedfiles"
+	"github.com/retran/meowg1k/internal/activities/applyfilters"
+	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
+	"github.com/retran/meowg1k/internal/activities/liststaged"
+	"github.com/retran/meowg1k/internal/activities/summarizeall"
+	"github.com/retran/meowg1k/internal/services/command"
+	"github.com/retran/meowg1k/internal/services/commitconfig"
+	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Factory creates instances of the commit flow with injected dependencies.
 type Factory struct {
-	readStagedFilesActivityFactory   executor.ActivityFactory
-	filterFilesFactory               filterfiles.Factory
-	readStagedChangesActivityFactory executor.ActivityFactory
+	listStagedActivityFactory executor.ActivityFactory
+	applyFiltersFactory       executor.ActivityFactory
+	fetchAllDiffsFactory      executor.ActivityFactory
+	summarizeAllFactory       executor.ActivityFactory
+	composeCommitFactory      executor.ActivityFactory
+	commitConfigService       commitconfig.Service
+	commandService            command.Service
+	outputService             output.Service
 }
 
 // NewFactory creates a new commit flow factory with injected services.
 func NewFactory(
-	readStagedFilesActivityFactory executor.ActivityFactory,
-	filterFilesFactory filterfiles.Factory,
-	readStagedChangesActivityFactory executor.ActivityFactory,
+	listStagedActivityFactory executor.ActivityFactory,
+	applyFiltersFactory executor.ActivityFactory,
+	fetchAllDiffsFactory executor.ActivityFactory,
+	summarizeAllFactory executor.ActivityFactory,
+	composeCommitFactory executor.ActivityFactory,
+	commitConfigService commitconfig.Service,
+	commandService command.Service,
+	outputService output.Service,
 ) *Factory {
 	return &Factory{
-		readStagedFilesActivityFactory:   readStagedFilesActivityFactory,
-		filterFilesFactory:               filterFilesFactory,
-		readStagedChangesActivityFactory: readStagedChangesActivityFactory,
+		listStagedActivityFactory: listStagedActivityFactory,
+		applyFiltersFactory:       applyFiltersFactory,
+		fetchAllDiffsFactory:      fetchAllDiffsFactory,
+		summarizeAllFactory:       summarizeAllFactory,
+		composeCommitFactory:      composeCommitFactory,
+		commitConfigService:       commitConfigService,
+		commandService:            commandService,
+		outputService:             outputService,
 	}
 }
 
-// NewFlow creates and returns the commit generation flow function with added progress reporting.
+// NewFlow creates and returns the commit composition flow function with added progress reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		flowCtx.SendStarted("Reading staged changes...")
+		flowCtx.SendRunning("Composing commit message")
 
-		readStagedFiles := f.readStagedFilesActivityFactory.NewActivity()
-
-		stagedFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ReadStagedFiles", readStagedFiles, nil)
+		// Phase 1: List staged files
+		listStaged := f.listStagedActivityFactory.NewActivity()
+		stagedFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListStagedFiles", listStaged, nil)
 		stagedFilesRaw, err := stagedFilesFuture.Get(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to read staged files: %w", err)
+			return fmt.Errorf("failed to list staged files: %w", err)
 		}
-		stagedFiles, ok := stagedFilesRaw.(*readstagedfiles.Output)
+		stagedFiles, ok := stagedFilesRaw.(*liststaged.Output)
 		if !ok {
 			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, stagedFilesRaw)
 		}
 
-		flowCtx.SendProgress(0.3, "Filtering files...")
-
-		filterFiles := f.filterFilesFactory.NewActivity()
-		filteredFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "FilterFiles", filterFiles, &filterfiles.Input{
+		// Phase 2: Apply filters
+		applyFilters := f.applyFiltersFactory.NewActivity()
+		filteredFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ApplyFilters", applyFilters, &applyfilters.Input{
 			Files: stagedFiles.Files,
 		})
 		filteredFilesRaw, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to filter files: %w", err)
+			return fmt.Errorf("failed to apply filters: %w", err)
 		}
-		filteredFiles, ok := filteredFilesRaw.(*filterfiles.Output)
+		filteredFiles, ok := filteredFilesRaw.(*applyfilters.Output)
 		if !ok {
 			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, filteredFilesRaw)
 		}
 
-		flowCtx.SendProgress(0.6, "Reading staged changes from filtered files...")
-
-		futures := make([]*future.Future[any], 0)
-		for _, file := range filteredFiles.Files {
-			readStagedChanges := f.readStagedChangesActivityFactory.NewActivity()
-			future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ReadStagedChanges", readStagedChanges, &readstagedchanges.Input{
-				Filename: file,
-			})
-			futures = append(futures, future)
+		// Phase 3: Fetch diffs for all files
+		fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
+		fetchAllDiffsFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "FetchAllDiffs", fetchAllDiffs, &fetchalldiffs.Input{
+			Files: filteredFiles.Files,
+		})
+		fetchAllDiffsRaw, err := fetchAllDiffsFuture.Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to fetch diffs: %w", err)
+		}
+		fetchAllDiffsOutput, ok := fetchAllDiffsRaw.(*fetchalldiffs.Output)
+		if !ok {
+			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, fetchAllDiffsRaw)
 		}
 
-		results, errs := future.WaitAll(ctx, futures...)
-		for _, err := range errs {
-			if err != nil {
-				return fmt.Errorf("failed to read staged changes: %w", err)
-			}
+		// Phase 4: Summarize changes for all files
+		summarizeAll := f.summarizeAllFactory.NewActivity()
+		summarizeAllFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "SummarizeAll", summarizeAll, &summarizeall.Input{
+			Changes: fetchAllDiffsOutput.Changes,
+		})
+		summarizeAllRaw, err := summarizeAllFuture.Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to summarize changes: %w", err)
+		}
+		summarizeAllOutput, ok := summarizeAllRaw.(*summarizeall.Output)
+		if !ok {
+			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, summarizeAllRaw)
 		}
 
-		flowCtx.SendCompleted("Successfully read staged changes.")
-
-		for _, result := range results {
-			output, ok := result.(*readstagedchanges.Output)
-			if ok {
-				fmt.Println("File:", output.Filename)
-				fmt.Println("Change:", output.Change)
-				fmt.Println("-----")
-			}
+		// Phase 5: Compose commit message
+		commitConfig, err := f.commitConfigService.GetCommitConfig()
+		if err != nil {
+			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}
+
+		intent, err := f.commandService.GetIntentFlag()
+		if err != nil {
+			return fmt.Errorf("failed to get intent flag: %w", err)
+		}
+
+		if intent == "" {
+			intent = f.commandService.GetStdIn()
+		}
+
+		composeCommit := f.composeCommitFactory.NewActivity()
+		commitFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ComposeCommit", composeCommit, &composecommit.Input{
+			Profile:      commitConfig.Profile,
+			SystemPrompt: commitConfig.SystemPrompt,
+			Summaries:    summarizeAllOutput.Summaries,
+			Intent:       intent,
+		})
+
+		commitResultRaw, err := commitFuture.Get(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to compose commit message: %w", err)
+		}
+
+		commitResult, ok := commitResultRaw.(*composecommit.Output)
+		if !ok {
+			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, commitResultRaw)
+		}
+
+		flowCtx.SendCompleted("")
+
+		f.outputService.PrintLine(commitResult.CommitMessage)
 
 		return nil
 	}

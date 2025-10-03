@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package readstagedfiles provides an activity to read staged files from a git repository.
-package readstagedfiles
+// Package liststaged provides an activity to list staged files from a git repository.
+package liststaged
 
 import (
 	"context"
@@ -25,12 +25,20 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the generate activity with injected dependencies.
+// Input defines the input structure for the ListStaged activity.
+type Input struct{}
+
+// Output defines the output structure for the ListStaged activity.
+type Output struct {
+	Files []string
+}
+
+// Factory creates instances of the ListStaged activity with injected dependencies.
 type Factory struct {
 	gitService git.Service
 }
 
-// NewFactory creates a new generate activity factory with injected services.
+// NewFactory creates a new ListStaged activity factory with injected services.
 func NewFactory(
 	gitService git.Service,
 ) *Factory {
@@ -39,17 +47,17 @@ func NewFactory(
 	}
 }
 
-// NewActivity creates and returns the generate activity function with added progress reporting.
+// NewActivity creates and returns the ListStaged activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[any, any] {
 	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		executorCtx.SendProgress(0.0, "Reading staged files from git...")
+		executorCtx.SendRunning("Listing staged files")
 
 		files, err := f.gitService.ReadStagedFiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged files: %w", err)
 		}
 
-		executorCtx.SendCompleted("Completed reading staged files.")
+		executorCtx.SendCompleted(fmt.Sprintf("%d files", len(files)))
 
 		return &Output{
 			Files: files,

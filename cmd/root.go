@@ -26,10 +26,8 @@ import (
 	"github.com/retran/meowg1k/internal/app"
 )
 
-// ErrCommandIsNil indicates the command parameter is nil
 var ErrCommandIsNil = errors.New("command is nil")
 
-// ErrAppNotInitialized indicates the application container is not properly initialized
 var ErrAppNotInitialized = errors.New("application not initialized")
 
 func Execute() error {
@@ -40,23 +38,33 @@ var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		// Handle nil command gracefully
 		if cmd == nil {
 			return ErrCommandIsNil
 		}
 
-		// Skip app initialization for certain commands
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
 		}
 
-		app, err := app.NewAppContainer(cmd)
+		_, err := app.NewAppContainer(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to initialize app: %w", err)
 		}
 
-		cmd.SetContext(app.ShutdownService.Context())
+		return nil
+	},
+	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
+			return nil
+		}
 
+		ctx := cmd.Context()
+		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
+		if !ok || appContainer == nil {
+			return nil
+		}
+
+		appContainer.ShutdownService.Shutdown()
 		return nil
 	},
 }

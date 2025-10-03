@@ -26,9 +26,9 @@ import (
 
 // pattern is the internal representation of a single compiled .gitignore rule.
 type pattern struct {
-	raw      string         // The original raw pattern string.
-	regex    *regexp.Regexp // The compiled regular expression.
-	negation bool           // Whether this is a negation pattern (!).
+	raw      string
+	regex    *regexp.Regexp
+	negation bool
 }
 
 // Matcher stores the compiled rules and performs the matching.
@@ -115,7 +115,10 @@ func parsePattern(line string) *pattern {
 		regex.WriteString("(?:$|/.*)")
 	}
 
-	p.regex, _ = regexp.Compile(regex.String())
+	rgx, err := regexp.Compile(regex.String())
+	if err == nil {
+		p.regex = rgx
+	}
 	return p
 }
 

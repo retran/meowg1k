@@ -124,7 +124,6 @@ func (m *serviceImpl) ListenForSignals() bool {
 }
 
 // Shutdown triggers graceful shutdown manually.
-// This can be called programmatically instead of waiting for signals.
 func (m *serviceImpl) Shutdown() {
 	m.shutdown()
 }

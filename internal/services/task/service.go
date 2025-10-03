@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"strings"
 
-	mdConfig "github.com/retran/meowg1k/internal/models/config"
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
@@ -47,7 +45,7 @@ type Service interface {
 // Configuration represents a resolved task configuration.
 type Configuration struct {
 	Name         string
-	Profile      *mdProfile.ResolvedProfile
+	Profile      *profile.ResolvedProfile
 	SystemPrompt string
 	UserPrompt   string
 }
@@ -63,7 +61,7 @@ var _ Service = (*serviceImpl)(nil)
 // resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
 func resolveTaskConfiguration(
 	taskName, cmdUserPrompt string,
-	cfg *mdConfig.Config,
+	cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
 	if taskName == "" || cfg.Generate == nil || cfg.Generate.Tasks == nil {
 		return resolveDefaultConfiguration(cmdUserPrompt, cfg)
@@ -89,7 +87,7 @@ func resolveTaskConfiguration(
 }
 
 func resolveDefaultConfiguration(
-	cmdUserPrompt string, cfg *mdConfig.Config,
+	cmdUserPrompt string, cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
 	if cfg.Generate == nil || cfg.Generate.Default == nil {
 		err = ErrNoDefaultConfigurationAvailable
@@ -105,7 +103,7 @@ func resolveDefaultConfiguration(
 
 // applyDefaults applies default values for profile and system prompt if they are empty.
 func applyDefaults(
-	profileName, systemPrompt string, cfg *mdConfig.Config,
+	profileName, systemPrompt string, cfg *config.Config,
 ) (finalProfileName, finalSystemPrompt string) {
 	finalProfileName = profileName
 	finalSystemPrompt = systemPrompt
@@ -169,7 +167,7 @@ func NewService(
 		return nil, err
 	}
 
-	resolvedProfile, err := profileService.Get(mdProfile.Profile(profileName))
+	resolvedProfile, err := profileService.Get(profile.Profile(profileName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 	}

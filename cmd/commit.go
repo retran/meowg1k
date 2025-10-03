@@ -17,26 +17,27 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
-	"github.com/retran/meowg1k/internal/activities/readstagedchanges"
-	"github.com/retran/meowg1k/internal/activities/readstagedfiles"
 	"github.com/retran/meowg1k/internal/app"
-	"github.com/retran/meowg1k/internal/flows/commit"
-	"github.com/retran/meowg1k/internal/services/filter"
-	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/workspace"
-	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/ui"
 )
 
 var commitCmd = &cobra.Command{
 	Use:     "commit",
 	Aliases: []string{"c"},
-	Short:   "Generate commit messaged based on staged changes in repository",
+	Short:   "Generate commit message based on staged changes in repository",
+	Long: `Generate a commit message based on staged changes in the repository.
+
+The tool analyzes staged files, summarizes changes, and generates a conventional commit message.
+You can provide your intent or context in two ways:
+
+1. Via command line flag:
+   meow commit --intent "Fix user authentication bug"
+
+2. Via stdin (pipe):
+   echo "Add new user registration feature" | meow commit
+
+The intent will be included in the prompt to help generate a more accurate commit message.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 
@@ -45,38 +46,14 @@ var commitCmd = &cobra.Command{
 			return ErrAppNotInitialized
 		}
 
-		workspaceService := workspace.NewService()
-		gitService := git.NewService(workspaceService)
-		filterService := filter.NewService(appContainer.ConfigService)
+		flow := appContainer.CreateCommitFlow()
 
-		readStagedFilesActivityFactory := readstagedfiles.NewFactory(gitService)
-		filterFilesActivityFactory := filterfiles.NewFactory(filterService)
-		readStagedChangesActivityFactory := readstagedchanges.NewFactory(gitService)
-
-		flowFactory := commit.NewFactory(
-			readStagedFilesActivityFactory,
-			filterFilesActivityFactory,
-			readStagedChangesActivityFactory,
-		)
-
-		flow := flowFactory.NewFlow()
-
-		silent, err := appContainer.CommandService.GetSilentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get silent flag: %w", err)
-		}
-
-		executionTracker := ui.NewExecutionTracker(silent)
-		executionTracker.Start()
-		defer executionTracker.Stop()
-
-		exec := executor.NewExecutor().
-			WithFeedbackHandler(executionTracker.FeedbackHandler())
-
-		return exec.RunFlow(appContainer.ShutdownService.Context(), "GenerateCommit", flow, executor.DefaultRetryPolicy())
+		runner := app.NewFlowRunner(appContainer)
+		return runner.RunFlow(ctx, "GenerateCommit", flow)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(commitCmd)
+	commitCmd.Flags().StringP("intent", "i", "", "Developer intent for the commit (can also be provided via stdin)")
 }

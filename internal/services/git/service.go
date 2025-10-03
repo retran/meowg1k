@@ -41,19 +41,23 @@ type Service interface {
 
 // serviceImpl implements GitService.
 type serviceImpl struct {
-	worspaceService workspace.Service
+	workspaceService workspace.Service
+	semaphore        chan struct{} // Worker pool with 1 worker for sequential execution
 }
 
 // NewService creates a new Git service.
+// Git commands will be executed sequentially using a worker pool (semaphore with capacity 1)
+// to prevent race conditions while keeping OS threads free.
 func NewService(workspaceService workspace.Service) Service {
 	return &serviceImpl{
-		worspaceService: workspaceService,
+		workspaceService: workspaceService,
+		semaphore:        make(chan struct{}, 1), // Only 1 concurrent git command
 	}
 }
 
 // runGitCommand executes a git command with the provided arguments in the workspace directory.
 func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
-	workspaceDir, err := g.worspaceService.GetWorkspaceDir()
+	workspaceDir, err := g.workspaceService.GetWorkspaceDir()
 	if err != nil {
 		return "", fmt.Errorf("could not get workspace directory: %w", err)
 	}
@@ -76,6 +80,9 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 
 // ReadStagedFiles returns a list of files that are currently staged.
 func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
 	out, err := g.runGitCommand("diff", "--cached", "--name-only")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
@@ -91,15 +98,24 @@ func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
 
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
 func (g *serviceImpl) ReadStagedChanges(filePath string) (string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
 	return g.runGitCommand("diff", "--cached", "--unified=0", "--", filePath)
 }
 
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
 func (g *serviceImpl) ReadStagedFileContent(filePath string) (string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
 	return g.runGitCommand("show", ":"+filePath)
 }
 
 // ReadOriginalFileContent returns the content of the specified file from the HEAD commit.
 func (g *serviceImpl) ReadOriginalFileContent(filePath string) (string, error) {
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
 	return g.runGitCommand("show", "HEAD:"+filePath)
 }

@@ -41,8 +41,6 @@ type Status string
 const (
 	// StatusPending indicates that the activity is pending.
 	StatusPending Status = "pending"
-	// StatusStarted indicates that the activity has started.
-	StatusStarted Status = "started"
 	// StatusRunning indicates that the activity is running.
 	StatusRunning Status = "running"
 	// StatusCompleted indicates that the activity has completed.
@@ -132,22 +130,22 @@ func (c *Context) sendFeedback(status Status, progress float64, message string, 
 	c.feedbackFunc(feedback)
 }
 
-// SendPending sends a pending status update.
-func (c *Context) SendPending(message string) {
-	c.sendFeedback(StatusPending, 0, message, nil, nil)
-}
-
-// SendStarted sends a started status update.
-func (c *Context) SendStarted(message string) {
-	c.sendFeedback(StatusStarted, 0, message, nil, nil)
-}
-
-// SendProgress sends a progress update.
-func (c *Context) SendProgress(progress float64, message string) {
-	c.sendFeedback(StatusRunning, progress, message, nil, nil)
+// SendRunning sends a running status update to indicate that the activity is executing.
+// Use this at the beginning of your activity execution.
+//
+// Docker Compose Style Usage:
+// Activities should send concise, action-oriented messages.
+// Examples:
+//   - "Reading 5 files"
+//   - "Generating content"
+//   - "Processing data"
+func (c *Context) SendRunning(message string) {
+	c.sendFeedback(StatusRunning, 0, message, nil, nil)
 }
 
 // SendCompleted sends a completed status update.
+// Use brief messages that indicate what was accomplished.
+// Example: "Read 5 files", "Generated", "Summarized" (not "Successfully completed...").
 func (c *Context) SendCompleted(message string) {
 	c.sendFeedback(StatusCompleted, 1, message, nil, nil)
 }

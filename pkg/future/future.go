@@ -23,10 +23,8 @@ import (
 	"sync"
 )
 
-// Future package errors
-var (
-	ErrNoFuturesProvided = errors.New("no futures provided")
-)
+// ErrNoFuturesProvided indicates that no futures were provided to a wait operation.
+var ErrNoFuturesProvided = errors.New("no futures provided")
 
 // Future represents a value that will be available in the future
 type Future[T any] struct {
@@ -156,7 +154,6 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 		return value, -1, ErrNoFuturesProvided
 	}
 
-	// Create a combined channel for all futures
 	type indexedResult struct {
 		value T
 		err   error
@@ -165,7 +162,6 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 
 	resultCh := make(chan indexedResult, len(futures))
 
-	// Start goroutines to monitor each future
 	for i, future := range futures {
 		go func(idx int, f *Future[T]) {
 			result, err := f.Get(ctx)
@@ -173,7 +169,6 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 		}(i, future)
 	}
 
-	// Wait for the first result
 	select {
 	case res := <-resultCh:
 		return res.value, res.index, res.err

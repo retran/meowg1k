@@ -186,7 +186,10 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 }
 
 func TestServiceImpl_RunGitCommandErrorHandling(t *testing.T) {
-	service := &serviceImpl{}
+	workspaceService := &mockWorkspaceService{}
+	service := &serviceImpl{
+		workspaceService: workspaceService,
+	}
 
 	// Test with invalid git command to trigger error handling
 	_, err := service.runGitCommand("invalid-command", "nonexistent")

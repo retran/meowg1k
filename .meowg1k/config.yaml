@@ -1,11 +1,18 @@
 profiles:
   fast:
     provider: "gemini"
+    model: "gemini-2.5-flash"
+    requestsPerMinute: 1000
+    tokensPerMinute: 2000000
+    requestsPerDay: 10000
 
   smart:
     provider: "gemini"
     model: "gemini-2.5-pro"
     timeout: "10m"
+    requestsPerMinute: 150
+    tokensPerMinute: 1000000
+    requestsPerDay: 10000
 
 generate:
   default:
@@ -122,30 +129,117 @@ summarize:
   default:
     profile: "fast"
     strategy:
-      type: "plaintext"
-      includeFullFile: false
-    systemPrompt: "Briefly describe the main change in the following input."
+      type: "plain"
+      includeOriginalFile: false
+      includeChangedFile: false
+    systemPrompt: |
+      Analyze the file changes and provide a concise summary in 1-2 sentences.
+      Focus on the functional impact: what was changed, added, or removed.
+      Be specific about the type of change (feature, fix, refactor, etc.).
   rules:
-    - match: "*.go"
-      profile: "smart"
-      strategy:
-        type: "plaintext"
-        includeFullFile: true
-      systemPrompt: "Describe the changes in the following Go code."
-    - match: "LICENSE"
+    # Go source files - detailed analysis with changed file content
+    - match: "**/*.go"
+      systemPrompt: |
+        Analyze the Go code changes and summarize in 2-3 sentences.
+        Focus on:
+        - What functionality was added, modified, or removed
+        - Key structural changes (new types, methods, interfaces)
+        - Important logic or behavior changes
+        - Error handling or performance improvements
+        Be technical but concise. Mention function/type names when relevant.
+    # Test files - lighter analysis
+    - match: "**/*_test.go"
+      systemPrompt: |
+        Summarize the test changes in 1-2 sentences.
+        Focus on what functionality is being tested, new test cases added, or test improvements made.
+    # Configuration files
+    - match: "**/*.yaml"
+      systemPrompt: |
+        Summarize the configuration changes in 1-2 sentences.
+        Focus on what settings were added, modified, or removed and their purpose.
+    - match: "**/*.yml"
+      systemPrompt: |
+        Summarize the configuration changes in 1-2 sentences.
+        Focus on what settings were added, modified, or removed and their purpose.
+    - match: "**/*.json"
+      systemPrompt: |
+        Summarize the JSON changes in 1-2 sentences.
+        Focus on what data structure or configuration was modified.
+    # Docker files
+    - match: "**/Dockerfile*"
+      systemPrompt: |
+        Summarize the Docker configuration changes in 1-2 sentences.
+        Focus on what build steps, dependencies, or runtime configuration was modified.
+    # Go module files
+    - match: "**/go.mod"
+      systemPrompt: |
+        Summarize the Go module changes in 1-2 sentences.
+        Focus on what dependencies were added, updated, or removed.
+    # Scripts and build files
+    - match: "**/*.sh"
+      systemPrompt: |
+        Summarize the script changes in 1-2 sentences.
+        Focus on what automation or build process was modified.
+    - match: "**/Taskfile.yml"
+      systemPrompt: |
+        Summarize the Task runner changes in 1-2 sentences.
+        Focus on what tasks or build processes were modified.
+    # License and legal files - skip them
+    - match: "**/LICENSE*"
       skip: true
-    - match: "*.md"
+    - match: "**/NOTICE*"
+      skip: true
+    - match: "**/COPYRIGHT*"
+      skip: true
+    # Documentation files
+    - match: "**/*.md"
       profile: "fast"
-      strategy:
-        type: "plaintext"
-        includeFullFile: false
-      systemPrompt: "Summarize the documentation changes."
+      systemPrompt: |
+        Summarize the documentation changes in 1-2 sentences.
+        Focus on what content was added, updated, or restructured.
+        Mention if it's new documentation, fixes, or improvements to existing content.
 
 commit:
   profile: "smart"
   systemPrompt: |
-    You are an expert software engineer.
-    Write a commit message in the Conventional Commits format based on the user's input.
+    You are an expert software engineer writing a commit message in Conventional Commits format.
+
+    Based on the file change summaries provided, create a clear and informative commit message.
+
+    If "Developer Intent" is provided, use it to understand the purpose and context:
+    - Extract GitHub issue references (like #123, #456) for footer as "Refs: #123, #456"
+    - Look for breaking change indicators to add BREAKING CHANGE footer
+    - Use intent to guide commit type, scope, and description
+    - Do not include the raw intent text unless it's specifically about references or breaking changes
+
+    Format:
+    <type>[optional scope]: <description>
+
+    [optional body]
+
+    [optional footer(s)]
+
+    Guidelines:
+    - Use appropriate type: feat, fix, refactor, perf, docs, test, chore, build, ci, style
+    - Keep description under 72 characters, imperative mood, no period
+    - Add scope in parentheses if changes are focused on specific area (e.g., api, cli, core)
+    - Include body if changes need explanation (motivation, context, impact)
+    - Add "Refs: #issue" footer if GitHub issues mentioned in intent
+    - Add "BREAKING CHANGE:" footer only for actual breaking changes
+
+    Examples:
+    - feat(api): add user authentication endpoint
+    - fix: resolve memory leak in file processor
+
+      Resolves issue with excessive memory consumption during
+      large file processing operations.
+
+      Refs: #123
+    - refactor(core): extract shared validation logic
+
+      BREAKING CHANGE: ValidationError interface changed
+
+    Generate only the commit message, nothing else.
 
 pr:
   profile: "smart"

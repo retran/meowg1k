@@ -38,18 +38,15 @@ func TestNewService(t *testing.T) {
 		t.Fatal("NewService should not return nil")
 	}
 
-	// Test that context is available
 	serviceCtx := service.Context()
 	if serviceCtx == nil {
 		t.Fatal("Service context should not be nil")
 	}
 
-	// Test that context is not canceled initially
 	select {
 	case <-serviceCtx.Done():
 		t.Error("Service context should not be canceled initially")
 	default:
-		// Expected
 	}
 }
 
@@ -66,10 +63,8 @@ func TestRegister(t *testing.T) {
 		return nil
 	}
 
-	// Register callback should not panic or error
 	service.Register(callback)
 
-	// Manually trigger shutdown to test callback execution
 	service.Shutdown()
 
 	// Give some time for shutdown to complete
