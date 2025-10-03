@@ -21,14 +21,8 @@ import (
 )
 
 func TestVersionCommand(t *testing.T) {
-	// Since the version command uses fmt.Printf directly to stdout,
-	// we need to test it differently. Let's test that it runs without error
-	// and check the command structure instead.
-
-	// Just run the command to ensure it doesn't panic
 	versionCmd.Run(versionCmd, []string{})
 
-	// Test that the command has the expected properties
 	if versionCmd.Use != "version" {
 		t.Errorf("Expected Use to be 'version', got '%s'", versionCmd.Use)
 	}
@@ -43,7 +37,6 @@ func TestVersionCommand(t *testing.T) {
 }
 
 func TestVersionCommandInit(t *testing.T) {
-	// Test that version command is properly added to root command
 	found := false
 	for _, cmd := range rootCmd.Commands() {
 		if cmd.Name() == "version" {

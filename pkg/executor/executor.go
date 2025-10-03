@@ -28,8 +28,11 @@ import (
 )
 
 var (
-	ErrActivityInvalidType  = errors.New("activity has invalid type")
-	ErrFlowFailed           = errors.New("flow is failed")
+	// ErrActivityInvalidType indicates that an activity has an invalid type.
+	ErrActivityInvalidType = errors.New("activity has invalid type")
+	// ErrFlowFailed indicates that a flow execution has failed.
+	ErrFlowFailed = errors.New("flow is failed")
+	// ErrUnexpectedEndOfRetry indicates an unexpected condition in the retry logic.
 	ErrUnexpectedEndOfRetry = errors.New("unexpected end of retry loop")
 )
 
@@ -89,7 +92,6 @@ func (e *Impl) RunFlow(
 ) error {
 	fut := future.NewFuture[any]()
 	executorCtx := NewContext(flowName, e.FeedbackHandler, e)
-	executorCtx.SendPending(fmt.Sprintf("Flow %q is pending", flowName))
 
 	go func() {
 		err := e.executeFlow(ctx, executorCtx, flow)
@@ -114,9 +116,8 @@ func (e *Impl) RunActivity(
 	input any,
 ) *future.Future[any] {
 	fut := future.NewFuture[any]()
-	fullActivityName := fmt.Sprintf("%s.%s", parentCtx.name, activityName)
+	fullActivityName := fmt.Sprintf("%s::%s", parentCtx.name, activityName)
 	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
-	activityCtx.SendPending(fmt.Sprintf("Activity %q is pending", activityName))
 
 	go func() {
 		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
@@ -163,7 +164,6 @@ func (e *Impl) executeActivity(
 	delay := policy.InitialDelay
 
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
-		// Check if context is canceled before each attempt
 		select {
 		case <-ctx.Done():
 			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))

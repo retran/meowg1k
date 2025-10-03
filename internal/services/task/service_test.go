@@ -25,9 +25,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	mdConfig "github.com/retran/meowg1k/internal/models/config"
-	mdGateway "github.com/retran/meowg1k/internal/models/gateway"
-	mdProfile "github.com/retran/meowg1k/internal/models/profile"
+	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/services/provider"
 )
 
 // Mock implementations for testing
@@ -57,8 +57,16 @@ func (m *mockCommandService) GetConfigPath() (string, error) {
 	return "", nil
 }
 
+func (m *mockCommandService) GetIntentFlag() (string, error) {
+	return "", nil
+}
+
 func (m *mockCommandService) GetSilentFlag() (bool, error) {
 	return false, nil
+}
+
+func (m *mockCommandService) GetTargetBranchFlag() (string, error) {
+	return "", nil
 }
 
 func (m *mockCommandService) GetStdIn() string {
@@ -66,20 +74,20 @@ func (m *mockCommandService) GetStdIn() string {
 }
 
 type mockConfigService struct {
-	config *mdConfig.Config
+	config *config.Config
 }
 
-func (m *mockConfigService) GetConfig() *mdConfig.Config {
+func (m *mockConfigService) GetConfig() *config.Config {
 	return m.config
 }
 
 type mockProfileService struct {
-	profiles map[mdProfile.Profile]*mdProfile.ResolvedProfile
+	profiles map[profile.Profile]*profile.ResolvedProfile
 }
 
 var errMockProfileNotFound = errors.New("mock profile not found")
 
-func (m *mockProfileService) Get(profile mdProfile.Profile) (*mdProfile.ResolvedProfile, error) {
+func (m *mockProfileService) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
 	if resolved, exists := m.profiles[profile]; exists {
 		return resolved, nil
 	}
@@ -88,9 +96,9 @@ func (m *mockProfileService) Get(profile mdProfile.Profile) (*mdProfile.Resolved
 
 func TestNewServiceSuccess(t *testing.T) {
 	// Setup mocks with valid configuration
-	config := &mdConfig.Config{
-		Generate: &mdConfig.GenerateConfig{
-			Default: &mdConfig.GenerateDefault{
+	config := &config.Config{
+		Generate: &config.GenerateConfig{
+			Default: &config.GenerateDefault{
 				Profile:      "test-profile",
 				SystemPrompt: "Default system prompt",
 			},
@@ -104,14 +112,14 @@ func TestNewServiceSuccess(t *testing.T) {
 
 	configSvc := &mockConfigService{config: config}
 
-	resolvedProfile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
+	resolvedProfile := &profile.ResolvedProfile{
+		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 		Timeout:  5 * time.Minute,
 	}
 
 	profileSvc := &mockProfileService{
-		profiles: map[mdProfile.Profile]*mdProfile.ResolvedProfile{
+		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"test-profile": resolvedProfile,
 		},
 	}
@@ -147,13 +155,13 @@ func TestNewServiceSuccess(t *testing.T) {
 
 func TestNewServiceWithSpecificTask(t *testing.T) {
 	// Setup configuration with a specific task
-	config := &mdConfig.Config{
-		Generate: &mdConfig.GenerateConfig{
-			Default: &mdConfig.GenerateDefault{
+	config := &config.Config{
+		Generate: &config.GenerateConfig{
+			Default: &config.GenerateDefault{
 				Profile:      "default-profile",
 				SystemPrompt: "Default system prompt",
 			},
-			Tasks: map[string]*mdConfig.GenerateTask{
+			Tasks: map[string]*config.GenerateTask{
 				"specific-task": {
 					Profile:      "task-profile",
 					SystemPrompt: "Task system prompt",
@@ -170,13 +178,13 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 
 	configSvc := &mockConfigService{config: config}
 
-	taskProfile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
+	taskProfile := &profile.ResolvedProfile{
+		Provider: provider.OpenAI,
 		Model:    "gpt-3.5-turbo",
 	}
 
 	profileSvc := &mockProfileService{
-		profiles: map[mdProfile.Profile]*mdProfile.ResolvedProfile{
+		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"task-profile": taskProfile,
 		},
 	}
@@ -207,13 +215,13 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 
 func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 	// Test task that uses default profile when task doesn't specify one
-	config := &mdConfig.Config{
-		Generate: &mdConfig.GenerateConfig{
-			Default: &mdConfig.GenerateDefault{
+	config := &config.Config{
+		Generate: &config.GenerateConfig{
+			Default: &config.GenerateDefault{
 				Profile:      "default-profile",
 				SystemPrompt: "Default system prompt",
 			},
-			Tasks: map[string]*mdConfig.GenerateTask{
+			Tasks: map[string]*config.GenerateTask{
 				"task-no-profile": {
 					UserPrompt: "Task user prompt",
 					// No Profile or SystemPrompt - should use defaults
@@ -229,13 +237,13 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 
 	configSvc := &mockConfigService{config: config}
 
-	defaultProfile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
+	defaultProfile := &profile.ResolvedProfile{
+		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 	}
 
 	profileSvc := &mockProfileService{
-		profiles: map[mdProfile.Profile]*mdProfile.ResolvedProfile{
+		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"default-profile": defaultProfile,
 		},
 	}
@@ -263,7 +271,7 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 func TestNewServiceErrorCases(t *testing.T) {
 	testCases := []struct {
 		name        string
-		config      *mdConfig.Config
+		config      *config.Config
 		commandSvc  *mockCommandService
 		profileSvc  *mockProfileService
 		expectedErr string
@@ -277,9 +285,9 @@ func TestNewServiceErrorCases(t *testing.T) {
 		},
 		{
 			name: "task not found",
-			config: &mdConfig.Config{
-				Generate: &mdConfig.GenerateConfig{
-					Tasks: map[string]*mdConfig.GenerateTask{},
+			config: &config.Config{
+				Generate: &config.GenerateConfig{
+					Tasks: map[string]*config.GenerateTask{},
 				},
 			},
 			commandSvc:  &mockCommandService{taskName: "non-existent-task"},
@@ -288,16 +296,16 @@ func TestNewServiceErrorCases(t *testing.T) {
 		},
 		{
 			name:        "no default configuration",
-			config:      &mdConfig.Config{},
+			config:      &config.Config{},
 			commandSvc:  &mockCommandService{taskName: "", userPrompt: "test"},
 			profileSvc:  &mockProfileService{},
 			expectedErr: "no default configuration available",
 		},
 		{
 			name: "no profile configured",
-			config: &mdConfig.Config{
-				Generate: &mdConfig.GenerateConfig{
-					Default: &mdConfig.GenerateDefault{
+			config: &config.Config{
+				Generate: &config.GenerateConfig{
+					Default: &config.GenerateDefault{
 						Profile:      "", // Empty profile
 						SystemPrompt: "System prompt",
 					},
@@ -309,9 +317,9 @@ func TestNewServiceErrorCases(t *testing.T) {
 		},
 		{
 			name: "user prompt required",
-			config: &mdConfig.Config{
-				Generate: &mdConfig.GenerateConfig{
-					Default: &mdConfig.GenerateDefault{
+			config: &config.Config{
+				Generate: &config.GenerateConfig{
+					Default: &config.GenerateDefault{
 						Profile:      "test-profile",
 						SystemPrompt: "System prompt",
 					},
@@ -319,7 +327,7 @@ func TestNewServiceErrorCases(t *testing.T) {
 			},
 			commandSvc: &mockCommandService{taskName: "", userPrompt: ""}, // No task name and no user prompt
 			profileSvc: &mockProfileService{
-				profiles: map[mdProfile.Profile]*mdProfile.ResolvedProfile{
+				profiles: map[profile.Profile]*profile.ResolvedProfile{
 					"test-profile": {},
 				},
 			},
@@ -327,16 +335,16 @@ func TestNewServiceErrorCases(t *testing.T) {
 		},
 		{
 			name: "profile resolution error",
-			config: &mdConfig.Config{
-				Generate: &mdConfig.GenerateConfig{
-					Default: &mdConfig.GenerateDefault{
+			config: &config.Config{
+				Generate: &config.GenerateConfig{
+					Default: &config.GenerateDefault{
 						Profile:      "non-existent-profile",
 						SystemPrompt: "System prompt",
 					},
 				},
 			},
 			commandSvc:  &mockCommandService{userPrompt: "test"},
-			profileSvc:  &mockProfileService{profiles: map[mdProfile.Profile]*mdProfile.ResolvedProfile{}},
+			profileSvc:  &mockProfileService{profiles: map[profile.Profile]*profile.ResolvedProfile{}},
 			expectedErr: "failed to resolve profile 'non-existent-profile'",
 		},
 	}
@@ -361,8 +369,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 
 func TestConfigurationFields(t *testing.T) {
 	// Test Configuration struct fields
-	profile := &mdProfile.ResolvedProfile{
-		Provider: mdGateway.OpenAI,
+	profile := &profile.ResolvedProfile{
+		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 	}
 
