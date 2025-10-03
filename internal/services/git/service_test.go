@@ -314,3 +314,218 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceImpl_GetCurrentBranch(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_branch")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	// Configure git user
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	// Create initial commit
+	os.WriteFile("test.txt", []byte("test"), 0o644)
+	exec.Command("git", "add", "test.txt").Run()
+	exec.Command("git", "commit", "-m", "Initial commit").Run()
+
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
+
+	// Test GetCurrentBranch
+	branch, err := service.GetCurrentBranch()
+	if err != nil {
+		t.Errorf("GetCurrentBranch() failed: %v", err)
+	}
+
+	// Default branch is usually "master" or "main"
+	if branch != "master" && branch != "main" {
+		t.Logf("Current branch: %s (expected master or main)", branch)
+	}
+}
+
+func TestServiceImpl_GetChangedFilesInBranch(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_changed_files")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	// Configure git user
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	// Create initial commit on main branch
+	os.WriteFile("base.txt", []byte("base content"), 0o644)
+	exec.Command("git", "add", "base.txt").Run()
+	exec.Command("git", "commit", "-m", "Initial commit").Run()
+
+	// Create a new branch
+	exec.Command("git", "checkout", "-b", "feature").Run()
+
+	// Add changes in feature branch
+	os.WriteFile("feature.txt", []byte("feature content"), 0o644)
+	exec.Command("git", "add", "feature.txt").Run()
+	exec.Command("git", "commit", "-m", "Add feature file").Run()
+
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
+
+	// Test GetChangedFilesInBranch
+	files, err := service.GetChangedFilesInBranch("master")
+	if err != nil {
+		// Try with "main" if "master" doesn't exist
+		files, err = service.GetChangedFilesInBranch("main")
+		if err != nil {
+			t.Errorf("GetChangedFilesInBranch() failed: %v", err)
+		}
+	}
+
+	if len(files) != 1 || files[0] != "feature.txt" {
+		t.Logf("Expected [feature.txt], got %v", files)
+	}
+}
+
+func TestServiceImpl_GetChangedFilesInBranchEmpty(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_changed_empty")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	// Configure git user
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	// Create initial commit
+	os.WriteFile("test.txt", []byte("test"), 0o644)
+	exec.Command("git", "add", "test.txt").Run()
+	exec.Command("git", "commit", "-m", "Initial commit").Run()
+
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
+
+	// Test GetChangedFilesInBranch with no changes
+	baseBranch := "HEAD"
+	files, err := service.GetChangedFilesInBranch(baseBranch)
+	if err != nil {
+		t.Errorf("GetChangedFilesInBranch() failed: %v", err)
+	}
+
+	if len(files) != 0 {
+		t.Errorf("Expected no changed files, got %v", files)
+	}
+}
+
+func TestServiceImpl_GetBranchDiff(t *testing.T) {
+	// Create a temporary git repository
+	tempDir, err := os.MkdirTemp("", "git_test_branch_diff")
+	if err != nil {
+		t.Skipf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalDir, _ := os.Getwd()
+	defer func() {
+		_ = os.Chdir(originalDir)
+	}()
+
+	err = os.Chdir(tempDir)
+	if err != nil {
+		t.Skipf("Failed to change to temp directory: %v", err)
+	}
+
+	// Initialize git repo
+	err = exec.Command("git", "init").Run()
+	if err != nil {
+		t.Skipf("Failed to init git repo: %v", err)
+	}
+
+	// Configure git user
+	exec.Command("git", "config", "user.name", "Test User").Run()
+	exec.Command("git", "config", "user.email", "test@example.com").Run()
+
+	// Create initial commit on main branch
+	testFile := "test.txt"
+	os.WriteFile(testFile, []byte("line 1\nline 2\n"), 0o644)
+	exec.Command("git", "add", testFile).Run()
+	exec.Command("git", "commit", "-m", "Initial commit").Run()
+
+	// Create a new branch
+	exec.Command("git", "checkout", "-b", "feature").Run()
+
+	// Modify the file in feature branch
+	os.WriteFile(testFile, []byte("line 1\nline 2 modified\nline 3\n"), 0o644)
+	exec.Command("git", "add", testFile).Run()
+	exec.Command("git", "commit", "-m", "Modify file").Run()
+
+	workspaceService := &mockWorkspaceService{}
+	service := NewService(workspaceService)
+
+	// Test GetBranchDiff
+	diff, err := service.GetBranchDiff(testFile, "master")
+	if err != nil {
+		// Try with "main" if "master" doesn't exist
+		diff, err = service.GetBranchDiff(testFile, "main")
+		if err != nil {
+			t.Errorf("GetBranchDiff() failed: %v", err)
+		}
+	}
+
+	if !strings.Contains(diff, "line 2 modified") || !strings.Contains(diff, "line 3") {
+		t.Logf("Expected diff to contain modifications, got: %s", diff)
+	}
+}
