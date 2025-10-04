@@ -25,7 +25,9 @@
 
 `meowg1k` is a command-line interface that brings the power of modern LLMs (Large Language Models) into your terminal. Unlike interactive assistants (like GitHub Copilot or ChatGPT), `meowg1k` is designed for automation and scripting. It's a Unix-philosophy tool that predictably transforms code into an AI-enhanced result.
 
-![meowg1k demo gif](https://user-images.githubusercontent.com/username/image_id.gif)
+<div align="center">
+  <img src="./assets/demo_commit.gif" alt="meowg1k demo" width="800">
+</div>
 
 ---
 
