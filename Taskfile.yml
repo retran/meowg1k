@@ -107,12 +107,10 @@ tasks:
   security:
     desc: Run security checks with gosec and govulncheck
     cmds:
-      - echo "[INFO] Running gosec security scanner..."
-      - go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-      - gosec ./...
-      - echo "[INFO] Running govulncheck for known vulnerabilities..."
-      - go install golang.org/x/vuln/cmd/govulncheck@latest
-      - govulncheck ./...
+       - echo "[INFO] Running gosec security scanner..."
+        - go run github.com/securecodewarrior/gosec/v2/cmd/gosec@latest ./...
+        - echo "[INFO] Running govulncheck for known vulnerabilities..."
+        - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   clean:
     desc: Clean all build artifacts

@@ -23,7 +23,7 @@ Choose the method that best suits your operating system and workflow.
 This is the recommended method for users who have a Go development environment set up.
 
 ```bash
-go install https://github.com/retran/meowg1k@latest
+go install github.com/retran/meowg1k@latest
 ```
 
 This will download, compile, and install the `meow` binary into your `GOBIN` directory.

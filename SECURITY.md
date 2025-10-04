@@ -46,8 +46,8 @@ You can verify the integrity of a release binary using the following command:
 
 ```bash
 cosign verify-blob \
-  --certificate-identity-regexp '[https://github.com/retran/meowg1k](https://github.com/retran/meowg1k)' \
-  --certificate-oidc-issuer '[https://token.actions.githubusercontent.com](https://token.actions.githubusercontent.com)' \
+  --certificate-identity-regexp 'https://github.com/retran/meowg1k' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
   --signature meowg1k_<version>_linux_amd64.tar.gz.sig \
   meowg1k_<version>_linux_amd64.tar.gz
 ```

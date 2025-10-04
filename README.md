@@ -56,7 +56,7 @@
 
 ```bash
 # Using Go (requires Go 1.25.1+)
-go install https://github.com/retran/meowg1k@latest
+go install github.com/retran/meowg1k@latest
 
 # Using Homebrew (macOS/Linux)
 brew install retran/homebrew-meow-tap/meow
