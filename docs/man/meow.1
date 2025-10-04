@@ -1,5 +1,5 @@
 .\" docs/man/meow.1
-.TH MEOW 1 "2025-09-19" "meowg1k" "User Commands"
+.TH MEOW 1 "2025-10-04" "meowg1k" "User Commands"
 .SH NAME
 meow \- your purr-sonal AI sidekick for the terminal
 .SH SYNOPSIS
@@ -11,34 +11,54 @@ For command\-specific flags, run:
 \fIcommand\fR \-\-help
 .SH DESCRIPTION
 .B meow
-is a fast, script\-friendly AI CLI that supports multiple LLM providers
-through a configuration\-driven approach. It uses reusable profiles to
-simplify working with cloud models (Gemini, OpenAI, OpenRouter) and
-local inference (llama.cpp, OpenAI\-compatible APIs).
-.br
-Input can be provided via flags and/or piped through stdin.
+is a fast, script\-friendly AI CLI designed for automation and scripting.
+It is built for CI/CD pipelines, Git hooks, and batch processing, not for
+interactive conversation. It transforms code and text into AI-enhanced
+results through a Unix-philosophy interface.
+.PP
+The tool supports multiple LLM providers through a configuration-driven
+approach using reusable profiles to simplify working with cloud models
+(Gemini, OpenAI, Anthropic, OpenRouter) and local inference (llama.cpp,
+OpenAI-compatible APIs).
+.PP
+Input can be provided via flags and/or piped through stdin. All behavior
+is controlled through version-controlled YAML configuration files.
 
 .SH COMMANDS
 .TP
 .B generate
-Generate content using configured profiles. Supports predefined tasks
-and custom prompts. Works with all supported providers.
+Generate content based on a prompt and/or context provided via stdin.
+Supports predefined tasks and custom prompts. Works with all supported
+providers. Aliases: \fBgen\fR, \fBg\fR.
+.TP
+.B commit
+Generate commit messages based on staged changes or the difference between
+branches. Supports both regular commit mode (analyzing staged files) and
+squash commit mode (analyzing branch diffs). Alias: \fBc\fR.
+.TP
+.B pr
+Generate Pull Request title and description based on the difference between
+your current branch and a base branch. Alias: \fBp\fR.
 .TP
 .B version
-Show version info.
+Show version information including build date and git commit hash.
 .TP
 .B completion
-Generate shell completion scripts.
+Generate shell completion scripts for bash, zsh, fish, and PowerShell.
 
 .SH OPTIONS
-Global options:
+Global options available for all commands:
 .TP
-.BR \-c , " \-\-config " \fIFILE\fR
-Use specific configuration file. When specified, ignores project and user
-configuration files completely.
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file. When specified, ignores project and user
+configuration files completely. This overrides all other configuration sources.
+.TP
+.BR \-\-silent
+Enable silent mode. Suppresses progress indicators and non-essential output.
+Ideal for scripting and CI/CD pipelines where only the final result is needed.
 .TP
 .BR \-h , " \-\-help"
-Show help for
+Show help information for
 .B meow
 or a specific command.
 
@@ -103,59 +123,179 @@ Optional API key for the llama provider.
 API key for OpenAI\-compatible providers.
 
 .SH CONFIGURATION
-Configuration uses a profile\-based system. Files are read with this precedence:
+Configuration uses a hierarchical profile-based system. Files are read with
+this precedence (each subsequent location overrides the previous):
 .IP "1." 3
-Explicit config via \fB\-\-config\fR flag (overrides all others)
+User config:
+.B ~/.config/meowg1k/config.yaml
+(personal defaults)
 .IP "2."
 Project config:
 .B ./.meowg1k/config.yaml
+(recommended for team-shared settings, commit to repository)
 .IP "3."
-User config:
-.B ~/.config/meowg1k/config.yaml
+Explicit config via \fB\-\-config\fR flag (highest priority, overrides all others)
 .PP
-Profiles define reusable provider configurations with smart defaults.
+The configuration file has several top-level sections:
+.TP
+.B profiles
+Reusable provider configurations with model, timeout, rate limiting, and token caps.
+.TP
+.B filter
+Gitignore-style patterns to exclude files from analysis (for security and noise reduction).
+.TP
+.B summarize
+Map-phase configuration for commit and pr commands, with rule-based file-specific settings.
+.TP
+.B generate
+Configuration for the generate command, including predefined tasks.
+.TP
+.B commit
+Reduce-phase configuration for generating commit messages.
+.TP
+.B pr
+Reduce-phase configuration for generating PR descriptions.
+.PP
 See
 .BR meow\-config (5)
-for detailed configuration syntax.
+for detailed configuration syntax and comprehensive examples.
 
 .SH EXAMPLES
+.SS Basic Generation
 Use a predefined task:
-.br
+.PP
+.nf
 .B cat main.go | meow generate \-t review
+.fi
 .PP
 Direct prompt generation:
-.br
-.B echo "Create a REST API" | meow generate \-p "Write Go code"
 .PP
-Use specific provider via environment:
-.br
-.B export MEOW_OPENAI_API_KEY="sk\-..."
-.br
-.B cat service.py | meow generate \-p "Add error handling"
+.nf
+.B echo "Create a REST API" | meow generate \-u "Write Go code"
+.fi
 .PP
-Project\-specific configuration:
-.br
+Refactor code with custom prompt:
+.PP
+.nf
+.B cat service.py | meow g \-u "Add comprehensive error handling"
+.fi
+
+.SS Commit Message Generation
+Generate commit message from staged changes:
+.PP
+.nf
+.B git add .
+.B meow commit
+.fi
+.PP
+Provide developer intent:
+.PP
+.nf
+.B meow commit \-i "Fix user authentication bug"
+.fi
+.PP
+Generate squash commit message:
+.PP
+.nf
+.B meow commit \-\-target\-branch main
+.fi
+
+.SS Pull Request Description
+Generate PR description:
+.PP
+.nf
+.B meow pr \-\-base main
+.fi
+.PP
+With developer intent:
+.PP
+.nf
+.B meow pr \-b dev \-i "Add complete Stripe payment integration"
+.fi
+
+.SS Project Configuration
 Create
 .B ./.meowg1k/config.yaml
-with custom profiles, then:
-.br
+with custom profiles and tasks:
+.PP
+.nf
+profiles:
+  fast:
+    provider: "gemini"
+  smart:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20240620"
+
+generate:
+  default:
+    profile: "fast"
+  tasks:
+    security:
+      profile: "smart"
+      userPrompt: "Perform security analysis"
+
+commit:
+  profile: "smart"
+
+pr:
+  profile: "smart"
+.fi
+.PP
+Then use the configuration:
+.PP
+.nf
 .B cat auth.go | meow generate \-t security
+.B meow commit
+.B meow pr \-\-base main
+.fi
 
 .SH FILES
+.TP
 .B ~/.config/meowg1k/config.yaml
-\- user configuration
-.br
+User-level configuration file for personal defaults.
+.TP
 .B ./.meowg1k/config.yaml
-\- project configuration
+Project-level configuration file. Recommended for team-shared settings.
+Should be committed to version control.
 
 .SH EXIT STATUS
-Returns 0 on success, non\-zero on error.
+Returns 0 on success, non-zero on error.
+
+.SH DESIGN PRINCIPLES
+.B meow
+is built on fundamental principles:
+.IP \[bu] 2
+\fBA Composable Engine:\fR Designed to be a reliable building block for larger
+automated systems, not a monolithic application.
+.IP \[bu]
+\fBTask Execution:\fR Executes discrete tasks with clear input/output, not
+conversational interaction.
+.IP \[bu]
+\fBNative Performance:\fR Single self-contained binary with zero runtime
+dependencies.
+.IP \[bu]
+\fBRadical Independence:\fR No vendor lock-in; switch providers with a config change.
+.IP \[bu]
+\fBLocal-First:\fR Can operate completely offline with local models.
+.IP \[bu]
+\fBConfiguration as Code:\fR All behavior defined in version-controllable YAML files.
+.IP \[bu]
+\fBSecurity by Design:\fR Never stores secrets; all official releases are
+cryptographically signed.
+.IP \[bu]
+\fBRadically Open:\fR All code including dependencies is open source.
 
 .SH SEE ALSO
 .BR meow\-generate (1),
+.BR meow\-commit (1),
+.BR meow\-pr (1),
 .BR meow\-version (1),
 .BR meow\-config (5),
 .BR meow\-security (7)
+.PP
+Full documentation:
+.br
+https://github.com/retran/meowg1k/tree/main/docs
 
 .SH AUTHORS
 Andrew Vasilyev <me@retran.me>
@@ -163,4 +303,5 @@ Andrew Vasilyev <me@retran.me>
 .SH COPYRIGHT
 Copyright (c) 2025 Andrew Vasilyev.
 Licensed under the Apache License, Version 2.0.
+.PP
 Project page: https://github.com/retran/meowg1k

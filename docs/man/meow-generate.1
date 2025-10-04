@@ -1,68 +1,150 @@
 .\" docs/man/meow-generate.1
-.TH MEOW-GENERATE 1 "2025-09-19" "meowg1k" "User Commands"
+.TH MEOW-GENERATE 1 "2025-10-04" "meowg1k" "User Commands"
 .SH NAME
-meow-generate \- generate any content based on input — code, text,
-or docs
+meow-generate \- generate content based on prompts and context
 .SH SYNOPSIS
 .B meow generate
-[\fIflags\fR] [\fIarguments...\fR]
+[\fIflags\fR]
+.br
+.B meow gen
+[\fIflags\fR]
 .br
 .B meow g
-[\fIflags\fR] [\fIarguments...\fR]
+[\fIflags\fR]
 .SH DESCRIPTION
-Generate content using configured profiles and tasks. Supports all available
-providers through the profile system with smart defaults and minimal
-configuration. Input can be provided via stdin and/or user prompt flags.
+.B meow generate
+generates content using configured AI provider profiles and tasks. It is
+designed for automation and scripting, transforming input into AI-enhanced
+output through a predictable pipeline.
+.PP
+Input can be provided via stdin (for context) and/or command-line flags
+(for instructions). The command supports predefined tasks configured in
+YAML files and ad-hoc prompts for one-off operations.
+.PP
+All providers (Gemini, OpenAI, Anthropic, OpenRouter, llama.cpp, and
+OpenAI-compatible APIs) are supported through the unified profile system
+with smart defaults and minimal configuration required.
 .SH OPTIONS
 .TP
 .BR \-t ", " \-\-task " " \fINAME\fR
 Run a predefined task from configuration. Tasks are defined in the
 .B generate.tasks
-section of config files.
+section of config files. Tasks can specify a profile, system prompt,
+and user prompt, allowing complex, reusable workflows to be invoked
+with a simple name.
 .TP
-.BR \-p ", " \-\-user\-prompt " " \fITEXT\fR
-User prompt for generation. Can be combined with stdin for context.
+.BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
+Override the system prompt. The system prompt sets the AI's role and
+behavior (e.g., "You are an expert Go developer"). If not specified,
+uses the system prompt from the task or profile configuration.
+.TP
+.BR \-u ", " \-\-user\-prompt " " \fITEXT\fR
+Specify the user prompt (instruction) for generation. This tells the AI
+what to do with the provided context. Can be combined with stdin to
+provide both context and instruction.
 .TP
 .BR \-h ", " \-\-help
-Show command help.
+Show command help and usage information.
 
 .SH CONFIGURATION
 Uses the profile system defined in
 .BR meow\-config (5).
-Profiles specify provider, model, and other settings with smart defaults.
-
-Tasks can override the default profile and add custom prompts:
-
+Profiles specify provider, model, timeout, rate limiting, and token caps
+with smart defaults for each provider.
+.PP
+The
+.B generate
+section in configuration files defines default settings and tasks:
+.PP
 .nf
 generate:
   default:
-    profile: "fast"
+    profile: "fast"              # Default profile for generate
+    systemPrompt: "You are..."   # Optional default system prompt
+
   tasks:
     review:
-      profile: "smart"
+      profile: "smart"           # Override profile for this task
+      systemPrompt: "Expert reviewer..."
       userPrompt: "Review this code thoroughly"
+
+    security:
+      profile: "smart"
+      userPrompt: "Analyze for security vulnerabilities"
 .fi
-\fB--model\fR is ignored. Use \fB--llama-base-url\fR to connect.
-.SH CONFIGURATION
-Configuration files are read with the following precedence:
+.PP
+Configuration files are read with hierarchical precedence:
 .IP "1." 3
-Project: \fB./.meowg1k/config.yaml\fR
+User config: \fB~/.config/meowg1k/config.yaml\fR
+.IP "2."
+Project config: \fB./.meowg1k/config.yaml\fR
+.IP "3."
+Explicit config via \fB\-\-config\fR flag
 .SH EXAMPLES
-Use a predefined task:
-.br
+.SS Using Predefined Tasks
+Run a code review task:
+.PP
+.nf
 .B cat main.go | meow generate \-t review
+.fi
 .PP
-Direct prompt with stdin:
-.br
-.B cat service.py | meow generate \-p "Add comprehensive error handling"
+Security analysis with predefined configuration:
 .PP
-Simple prompt without stdin:
-.br
-.B echo "Create a REST API" | meow generate \-p "Write Go code"
-.PP
-Project-specific task:
-.br
+.nf
 .B cat auth.go | meow generate \-t security
+.fi
+
+.SS Ad-Hoc Prompts
+Provide context via stdin and instruction via flag:
+.PP
+.nf
+.B cat service.py | meow generate \-u "Add comprehensive error handling"
+.fi
+.PP
+Generate from text prompt alone:
+.PP
+.nf
+.B echo "Create a REST API" | meow g \-u "Write Go code with proper structure"
+.fi
+.PP
+Refactor JavaScript to TypeScript:
+.PP
+.nf
+.B echo "function add(a, b) { return a + b; }" | meow g \\
+  \-s "You are a TypeScript expert" \\
+  \-u "Convert to TypeScript with type hints"
+.fi
+
+.SS Using Different Providers
+With Gemini (free tier):
+.PP
+.nf
+.B export MEOW_GEMINI_API_KEY="your-key"
+.B cat code.go | meow g \-u "Explain this code"
+.fi
+.PP
+With local llama.cpp server:
+.PP
+.nf
+# Ensure profile configured in .meowg1k/config.yaml:
+# profiles:
+#   local:
+#     provider: "llama"
+#     baseURL: "http://localhost:8080"
+#
+# generate:
+#   default:
+#     profile: "local"
+
+.B cat sensitive.go | meow g \-u "Review for issues"
+.fi
+
+.SS Silent Mode for Scripts
+Generate without progress indicators:
+.PP
+.nf
+.B cat input.txt | meow generate \-u "Summarize" \-\-silent > output.txt
+.fi
 
 .SH ENVIRONMENT
 Providers use these environment variables for API keys:
