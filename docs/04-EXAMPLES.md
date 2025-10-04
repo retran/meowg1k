@@ -15,7 +15,7 @@ This is the simplest use case: providing a piece of code via stdin and asking fo
 ```bash
 echo "function getUser(id) { return fetch('/api/users/' + id).then(res => res.json()); }" \
 | meow g -u "Refactor this to use async/await syntax and add basic error handling"
-````
+```
 
 **Explanation:**
 
@@ -194,6 +194,8 @@ cat ./internal/billing/core.go | meow g -t local-analysis
 
 - The `local-secure` profile directs all API traffic to your local server instead of a cloud provider.
 - This allows you to leverage the power of LLMs in air-gapped or high-security environments.
+
+---
 
 ## Next Steps
 

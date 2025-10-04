@@ -2,6 +2,8 @@
 
 This document provides a detailed reference for all available `meowg1k` commands and their options.
 
+---
+
 ## Global Flags
 
 These flags can be used with any command.

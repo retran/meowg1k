@@ -2,6 +2,8 @@
 
 This guide provides instructions for installing `meowg1k` on various operating systems.
 
+---
+
 ## Prerequisites
 
 Before you begin, ensure you have the following:
@@ -87,6 +89,8 @@ Git Commit: 85f0b68
 > **Note:** The version string may look different depending on how you installed it. A suffix like `-dirty` indicates a development build from a local repository with uncommitted changes. Official releases will show a clean version number (e.g., `v1.2.4`).
 
 If you see a "command not found" error, ensure that the installation directory (e.g., `$GOPATH/bin` for Go installs) is included in your shell's `PATH` environment variable.
+
+---
 
 ## Next Steps
 

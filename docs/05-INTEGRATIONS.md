@@ -180,6 +180,8 @@ echo "Batch analysis complete!"
 
 ```
 
+---
+
 ## Next Steps
 
 You've now seen how to install, configure, use, and integrate `meowg1k`. For further assistance, check out our reference documents:

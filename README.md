@@ -27,6 +27,8 @@
 
 ![meowg1k demo gif](https://user-images.githubusercontent.com/username/image_id.gif)
 
+---
+
 ## Who is this for?
 
 `meowg1k` is perfect for:
@@ -34,6 +36,8 @@
 - **Any developer** who loves the power of the command line and wants to integrate AI into their existing shell workflows.
 - **DevOps & Platform Engineers** who want to automate PR descriptions and code analysis in CI/CD pipelines.
 - **Security Engineers** who want to run automated code checks using local, private models.
+
+---
 
 ## Key Features
 
@@ -43,6 +47,8 @@
 - **Cost Control:** Built-in token and request rate limiting for predictable spending.
 - **Configuration as Code:** Manage all behavior through version-controlled `.yaml` files.
 - **Zero Dependencies:** Shipped as a single, native binary. Fast and lightweight.
+
+---
 
 ## Quick Start
 
@@ -82,33 +88,45 @@ meow commit
 meow pr --base main
 ```
 
+---
+
 ## Documentation
 
-Explore the full documentation to master `meowg1k`. For a complete overview, jump to our **[Full Documentation Index](./docs/README.md)**.
+Explore the full documentation to master `meowg1k`. For a complete overview, jump to our [**Documentation Index**](./docs/README.md).
 
 - [**Installation Guide**](./docs/01-INSTALLATION.md)
+
   *Get `meowg1k` set up on your system.*
 
 - [**Configuration Guide**](./docs/02-CONFIGURATION.md)
+
   *Learn how to configure profiles, providers, rate limits, and rules.*
 
 - [**Command Reference**](./docs/03-COMMAND-REFERENCE.md)
+
   *A detailed reference for all commands and their flags.*
 
 - [**Examples & Recipes**](./docs/04-EXAMPLES.md)
+
   *Practical examples for solving real-world problems.*
 
 - [**Integrations Guide**](./docs/05-INTEGRATIONS.md)
+
   *Automate your workflow with Git hooks and CI/CD pipelines.*
 
 - [**Core Principles**](./docs.md/06-PRINCIPLES.md)
+
   *Understand the philosophy and vision behind the project.*
 
 - [**FAQ**](./docs/07-FAQ.md)
+
   *Find answers to common questions.*
 
 - [**Troubleshooting Guide**](./docs/08-TROUBLESHOOTING.md)
+
   *Solve common installation and configuration issues.*
+
+---
 
 ## Contributing
 
@@ -116,17 +134,23 @@ We welcome all contributions! This project thrives on community input. Before yo
 
 All participants are expected to uphold our [**Code of Conduct**](./CODE_OF_CONDUCT.md).
 
+---
+
 ## Project Roadmap
 
 Interested in the future of `meowg1k`? Check out our [**Project Roadmap**](./ROADMAP.md) to see what features are planned and where you can help.
+
+---
 
 ## Security Policy
 
 Security is a top priority. If you believe you have found a security vulnerability, please follow the responsible disclosure procedure outlined in our [**Security Policy**](./SECURITY.md).
 
+---
+
 ## License
 
-This project is licensed under the [Apache License 2.0](./LICENSE).
+This project is licensed under the [**Apache License 2.0**](./LICENSE).
 
 ---
 

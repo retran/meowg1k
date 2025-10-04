@@ -4,6 +4,8 @@
 
 This guide covers everything from setting your API keys to creating complex, rule-based workflows.
 
+---
+
 ## 1. Setting API Keys
 
 The primary way to provide API keys to `meowg1k` is through environment variables. The tool automatically looks for variables based on the provider you choose.
@@ -19,11 +21,13 @@ export MEOW_OPENAI_API_KEY="sk-..."
 
 # For Anthropic Claude
 export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
-````
+```
 
 > **Note:** You can specify a custom environment variable name within a profile using the `apiKeyEnv` field if needed.
 
-## 2\. Configuration File Hierarchy
+---
+
+## 2. Configuration File Hierarchy
 
 `meowg1k` loads configuration from up to three locations, with each subsequent location overriding the previous ones:
 
@@ -38,6 +42,8 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 3. **Explicit Config (Highest priority):** `--config /path/to/your/config.yaml`
 
     - A path specified with the global `--config` flag will override all other configuration files.
+
+---
 
 ## 3. Configuration File Structure
 
@@ -172,23 +178,25 @@ pr:
     The output must include two parts:
     1.  **A short, descriptive Title.**
     2.  **A detailed Body** using the following template:
-    
+
     ---
-    
+
     ## Goal
     Describe the main purpose of this PR. What problem does it solve? Link to the relevant issue if one exists.
-    
+
     ## Summary of Changes
     Provide a bullet-point list of the most important changes made in this PR.
     - Change 1...
     - Change 2...
-    
+
     ## How to Test
     Provide clear, step-by-step instructions for how a reviewer can test these changes.
     1. Checkout this branch.
     2. Run `...`
     3. Check that `...` works as expected.
 ```
+
+---
 
 ## 4. Supported Providers
 
@@ -201,6 +209,8 @@ pr:
 | Llama.cpp         | `llama`             | `MEOW_LLAMA_API_KEY` (optional)  |
 | OpenAI Compatible | `openai-compatible` | `MEOW_OPENAI_COMPATIBLE_API_KEY` |
 | Voyage AI         | `voyage`            | `MEOW_VOYAGE_API_KEY`            |
+
+---
 
 ## 5. Complete Examples
 
@@ -275,6 +285,8 @@ pr:
   profile: "claude-main"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
+
+---
 
 ## Next Steps
 
