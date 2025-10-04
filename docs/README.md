@@ -19,6 +19,6 @@ This page provides a complete index of the `meowg1k` documentation.
 
 ## Reference & Help
 
-- [06 - Core Principles](./06-PRINCIPLES.md)
+- [06 - Project Philosophy & Core Principles](./06-PRINCIPLES.md)
 - [07 - Frequently Asked Questions (FAQ)](./07-FAQ.md)
 - [08 - Troubleshooting Guide](./08-TROUBLESHOOTING.md)
