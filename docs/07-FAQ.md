@@ -9,7 +9,7 @@ This document answers common questions about `meowg1k`.
 ### Q: Which provider should I use?
 
 - **For beginners:** Gemini (`gemini-2.5-flash`) offers a generous free tier and is very fast.
-- **For quality:** Anthropic Claude (`claude-4-5-sonnet`) provides excellent, high-quality output.
+- **For quality:** Anthropic Claude (`claude-sonnet-4-5-20250929`) provides excellent, high-quality output.
 - **For cost-effectiveness:** OpenRouter gives you access to many free and low-cost models.
 - **For privacy:** Use a local `llama.cpp` server for complete data privacy.
 
@@ -69,8 +69,6 @@ While comprehensive debug logging is planned for a future release, you can curre
 3. **Provider dashboards:** Most AI providers (OpenAI, Anthropic, Gemini) offer request logs and usage dashboards where you can see the exact prompts and tokens sent.
 4. **Small test cases:** Create minimal test inputs and verify the output to build confidence in what's being processed.
 5. **Local models:** For complete transparency, use a local `llama.cpp` server where you can enable verbose logging on the server side to see all requests.
-
-A `--verbose` flag for detailed request logging is on the roadmap for future versions.
 
 ### Q: What happens if I hit my provider's rate limits?
 
