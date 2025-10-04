@@ -114,7 +114,7 @@ Explore the full documentation to master `meowg1k`. For a complete overview, jum
 
   *Automate your workflow with Git hooks and CI/CD pipelines.*
 
-- [**Core Principles**](./docs.md/06-PRINCIPLES.md)
+- [**Core Principles**](./docs/06-PRINCIPLES.md)
 
   *Understand the philosophy and vision behind the project.*
 

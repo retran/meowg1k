@@ -128,14 +128,14 @@ Push your branch to your fork and [open a pull request](https://github.com/retra
 > Before creating the PR in the GitHub UI, run the following in your terminal:
 >
 > ```bash
-> # Generate a description for a PR targeting the main branch
-> meow pr --base main
+> # Generate a description for a PR targeting the dev branch
+> meow pr --base dev
 > ```
 >
 > Just like with commits, you can significantly improve the result by specifying the main goal of the PR with the `--intent` flag:
 >
 > ```bash
-> meow pr -b main -i "Implement new user authentication feature using JWT"
+> meow pr -b dev -i "Implement new user authentication feature using JWT"
 > ```
 >
 > Copy the generated output to use in your Pull Request.
