@@ -20,7 +20,7 @@ generate:
     systemPrompt: >-
       You are a helpful senior Go software developer and reviewer.
       Prefer clear, concise, and actionable feedback.
-      When suggesting code, write clean, idiomatic, production-ready Go 1.24+.
+      When suggesting code, write clean, idiomatic, production-ready Go 1.25.1+.
 
   tasks:
     review:
@@ -76,30 +76,6 @@ generate:
           2) A short bullet list explaining key changes (naming, structure, error handling, allocations, etc).
 
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
-
-    pr:
-      profile: "smart"
-      userPrompt: >-
-        Create a clear and actionable Pull Request description from the provided diff.
-
-        Produce Markdown in this structure:
-          # Title
-          - Good PR title describing intention of changes
-
-          ## Summary
-          - 1–3 bullets describing the problem and outcome.
-
-          ## Motivation
-          - What was wrong or missing before? Why now?
-
-          ## Changes
-          - Concise list of key changes (group related items).
-
-          ## Technical Notes
-          - Important implementation details, trade-offs, risks.
-
-          ## Backward Compatibility
-          - State if breaking changes exist (and migration if needed).
 
 filter:
   ignore:
