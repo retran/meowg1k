@@ -111,7 +111,34 @@ openai-safe:
 meow pr --base main
 ```
 
-TODO add pro tip with target branch autodetection
+#### Pro Tip: Automate Target Branch Detection
+
+You can create a shell function or script that automatically detects your repository's default branch:
+
+```bash
+# Add this to your ~/.bashrc or ~/.zshrc
+function mpr() {
+    # Try to get the default branch from origin/HEAD
+    local default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+
+    # Fallback to common branch names if origin/HEAD is not set
+    if [ -z "$default_branch" ]; then
+        if git rev-parse --verify main >/dev/null 2>&1; then
+            default_branch="main"
+        elif git rev-parse --verify master >/dev/null 2>&1; then
+            default_branch="master"
+        else
+            echo "Error: Could not detect default branch. Please specify with --base"
+            return 1
+        fi
+    fi
+
+    echo "Using base branch: $default_branch"
+    meow pr --base "$default_branch" "$@"
+}
+```
+
+After adding this function and reloading your shell, you can simply run `mpr` instead of `meow pr --base main`.
 
 ### Problem: `meow commit` shows "no staged changes"
 

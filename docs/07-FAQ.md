@@ -44,9 +44,9 @@ Create a file at `.meowg1k/config.yaml` in the root of your project and commit i
 
 ### Q: What happens if a profile isn't found in the config?
 
-TODO it should fail immediatly
+If you reference a profile that doesn't exist in your configuration file, `meowg1k` will immediately fail with a clear error message indicating that the requested profile cannot be found. This is intentional behavior to prevent unexpected fallbacks that could lead to unintended API calls or cost.
 
-`meowg1k` will fall back to smart defaults for the chosen provider. For example, if you specify `provider: "gemini"` but don't provide a model, it will default to `gemini-1.5-flash-latest`.
+However, `meowg1k` will fall back to smart defaults for the chosen provider when a profile exists but certain optional fields are missing. For example, if you specify `provider: "gemini"` but don't provide a model, it will default to `gemini-2.5-flash`.
 
 ---
 
@@ -62,9 +62,15 @@ cat file.py | meow g -u "Add type hints to this Python code"
 
 ### Q: How can I debug what is being sent to the AI?
 
-TODO we need to implement proper logging
+While comprehensive debug logging is planned for a future release, you can currently use several approaches to understand what's being sent:
 
-The tool's logic is deterministic. Given the same input and configuration, it will always generate the exact same request. While there is no `--verbose` debug log yet, you can isolate a workflow by using a specific config file (`--config test.yaml`) and providing input directly to see the result.
+1. **Deterministic behavior:** The tool's logic is deterministic. Given the same input and configuration, it will always generate the exact same request.
+2. **Isolate workflows:** Use a specific test config file (`--config test.yaml`) with known settings to isolate and test specific behaviors.
+3. **Provider dashboards:** Most AI providers (OpenAI, Anthropic, Gemini) offer request logs and usage dashboards where you can see the exact prompts and tokens sent.
+4. **Small test cases:** Create minimal test inputs and verify the output to build confidence in what's being processed.
+5. **Local models:** For complete transparency, use a local `llama.cpp` server where you can enable verbose logging on the server side to see all requests.
+
+A `--verbose` flag for detailed request logging is on the roadmap for future versions.
 
 ### Q: What happens if I hit my provider's rate limits?
 
@@ -78,7 +84,27 @@ Absolutely. This is a core use case. Use the `--silent` flag to get clean output
 
 The command needs to know which branch to compare against to generate the list of changes. Common examples are `--base main` or `--base dev`.
 
-TODO add example with autodetection by git
+While automatic detection of the target branch is a feature under consideration, it's currently explicit by design for several reasons:
+
+- Different projects use different branching strategies (GitFlow, trunk-based, feature branches)
+- The default branch might not always be the intended merge target
+- Explicit flags prevent accidental comparisons against the wrong branch
+
+You can simplify your workflow by creating shell aliases for common patterns:
+
+```bash
+# Add to your ~/.bashrc or ~/.zshrc
+alias mpr='meow pr --base main'
+alias mprd='meow pr --base dev'
+```
+
+Or use git's default branch detection in a script:
+
+```bash
+# Get the repository's default branch
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
+meow pr --base "$DEFAULT_BRANCH"
+```
 
 ---
 
