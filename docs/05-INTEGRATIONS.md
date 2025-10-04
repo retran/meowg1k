@@ -116,7 +116,7 @@ jobs:
           go-version: '1.25.1'
 
       - name: Install meowg1k
-        run: go install [github.com/retran/meowg1k@latest](https://github.com/retran/meowg1k@latest)
+        run: go install github.com/retran/meowg1k@latest
 
       - name: Generate PR Description
         id: generate

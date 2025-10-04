@@ -74,10 +74,10 @@ Before committing, use `Taskfile` commands to ensure your code meets project sta
 To automate checks before every commit, install the Git hook:
 
 ```bash
-task pre-commit:install-hook
+task git:install-hook
 ```
 
-This hook will automatically run `task pre-commit`, which formats, lints, and tests your code. This helps catch errors early and ensures your contributions pass CI.
+This hook will automatically run `task git:pre-commit`, which formats, lints, and tests your code. This helps catch errors early and ensures your contributions pass CI.
 
 ### 6. Commit Your Changes
 
