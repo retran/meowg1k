@@ -10,56 +10,64 @@ vars:
     -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
     -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
   GOFLAGS: -trimpath -buildvcs=false
+  COVERAGE_THRESHOLD: 75.0
 
 tasks:
-  setup:
-    desc: Setup development environment
+  default:
     cmds:
+      - task: --list
+
+  setup:
+    desc: Setup development environment by downloading Go modules
+    cmds:
+      - echo "[INFO] Downloading and tidying Go modules..."
       - go mod download
       - go mod tidy
-      - echo "🐱 Setup complete!"
+      - echo "[DONE] Setup complete."
 
   build:
-    desc: Build the binary
+    desc: Build the binary for the host OS/Arch
+    deps: [clean]
     cmds:
-      - task: clean
+      - echo "[INFO] Building {{.PROJECT_NAME}} v{{.VERSION}}..."
       - mkdir -p bin
-      - echo "Building {{.PROJECT_NAME}} v{{.VERSION}}..."
       - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" ./cmd/meow
+      - echo "[DONE] Binary available at bin/meow"
 
   install:
-    desc: Build and install the binary
+    desc: Build and install the binary to GOBIN or GOPATH/bin
     deps: [setup]
     cmds:
-      - echo "Installing meow..."
+      - echo "[INFO] Installing meow binary..."
       - |
         BIN_DIR="$(go env GOBIN)"; [ -z "$BIN_DIR" ] && BIN_DIR="$(go env GOPATH)/bin"
         CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" ./cmd/meow
-        echo "✅ meow installed to $BIN_DIR!"
+        echo "[DONE] 'meow' installed successfully to $BIN_DIR"
 
   check:
-    desc: Run all checks (vet, test, lint)
+    desc: Run all static analysis checks (vet, lint, security)
     cmds:
       - task: vet
-      - task: test
       - task: lint
+      - task: security
 
   fmt:
     desc: Format Go code using golangci-lint
     cmds:
-      - |
-      - echo "Formatting code with golangci-lint..."
+      - echo "[INFO] Formatting Go source files..."
       - golangci-lint run --fix
-      - echo "✅ Go sources formatted"
+      - echo "[DONE] Code formatted."
 
   vet:
-    desc: Run go vet
+    desc: Run 'go vet' to find potential issues
     cmds:
+      - echo "[INFO] Running go vet..."
       - go vet ./...
 
   test:
-    desc: Run tests with coverage (excluding testutil packages)
+    desc: Run tests with coverage reporting (excludes testutil packages)
     cmds:
+      - echo "[INFO] Running tests with coverage..."
       - |
         COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
         go test -v -race -coverpkg="$COVERPKGS" -coverprofile=coverage.out -covermode=atomic ./...
@@ -67,178 +75,126 @@ tasks:
       - task: coverage-check
 
   test-short:
-    desc: Run tests without coverage
+    desc: Run tests without coverage for a quick check
     cmds:
+      - echo "[INFO] Running short tests..."
       - go test -v -race -short ./...
 
   coverage-check:
-    desc: Check test coverage meets 75% threshold (excluding testutil)
+    desc: Check if test coverage meets the threshold (internal task)
+    silent: true
     cmds:
       - |
         if [ ! -f coverage.out ]; then
-          echo "❌ Coverage file not found. Run 'task test' first."
+          echo "[FAIL] Coverage file not found. Run 'task test' first."
           exit 1
         fi
         COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
-        echo "Test coverage: ${COVERAGE}% (excluding testutil packages)"
-        if (( $(echo "$COVERAGE < 75.0" | bc -l) )); then
-          echo "❌ Test coverage ${COVERAGE}% is below 75% threshold"
+        echo "[INFO] Current test coverage: ${COVERAGE}% (threshold: {{.COVERAGE_THRESHOLD}}%)"
+        if (( $(echo "$COVERAGE < {{.COVERAGE_THRESHOLD}}" | bc -l) )); then
+          echo "[FAIL] Test coverage is below the {{.COVERAGE_THRESHOLD}}% threshold."
           exit 1
         else
-          echo "✅ Test coverage ${COVERAGE}% meets the 75% threshold"
+          echo "[DONE] Test coverage meets the threshold."
         fi
 
   lint:
-    desc: Run golangci-lint
+    desc: Run golangci-lint linter
     cmds:
+      - echo "[INFO] Running linter..."
       - golangci-lint run --timeout=5m
 
   security:
-    desc: Run security checks
+    desc: Run security checks with gosec and govulncheck
     cmds:
-      - |
-        if ! command -v gosec >/dev/null 2>&1; then
-          echo "Installing gosec..."
-          go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-        fi
-        gosec ./...
-      - |
-        if ! command -v govulncheck >/dev/null 2>&1; then
-          echo "Installing govulncheck..."
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-        fi
-        govulncheck ./...
+      - echo "[INFO] Running gosec security scanner..."
+      - go run github.com/securecodewarrior/gosec/v2/cmd/gosec@latest ./...
+      - echo "[INFO] Running govulncheck for known vulnerabilities..."
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
   clean:
-    desc: Clean build artifacts
+    desc: Clean all build artifacts
     cmds:
+      - echo "[INFO] Cleaning build artifacts..."
       - rm -rf bin coverage.out coverage.html dist
 
   info:
-    desc: Show build information
+    desc: Show project and Go environment information
     cmds:
-      - echo "Project {{.PROJECT_NAME}} v{{.VERSION}}"
+      - echo "Project: {{.PROJECT_NAME}}"
+      - echo "Version: {{.VERSION}}"
       - go version
 
-  completion:generate:
-    desc: Generate shell completion scripts (bash zsh fish PowerShell) into dist/completions
-    deps: [build]
+  # --- Git Hooks ---
+  git:pre-commit:
+    desc: Run pre-commit checks (vet, test, lint, man, completions)
     cmds:
-      - mkdir -p dist/completions/bash dist/completions/zsh dist/completions/fish dist/completions/powershell
-      - ./bin/meow completion bash > dist/completions/bash/meow
-      - ./bin/meow completion zsh > dist/completions/zsh/_meow
-      - ./bin/meow completion fish > dist/completions/fish/meow.fish
-      - ./bin/meow completion powershell > dist/completions/powershell/meow.ps1
-      - echo "🐾 Completions written to dist/completions"
-
-  completion:install:linux:
-    desc: Install bash and fish completions for current user on Linux
-    cmds:
-      - bash -lc 'mkdir -p ~/.local/share/bash-completion/completions && cp dist/completions/bash/meow ~/.local/share/bash-completion/completions/meow || true'
-      - bash -lc 'mkdir -p ~/.config/fish/completions && cp dist/completions/fish/meow.fish ~/.config/fish/completions/meow.fish || true'
-      - echo "✅ Installed bash and fish completions for current user"
-      - |
-        echo "Zsh hint -> copy dist/completions/zsh/_meow to a dir in \$fpath, e.g."
-        echo "  mkdir -p ~/.zsh/completions"
-        echo "  cp dist/completions/zsh/_meow ~/.zsh/completions/"
-        echo "  add to ~/.zshrc:"
-        echo "    fpath+=(~/.zsh/completions)"
-        echo "    autoload -Uz compinit"
-        echo "    compinit"
-
-  completion:tips:
-    desc: Show instructions to enable completions in common shells
-    cmds:
-      - |
-        echo "Bash user-scope:"
-        echo "  mkdir -p ~/.local/share/bash-completion/completions"
-        echo "  cp dist/completions/bash/meow ~/.local/share/bash-completion/completions/meow"
-        echo
-        echo "Zsh:"
-        echo "  mkdir -p ~/.zsh/completions"
-        echo "  cp dist/completions/zsh/_meow ~/.zsh/completions/"
-        echo "  add to ~/.zshrc:"
-        echo "    fpath+=(~/.zsh/completions)"
-        echo "    autoload -Uz compinit"
-        echo "    compinit"
-        echo
-        echo "Fish:"
-        echo "  mkdir -p ~/.config/fish/completions"
-        echo "  cp dist/completions/fish/meow.fish ~/.config/fish/completions/meow.fish"
-        echo
-        echo "PowerShell:"
-        echo "  meow completion powershell | Out-String | Set-Content -Path $PROFILE"
-        echo "  restart terminal"
-
-  man:check:
-    desc: Validate man pages with mandoc
-    cmds:
-      - bash -lc 'for f in docs/man/*.?; do echo "Checking $f"; mandoc -Tlint "$f"; done'
-      - echo "✅ Man pages validated"
-
-  man:preview:
-    desc: Preview all man pages in terminal rendered via mandoc
-    cmds:
-      - bash -lc 'for f in docs/man/*.?; do echo "----- $f -----"; mandoc "$f" | col -bx; echo; done'
-
-  man:install:user:
-    desc: Install man pages to user scope at ~/.local/share/man
-    cmds:
-      - bash -lc 'mkdir -p ~/.local/share/man/man1 ~/.local/share/man/man5 ~/.local/share/man/man7'
-      - bash -lc 'cp docs/man/meow.1 ~/.local/share/man/man1/meow.1'
-      - bash -lc 'cp docs/man/meow-generate.1 ~/.local/share/man/man1/meow-generate.1'
-      - bash -lc 'cp docs/man/meow-version.1 ~/.local/share/man/man1/meow-version.1'
-      - bash -lc 'cp docs/man/meow-config.5 ~/.local/share/man/man5/meow-config.5'
-      - bash -lc 'cp docs/man/meow-security.7 ~/.local/share/man/man7/meow-security.7'
-      - bash -lc 'command -v mandb >/dev/null 2>&1 && mandb || true'
-      - echo "✅ Man pages installed to ~/.local/share/man (run 'man meow')"
-
-  pre-commit:
-    desc: Fast checks before committing (vet, tests, lint, man, completions)
-    cmds:
-      - echo "🔎 go vet"
+      - echo "[INFO] Running pre-commit hook..."
       - task: vet
-      - echo "✅ Running tests with coverage"
       - task: test
-      - echo "🔍 Running linter"
       - task: lint
-      - echo "📄 man check"
       - task: man:check
-      - echo "🧩 generate completions"
       - task: completion:generate
-      - echo "✔ pre-commit OK"
+      - echo "[DONE] Pre-commit checks passed."
 
-  pre-commit:install-hook:
-    desc: Install a git pre-commit hook to run task pre-commit
+  git:install-hook:
+    desc: Install a git pre-commit hook to run 'task git:pre-commit'
     cmds:
+      - echo "[INFO] Installing git pre-commit hook..."
       - mkdir -p .git/hooks
       - |
         cat > .git/hooks/pre-commit <<'EOF'
         #!/usr/bin/env bash
         set -euo pipefail
         if command -v task >/dev/null 2>&1; then
-          echo "→ Running task pre-commit ..."
-          task pre-commit
+          echo "-> Running task git:pre-commit..."
+          task git:pre-commit
         else
-          echo "⚠ task not found; install go-task: https://taskfile.dev"
+          echo "ERROR: 'task' command not found. Please install go-task: https://taskfile.dev"
           exit 1
         fi
         EOF
       - chmod +x .git/hooks/pre-commit
-      - echo "✅ Git pre-commit hook installed"
+      - echo "[DONE] Git pre-commit hook installed successfully."
 
+  # --- Artifacts ---
+  completion:generate:
+    desc: Generate shell completion scripts into dist/
+    deps: [build]
+    cmds:
+      - echo "[INFO] Generating shell completions..."
+      - mkdir -p dist/completions
+      - ./bin/meow completion bash > dist/completions/bash.completion
+      - ./bin/meow completion zsh > dist/completions/zsh.completion
+      - ./bin/meow completion fish > dist/completions/fish.completion
+      - ./bin/meow completion powershell > dist/completions/powershell.completion
+      - echo "[DONE] Completions are in dist/completions/"
+
+  man:check:
+    desc: Validate man pages with mandoc
+    cmds:
+      - echo "[INFO] Validating man pages..."
+      - for f in docs/man/*.?; do mandoc -Tlint "$f"; done
+      - echo "[DONE] Man pages validation passed."
+
+  man:preview:
+    desc: Preview all man pages in the terminal
+    cmds:
+      - for f in docs/man/*.?; do echo "--- Previewing $f ---"; mandoc "$f" | col -bx; echo; done
+
+  # --- Release ---
   release:
-    desc: Create a clean release with GoReleaser requires GITHUB_TOKEN
+    desc: Create a new release using GoReleaser (requires GITHUB_TOKEN)
     deps: [completion:generate, man:check]
     cmds:
-      - echo "📦 Releasing {{.PROJECT_NAME}} v{{.VERSION}}..."
+      - echo "[INFO] Starting GoReleaser..."
       - goreleaser release --clean
-      - echo "✅ Release finished"
+      - echo "[DONE] Release process finished."
 
   release:snapshot:
-    desc: Build snapshot artifacts locally no publish
+    desc: Build snapshot artifacts locally without publishing
     deps: [completion:generate, man:check]
     cmds:
-      - echo "🧪 Building snapshot for {{.PROJECT_NAME}} v{{.VERSION}}..."
+      - echo "[INFO] Building release snapshot..."
       - goreleaser release --snapshot --clean
-      - echo "✅ Snapshot artifacts in ./dist"
+      - echo "[DONE] Snapshot artifacts are in ./dist"

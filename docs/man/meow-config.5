@@ -1,114 +1,235 @@
 .\" docs/man/meow-config.5
-.TH MEOW-CONFIG 5 "2025-09-19" "meowg1k" "File Formats"
+.TH MEOW-CONFIG 5 "2025-10-04" "meowg1k" "File Formats"
 .SH NAME
-meow-config \- configuration for the \fBmeow\fR CLI (YAML)
+meow-config \- configuration format for the \fBmeow\fR CLI
 .SH SYNOPSIS
-Configuration is read from YAML files with the following precedence:
+.B ~/.config/meowg1k/config.yaml
+.br
+.B ./.meowg1k/config.yaml
+.br
+Specified via \fB\-\-config\fR \fIFILE\fR flag
+
+.SH DESCRIPTION
+The \fBmeow\fR CLI uses a hierarchical, profile-based YAML configuration
+system to define all behavior. Configuration supports multiple AI providers,
+reusable profiles, rate limiting, token caps, file filtering, and sophisticated
+rule-based processing for commit and PR generation.
+.PP
+Configuration files are read with the following precedence (each subsequent
+location overrides the previous):
 .IP "1." 3
-Explicit config: specified via \fB\-\-config\fR flag (overrides all)
+User config: \fB~/.config/meowg1k/config.yaml\fR
+.br
+Personal defaults, not committed to version control.
 .IP "2."
 Project config: \fB./.meowg1k/config.yaml\fR
+.br
+Team-shared settings, recommended to commit to repository.
 .IP "3."
-User config: \fB~/.config/meowg1k/config.yaml\fR
+Explicit config: specified via \fB\-\-config\fR flag
+.br
+Overrides all other configurations when specified.
 .PP
-When \fB\-\-config\fR is used, only that file is loaded, ignoring project
-and user configs completely.
-.SH DESCRIPTION
-The \fBmeow\fR CLI uses a profile\-based YAML configuration system to define
-reusable provider configurations and tasks. Supports Anthropic Claude,
-Voyage AI embeddings, and comprehensive model registry with automatic
-tokenizer detection.
+The configuration system supports all major LLM providers: Google Gemini,
+OpenAI, Anthropic Claude, OpenRouter, Voyage AI (embeddings), llama.cpp,
+and OpenAI-compatible APIs. It includes comprehensive model registry with
+automatic tokenizer detection.
 .SH FORMAT
-YAML, UTF-8.
+YAML format, UTF-8 encoding.
 .PP
-Configuration structure:
+Top-level configuration structure:
 .PP
 .nf
 profiles:
-  <profile-name>:
-    provider: "gemini" | "openai" | "openrouter" | "anthropic" | "voyage" | "llama" | "openai-compatible"
-    model: "model-name"              # optional, uses smart defaults
-    baseURL: "https://api.url"       # required for llama/openai-compatible
-    apiKeyEnv: "ENV_VAR_NAME"        # optional, uses smart defaults
-    maxInputTokens: 8192             # optional, default 8192
-    timeout: "5m"                    # optional, default 5m
+  <profile-name>: { ... }
+
+filter:
+  ignore: [ ... ]
+
+summarize:
+  default: { ... }
+  rules: [ ... ]
 
 generate:
-  default:
-    profile: "profile-name"          # default profile to use
-    systemPrompt: "System instruction"
-  tasks:
-    <task-name>:
-      profile: "profile-name"        # optional, uses default
-      systemPrompt: "Task-specific system prompt"
-      userPrompt: "Task-specific user prompt"
+  default: { ... }
+  tasks: { ... }
+
+commit:
+  profile: "..."
+  systemPrompt: "..."
+
+pr:
+  profile: "..."
+  systemPrompt: "..."
 .fi
-.SH KEYS
-.TP
-.B profiles
-Map of reusable provider configurations. Each profile defines:
+.SH CONFIGURATION SECTIONS
+
+.SS profiles
+Map of reusable provider configurations. Each profile is a named set of
+settings for an AI provider. Profiles can be referenced by name from other
+configuration sections.
+.PP
+Profile fields:
+.IP \[bu] 2
+\fBprovider\fR (required): Provider type. One of: "gemini", "openai",
+"anthropic", "openrouter", "voyage", "llama", "openai-compatible"
+.IP \[bu]
+\fBmodel\fR (optional): Model name. Uses smart defaults if omitted.
+.IP \[bu]
+\fBbaseURL\fR (required for llama/openai-compatible): Base API URL.
+.IP \[bu]
+\fBapiKeyEnv\fR (optional): Environment variable name for API key. Uses
+provider-specific defaults if omitted.
+.IP \[bu]
+\fBmaxInputTokens\fR (optional): Maximum input tokens, default 8192.
+.IP \[bu]
+\fBmaxOutputTokens\fR (optional): Maximum output tokens, provider-specific default.
+.IP \[bu]
+\fBtimeout\fR (optional): Request timeout, default "5m".
+.IP \[bu]
+\fBrequestsPerMinute\fR (optional): Rate limit, requests per minute. 0 = unlimited.
+.IP \[bu]
+\fBrequestsPerDay\fR (optional): Rate limit, requests per day. 0 = unlimited.
+.IP \[bu]
+\fBtokensPerMinute\fR (optional): Rate limit, tokens per minute. 0 = unlimited.
+
+.SS filter
+File filtering configuration using gitignore-style patterns. Essential for
+both security (exclude files containing secrets) and efficiency (exclude
+dependencies, build artifacts).
+.PP
+Fields:
+.IP \[bu] 2
+\fBignore\fR: Array of glob patterns to exclude from analysis.
+
+.SS summarize
+Configuration for the "Map" phase of commit and pr commands. Each changed
+file is analyzed individually according to these rules.
+.PP
+Fields:
+.IP \[bu] 2
+\fBdefault\fR: Default settings applied when no rule matches.
 .RS
 .IP \[bu] 2
-\fBprovider\fR: Provider type (required)
+\fBprofile\fR: Profile name to use.
 .IP \[bu]
-\fBmodel\fR: Model name (optional, uses smart defaults)
-.IP \[bu]
-\fBbaseURL\fR: Base URL (required for llama/openai-compatible)
-.IP \[bu]
-\fBapiKeyEnv\fR: Environment variable name (optional, uses smart defaults)
-.IP \[bu]
-\fBmaxInputTokens\fR: Token limit (optional, default 8192)
-.IP \[bu]
-\fBtimeout\fR: Request timeout (optional, default 5m)
+\fBsystemPrompt\fR: System prompt for file analysis.
 .RE
-.TP
-.B generate.default
-Default settings for generation:
+.IP \[bu] 2
+\fBrules\fR: Array of pattern-matching rules. First match wins.
 .RS
 .IP \[bu] 2
-\fBprofile\fR: Default profile name to use
+\fBmatch\fR: Glob pattern to match file paths.
 .IP \[bu]
-\fBsystemPrompt\fR: Default system instruction
+\fBskip\fR: If true, skip analysis of matching files entirely.
+.IP \[bu]
+\fBprofile\fR: Profile to use for matching files (overrides default).
+.IP \[bu]
+\fBsystemPrompt\fR: System prompt for matching files (overrides default).
 .RE
-.TP
-.B generate.tasks
-Map of predefined tasks. Each task can override:
+
+.SS generate
+Configuration for the generate command.
+.PP
+Fields:
+.IP \[bu] 2
+\fBdefault\fR: Default settings for generation.
 .RS
 .IP \[bu] 2
-\fBprofile\fR: Profile to use (optional, uses default)
+\fBprofile\fR: Default profile name.
 .IP \[bu]
-\fBsystemPrompt\fR: Task-specific system instruction
-.IP \[bu]
-\fBuserPrompt\fR: Task-specific user prompt
+\fBsystemPrompt\fR: Default system prompt (optional).
 .RE
+.IP \[bu] 2
+\fBtasks\fR: Map of predefined tasks.
+.RS
+.IP \[bu] 2
+\fBprofile\fR: Profile for this task (optional, uses default if omitted).
+.IP \[bu]
+\fBsystemPrompt\fR: System prompt for this task (optional).
+.IP \[bu]
+\fBuserPrompt\fR: User prompt for this task.
+.RE
+
+.SS commit
+Configuration for the "Reduce" phase of the commit command. Individual file
+summaries are combined here to generate the final commit message.
+.PP
+Fields:
+.IP \[bu] 2
+\fBprofile\fR: Profile name to use for generating commit messages.
+.IP \[bu]
+\fBsystemPrompt\fR: System prompt that guides commit message generation.
+Should include format instructions (e.g., Conventional Commits format).
+
+.SS pr
+Configuration for the "Reduce" phase of the pr command. Individual file
+summaries are combined here to generate the final PR description.
+.PP
+Fields:
+.IP \[bu] 2
+\fBprofile\fR: Profile name to use for generating PR descriptions.
+.IP \[bu]
+\fBsystemPrompt\fR: System prompt that guides PR description generation.
+Should include template and format instructions.
 
 .SH PROVIDER DEFAULTS
-Each provider has smart defaults:
+Each provider has smart defaults for model selection and API key environment
+variable names:
 .TP
 .B gemini
-Model: \fBgemini-2.5-flash\fR, API key: \fBMEOW_GEMINI_API_KEY\fR
+Default model: \fBgemini-2.5-flash\fR
+.br
+API key: \fBMEOW_GEMINI_API_KEY\fR
+.br
+Base URL: https://generativelanguage.googleapis.com
 .TP
 .B openai
-Model: \fBgpt-5-mini\fR, API key: \fBMEOW_OPENAI_API_KEY\fR
-.TP
-.B openrouter
-Model: \fBmeta-llama/llama-3.2-3b-instruct:free\fR,
-API key: \fBMEOW_OPENROUTER_API_KEY\fR
+Default model: \fBgpt-4o-mini\fR
+.br
+API key: \fBMEOW_OPENAI_API_KEY\fR
+.br
+Base URL: https://api.openai.com/v1
 .TP
 .B anthropic
-Model: \fBclaude-3-5-haiku-20241022\fR, API key: \fBMEOW_ANTHROPIC_API_KEY\fR
+Default model: \fBclaude-3-5-haiku-20241022\fR
+.br
+API key: \fBMEOW_ANTHROPIC_API_KEY\fR
+.br
+Base URL: https://api.anthropic.com
+.TP
+.B openrouter
+Default model: \fBmeta-llama/llama-3.2-3b-instruct:free\fR
+.br
+API key: \fBMEOW_OPENROUTER_API_KEY\fR
+.br
+Base URL: https://openrouter.ai/api/v1
 .TP
 .B voyage
-Model: \fBvoyage-3.5\fR, API key: \fBMEOW_VOYAGE_API_KEY\fR (embeddings only)
+Default model: \fBvoyage-3.5\fR
+.br
+API key: \fBMEOW_VOYAGE_API_KEY\fR
+.br
+Note: Embeddings only, not for text generation.
 .TP
 .B llama
-API key: \fBMEOW_LLAMA_API_KEY\fR (requires explicit baseURL)
+API key: \fBMEOW_LLAMA_API_KEY\fR (optional)
+.br
+Base URL: Must be explicitly configured in profile (e.g., http://localhost:8080)
+.br
+For local llama.cpp HTTP server.
 .TP
 .B openai-compatible
-API key: \fBMEOW_OPENAI_COMPATIBLE_API_KEY\fR (requires explicit baseURL)
+API key: \fBMEOW_OPENAI_COMPATIBLE_API_KEY\fR
+.br
+Base URL: Must be explicitly configured in profile.
+.br
+For any OpenAI-compatible API endpoint.
 
 .SH EXAMPLES
-Minimal profile-based config:
+
+.SS Minimal Configuration
+Basic setup with two profiles:
 .PP
 .nf
 profiles:
@@ -122,69 +243,242 @@ generate:
   default:
     profile: "fast"
 .fi
-.PP
-Full project config with tasks:
+
+.SS Complete Project Configuration
+Comprehensive setup for a development team:
 .PP
 .nf
+# .meowg1k/config.yaml
+
 profiles:
-  review:
-    provider: "openai"
-    model: "gpt-4o"
-    maxInputTokens: 32768
-  local:
+  gemini-fast:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    requestsPerMinute: 60
+
+  claude-smart:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20240620"
+    maxInputTokens: 180000
+    timeout: "10m"
+    requestsPerMinute: 20
+    requestsPerDay: 500
+
+  local-dev:
     provider: "llama"
     baseURL: "http://localhost:8080"
 
+# Security: exclude secrets and sensitive files
+filter:
+  ignore:
+    - "node_modules/**"
+    - "dist/**"
+    - "**/*.pem"
+    - "**/*.key"
+    - ".env*"
+    - "secrets.yaml"
+
+# Map phase: analyze individual files
+summarize:
+  default:
+    profile: "gemini-fast"
+    systemPrompt: "Provide a concise summary of this change."
+
+  rules:
+    # Skip documentation
+    - match: "**/*.md"
+      skip: true
+
+    # Deep analysis for critical services
+    - match: "internal/services/**/*.go"
+      profile: "claude-smart"
+      systemPrompt: |
+        Analyze this business logic change carefully.
+        Focus on correctness and side effects.
+
+    # Skip test snapshots
+    - match: "**/*.snap"
+      skip: true
+
+# Generate command configuration
 generate:
   default:
-    profile: "review"
+    profile: "gemini-fast"
+    systemPrompt: "You are an expert software engineer."
+
   tasks:
+    review:
+      profile: "claude-smart"
+      userPrompt: "Perform thorough code review."
+
     security:
-      profile: "review"
-      userPrompt: "Review for security vulnerabilities"
-    test:
-      profile: "local"
-      userPrompt: "Write comprehensive tests"
+      profile: "claude-smart"
+      userPrompt: |
+        Analyze for security vulnerabilities:
+        SQL injection, XSS, insecure crypto, etc.
+
+    refactor:
+      userPrompt: "Suggest refactoring improvements."
+
+# Reduce phase: generate commit message
+commit:
+  profile: "claude-smart"
+  systemPrompt: |
+    You are an expert software engineer reviewing changes.
+    Write a commit message in Conventional Commits format.
+
+    Rules:
+    1. Type: feat, fix, refactor, docs, test, chore, ci
+    2. Scope: logical component (e.g., auth, api, db)
+    3. Subject: imperative mood, lowercase, no period
+    4. Body: explain WHY, not just WHAT
+    5. Footer: BREAKING CHANGE or issue references
+
+# Reduce phase: generate PR description
+pr:
+  profile: "claude-smart"
+  systemPrompt: |
+    Generate a PR description in Markdown:
+
+    ## Goal
+    What problem does this solve? Link to issues.
+
+    ## Summary of Changes
+    - Bullet point list of key changes
+
+    ## How to Test
+    Step-by-step testing instructions
+
+    ## Breaking Changes
+    List any breaking changes or migrations needed
 .fi
-.PP
-Advanced configuration with additional providers:
+
+.SS Rate Limiting and Cost Control
+Configuration with strict budget controls:
 .PP
 .nf
 profiles:
-  anthropic-smart:
-    provider: "anthropic"
-    model: "claude-3-5-sonnet-20241022"
-    maxInputTokens: 32000
-    timeout: "10m"
+  cost-controlled:
+    provider: "openai"
+    model: "gpt-4o"
+    requestsPerMinute: 10
+    requestsPerDay: 100
+    tokensPerMinute: 20000
+    maxInputTokens: 8000
+    maxOutputTokens: 2000
+.fi
 
-  voyage-embeddings:
-    provider: "voyage"
-    model: "voyage-3.5"
-    # Note: Voyage is embeddings-only
-
-  custom-api:
-    provider: "openai-compatible"
-    baseURL: "https://api.custom-llm.com/v1"
-    model: "custom-model-70b"
-    apiKeyEnv: "CUSTOM_API_KEY"
+.SS Local-Only Configuration
+Complete offline setup using llama.cpp:
+.PP
+.nf
+profiles:
+  local-only:
+    provider: "llama"
+    baseURL: "http://localhost:8080"
+    timeout: "15m"
 
 generate:
   default:
-    profile: "anthropic-smart"
-  tasks:
-    deep-review:
-      profile: "anthropic-smart"
-      userPrompt: "Perform comprehensive code analysis"
+    profile: "local-only"
+
+commit:
+  profile: "local-only"
+
+pr:
+  profile: "local-only"
 .fi
+
+.SS Multi-Provider Strategy
+Using different providers for different tasks:
+.PP
+.nf
+profiles:
+  free-tier:
+    provider: "openrouter"
+    model: "meta-llama/llama-3.1-8b-instruct:free"
+
+  quality:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20240620"
+
+  embeddings:
+    provider: "voyage"
+    model: "voyage-3.5"
+
+summarize:
+  default:
+    profile: "free-tier"
+
+  rules:
+    - match: "src/critical/**/*"
+      profile: "quality"
+
+commit:
+  profile: "quality"
+
+pr:
+  profile: "quality"
+.fi
+
+.SH FILES
+.TP
+.B ~/.config/meowg1k/config.yaml
+User-level configuration. Personal defaults, not committed to version control.
+.TP
+.B ./.meowg1k/config.yaml
+Project-level configuration. Should be committed to repository for team sharing.
+
+.SH ENVIRONMENT VARIABLES
+Configuration can reference environment variables for API keys. Standard
+variables:
+.TP
+.B MEOW_GEMINI_API_KEY
+.TP
+.B MEOW_OPENAI_API_KEY
+.TP
+.B MEOW_ANTHROPIC_API_KEY
+.TP
+.B MEOW_OPENROUTER_API_KEY
+.TP
+.B MEOW_VOYAGE_API_KEY
+.TP
+.B MEOW_LLAMA_API_KEY
+.TP
+.B MEOW_OPENAI_COMPATIBLE_API_KEY
+.PP
+Custom variables can be specified using the \fBapiKeyEnv\fR field in profiles.
+
+.SH BEST PRACTICES
+.IP \[bu] 2
+\fBCommit project configs:\fR Add .meowg1k/config.yaml to version control
+for team consistency.
+.IP \[bu]
+\fBUse filter for security:\fR Always exclude files containing secrets,
+keys, and proprietary code.
+.IP \[bu]
+\fBOptimize with rules:\fR Use summarize rules to apply expensive models only
+where needed and skip non-critical files.
+.IP \[bu]
+\fBSet rate limits:\fR Configure requestsPerDay and tokensPerMinute to
+prevent unexpected costs.
+.IP \[bu]
+\fBLocal for sensitive code:\fR Use llama provider for proprietary or
+sensitive codebases to keep data local.
 
 .SH SEE ALSO
 .BR meow (1),
 .BR meow\-generate (1),
+.BR meow\-commit (1),
+.BR meow\-pr (1),
 .BR meow\-version (1),
 .BR meow\-security (7)
+
 .SH AUTHORS
 Andrew Vasilyev <me@retran.me>
+
 .SH COPYRIGHT
 Copyright (c) 2025 Andrew Vasilyev.
 Licensed under the Apache License, Version 2.0.
+.PP
 Project page: https://github.com/retran/meowg1k
