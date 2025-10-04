@@ -113,7 +113,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25.1'
 
       - name: Install meowg1k
         run: go install [github.com/retran/meowg1k@latest](https://github.com/retran/meowg1k@latest)

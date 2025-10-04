@@ -37,7 +37,7 @@ This project uses **Go Task** to automate common development tasks. All commands
 
 Fork the repository to your own GitHub account, then clone it locally.
 ```bash
-git clone [git@github.com:retran/meowg1k.git](git@github.com:retran/meowg1k.git)
+git clone git@github.com:retran/meowg1k.git
 cd meowg1k
 ````
 
