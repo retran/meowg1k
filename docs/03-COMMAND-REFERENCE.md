@@ -136,4 +136,4 @@ meow version
 
 ## Next Steps
 
-Now that you're familiar with the commands, check out some advanced use cases in the [Examples & Recipes guide](https://www.google.com/search?q=./04-EXAMPLES.md).
+Now that you're familiar with the commands, check out some advanced use cases in the [Examples & Recipes guide](./04-EXAMPLES.md).

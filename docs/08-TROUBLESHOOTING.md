@@ -170,4 +170,4 @@ If your problem is not listed here, please:
 
 1. **Search Existing Issues:** Check the [GitHub Issues](https://github.com/retran/meowg1k/issues) to see if someone has already reported a similar problem.
 
-2. **Open a New Issue:** If your problem is new, please [open a detailed bug report](https://www.google.com/search?q=https://github.com/retran/meowg1k/issues/new/choose). Include the command you ran, your configuration (with secrets removed), the output you received, and the output you expected.
+2. **Open a New Issue:** If your problem is new, please [open a detailed bug report](https://github.com/retran/meowg1k/issues/new/choose). Include the command you ran, your configuration (with secrets removed), the output you received, and the output you expected.

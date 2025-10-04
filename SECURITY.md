@@ -2,6 +2,8 @@
 
 The `meowg1k` team takes security seriously. We appreciate the efforts of security researchers and the community to help us maintain a high standard of security.
 
+---
+
 ## Philosophies
 
 Our security model is guided by our core principles:

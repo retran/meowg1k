@@ -199,4 +199,4 @@ cat ./internal/billing/core.go | meow g -t local-analysis
 
 ## Next Steps
 
-Explore how to integrate `meowg1k` into your daily workflow with the [Integrations Guide](https://www.google.com/search?q=./05-INTEGRATIONS.md), covering Git hooks and CI/CD pipelines.
+Explore how to integrate `meowg1k` into your daily workflow with the [Integrations Guide](./05-INTEGRATIONS.md), covering Git hooks and CI/CD pipelines.

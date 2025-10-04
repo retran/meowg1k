@@ -155,10 +155,11 @@ This project is licensed under the [**Apache License 2.0**](./LICENSE).
 ---
 
 <div align="center">
-**Happy coding with `project meow`! 🐱**
+
+<b>Happy coding with `project meow`! 🐱</b>
 
 <p>Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix.</p>
 
 [Report Bug](https://github.com/retran/meowg1k/issues) · [Request Feature](https://github.com/retran/meowg1k/issues) · [Contribute](https://github.com/retran/meowg1k/pulls)
 
-</div\>
+</div>

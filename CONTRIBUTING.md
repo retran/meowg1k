@@ -4,6 +4,8 @@ First off, thank you for considering contributing to `meowg1k`! We welcome contr
 
 This document provides guidelines for contributing to the project.
 
+---
+
 ## Code of Conduct
 
 By participating in this project, you are expected to uphold our [Code of Conduct](./CODE_OF_CONDUCT.md). Please report any unacceptable behavior.

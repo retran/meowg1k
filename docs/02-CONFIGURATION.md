@@ -290,4 +290,4 @@ pr:
 
 ## Next Steps
 
-Now that you know how to configure `meowg1k`, it's time to learn about the specific commands in the [Command Reference](https://www.google.com/search?q=./03-COMMAND-REFERENCE.md).
+Now that you know how to configure `meowg1k`, it's time to learn about the specific commands in the [Command Reference](./03-COMMAND-REFERENCE.md).
