@@ -1,16 +1,16 @@
 profiles:
   fast:
     provider: "openrouter"
-    model: "qwen/qwen3-coder:free"
-    requestsPerMinute: 1000
-    tokensPerMinute: 2000000
+    model: "qwen/qwen3-coder-flash"
+    requestsPerMinute: 60
+    tokensPerMinute: 1000000
     requestsPerDay: 10000
 
   smart:
     provider: "openrouter"
-    model: "qwen/qwen3-coder:free"
+    model: "qwen/qwen3-coder-plus"
     timeout: "10m"
-    requestsPerMinute: 150
+    requestsPerMinute: 60
     tokensPerMinute: 1000000
     requestsPerDay: 10000
 
