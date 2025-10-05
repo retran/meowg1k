@@ -1,8 +1,10 @@
 ---
 name: Bug Report
-description: Create a report to help us improve meowg1k
+about: Something isn't working as expected? Report the issue here.
 title: "[BUG] <A brief, descriptive title>"
-labels: ["bug"]
+labels: bug
+assignees: ''
+
 ---
 
 ### Describe the bug

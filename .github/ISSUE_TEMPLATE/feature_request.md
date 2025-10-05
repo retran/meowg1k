@@ -1,8 +1,10 @@
 ---
 name: Feature Request
-description: Suggest an idea or enhancement for this project
+about: Have an idea to make meowg1k better? Suggest it here.
 title: "[FEAT] <A brief, descriptive title>"
-labels: ["enhancement"]
+labels: enhancement
+assignees: ''
+
 ---
 
 ### Is your feature request related to a problem? Please describe
