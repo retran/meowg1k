@@ -51,15 +51,10 @@ func NewFactory(stagedChangesReader StagedChangesReader) *Factory {
 }
 
 // NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
+func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
 		executorCtx.SendRunning("Fetching diff")

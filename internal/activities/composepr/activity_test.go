@@ -24,40 +24,20 @@ import (
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // mockContentGenerationActivityFactory is a mock implementation of ContentGenerationActivityFactory for testing.
 type mockContentGenerationActivityFactory struct {
-	activity executor.Activity[any, any]
+	activity executor.Activity[*invokellm.Input, *invokellm.Output]
 }
 
-func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[any, any] {
+func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
 	if m.activity != nil {
 		return m.activity
 	}
-	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
+	return func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
 		return &invokellm.Output{Content: "test content"}, nil
 	}
-}
-
-// mockExecutor is a mock implementation of the executor for testing.
-type mockExecutor struct{}
-
-func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
-	f := future.NewFuture[any]()
-	result, err := activity(ctx, executorCtx, input)
-	if err != nil {
-		f.CompleteWithError(err)
-	} else {
-		f.Complete(result)
-	}
-	return f
-}
-
-func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
-	flowCtx := executor.NewContext(name, nil, m)
-	return flow(ctx, flowCtx)
 }
 
 func TestNewFactory(t *testing.T) {
@@ -78,57 +58,22 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
-	mockExec := &mockExecutor{}
-	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
 		return &invokellm.Output{
 			Content: "test PR description",
 		}, nil
 	}
 
-	activity := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, executor.ErrInvalidInputType
-		}
-
-		invokeFuture := mockExec.RunActivity(ctx, executorCtx, "InvokeLLM", mockInvokeLLM, &invokellm.Input{
-			Profile:      input.Profile,
-			SystemPrompt: input.SystemPrompt,
-			UserPrompt:   "test",
-		})
-
-		invokeResult, err := invokeFuture.Get(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		invokeOutput, ok := invokeResult.(*invokellm.Output)
-		if !ok {
-			return nil, executor.ErrInvalidOutputType
-		}
-
-		return &Output{
-			PRDescription: invokeOutput.Content,
-		}, nil
+	mockFactory := &mockContentGenerationActivityFactory{
+		activity: mockInvokeLLM,
 	}
 
+	factory := NewFactory(mockFactory)
+	activity := factory.NewActivity()
+
 	ctx := context.Background()
+	mockExec := executor.NewExecutor()
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -144,14 +89,9 @@ func TestActivitySuccess(t *testing.T) {
 		Intent: "test intent",
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Fatalf("Expected *Output, got %T", result)
 	}
 
 	if output.PRDescription != "test PR description" {

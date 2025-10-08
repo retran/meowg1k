@@ -82,19 +82,14 @@ func TestActivityExecute(t *testing.T) {
 		t.Errorf("Activity execution failed: %v", err)
 	}
 
-	out, ok := output.(*Output)
-	if !ok {
-		t.Errorf("Expected output to be *Output, got %T", output)
-	}
-
 	expected := []string{"file1.txt", "file2.go", "keep.txt"}
-	if len(out.Files) != len(expected) {
-		t.Errorf("Expected %d files, got %d", len(expected), len(out.Files))
+	if len(output.Files) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(output.Files))
 	}
 
 	for i, file := range expected {
-		if i >= len(out.Files) || out.Files[i] != file {
-			t.Errorf("Expected file %s at position %d, got %v", file, i, out.Files)
+		if i >= len(output.Files) || output.Files[i] != file {
+			t.Errorf("Expected file %s at position %d, got %v", file, i, output.Files)
 		}
 	}
 }
@@ -110,21 +105,5 @@ func TestActivityExecuteNilInput(t *testing.T) {
 	_, err := activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
-	}
-}
-
-func TestActivityExecuteInvalidInput(t *testing.T) {
-	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
-	activity := factory.NewActivity()
-
-	input := "invalid input"
-
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-
-	_, err := activity(ctx, execCtx, input)
-	if err == nil {
-		t.Error("Expected error for invalid input type")
 	}
 }

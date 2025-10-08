@@ -28,10 +28,10 @@ import (
 
 // mockContentGenerationActivityFactory is a mock implementation of ContentGenerationActivityFactory for testing.
 type mockContentGenerationActivityFactory struct {
-	activity executor.Activity[any, any]
+	activity executor.Activity[*invokellm.Input, *invokellm.Output]
 }
 
-func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[any, any] {
+func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
 	return m.activity
 }
 
@@ -55,21 +55,9 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	mockFactory := &mockContentGenerationActivityFactory{}
-	factory := NewFactory(mockFactory)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
 	// Create a mock activity that returns predefined content
-	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
 		return &invokellm.Output{
 			Content: "test commit message",
 		}, nil
@@ -99,14 +87,9 @@ func TestActivitySuccess(t *testing.T) {
 		Intent: "test intent",
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Fatalf("Expected *Output, got %T", result)
 	}
 
 	if output.CommitMessage != "test commit message" {

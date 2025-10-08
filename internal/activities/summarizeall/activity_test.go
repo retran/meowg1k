@@ -23,27 +23,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
-
-// mockExecutor is a mock implementation of the executor for testing.
-type mockExecutor struct{}
-
-func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
-	f := future.NewFuture[any]()
-	result, err := activity(ctx, executorCtx, input)
-	if err != nil {
-		f.CompleteWithError(err)
-	} else {
-		f.Complete(result)
-	}
-	return f
-}
-
-func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
-	flowCtx := executor.NewContext(name, nil, m)
-	return flow(ctx, flowCtx)
-}
 
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(nil)
@@ -63,53 +43,22 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
-type mockSummarizeFactory struct{}
-
-func (m *mockSummarizeFactory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
-		return &summarizefile.Output{
-			Filename: "test.go",
-			Summary:  "test summary",
-			Skipped:  false,
-		}, nil
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
-	mockFactory := &mockSummarizeFactory{}
 	factory := NewFactory((*summarizefile.Factory)(nil))
 	activity := factory.NewActivity()
 	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, &mockExecutor{})
+	execCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Changes: []*git.FileChange{},
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Errorf("Expected *Output, got %T", result)
 	}
 
 	if output.Summaries == nil {
 		t.Error("Expected summaries to be non-nil")
 	}
-
-	_ = mockFactory
 }

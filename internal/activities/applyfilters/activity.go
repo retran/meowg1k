@@ -45,24 +45,19 @@ type Factory struct {
 }
 
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
-func NewFactory(fileIgnoreChecker FileIgnoreChecker) executor.ActivityFactory {
+func NewFactory(fileIgnoreChecker FileIgnoreChecker) executor.ActivityFactory[*Input, *Output] {
 	return &Factory{
 		fileIgnoreChecker: fileIgnoreChecker,
 	}
 }
 
 // NewActivity creates and returns the ApplyFilters activity function.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Applying filters")
 
-		if activityInput == nil {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
 		filteredFiles := make([]string, 0, len(input.Files))

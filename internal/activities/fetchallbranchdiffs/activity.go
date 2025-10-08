@@ -40,7 +40,7 @@ type Output struct {
 
 // BranchFileDiffActivityFactory creates activities that fetch branch file diffs.
 type BranchFileDiffActivityFactory interface {
-	NewActivity() executor.Activity[any, any]
+	NewActivity() executor.Activity[*fetchbranchfilediff.Input, *git.FileChange]
 }
 
 // Factory creates instances of the FetchAllBranchDiffs activity with injected dependencies.
@@ -56,27 +56,29 @@ func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) *Fa
 }
 
 // NewActivity creates and returns the FetchAllBranchDiffs activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
 
-		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
+		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchBranchFileDiff, &fetchbranchfilediff.Input{
-				Filename:     file,
-				TargetBranch: input.TargetBranch,
-			})
-			readChangesFutures = append(readChangesFutures, future)
+			fut := executor.RunActivity[*fetchbranchfilediff.Input, *git.FileChange](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				file,
+				fetchBranchFileDiff,
+				&fetchbranchfilediff.Input{
+					Filename:     file,
+					TargetBranch: input.TargetBranch,
+				},
+			)
+			readChangesFutures = append(readChangesFutures, fut)
 		}
 
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
@@ -87,13 +89,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		changes := make([]*git.FileChange, 0, len(changesResults))
-		for _, result := range changesResults {
-			changeOutput, ok := result.(*git.FileChange)
-			if !ok {
-				continue
-			}
-			changes = append(changes, changeOutput)
-		}
+		changes = append(changes, changesResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
 

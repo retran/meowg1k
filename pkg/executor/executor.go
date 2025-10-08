@@ -107,8 +107,9 @@ func (e *Impl) RunFlow(
 	return err
 }
 
-// RunActivity runs a sub-activity asynchronously and returns a future for its result
-func (e *Impl) RunActivity(
+// runActivity runs a sub-activity asynchronously and returns a future for its result
+// This is the internal implementation used by the generic RunActivity function.
+func (e *Impl) runActivity(
 	ctx context.Context,
 	parentCtx *Context,
 	activityName string,

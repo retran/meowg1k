@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -75,20 +74,6 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	gitSvc := &mockStagedChangesReader{}
-	factory := NewFactory(gitSvc)
-	activity := factory.NewActivity()
-
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{
 		ReadStagedChangesFunc: func(filePath string) (string, error) {
@@ -111,14 +96,9 @@ func TestActivitySuccess(t *testing.T) {
 		Filename: "test.go",
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*git.FileChange)
-	if !ok {
-		t.Errorf("Expected *git.FileChange, got %T", result)
 	}
 
 	if output.Filename != "test.go" {

@@ -48,7 +48,7 @@ type SystemPromptProvider interface {
 
 // ContentGenerationActivityFactory creates content generation activities.
 type ContentGenerationActivityFactory interface {
-	NewActivity() executor.Activity[any, any]
+	NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output]
 }
 
 // OutputWriter writes output to the user.
@@ -106,17 +106,18 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			SystemPrompt: systemPrompt,
 		}
 
-		future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "InvokeLLM", activity, input)
+		future := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"InvokeLLM",
+			activity,
+			input,
+		)
 
-		output, err := future.Get(ctx)
+		invokeOutput, err := future.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
-		}
-
-		invokeOutput, ok := output.(*invokellm.Output)
-
-		if !ok {
-			return ErrInvalidActivityOutputType
 		}
 
 		flowCtx.SendCompleted("")

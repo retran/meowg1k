@@ -27,13 +27,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/retran/meowg1k/internal/db"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/internal/services/shutdown"
 	"github.com/retran/meowg1k/pkg/ratelimit"
-	"github.com/spf13/cobra"
 )
 
 // NewTestAppContainer creates a new app.Container for testing with a mock database host.

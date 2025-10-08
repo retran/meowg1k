@@ -165,9 +165,9 @@ func (c *Context) SendRetry(attempt int, err error) {
 // Activity defines a function that can be executed by the executor.
 type Activity[T any, K any] func(ctx context.Context, activityCtx *Context, input T) (K, error)
 
-// ActivityFactory creates new instances of activities.
-type ActivityFactory interface {
-	NewActivity() Activity[any, any]
+// ActivityFactory creates new instances of activities with specific input and output types.
+type ActivityFactory[T any, K any] interface {
+	NewActivity() Activity[T, K]
 }
 
 // Flow defines a function that can be executed by the executor.
@@ -175,7 +175,7 @@ type Flow func(ctx context.Context, flowCtx *Context) error
 
 // Executor defines the interface for executing flows and activities.
 type Executor interface {
-	RunActivity(
+	runActivity(
 		ctx context.Context,
 		parentCtx *Context,
 		name string,
@@ -183,6 +183,50 @@ type Executor interface {
 		input any,
 	) *future.Future[any]
 	RunFlow(ctx context.Context, name string, flow Flow, retryPolicy *RetryPolicy) error
+}
+
+// RunActivity is a generic wrapper around the executor's runActivity method.
+// It provides compile-time type safety for activity inputs and outputs.
+func RunActivity[T, K any](
+	e Executor,
+	ctx context.Context,
+	parentCtx *Context,
+	name string,
+	activity Activity[T, K],
+	input T,
+) *future.Future[K] {
+	// Create a type-erased activity that calls the typed activity
+	untypedActivity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
+		typedInput, ok := input.(T)
+		if !ok {
+			return nil, fmt.Errorf("%w: expected %T, got %T", ErrInvalidInputType, *new(T), input)
+		}
+		return activity(ctx, activityCtx, typedInput)
+	}
+
+	// Call the untyped executor method
+	untypedFuture := e.runActivity(ctx, parentCtx, name, untypedActivity, input)
+
+	// Wrap the untyped future in a typed one
+	typedFuture := future.NewFuture[K]()
+
+	go func() {
+		result, err := untypedFuture.Get(ctx)
+		if err != nil {
+			typedFuture.CompleteWithError(err)
+			return
+		}
+
+		typedResult, ok := result.(K)
+		if !ok {
+			typedFuture.CompleteWithError(fmt.Errorf("%w: expected %T, got %T", ErrInvalidOutputType, *new(K), result))
+			return
+		}
+
+		typedFuture.Complete(typedResult)
+	}()
+
+	return typedFuture
 }
 
 // RetryPolicy defines the retry behavior for an operation.

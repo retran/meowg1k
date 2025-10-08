@@ -50,20 +50,13 @@ func NewFactory(stagedFileListReader StagedFileListReader) *Factory {
 }
 
 // NewActivity creates and returns the ListStaged activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Listing staged files")
 
-		if activityInput == nil {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
-		}
-
-		_ = input // input is empty struct, but we validate it
 
 		files, err := f.stagedFileListReader.ReadStagedFiles()
 		if err != nil {

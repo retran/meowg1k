@@ -24,7 +24,6 @@ import (
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // mockGenerationGateway is a mock implementation of GenerationGateway for testing.
@@ -56,17 +55,6 @@ func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context,
 	return &mockGenerationGateway{Content: "test content"}, nil
 }
 
-// mockExecutor is a mock implementation of executor.Executor
-type mockExecutor struct{}
-
-func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
-	return nil
-}
-
-func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
-	return nil
-}
-
 func TestNewFactory(t *testing.T) {
 	gwFactory := &mockGenerationGatewayFactory{}
 	factory := NewFactory(gwFactory)
@@ -87,7 +75,7 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{
@@ -98,14 +86,9 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	result, err := activity(ctx, executorCtx, input)
+	output, err := activity(ctx, executorCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Errorf("Expected *Output, got %T", result)
 	}
 
 	if output.Content != "Generated content" {
@@ -119,25 +102,11 @@ func TestInvokeLLMActivity_NilInput(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	_, err := activity(ctx, executorCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
-	}
-}
-
-func TestInvokeLLMActivity_InvalidInputType(t *testing.T) {
-	gwFactory := &mockGenerationGatewayFactory{}
-	factory := NewFactory(gwFactory)
-	activity := factory.NewActivity()
-
-	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
-
-	_, err := activity(ctx, executorCtx, "invalid input")
-	if !errors.Is(err, executor.ErrInvalidInputType) {
-		t.Errorf("Expected ErrInvalidInputType, got %v", err)
 	}
 }
 
@@ -150,7 +119,7 @@ func TestInvokeLLMActivity_GatewayError(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{
@@ -178,7 +147,7 @@ func TestInvokeLLMActivity_GenerationError(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{

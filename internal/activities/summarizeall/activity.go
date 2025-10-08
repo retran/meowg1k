@@ -39,7 +39,7 @@ type Output struct {
 
 // FileSummarizationActivityFactory creates file summarization activities.
 type FileSummarizationActivityFactory interface {
-	NewActivity() executor.Activity[any, any]
+	NewActivity() executor.Activity[*summarizefile.Input, *summarizefile.Output]
 }
 
 // Factory creates instances of the SummarizeAll activity with injected dependencies.
@@ -55,29 +55,31 @@ func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactor
 }
 
 // NewActivity creates and returns the SummarizeAll activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", len(input.Changes)))
 
-		summarizeFutures := make([]*future.Future[any], 0, len(input.Changes))
+		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
 		for _, change := range input.Changes {
 			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, change.Filename, summarizeFile, &summarizefile.Input{
-				Filename:            change.Filename,
-				Change:              change.Change,
-				OriginalFileContent: change.OriginalFileContent,
-				StagedFileContent:   change.ChangedFileContent,
-			})
-			summarizeFutures = append(summarizeFutures, future)
+			fut := executor.RunActivity[*summarizefile.Input, *summarizefile.Output](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				change.Filename,
+				summarizeFile,
+				&summarizefile.Input{
+					Filename:            change.Filename,
+					Change:              change.Change,
+					OriginalFileContent: change.OriginalFileContent,
+					StagedFileContent:   change.ChangedFileContent,
+				},
+			)
+			summarizeFutures = append(summarizeFutures, fut)
 		}
 
 		summaryResults, errs := future.WaitAll(ctx, summarizeFutures...)
@@ -88,12 +90,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		summaries := make([]*summarizefile.Output, 0, len(summaryResults))
-		for _, result := range summaryResults {
-			summary, ok := result.(*summarizefile.Output)
-			if ok {
-				summaries = append(summaries, summary)
-			}
-		}
+		summaries = append(summaries, summaryResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Summarized %d files", len(summaries)))
 

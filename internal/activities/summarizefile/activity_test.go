@@ -40,14 +40,3 @@ func TestActivityNilInput(t *testing.T) {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}
 }
-
-func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil, nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}

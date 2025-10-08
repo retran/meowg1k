@@ -39,7 +39,7 @@ type Output struct {
 
 // FileDiffActivityFactory creates activities that fetch file diffs.
 type FileDiffActivityFactory interface {
-	NewActivity() executor.Activity[any, any]
+	NewActivity() executor.Activity[*fetchfilediff.Input, *git.FileChange]
 }
 
 // Factory creates instances of the FetchAllDiffs activity with injected dependencies.
@@ -55,26 +55,28 @@ func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) *Factory {
 }
 
 // NewActivity creates and returns the FetchAllDiffs activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files", len(input.Files)))
 
-		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
+		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchFileDiff, &fetchfilediff.Input{
-				Filename: file,
-			})
-			readChangesFutures = append(readChangesFutures, future)
+			fut := executor.RunActivity[*fetchfilediff.Input, *git.FileChange](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				file,
+				fetchFileDiff,
+				&fetchfilediff.Input{
+					Filename: file,
+				},
+			)
+			readChangesFutures = append(readChangesFutures, fut)
 		}
 
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
@@ -85,13 +87,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		changes := make([]*git.FileChange, 0, len(changesResults))
-		for _, result := range changesResults {
-			changeOutput, ok := result.(*git.FileChange)
-			if !ok {
-				continue
-			}
-			changes = append(changes, changeOutput)
-		}
+		changes = append(changes, changesResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
 

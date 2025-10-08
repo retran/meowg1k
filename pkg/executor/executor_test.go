@@ -140,11 +140,11 @@ func TestRunActivity(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
-	activity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
+	activity := func(ctx context.Context, activityCtx *Context, input string) (string, error) {
 		return "result", nil
 	}
 
-	fut := exec.RunActivity(ctx, parentCtx, "test", activity, "input")
+	fut := RunActivity(exec, ctx, parentCtx, "test", activity, "input")
 	result, err := fut.Get(ctx)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -159,11 +159,11 @@ func TestRunActivityWithError(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
-	activity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
-		return nil, errActivity
+	activity := func(ctx context.Context, activityCtx *Context, input string) (string, error) {
+		return "", errActivity
 	}
 
-	fut := exec.RunActivity(ctx, parentCtx, "test", activity, "input")
+	fut := RunActivity(exec, ctx, parentCtx, "test", activity, "input")
 	_, err := fut.Get(ctx)
 	if err == nil {
 		t.Error("expected error")
@@ -372,13 +372,13 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := executor.RunActivity(ctx, parentCtx, "complex", complexActivity, "test-input")
+	future := RunActivity(executor, ctx, parentCtx, "complex", complexActivity, "test-input")
 
 	result, err := future.Get(context.Background())
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if result.(string) != "result-test-input" {
+	if result != "result-test-input" {
 		t.Errorf("Expected 'result-test-input', got %v", result)
 	}
 
@@ -410,14 +410,11 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := executor.RunActivity(ctx, parentCtx, "failing", failingActivity, 42)
+	future := RunActivity(executor, ctx, parentCtx, "failing", failingActivity, 42)
 
-	result, err := future.Get(context.Background())
+	_, err := future.Get(context.Background())
 	if err == nil {
 		t.Fatal("Expected error from failing activity")
-	}
-	if result != nil {
-		t.Errorf("Expected nil result from failed activity, got %v", result)
 	}
 
 	// Check that failure feedback was sent
@@ -442,11 +439,10 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 	executor := NewExecutor().WithFeedbackHandler(handler)
 
 	// Define a simple activity
-	simpleActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
-		inputStr := input.(string)
-		executorCtx.SendRunning("Processing " + inputStr)
+	simpleActivity := func(ctx context.Context, executorCtx *Context, input string) (string, error) {
+		executorCtx.SendRunning("Processing " + input)
 		time.Sleep(10 * time.Millisecond)
-		result := "processed-" + inputStr
+		result := "processed-" + input
 		executorCtx.SendCompleted("Finished processing")
 		return result, nil
 	}
@@ -456,20 +452,20 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 		executorCtx.SendRunning("Starting flow")
 
 		// Run first activity
-		future1 := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "activity1", simpleActivity, "input1")
+		future1 := RunActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity1", simpleActivity, "input1")
 		result1, err := future1.Get(ctx)
 		if err != nil {
 			return err
 		}
 
 		// Run second activity
-		future2 := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "activity2", simpleActivity, "input2")
+		future2 := RunActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity2", simpleActivity, "input2")
 		result2, err := future2.Get(ctx)
 		if err != nil {
 			return err
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Flow completed with results: %s, %s", result1.(string), result2.(string)))
+		executorCtx.SendCompleted(fmt.Sprintf("Flow completed with results: %s, %s", result1, result2))
 		return nil
 	}
 
@@ -501,12 +497,12 @@ func TestExecutorWithTimeout(t *testing.T) {
 	executor := NewExecutor() // Uses NoOpFeedbackHandler by default
 
 	// Define a slow activity
-	slowActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
+	slowActivity := func(ctx context.Context, executorCtx *Context, input string) (string, error) {
 		select {
 		case <-time.After(1 * time.Second): // This will timeout
 			return "slow-result", nil
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return "", ctx.Err()
 		}
 	}
 
@@ -515,13 +511,10 @@ func TestExecutorWithTimeout(t *testing.T) {
 	defer cancel()
 
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, executor)
-	future := executor.RunActivity(ctx, parentCtx, "slow", slowActivity, "test")
+	future := RunActivity(executor, ctx, parentCtx, "slow", slowActivity, "test")
 
-	result, err := future.Get(context.Background())
+	_, err := future.Get(context.Background())
 	if err == nil {
 		t.Fatal("Expected timeout error")
-	}
-	if result != nil {
-		t.Errorf("Expected nil result on timeout, got %v", result)
 	}
 }

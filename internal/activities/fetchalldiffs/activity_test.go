@@ -20,16 +20,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // mockFileDiffActivityFactory is a mock implementation of FileDiffActivityFactory for testing.
 type mockFileDiffActivityFactory struct {
-	activity executor.Activity[any, any]
+	activity executor.Activity[*fetchfilediff.Input, *git.FileChange]
 }
 
-func (m *mockFileDiffActivityFactory) NewActivity() executor.Activity[any, any] {
+func (m *mockFileDiffActivityFactory) NewActivity() executor.Activity[*fetchfilediff.Input, *git.FileChange] {
 	return m.activity
 }
 
@@ -53,21 +54,9 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	mockFactory := &mockFileDiffActivityFactory{}
-	factory := NewFactory(mockFactory)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
-	mockActivity := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		return &git.FileChange{Filename: "test.go"}, nil
+	mockActivity := func(ctx context.Context, executorCtx *executor.Context, input *fetchfilediff.Input) (*git.FileChange, error) {
+		return &git.FileChange{Filename: input.Filename}, nil
 	}
 
 	mockFactory := &mockFileDiffActivityFactory{
@@ -85,14 +74,9 @@ func TestActivitySuccess(t *testing.T) {
 		Files: []string{"file1.go", "file2.go"},
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Fatalf("Expected *Output, got %T", result)
 	}
 
 	if len(output.Changes) == 0 {

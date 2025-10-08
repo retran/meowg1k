@@ -50,11 +50,11 @@ type OutputWriter interface {
 
 // Factory creates instances of the PR flow with injected dependencies.
 type Factory struct {
-	listBranchFilesFactory     executor.ActivityFactory
-	applyFiltersFactory        executor.ActivityFactory
-	fetchAllBranchDiffsFactory executor.ActivityFactory
-	summarizeAllFactory        executor.ActivityFactory
-	composePRFactory           executor.ActivityFactory
+	listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
+	applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
+	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
+	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+	composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
 	prConfigProvider           PRConfigProvider
 	commandParametersReader    CommandParametersReader
 	outputWriter               OutputWriter
@@ -62,11 +62,11 @@ type Factory struct {
 
 // NewFactory creates a new PR flow factory with injected services.
 func NewFactory(
-	listBranchFilesFactory executor.ActivityFactory,
-	applyFiltersFactory executor.ActivityFactory,
-	fetchAllBranchDiffsFactory executor.ActivityFactory,
-	summarizeAllFactory executor.ActivityFactory,
-	composePRFactory executor.ActivityFactory,
+	listBranchFilesFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output],
+	applyFiltersFactory executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output],
+	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
+	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
+	composePRFactory executor.ActivityFactory[*composepr.Input, *composepr.Output],
 	prConfigProvider PRConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter OutputWriter,
@@ -100,45 +100,54 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 1: List files changed in branch
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
-		branchFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListBranchFiles", listBranchFiles, &listbranchfiles.Input{
-			TargetBranch: baseBranch,
-		})
-		branchFilesRaw, err := branchFilesFuture.Get(ctx)
+		branchFilesFuture := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"ListBranchFiles",
+			listBranchFiles,
+			&listbranchfiles.Input{
+				TargetBranch: baseBranch,
+			},
+		)
+		branchFiles, err := branchFilesFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to list branch files: %w", err)
-		}
-		branchFiles, ok := branchFilesRaw.(*listbranchfiles.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, branchFilesRaw)
 		}
 
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
-		filteredFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ApplyFilters", applyFilters, &applyfilters.Input{
-			Files: branchFiles.Files,
-		})
-		filteredFilesRaw, err := filteredFilesFuture.Get(ctx)
+		filteredFilesFuture := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"ApplyFilters",
+			applyFilters,
+			&applyfilters.Input{
+				Files: branchFiles.Files,
+			},
+		)
+		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to apply filters: %w", err)
-		}
-		filteredFiles, ok := filteredFilesRaw.(*applyfilters.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, filteredFilesRaw)
 		}
 
 		// Phase 3: Fetch diffs for all files
 		fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-		fetchAllBranchDiffsFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "FetchAllBranchDiffs", fetchAllBranchDiffs, &fetchallbranchdiffs.Input{
-			Files:        filteredFiles.Files,
-			TargetBranch: baseBranch,
-		})
-		fetchAllBranchDiffsRaw, err := fetchAllBranchDiffsFuture.Get(ctx)
+		fetchAllBranchDiffsFuture := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"FetchAllBranchDiffs",
+			fetchAllBranchDiffs,
+			&fetchallbranchdiffs.Input{
+				Files:        filteredFiles.Files,
+				TargetBranch: baseBranch,
+			},
+		)
+		fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to fetch branch diffs: %w", err)
-		}
-		fetchAllBranchDiffsOutput, ok := fetchAllBranchDiffsRaw.(*fetchallbranchdiffs.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, fetchAllBranchDiffsRaw)
 		}
 
 		var changes []*git.FileChange
@@ -146,16 +155,19 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 4: Summarize changes for all files
 		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "SummarizeAll", summarizeAll, &summarizeall.Input{
-			Changes: changes,
-		})
-		summarizeAllRaw, err := summarizeAllFuture.Get(ctx)
+		summarizeAllFuture := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"SummarizeAll",
+			summarizeAll,
+			&summarizeall.Input{
+				Changes: changes,
+			},
+		)
+		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to summarize changes: %w", err)
-		}
-		summarizeAllOutput, ok := summarizeAllRaw.(*summarizeall.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, summarizeAllRaw)
 		}
 
 		// Phase 5: Compose PR description
@@ -174,21 +186,23 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		composePR := f.composePRFactory.NewActivity()
-		prFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ComposePR", composePR, &composepr.Input{
-			Profile:      prConfig.Profile,
-			SystemPrompt: prConfig.SystemPrompt,
-			Summaries:    summarizeAllOutput.Summaries,
-			Intent:       intent,
-		})
+		prFuture := executor.RunActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"ComposePR",
+			composePR,
+			&composepr.Input{
+				Profile:      prConfig.Profile,
+				SystemPrompt: prConfig.SystemPrompt,
+				Summaries:    summarizeAllOutput.Summaries,
+				Intent:       intent,
+			},
+		)
 
-		prResultRaw, err := prFuture.Get(ctx)
+		prResult, err := prFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to compose PR description: %w", err)
-		}
-
-		prResult, ok := prResultRaw.(*composepr.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, prResultRaw)
 		}
 
 		flowCtx.SendCompleted("")

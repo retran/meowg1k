@@ -43,7 +43,7 @@ type Output struct {
 
 // ContentGenerationActivityFactory creates content generation activities.
 type ContentGenerationActivityFactory interface {
-	NewActivity() executor.Activity[any, any]
+	NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output]
 }
 
 // Factory creates instances of the ComposePR activity with injected dependencies.
@@ -59,18 +59,13 @@ func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactor
 }
 
 // NewActivity creates and returns the ComposePR activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
 
 		executorCtx.SendRunning("Composing Pull Request description")
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
-		}
 
 		var contentBuilder strings.Builder
 		contentBuilder.WriteString("File Change Summaries:\n\n")
@@ -97,15 +92,17 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "GenerateContent", contentGenerationActivity, invokeInput)
-		invokeResult, err := invokeFuture.Get(ctx)
+		invokeFuture := executor.RunActivity[*invokellm.Input, *invokellm.Output](
+			executorCtx.GetExecutor(),
+			ctx,
+			executorCtx,
+			"GenerateContent",
+			contentGenerationActivity,
+			invokeInput,
+		)
+		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)
-		}
-
-		invokeOutput, ok := invokeResult.(*invokellm.Output)
-		if !ok {
-			return nil, fmt.Errorf("%w: expected *invokellm.Output, got %T", executor.ErrInvalidOutputType, invokeResult)
 		}
 
 		executorCtx.SendCompleted("")

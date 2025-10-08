@@ -24,11 +24,11 @@ import (
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
+	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/db"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
-	"github.com/spf13/cobra"
 )
 
 // mockDBHost is a test mock implementation of db.Host using in-memory SQLite.

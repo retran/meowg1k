@@ -53,17 +53,6 @@ func TestActivityNilInput(t *testing.T) {
 	}
 }
 
-func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
-	if err == nil {
-		t.Error("Expected error for invalid input type")
-	}
-}
-
 func TestActivitySuccess(t *testing.T) {
 	gitSvc := &mockBranchFileListReader{
 		GetChangedFilesInBranchFunc: func(targetBranch string) ([]string, error) {
@@ -79,14 +68,9 @@ func TestActivitySuccess(t *testing.T) {
 		TargetBranch: "main",
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Errorf("Expected *Output, got %T", result)
 	}
 
 	if len(output.Files) != 2 {
