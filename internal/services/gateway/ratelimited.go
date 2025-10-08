@@ -25,11 +25,11 @@ import (
 // rateLimitedGenerationGateway wraps a GenerationGateway with rate limiting.
 type rateLimitedGenerationGateway struct {
 	gateway GenerationGateway
-	limiter *ratelimit.Limiter
+	limiter ratelimit.Limiter
 }
 
 // newRateLimitedGenerationGateway creates a new rate-limited generation
-func newRateLimitedGenerationGateway(gateway GenerationGateway, limiter *ratelimit.Limiter) GenerationGateway {
+func newRateLimitedGenerationGateway(gateway GenerationGateway, limiter ratelimit.Limiter) GenerationGateway {
 	return &rateLimitedGenerationGateway{
 		gateway: gateway,
 		limiter: limiter,

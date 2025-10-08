@@ -59,13 +59,23 @@ func TestNewLimiter(t *testing.T) {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
-	if limiter.rpm == nil {
+	// Test that the limiter works by attempting to acquire
+	if limiter == nil {
+		t.Error("Expected limiter to be initialized")
+	}
+
+	// Verify it's a dbLimiter by type assertion
+	dbLim, ok := limiter.(*dbLimiter)
+	if !ok {
+		t.Error("Expected limiter to be a dbLimiter")
+	}
+	if dbLim.rpm == nil {
 		t.Error("Expected rpm bucket to be initialized")
 	}
-	if limiter.tpm == nil {
+	if dbLim.tpm == nil {
 		t.Error("Expected tpm bucket to be initialized")
 	}
-	if limiter.rpd == nil {
+	if dbLim.rpd == nil {
 		t.Error("Expected rpd bucket to be initialized")
 	}
 }
@@ -79,13 +89,18 @@ func TestNewLimiterUnlimited(t *testing.T) {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
-	if limiter.rpm != nil {
+	// Verify it's a dbLimiter by type assertion
+	dbLim, ok := limiter.(*dbLimiter)
+	if !ok {
+		t.Error("Expected limiter to be a dbLimiter")
+	}
+	if dbLim.rpm != nil {
 		t.Error("Expected rpm bucket to be nil for unlimited")
 	}
-	if limiter.tpm != nil {
+	if dbLim.tpm != nil {
 		t.Error("Expected tpm bucket to be nil for unlimited")
 	}
-	if limiter.rpd != nil {
+	if dbLim.rpd != nil {
 		t.Error("Expected rpd bucket to be nil for unlimited")
 	}
 }
@@ -110,7 +125,7 @@ func TestLimiterWait(t *testing.T) {
 		t.Fatalf("Failed to create rpd bucket: %v", err)
 	}
 
-	limiter := &Limiter{
+	limiter := &dbLimiter{
 		rpm: rpm,
 		tpm: tpm,
 		rpd: rpd,
@@ -191,17 +206,23 @@ func TestLimiterReset(t *testing.T) {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
+	// Cast to dbLimiter to access Stats and Reset
+	dbLim, ok := limiter.(*dbLimiter)
+	if !ok {
+		t.Fatal("Expected limiter to be a dbLimiter")
+	}
+
 	// Consume some resources
 	limiter.TryAcquire(5)
 
-	rpm, tpm, rpd := limiter.Stats()
+	rpm, tpm, rpd := dbLim.Stats()
 	if rpm >= 10 || tpm >= 100 || rpd >= 50 {
 		t.Errorf("Expected some resources consumed, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
 	}
 
-	limiter.Reset()
+	dbLim.Reset()
 
-	rpm, tpm, rpd = limiter.Stats()
+	rpm, tpm, rpd = dbLim.Stats()
 	if rpm != 10 || tpm != 100 || rpd != 50 {
 		t.Errorf("Expected full capacity after reset, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
 	}
@@ -222,14 +243,20 @@ func TestLimiterStats(t *testing.T) {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
-	rpm, tpm, rpd := limiter.Stats()
+	// Cast to dbLimiter to access Stats
+	dbLim, ok := limiter.(*dbLimiter)
+	if !ok {
+		t.Fatal("Expected limiter to be a dbLimiter")
+	}
+
+	rpm, tpm, rpd := dbLim.Stats()
 	if rpm != 10 || tpm != 100 || rpd != 50 {
 		t.Errorf("Expected full capacity, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
 	}
 
 	limiter.TryAcquire(5)
 
-	rpm, tpm, rpd = limiter.Stats()
+	rpm, tpm, rpd = dbLim.Stats()
 	if rpm != 9 || tpm != 95 || rpd != 49 {
 		t.Errorf("Expected reduced capacity, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
 	}

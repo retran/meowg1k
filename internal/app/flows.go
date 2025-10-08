@@ -62,7 +62,7 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 
 	commitConfigService := commitconfig.NewService(c.ConfigService, profileService)
 
-	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	// Activities for regular staged commit mode
@@ -120,7 +120,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	flowFactory := generate.NewFlowFactory(
@@ -148,7 +148,7 @@ func (c *Container) CreatePRFlow() executor.Flow {
 
 	prConfigService := prconfig.NewService(c.ConfigService, profileService)
 
-	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	// Activities for branch diff mode

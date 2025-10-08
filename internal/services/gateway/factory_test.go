@@ -54,7 +54,7 @@ func TestNewGatewayFactory(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := NewFactory(repo)
+	factory := NewFactory(func() ratelimit.Repository { return repo })
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
 }
@@ -63,7 +63,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := NewFactory(repo)
+	factory := NewFactory(func() ratelimit.Repository { return repo })
 	ctx := context.Background()
 
 	tests := []struct {
@@ -296,7 +296,10 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 }
 
 func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
-	factory := &Factory{}
+	factory := &Factory{
+		limiters: make(map[string]ratelimit.Limiter),
+		repoFunc: func() ratelimit.Repository { return nil },
+	}
 	ctx := context.Background()
 
 	tests := []struct {

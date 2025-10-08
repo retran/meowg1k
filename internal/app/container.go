@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/ncruces/go-sqlite3/driver"
@@ -65,11 +66,17 @@ type Container struct {
 	// OutputService handles application output to stdout/stderr.
 	OutputService output.Writer
 
-	// DBHost provides access to database connections
-	DBHost db.Host
+	// dbHost provides access to database connections (lazy initialized)
+	dbHost db.Host
 
-	// RateLimitRepo is the repository for rate limiting state
-	RateLimitRepo ratelimit.Repository
+	// dbPathService provides database path management
+	dbPathService *dbpath.Service
+
+	// rateLimitRepo is the repository for rate limiting state (lazy initialized)
+	rateLimitRepo ratelimit.Repository
+
+	// dbInitOnce ensures database is initialized only once
+	dbInitOnce sync.Once
 }
 
 const (
@@ -166,33 +173,55 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return outputService.Flush()
 	})
 
-	// Initialize database path service and host
+	// Initialize database path service (but not the DB itself - that's lazy)
 	dbPathService := dbpath.NewService()
-	dbHost, err := db.NewLocalHost(dbPathService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database host: %w", err)
-	}
-
-	mainDB := dbHost.GetDB()
-
-	rateLimitRepo := ratelimit.NewRepository(mainDB)
-
-	shutdownService.Register(func(ctx context.Context) error {
-		return dbHost.Close()
-	})
 
 	container.Logger = logger
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.DBHost = dbHost
-	container.RateLimitRepo = rateLimitRepo
+	container.dbPathService = dbPathService
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
 	cmd.SetContext(shutdownCtx)
 
 	return container, nil
+}
+
+// initDB initializes the database host and rate limit repository if not already initialized.
+// This method is thread-safe and will only initialize once.
+func (c *Container) initDB() error {
+	var initErr error
+	c.dbInitOnce.Do(func() {
+		dbHost, err := db.NewLocalHost(c.dbPathService)
+		if err != nil {
+			initErr = fmt.Errorf("failed to initialize database host: %w", err)
+			return
+		}
+
+		mainDB := dbHost.GetDB()
+		rateLimitRepo := ratelimit.NewRepository(mainDB)
+
+		// Register shutdown hook
+		c.ShutdownService.Register(func(ctx context.Context) error {
+			return dbHost.Close()
+		})
+
+		c.dbHost = dbHost
+		c.rateLimitRepo = rateLimitRepo
+	})
+	return initErr
+}
+
+// GetRateLimitRepo returns the rate limit repository, initializing the database if needed.
+func (c *Container) GetRateLimitRepo() ratelimit.Repository {
+	if err := c.initDB(); err != nil {
+		c.Logger.Error("failed to initialize database", "error", err)
+		// Return nil - the factory will handle this by using no-op limiters
+		return nil
+	}
+	return c.rateLimitRepo
 }
 
 // getLogDir returns the appropriate log directory for the current OS.

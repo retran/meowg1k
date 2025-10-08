@@ -83,8 +83,8 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error)
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.DBHost = dbHost
-	container.RateLimitRepo = rateLimitRepo
+	container.dbHost = dbHost
+	container.rateLimitRepo = rateLimitRepo
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
 	cmd.SetContext(shutdownCtx)

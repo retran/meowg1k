@@ -21,8 +21,19 @@ import (
 	"time"
 )
 
-// Limiter provides multi-dimensional rate limiting with database persistence.
-type Limiter struct {
+// Limiter defines the interface for rate limiting operations.
+type Limiter interface {
+	// Wait waits until the request with the specified token count can be processed.
+	// Blocks until all limits allow the request or context is cancelled.
+	Wait(ctx context.Context, tokenCount int) error
+
+	// TryAcquire attempts to acquire resources for a request with the specified token count.
+	// Returns true if successful, false if any limit would be exceeded.
+	TryAcquire(tokenCount int) bool
+}
+
+// dbLimiter provides multi-dimensional rate limiting with database persistence.
+type dbLimiter struct {
 	rpm *Bucket // Requests per minute
 	tpm *Bucket // Tokens per minute (input)
 	rpd *Bucket // Requests per day
@@ -45,8 +56,8 @@ var Unlimited = Config{
 
 // NewLimiter creates a new multi-dimensional rate limiter with database persistence.
 // The id parameter is used to uniquely identify this limiter's buckets in the database.
-func NewLimiter(id string, config Config, repo Repository) (*Limiter, error) {
-	limiter := &Limiter{
+func NewLimiter(id string, config Config, repo Repository) (Limiter, error) {
+	limiter := &dbLimiter{
 		id: id,
 	}
 
@@ -78,7 +89,7 @@ func NewLimiter(id string, config Config, repo Repository) (*Limiter, error) {
 
 // Wait waits until the request with the specified token count can be processed.
 // Blocks until all limits allow the request or context is cancelled.
-func (l *Limiter) Wait(ctx context.Context, tokenCount int) error {
+func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 	if l.rpm != nil {
 		if err := l.rpm.Take(ctx, 1); err != nil {
 			return err
@@ -102,7 +113,7 @@ func (l *Limiter) Wait(ctx context.Context, tokenCount int) error {
 
 // TryAcquire attempts to acquire resources for a request with the specified token count.
 // Returns true if successful, false if any limit would be exceeded.
-func (l *Limiter) TryAcquire(tokenCount int) bool {
+func (l *dbLimiter) TryAcquire(tokenCount int) bool {
 	if l.rpm != nil && !l.rpm.TryTake(0) {
 		return false
 	}
@@ -131,7 +142,7 @@ func (l *Limiter) TryAcquire(tokenCount int) bool {
 }
 
 // Reset resets all rate limit buckets to full capacity.
-func (l *Limiter) Reset() {
+func (l *dbLimiter) Reset() {
 	if l.rpm != nil {
 		l.rpm.Reset()
 	}
@@ -144,7 +155,7 @@ func (l *Limiter) Reset() {
 }
 
 // Stats returns current statistics for all dimensions.
-func (l *Limiter) Stats() (rpm, tpm, rpd int) {
+func (l *dbLimiter) Stats() (rpm, tpm, rpd int) {
 	if l.rpm != nil {
 		rpm = l.rpm.Available()
 	}
@@ -155,4 +166,23 @@ func (l *Limiter) Stats() (rpm, tpm, rpd int) {
 		rpd = l.rpd.Available()
 	}
 	return rpm, tpm, rpd
+}
+
+// noOpLimiter is a rate limiter implementation that does nothing.
+// It's used when no rate limits are configured for a model.
+type noOpLimiter struct{}
+
+// NewNoOpLimiter creates a new no-op rate limiter.
+func NewNoOpLimiter() Limiter {
+	return &noOpLimiter{}
+}
+
+// Wait always returns immediately without error.
+func (n *noOpLimiter) Wait(ctx context.Context, tokenCount int) error {
+	return nil
+}
+
+// TryAcquire always returns true.
+func (n *noOpLimiter) TryAcquire(tokenCount int) bool {
+	return true
 }

@@ -45,15 +45,16 @@ var (
 
 type Factory struct {
 	mu       sync.Mutex
-	limiters map[string]*ratelimit.Limiter // key is profile name
-	repo     ratelimit.Repository          // database repository for rate limiting
+	limiters map[string]ratelimit.Limiter // key is profile name
+	repoFunc func() ratelimit.Repository  // lazy function to get database repository
 }
 
-// NewFactory creates a new gateway factory.
-func NewFactory(repo ratelimit.Repository) *Factory {
+// NewFactory creates a new gateway factory with a lazy repository function.
+// The repoFunc will only be called when a rate limiter with actual limits is needed.
+func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
 	return &Factory{
-		limiters: make(map[string]*ratelimit.Limiter),
-		repo:     repo,
+		limiters: make(map[string]ratelimit.Limiter),
+		repoFunc: repoFunc,
 	}
 }
 
@@ -61,7 +62,7 @@ func NewFactory(repo ratelimit.Repository) *Factory {
 // This method is thread-safe. Each unique model instance gets its own rate limiter.
 // The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
 // or endpoints get separate rate limiters.
-func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Limiter {
+func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) ratelimit.Limiter {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -79,16 +80,21 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Li
 		RequestsPerDay:    profile.RateLimit.RequestsPerDay,
 	}
 
-	// If no limits are set, use unlimited
-	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
-		config = ratelimit.Unlimited
-	}
+	var limiter ratelimit.Limiter
 
-	limiter, err := ratelimit.NewLimiter(key, config, f.repo)
-	if err != nil {
-		// If we can't create a limiter, return an unlimited one
-		// This ensures the gateway can still function
-		limiter, _ = ratelimit.NewLimiter(key, ratelimit.Unlimited, f.repo)
+	// If no limits are set, use no-op limiter (no DB required)
+	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
+		limiter = ratelimit.NewNoOpLimiter()
+	} else {
+		// Get the repository (this will initialize DB if needed)
+		repo := f.repoFunc()
+		var err error
+		limiter, err = ratelimit.NewLimiter(key, config, repo)
+		if err != nil {
+			// If we can't create a limiter, use no-op limiter as fallback
+			// This ensures the gateway can still function
+			limiter = ratelimit.NewNoOpLimiter()
+		}
 	}
 
 	f.limiters[key] = limiter
