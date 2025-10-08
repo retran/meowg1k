@@ -56,3 +56,41 @@ func estimateTokenCount(text string) int {
 	// TODO implement precise token counting
 	return len(text) / 4
 }
+
+// rateLimitedEmbeddingsGateway wraps an EmbeddingsGateway with rate limiting.
+type rateLimitedEmbeddingsGateway struct {
+	gateway EmbeddingsGateway
+	limiter ratelimit.Limiter
+}
+
+// newRateLimitedEmbeddingsGateway creates a new rate-limited embeddings gateway.
+func newRateLimitedEmbeddingsGateway(gateway EmbeddingsGateway, limiter ratelimit.Limiter) EmbeddingsGateway {
+	return &rateLimitedEmbeddingsGateway{
+		gateway: gateway,
+		limiter: limiter,
+	}
+}
+
+// ComputeEmbeddings implements EmbeddingsGateway with rate limiting.
+func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
+	ctx context.Context,
+	request *ComputeEmbeddingsRequest,
+) ([]Embedding, error) {
+	// Estimate token count from the text chunks
+	totalChars := 0
+	for _, chunk := range request.Chunks() {
+		totalChars += len(chunk)
+	}
+	tokenCount := totalChars / 4 // Rough estimate: ~4 chars per token
+
+	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
+		return nil, err
+	}
+
+	return g.gateway.ComputeEmbeddings(ctx, request)
+}
+
+// ComputeDistance implements EmbeddingsGateway by delegating to the wrapped gateway.
+func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second Embedding) (float64, error) {
+	return g.gateway.ComputeDistance(first, second)
+}

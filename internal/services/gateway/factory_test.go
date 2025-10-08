@@ -479,3 +479,77 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		})
 	}
 }
+
+// TestGatewayFactory_NoOpLimiterFallback tests that the factory falls back to no-op limiter when DB error occurs
+func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
+	// Create a factory with a repo function that returns nil (simulating DB error)
+	factory := NewFactory(func() ratelimit.Repository { return nil })
+
+	// Create a profile with rate limits enabled
+	prof := &profile.ResolvedProfile{
+		Provider:        provider.OpenAI,
+		Model:           "gpt-4",
+		MaxInputTokens:  8000,
+		MaxOutputTokens: 2000,
+		Timeout:         30 * time.Second,
+		BaseURL:         "https://api.openai.com/v1",
+		APIKey:          "test-key",
+		APIKeyEnv:       "OPENAI_API_KEY",
+		TokenizerType:   llm.TokenizerCL100K,
+		RateLimit: struct {
+			RequestsPerMinute int
+			TokensPerMinute   int
+			RequestsPerDay    int
+		}{
+			RequestsPerMinute: 10, // Enable rate limiting to trigger DB repo usage
+			TokensPerMinute:   0,
+			RequestsPerDay:    0,
+		},
+	}
+
+	// Get or create a limiter - should fail fast when DB is not available and rate limiting is configured
+	limiter, err := factory.getRateLimiter(prof)
+	require.Error(t, err, "Should return error when DB fails and rate limiting is configured")
+	require.Nil(t, limiter, "Should not return a limiter when DB fails")
+	assert.Contains(t, err.Error(), "database repository is not available")
+}
+
+// TestGatewayFactory_NoLimitsNoOpLimiter tests that no-op limiter is used when no limits are configured
+func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
+	db, repo := setupTestRepoForFactory(t)
+	defer db.Close()
+
+	factory := NewFactory(func() ratelimit.Repository { return repo })
+
+	// Create a profile with NO rate limits - should use no-op limiter without touching DB
+	prof := &profile.ResolvedProfile{
+		Provider:        provider.OpenAI,
+		Model:           "gpt-4",
+		MaxInputTokens:  8000,
+		MaxOutputTokens: 2000,
+		Timeout:         30 * time.Second,
+		BaseURL:         "https://api.openai.com/v1",
+		APIKey:          "test-key",
+		APIKeyEnv:       "OPENAI_API_KEY",
+		TokenizerType:   llm.TokenizerCL100K,
+		RateLimit: struct {
+			RequestsPerMinute int
+			TokensPerMinute   int
+			RequestsPerDay    int
+		}{
+			RequestsPerMinute: 0, // No rate limiting
+			TokensPerMinute:   0,
+			RequestsPerDay:    0,
+		},
+	}
+
+	// Get or create a limiter - should get no-op limiter without touching DB
+	limiter, err := factory.getRateLimiter(prof)
+	require.NoError(t, err, "Should not return error when no limits configured")
+	require.NotNil(t, limiter, "Should return a no-op limiter when no limits configured")
+
+	// Verify caching works
+	limiter2, err := factory.getRateLimiter(prof)
+	require.NoError(t, err, "Should not return error on second call")
+	require.NotNil(t, limiter2, "Should return cached limiter on second call")
+}

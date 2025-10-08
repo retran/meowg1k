@@ -18,6 +18,7 @@ package profile
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,6 +192,30 @@ func TestGetProfileModelNotFound(t *testing.T) {
 	_, err := service.Get(Profile("test"))
 	if err == nil {
 		t.Error("Expected error for non-existent model")
+	}
+}
+
+func TestGetProfileEmptyModelReference(t *testing.T) {
+	// Test profile with empty model reference - should return ErrModelReferenceRequired
+	config := &config.Config{
+		Profiles: map[string]*config.ProfileDefinition{
+			"test": {
+				Model: "", // Empty model reference
+			},
+		},
+	}
+
+	configService := &mockConfigService{config: config}
+	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
+
+	service := NewService(configService, modelService)
+
+	_, err := service.Get(Profile("test"))
+	if err == nil {
+		t.Error("Expected error for empty model reference")
+	}
+	if err != nil && !strings.Contains(err.Error(), "profile must reference a model") {
+		t.Errorf("Expected error to mention 'profile must reference a model', got: %v", err)
 	}
 }
 

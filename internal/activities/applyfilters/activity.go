@@ -45,7 +45,11 @@ type Factory struct {
 }
 
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
+// Panics if fileIgnoreChecker is nil, as this indicates a programming error during container setup.
 func NewFactory(fileIgnoreChecker FileIgnoreChecker) executor.ActivityFactory[*Input, *Output] {
+	if fileIgnoreChecker == nil {
+		panic("applyfilters.NewFactory: fileIgnoreChecker cannot be nil - this is a programming error")
+	}
 	return &Factory{
 		fileIgnoreChecker: fileIgnoreChecker,
 	}

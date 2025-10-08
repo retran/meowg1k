@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/retran/meowg1k/internal/services/profile"
@@ -62,7 +63,7 @@ func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
 // This method is thread-safe. Each unique model instance gets its own rate limiter.
 // The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
 // or endpoints get separate rate limiters.
-func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) ratelimit.Limiter {
+func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Limiter, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -71,7 +72,7 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) ratelimit.Lim
 	key := string(profile.Provider) + ":" + profile.BaseURL + ":" + profile.Model + ":" + profile.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {
-		return limiter
+		return limiter, nil
 	}
 
 	config := ratelimit.Config{
@@ -88,18 +89,21 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) ratelimit.Lim
 	} else {
 		// Get the repository (this will initialize DB if needed)
 		repo := f.repoFunc()
+		if repo == nil {
+			// Fail fast if we can't get a repository when rate limiting is configured
+			return nil, fmt.Errorf("rate limiting is configured but database repository is not available")
+		}
 		var err error
 		limiter, err = ratelimit.NewLimiter(key, config, repo)
 		if err != nil {
-			// If we can't create a limiter, use no-op limiter as fallback
-			// This ensures the gateway can still function
-			limiter = ratelimit.NewNoOpLimiter()
+			// Fail fast if we can't create a limiter when rate limiting is configured
+			return nil, fmt.Errorf("failed to create rate limiter: %w", err)
 		}
 	}
 
 	f.limiters[key] = limiter
 
-	return limiter
+	return limiter, nil
 }
 
 // NewGenerationGateway creates a new generation gateway based on the provided profile.
@@ -167,7 +171,10 @@ func (f *Factory) NewGenerationGateway(
 
 	gateway = newWorkerPoolGateway(gateway, maxConcurrency)
 
-	limiter := f.getRateLimiter(profile)
+	limiter, err := f.getRateLimiter(profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
+	}
 	return newRateLimitedGenerationGateway(gateway, limiter), nil
 }
 
@@ -180,13 +187,16 @@ func (f *Factory) NewEmbeddingsGateway(
 		return nil, ErrProfileCannotBeNil
 	}
 
+	var gateway EmbeddingsGateway
+	var err error
+
 	switch profile.Provider {
 	case provider.Gemini:
 		if profile.APIKey == "" {
 			return nil, ErrGeminiAPIKeyRequired
 		}
 
-		return newGeminiGateway(ctx, profile.APIKey)
+		gateway, err = newGeminiGateway(ctx, profile.APIKey)
 	case provider.Llama:
 		return nil, ErrLlamaEmbeddingsNotImplemented
 	case provider.Anthropic:
@@ -196,20 +206,31 @@ func (f *Factory) NewEmbeddingsGateway(
 			return nil, ErrOpenAIAPIKeyRequired
 		}
 
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
+		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.OpenRouter:
 		if profile.APIKey == "" {
 			return nil, ErrOpenRouterAPIKeyRequired
 		}
 
-		return newOpenAIGateway(profile.BaseURL, profile.APIKey), nil
+		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.Voyage:
 		if profile.APIKey == "" {
 			return nil, ErrVoyageAPIKeyRequired
 		}
 
-		return newVoyageGateway(profile.APIKey)
+		gateway, err = newVoyageGateway(profile.APIKey)
 	default:
 		return nil, ErrProviderNotSpecified
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	limiter, err := f.getRateLimiter(profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
+	}
+
+	return newRateLimitedEmbeddingsGateway(gateway, limiter), nil
 }

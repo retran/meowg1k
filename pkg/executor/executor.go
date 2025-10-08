@@ -63,6 +63,9 @@ type Impl struct {
 	FeedbackHandler FeedbackHandler
 }
 
+// Compile-time check to ensure Impl implements Executor interface
+var _ Executor = (*Impl)(nil)
+
 // NewExecutor creates a new activity executor with the given configuration
 func NewExecutor() *Impl {
 	return &Impl{

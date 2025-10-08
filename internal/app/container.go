@@ -205,7 +205,10 @@ func (c *Container) initDB() error {
 
 		// Register shutdown hook
 		c.ShutdownService.Register(func(ctx context.Context) error {
-			return dbHost.Close()
+			if err := dbHost.Close(); err != nil {
+				return fmt.Errorf("failed to close database host: %w", err)
+			}
+			return nil
 		})
 
 		c.dbHost = dbHost
