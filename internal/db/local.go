@@ -69,9 +69,23 @@ func (h *localHostImpl) GetProjectDB() *sql.DB {
 	return h.projectDB
 }
 
+// getMainDBMigrations collects all migrations for the main database.
+func (h *localHostImpl) getMainDBMigrations() []migrations.Migration {
+	allMigrations := []migrations.Migration{}
+
+	// Add rate limiting migrations
+	allMigrations = append(allMigrations, ratelimit.Migrations...)
+
+	// Future: add other subsystem migrations here
+	// allMigrations = append(allMigrations, someother.Migrations...)
+
+	return allMigrations
+}
+
 func (h *localHostImpl) migrateDB() error {
-	if err := migrations.RunMigrations(h.mainDB, ratelimit.Migrations); err != nil {
-		return fmt.Errorf("failed to run rate limit migrations: %w", err)
+	allMigrations := h.getMainDBMigrations()
+	if err := migrations.RunMigrations(h.mainDB, allMigrations); err != nil {
+		return fmt.Errorf("failed to run main db migrations: %w", err)
 	}
 	return nil
 }

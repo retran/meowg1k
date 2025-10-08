@@ -17,14 +17,80 @@ limitations under the License.
 package app
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/retran/meowg1k/internal/db"
+	"github.com/retran/meowg1k/internal/services/command"
+	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/output"
+	"github.com/retran/meowg1k/internal/services/shutdown"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/spf13/cobra"
 )
+
+// NewTestAppContainer creates a new app.Container for testing with a mock database host.
+// This ensures tests use in-memory databases and don't create files on disk.
+func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error) {
+	container := &Container{}
+
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Use a discard logger for tests to avoid log output
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	shutdownService := shutdown.NewService(logger, ctx, 10*time.Second)
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	configService, err := config.NewService(commandService)
+	if err != nil {
+		return nil, err
+	}
+
+	outputService := output.NewService(output.Stdout)
+	shutdownService.Register(func(ctx context.Context) error {
+		return outputService.Flush()
+	})
+
+	mainDB := dbHost.GetDB()
+	rateLimitRepo := ratelimit.NewRepository(mainDB)
+
+	shutdownService.Register(func(ctx context.Context) error {
+		if dbHost != nil {
+			return dbHost.Close()
+		}
+		return nil
+	})
+
+	container.Logger = logger
+	container.ShutdownService = shutdownService
+	container.CommandService = commandService
+	container.ConfigService = configService
+	container.OutputService = outputService
+	container.DBHost = dbHost
+	container.RateLimitRepo = rateLimitRepo
+
+	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
+	cmd.SetContext(shutdownCtx)
+
+	return container, nil
+}
 
 func TestGetLogDir(t *testing.T) {
 	dir, err := getLogDir()
