@@ -95,7 +95,7 @@ func NewExecutionTracker(silent bool) *ExecutionTracker {
 
 // Start launches the goroutine for processing events and rendering the UI.
 func (t *ExecutionTracker) Start() {
-	if t.silent {
+	if t == nil || t.silent {
 		return
 	}
 	t.wg.Add(1)
@@ -104,16 +104,21 @@ func (t *ExecutionTracker) Start() {
 
 // Stop signals the tracker to stop and waits for it to finish.
 func (t *ExecutionTracker) Stop() {
-	if t.silent {
+	if t == nil || t.silent {
 		return
 	}
-	close(t.feedbackChan)
+	if t.feedbackChan != nil {
+		close(t.feedbackChan)
+	}
 	t.wg.Wait()
 }
 
 // FeedbackHandler returns a handler function to receive progress feedback.
 func (t *ExecutionTracker) FeedbackHandler() executor.FeedbackHandler {
 	return func(feedback *executor.Feedback) {
+		if t == nil || t.feedbackChan == nil || feedback == nil {
+			return
+		}
 		t.feedbackChan <- feedback
 	}
 }
@@ -150,6 +155,10 @@ func (t *ExecutionTracker) run() {
 
 // redraw clears the previous output and redraws the entire progress block.
 func (t *ExecutionTracker) redraw() {
+	if t == nil {
+		return
+	}
+
 	if t.displayedLines > 0 {
 		fmt.Fprintf(os.Stderr, "\033[%dA\r", t.displayedLines)
 	}
@@ -160,7 +169,7 @@ func (t *ExecutionTracker) redraw() {
 	t.mu.RLock()
 	for _, name := range t.order {
 		exec, exists := t.executions[name]
-		if !exists || exec.Level > 1 { // We only display level 0 and 1
+		if !exists || exec == nil || exec.Level > 1 { // We only display level 0 and 1
 			continue
 		}
 
@@ -191,7 +200,7 @@ func (t *ExecutionTracker) drawSpinner() {
 
 // updateExecution updates the state of an execution based on feedback.
 func (t *ExecutionTracker) updateExecution(feedback *executor.Feedback) {
-	if feedback.ActivityName == "" {
+	if t == nil || feedback == nil || feedback.ActivityName == "" {
 		return
 	}
 
@@ -212,7 +221,7 @@ func (t *ExecutionTracker) updateExecution(feedback *executor.Feedback) {
 		t.executions[feedback.ActivityName] = exec
 		t.order = append(t.order, feedback.ActivityName)
 
-		if parent, ok := t.executions[parentName]; ok {
+		if parent, ok := t.executions[parentName]; ok && parent != nil {
 			parent.Children = append(parent.Children, feedback.ActivityName)
 		}
 	}
@@ -243,6 +252,10 @@ type lineStyle struct {
 
 // formatLine formats a single execution's status into a string.
 func (t *ExecutionTracker) formatLine(exec *ExecutionProgress, style lineStyle) string {
+	if t == nil || exec == nil {
+		return ""
+	}
+
 	var icon, color string
 	switch exec.Status {
 	case executor.StatusRunning:
@@ -389,11 +402,15 @@ func getDurationString(exec *ExecutionProgress) string {
 // Returns nil if the execution doesn't exist.
 // This method is thread-safe and primarily intended for testing.
 func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
+	if t == nil {
+		return nil
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	exec, exists := t.executions[name]
-	if !exists {
+	if !exists || exec == nil {
 		return nil
 	}
 
@@ -405,6 +422,10 @@ func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
 // GetExecutionCount returns the number of tracked executions.
 // This method is thread-safe and primarily intended for testing.
 func (t *ExecutionTracker) GetExecutionCount() int {
+	if t == nil {
+		return 0
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return len(t.executions)

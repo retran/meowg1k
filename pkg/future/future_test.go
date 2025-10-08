@@ -39,7 +39,7 @@ func TestFuture_CompleteAndGet(t *testing.T) {
 	// Complete the future in a goroutine
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		future.Complete(42)
+		_ = future.Complete(42)
 	}()
 
 	// Get the result
@@ -59,7 +59,7 @@ func TestFuture_CompleteWithError(t *testing.T) {
 	// Complete with error in a goroutine
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		future.CompleteWithError(context.DeadlineExceeded)
+		_ = future.CompleteWithError(context.DeadlineExceeded)
 	}()
 
 	// Get the result
@@ -88,7 +88,7 @@ func TestFuture_TryGet(t *testing.T) {
 	}
 
 	// Complete the future
-	future.Complete(123)
+	_ = future.Complete(123)
 
 	// Try to get result after completion
 	result, err, ready = future.TryGet()
@@ -110,7 +110,7 @@ func TestFuture_IsDone(t *testing.T) {
 		t.Fatal("Expected not done")
 	}
 
-	future.Complete(true)
+	_ = future.Complete(true)
 
 	if !future.IsDone() {
 		t.Fatal("Expected done")
@@ -127,15 +127,15 @@ func TestWaitAll(t *testing.T) {
 	// Complete futures in goroutines with different delays
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		future1.Complete(10)
+		_ = future1.Complete(10)
 	}()
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		future2.Complete(20)
+		_ = future2.Complete(20)
 	}()
 	go func() {
 		time.Sleep(5 * time.Millisecond)
-		future3.Complete(30)
+		_ = future3.Complete(30)
 	}()
 
 	start := time.Now()
@@ -176,15 +176,15 @@ func TestWaitAny(t *testing.T) {
 	// Complete futures with different delays
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		future1.Complete(100)
+		_ = future1.Complete(100)
 	}()
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		future2.Complete(200) // This should complete first
+		_ = future2.Complete(200) // This should complete first
 	}()
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		future3.Complete(300)
+		_ = future3.Complete(300)
 	}()
 
 	start := time.Now()
@@ -220,15 +220,15 @@ func TestWaitAllMap(t *testing.T) {
 	// Complete futures in goroutines
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		futures["double"].Complete(20)
+		_ = futures["double"].Complete(20)
 	}()
 	go func() {
 		time.Sleep(15 * time.Millisecond)
-		futures["triple"].Complete(60)
+		_ = futures["triple"].Complete(60)
 	}()
 	go func() {
 		time.Sleep(5 * time.Millisecond)
-		futures["quad"].Complete(80)
+		_ = futures["quad"].Complete(80)
 	}()
 
 	start := time.Now()
@@ -279,10 +279,10 @@ func TestFutureCompleteMultipleTimes(t *testing.T) {
 	f := NewFuture[string]()
 
 	// Complete the future
-	f.Complete("first")
+	_ = f.Complete("first")
 
 	// Try to complete again - should be ignored
-	f.Complete("second")
+	_ = f.Complete("second")
 
 	// Get should return the first value
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -304,10 +304,10 @@ func TestFutureCompleteWithErrorMultipleTimes(t *testing.T) {
 	secondErr := errSecondFuture
 
 	// Complete with error
-	f.CompleteWithError(firstErr)
+	_ = f.CompleteWithError(firstErr)
 
 	// Try to complete with another error - should be ignored
-	f.CompleteWithError(secondErr)
+	_ = f.CompleteWithError(secondErr)
 
 	// Get should return the first error
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -327,10 +327,10 @@ func TestFutureCompleteAfterError(t *testing.T) {
 
 	// Complete with error first
 	testErr := errTestFuture
-	f.CompleteWithError(testErr)
+	_ = f.CompleteWithError(testErr)
 
 	// Try to complete with value - should be ignored
-	f.Complete("value")
+	_ = f.Complete("value")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -348,10 +348,10 @@ func TestFutureErrorAfterComplete(t *testing.T) {
 	f := NewFuture[string]()
 
 	// Complete with value first
-	f.Complete("test value")
+	_ = f.Complete("test value")
 
 	// Try to complete with error - should be ignored
-	f.CompleteWithError(errIgnored)
+	_ = f.CompleteWithError(errIgnored)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -595,5 +595,31 @@ func TestFutureZeroValue(t *testing.T) {
 	}
 	if err != nil {
 		t.Errorf("Expected nil error, got %v", err)
+	}
+}
+
+func TestFutureNilComplete(t *testing.T) {
+	// Test that completing a nil future returns an error
+	var f *Future[string]
+
+	err := f.Complete("value")
+	if err == nil {
+		t.Fatal("Expected error when completing nil future")
+	}
+	if !errors.Is(err, ErrFutureIsNil) {
+		t.Errorf("Expected ErrFutureIsNil, got %v", err)
+	}
+}
+
+func TestFutureNilCompleteWithError(t *testing.T) {
+	// Test that completing a nil future with error returns an error
+	var f *Future[int]
+
+	err := f.CompleteWithError(errTestFuture)
+	if err == nil {
+		t.Fatal("Expected error when completing nil future with error")
+	}
+	if !errors.Is(err, ErrFutureIsNil) {
+		t.Errorf("Expected ErrFutureIsNil, got %v", err)
 	}
 }

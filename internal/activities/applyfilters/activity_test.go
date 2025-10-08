@@ -38,10 +38,23 @@ func (m *mockFilterService) IsIgnoredFile(path string) bool {
 
 func TestNewFactory(t *testing.T) {
 	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
+	}
+}
+
+func TestNewFactoryWithNilChecker(t *testing.T) {
+	factory, err := NewFactory(nil)
+	if err == nil {
+		t.Error("Expected error when fileIgnoreChecker is nil")
+	}
+	if factory != nil {
+		t.Error("Factory should be nil when error is returned")
 	}
 }
 
@@ -52,7 +65,10 @@ func TestNewActivity(t *testing.T) {
 			"*.tmp":       false, // mock doesn't handle patterns, just exact matches
 		},
 	}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	if activity == nil {
@@ -67,7 +83,10 @@ func TestActivityExecute(t *testing.T) {
 			"keep.txt":    false,
 		},
 	}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	input := &Input{
@@ -96,14 +115,17 @@ func TestActivityExecute(t *testing.T) {
 
 func TestActivityExecuteNilInput(t *testing.T) {
 	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, execCtx, nil)
-	if err != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
+	_, activityErr := activity(ctx, execCtx, nil)
+	if activityErr != executor.ErrInputCannotBeNil {
+		t.Errorf("Expected ErrInputCannotBeNil, got %v", activityErr)
 	}
 }

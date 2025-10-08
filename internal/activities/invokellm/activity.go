@@ -49,6 +49,9 @@ type Factory struct {
 	gatewayFactory GenerationGatewayFactory
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new InvokeLLM activity factory with the provided gateway factory.
 func NewFactory(gatewayFactory GenerationGatewayFactory) *Factory {
 	return &Factory{

@@ -35,7 +35,7 @@ type Service struct {
 // NewService creates a new command context service with the provided command.
 func NewService(cmd *cobra.Command) (*Service, error) {
 	if cmd == nil {
-		panic("command cannot be nil")
+		return nil, fmt.Errorf("command cannot be nil")
 	}
 
 	stdin := ""

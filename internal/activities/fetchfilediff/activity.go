@@ -43,6 +43,9 @@ type Factory struct {
 	stagedChangesReader StagedChangesReader
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
+
 // NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
 func NewFactory(stagedChangesReader StagedChangesReader) *Factory {
 	return &Factory{

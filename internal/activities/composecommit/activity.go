@@ -51,6 +51,9 @@ type Factory struct {
 	contentGenerationActivityFactory ContentGenerationActivityFactory
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new ComposeCommit activity factory with the provided content generation activity factory.
 func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) *Factory {
 	return &Factory{

@@ -52,7 +52,10 @@ The intent will be included in the prompt to help generate a more accurate commi
 			return ErrAppNotInitialized
 		}
 
-		flow := appContainer.CreateCommitFlow()
+		flow, err := appContainer.CreateCommitFlow()
+		if err != nil {
+			return err
+		}
 
 		runner := app.NewFlowRunner(appContainer)
 		return runner.RunFlow(ctx, "GenerateCommit", flow)

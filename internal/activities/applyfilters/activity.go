@@ -44,15 +44,17 @@ type Factory struct {
 	fileIgnoreChecker FileIgnoreChecker
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
-// Panics if fileIgnoreChecker is nil, as this indicates a programming error during container setup.
-func NewFactory(fileIgnoreChecker FileIgnoreChecker) executor.ActivityFactory[*Input, *Output] {
+func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*Input, *Output], error) {
 	if fileIgnoreChecker == nil {
-		panic("applyfilters.NewFactory: fileIgnoreChecker cannot be nil - this is a programming error")
+		return nil, fmt.Errorf("applyfilters.NewFactory: fileIgnoreChecker cannot be nil")
 	}
 	return &Factory{
 		fileIgnoreChecker: fileIgnoreChecker,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the ApplyFilters activity function.

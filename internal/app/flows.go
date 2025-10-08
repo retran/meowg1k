@@ -18,6 +18,8 @@ limitations under the License.
 package app
 
 import (
+	"fmt"
+
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
 	"github.com/retran/meowg1k/internal/activities/composepr"
@@ -49,7 +51,7 @@ import (
 )
 
 // CreateCommitFlow creates a complete commit flow with all dependencies.
-func (c *Container) CreateCommitFlow() executor.Flow {
+func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService := git.NewService(workspaceService)
 	filterService := filter.NewService(c.ConfigService)
@@ -76,7 +78,10 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 
 	// Common activities
-	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
+	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
+	}
 	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
 	composeCommitFactory := composecommit.NewFactory(invokeLLMFactory)
@@ -94,7 +99,7 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 		c.OutputService,
 	)
 
-	return flowFactory.NewFlow()
+	return flowFactory.NewFlow(), nil
 }
 
 // CreateGenerateFlow creates a complete generate flow with all dependencies.
@@ -135,7 +140,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 }
 
 // CreatePRFlow creates a complete PR flow with all dependencies.
-func (c *Container) CreatePRFlow() executor.Flow {
+func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService := git.NewService(workspaceService)
 	filterService := filter.NewService(c.ConfigService)
@@ -157,7 +162,10 @@ func (c *Container) CreatePRFlow() executor.Flow {
 	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 
 	// Common activities
-	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
+	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
+	}
 	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
 	composePRFactory := composepr.NewFactory(invokeLLMFactory)
@@ -173,5 +181,5 @@ func (c *Container) CreatePRFlow() executor.Flow {
 		c.OutputService,
 	)
 
-	return flowFactory.NewFlow()
+	return flowFactory.NewFlow(), nil
 }

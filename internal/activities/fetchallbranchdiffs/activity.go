@@ -48,6 +48,9 @@ type Factory struct {
 	branchFileDiffActivityFactory BranchFileDiffActivityFactory
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.
 func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) *Factory {
 	return &Factory{

@@ -220,7 +220,9 @@ func TestLimiterReset(t *testing.T) {
 		t.Errorf("Expected some resources consumed, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
 	}
 
-	dbLim.Reset()
+	if err := dbLim.Reset(); err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
 
 	rpm, tpm, rpd = dbLim.Stats()
 	if rpm != 10 || tpm != 100 || rpd != 50 {

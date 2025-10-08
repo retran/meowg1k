@@ -44,6 +44,9 @@ type Factory struct {
 	branchFileListReader BranchFileListReader
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new ListBranchFiles activity factory with the provided branch file list reader.
 func NewFactory(branchFileListReader BranchFileListReader) *Factory {
 	return &Factory{

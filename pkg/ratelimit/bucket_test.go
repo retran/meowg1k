@@ -191,7 +191,9 @@ func TestBucketReset(t *testing.T) {
 		t.Errorf("Expected 3 available after taking 7, got %d", bucket.Available())
 	}
 
-	bucket.Reset()
+	if err := bucket.Reset(); err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
 	if bucket.Available() != 10 {
 		t.Errorf("Expected 10 available after reset, got %d", bucket.Available())
 	}

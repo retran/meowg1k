@@ -19,8 +19,18 @@ package migrations
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
+)
+
+var (
+	// ErrDatabaseIsNil indicates that the database connection is nil.
+	ErrDatabaseIsNil = errors.New("database connection is nil")
+	// ErrMigrationsIsNil indicates that the migrations slice is nil.
+	ErrMigrationsIsNil = errors.New("migrations slice is nil")
+	// ErrMigrationUpFuncIsNil indicates that a migration's Up function is nil.
+	ErrMigrationUpFuncIsNil = errors.New("migration Up function is nil")
 )
 
 type Migration struct {
@@ -29,6 +39,13 @@ type Migration struct {
 }
 
 func RunMigrations(db *sql.DB, migrations []Migration) error {
+	if db == nil {
+		return ErrDatabaseIsNil
+	}
+	if migrations == nil {
+		return ErrMigrationsIsNil
+	}
+
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS schema_versions (
 			version INTEGER NOT NULL
@@ -64,6 +81,9 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 
 	for _, m := range migrations {
 		if m.Version > currentVersion {
+			if m.Up == nil {
+				return fmt.Errorf("%w for version %d", ErrMigrationUpFuncIsNil, m.Version)
+			}
 			if err := m.Up(tx); err != nil {
 				return fmt.Errorf("failed to apply migration %d: %w", m.Version, err)
 			}

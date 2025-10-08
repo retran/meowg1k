@@ -18,6 +18,8 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 )
 
@@ -57,6 +59,13 @@ var Unlimited = Config{
 // NewLimiter creates a new multi-dimensional rate limiter with database persistence.
 // The id parameter is used to uniquely identify this limiter's buckets in the database.
 func NewLimiter(id string, config Config, repo Repository) (Limiter, error) {
+	if id == "" {
+		return nil, ErrBucketIDIsEmpty
+	}
+	if repo == nil {
+		return nil, ErrRepositoryIsNil
+	}
+
 	limiter := &dbLimiter{
 		id: id,
 	}
@@ -90,6 +99,16 @@ func NewLimiter(id string, config Config, repo Repository) (Limiter, error) {
 // Wait waits until the request with the specified token count can be processed.
 // Blocks until all limits allow the request or context is cancelled.
 func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
+	if l == nil {
+		return nil
+	}
+	if ctx == nil {
+		return ErrContextIsNil
+	}
+	if tokenCount < 0 {
+		return ErrInvalidTokenCount
+	}
+
 	if l.rpm != nil {
 		if err := l.rpm.Take(ctx, 1); err != nil {
 			return err
@@ -114,6 +133,13 @@ func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 // TryAcquire attempts to acquire resources for a request with the specified token count.
 // Returns true if successful, false if any limit would be exceeded.
 func (l *dbLimiter) TryAcquire(tokenCount int) bool {
+	if l == nil {
+		return true
+	}
+	if tokenCount < 0 {
+		return false
+	}
+
 	if l.rpm != nil && !l.rpm.TryTake(0) {
 		return false
 	}
@@ -142,20 +168,34 @@ func (l *dbLimiter) TryAcquire(tokenCount int) bool {
 }
 
 // Reset resets all rate limit buckets to full capacity.
-func (l *dbLimiter) Reset() {
+// Returns an error if any bucket cannot be reset.
+func (l *dbLimiter) Reset() error {
+	if l == nil {
+		return errors.New("limiter is nil")
+	}
 	if l.rpm != nil {
-		l.rpm.Reset()
+		if err := l.rpm.Reset(); err != nil {
+			return fmt.Errorf("failed to reset rpm bucket: %w", err)
+		}
 	}
 	if l.tpm != nil {
-		l.tpm.Reset()
+		if err := l.tpm.Reset(); err != nil {
+			return fmt.Errorf("failed to reset tpm bucket: %w", err)
+		}
 	}
 	if l.rpd != nil {
-		l.rpd.Reset()
+		if err := l.rpd.Reset(); err != nil {
+			return fmt.Errorf("failed to reset rpd bucket: %w", err)
+		}
 	}
+	return nil
 }
 
 // Stats returns current statistics for all dimensions.
 func (l *dbLimiter) Stats() (rpm, tpm, rpd int) {
+	if l == nil {
+		return 0, 0, 0
+	}
 	if l.rpm != nil {
 		rpm = l.rpm.Available()
 	}

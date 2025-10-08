@@ -33,6 +33,20 @@ var (
 	ErrInvalidInputType = errors.New("invalid input type")
 	// ErrInvalidOutputType indicates that the output type is not supported
 	ErrInvalidOutputType = errors.New("invalid output type")
+	// ErrNameCannotBeEmpty indicates that the name parameter is empty
+	ErrNameCannotBeEmpty = errors.New("name cannot be empty")
+	// ErrFeedbackHandlerIsNil indicates that the feedback handler is nil
+	ErrFeedbackHandlerIsNil = errors.New("feedback handler is nil")
+	// ErrProgressOutOfRange indicates that the progress value is out of the valid range
+	ErrProgressOutOfRange = errors.New("progress must be between 0.0 and 1.0")
+	// ErrExecutorCannotBeNil indicates that the executor parameter is nil
+	ErrExecutorCannotBeNil = errors.New("executor cannot be nil")
+	// ErrParentContextCannotBeNil indicates that the parent context parameter is nil
+	ErrParentContextCannotBeNil = errors.New("parent context cannot be nil")
+	// ErrActivityCannotBeNil indicates that the activity parameter is nil
+	ErrActivityCannotBeNil = errors.New("activity cannot be nil")
+	// ErrContextParameterCannotBeNil indicates that the context parameter is nil
+	ErrContextParameterCannotBeNil = errors.New("context cannot be nil")
 )
 
 // Status represents the current status of an activity.
@@ -62,6 +76,10 @@ type Feedback struct {
 
 // String returns a string representation of the feedback.
 func (f *Feedback) String() string {
+	if f == nil {
+		return ""
+	}
+
 	if f.Error != nil {
 		if f.Progress > 0 {
 			return fmt.Sprintf(
@@ -95,6 +113,9 @@ type Context struct {
 
 // NewContext creates a new executor context.
 func NewContext(name string, feedbackFunc FeedbackHandler, executor Executor) *Context {
+	if feedbackFunc == nil {
+		feedbackFunc = NoOpFeedbackHandler
+	}
 	return &Context{
 		name:         name,
 		feedbackFunc: feedbackFunc,
@@ -104,16 +125,22 @@ func NewContext(name string, feedbackFunc FeedbackHandler, executor Executor) *C
 
 // Name returns the name of the activity.
 func (c *Context) Name() string {
+	if c == nil {
+		return ""
+	}
 	return c.name
 }
 
 // GetExecutor returns the executor associated with the context.
 func (c *Context) GetExecutor() Executor {
+	if c == nil {
+		return nil
+	}
 	return c.Executor
 }
 
 func (c *Context) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
-	if c.feedbackFunc == nil {
+	if c == nil || c.feedbackFunc == nil {
 		return
 	}
 
@@ -195,11 +222,35 @@ func RunActivity[T, K any](
 	activity Activity[T, K],
 	input T,
 ) *future.Future[K] {
+	typedFuture := future.NewFuture[K]()
+
+	// Validate inputs
+	if e == nil {
+		_ = typedFuture.CompleteWithError(ErrExecutorCannotBeNil)
+		return typedFuture
+	}
+	if ctx == nil {
+		_ = typedFuture.CompleteWithError(ErrContextParameterCannotBeNil)
+		return typedFuture
+	}
+	if parentCtx == nil {
+		_ = typedFuture.CompleteWithError(ErrParentContextCannotBeNil)
+		return typedFuture
+	}
+	if name == "" {
+		_ = typedFuture.CompleteWithError(ErrNameCannotBeEmpty)
+		return typedFuture
+	}
+	if activity == nil {
+		_ = typedFuture.CompleteWithError(ErrActivityCannotBeNil)
+		return typedFuture
+	}
+
 	// Create a type-erased activity that calls the typed activity
 	untypedActivity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
 		typedInput, ok := input.(T)
 		if !ok {
-			return nil, fmt.Errorf("%w: expected %T, got %T", ErrInvalidInputType, *new(T), input)
+			return nil, errors.Join(ErrInvalidInputType, fmt.Errorf("expected %T, got %T", *new(T), input))
 		}
 		return activity(ctx, activityCtx, typedInput)
 	}
@@ -207,23 +258,20 @@ func RunActivity[T, K any](
 	// Call the untyped executor method
 	untypedFuture := e.runActivity(ctx, parentCtx, name, untypedActivity, input)
 
-	// Wrap the untyped future in a typed one
-	typedFuture := future.NewFuture[K]()
-
 	go func() {
 		result, err := untypedFuture.Get(ctx)
 		if err != nil {
-			typedFuture.CompleteWithError(err)
+			_ = typedFuture.CompleteWithError(err)
 			return
 		}
 
 		typedResult, ok := result.(K)
 		if !ok {
-			typedFuture.CompleteWithError(fmt.Errorf("%w: expected %T, got %T", ErrInvalidOutputType, *new(K), result))
+			_ = typedFuture.CompleteWithError(errors.Join(ErrInvalidOutputType, fmt.Errorf("expected %T, got %T", *new(K), result)))
 			return
 		}
 
-		typedFuture.Complete(typedResult)
+		_ = typedFuture.Complete(typedResult)
 	}()
 
 	return typedFuture

@@ -124,7 +124,10 @@ filter:
 		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow := container.CreateCommitFlow()
+	flow, err := container.CreateCommitFlow()
+	if err != nil {
+		t.Fatalf("CreateCommitFlow returned error: %v", err)
+	}
 	if flow == nil {
 		t.Error("CreateCommitFlow returned nil")
 	}

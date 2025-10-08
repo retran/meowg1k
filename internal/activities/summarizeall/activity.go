@@ -47,6 +47,9 @@ type Factory struct {
 	fileSummarizationActivityFactory FileSummarizationActivityFactory
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
 func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactory) *Factory {
 	return &Factory{

@@ -39,14 +39,11 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestNewServicePanicsWithNilCommand(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Expected panic when command is nil")
-		}
-	}()
-
-	NewService(nil)
+func TestNewServiceReturnsErrorWithNilCommand(t *testing.T) {
+	_, err := NewService(nil)
+	if err == nil {
+		t.Error("Expected error when command is nil")
+	}
 }
 
 func TestGetCommand(t *testing.T) {

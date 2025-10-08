@@ -42,6 +42,9 @@ type Factory struct {
 	stagedFileListReader StagedFileListReader
 }
 
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
 // NewFactory creates a new ListStaged activity factory with the provided staged file list reader.
 func NewFactory(stagedFileListReader StagedFileListReader) *Factory {
 	return &Factory{
