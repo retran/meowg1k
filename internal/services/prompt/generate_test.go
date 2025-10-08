@@ -21,20 +21,28 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/task"
-	"github.com/retran/meowg1k/internal/testutil/commandmocks"
 )
 
-type mockTaskService struct {
-	task.Service
+// mockStandardInputReader is a mock implementation of StandardInputReader for testing.
+type mockStandardInputReader struct {
+	StdIn string
+}
+
+func (m *mockStandardInputReader) GetStdIn() string {
+	return m.StdIn
+}
+
+// mockTaskConfigurationProvider is a mock implementation of TaskConfigurationProvider for testing.
+type mockTaskConfigurationProvider struct {
 	config *task.Configuration
 }
 
-func (m *mockTaskService) Get() *task.Configuration {
+func (m *mockTaskConfigurationProvider) Get() *task.Configuration {
 	return m.config
 }
 
 func TestNewGeneratePromptService(t *testing.T) {
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			Name:         "test-task",
 			Profile:      &profile.ResolvedProfile{},
@@ -43,7 +51,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "test stdin content",
 	}
 
@@ -59,14 +67,14 @@ func TestNewGeneratePromptService(t *testing.T) {
 
 func TestGetSystemPrompt(t *testing.T) {
 	expectedSystemPrompt := "Test system prompt"
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			SystemPrompt: expectedSystemPrompt,
 			UserPrompt:   "Test user prompt",
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "",
 	}
 
@@ -86,14 +94,14 @@ func TestGetSystemPrompt(t *testing.T) {
 }
 
 func TestGetUserPrompt(t *testing.T) {
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "",
 	}
 
@@ -114,14 +122,14 @@ func TestGetUserPrompt(t *testing.T) {
 }
 
 func TestBuildUserPromptWithStdin(t *testing.T) {
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "stdin content here",
 	}
 
@@ -142,14 +150,14 @@ func TestBuildUserPromptWithStdin(t *testing.T) {
 }
 
 func TestBuildUserPromptStdinOnly(t *testing.T) {
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "stdin only content",
 	}
 
@@ -170,14 +178,14 @@ func TestBuildUserPromptStdinOnly(t *testing.T) {
 }
 
 func TestBuildUserPromptEmpty(t *testing.T) {
-	mockTask := &mockTaskService{
+	mockTask := &mockTaskConfigurationProvider{
 		config: &task.Configuration{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},
 	}
 
-	mockCommand := &commandmocks.MockCommandService{
+	mockCommand := &mockStandardInputReader{
 		StdIn: "", // Empty stdin
 	}
 

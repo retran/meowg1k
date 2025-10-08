@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -35,17 +34,20 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ListBranchFiles activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// BranchFileListReader reads list of changed files in a branch.
+type BranchFileListReader interface {
+	GetChangedFilesInBranch(targetBranch string) ([]string, error)
 }
 
-// NewFactory creates a new ListBranchFiles activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
+// Factory creates instances of the ListBranchFiles activity with injected dependencies.
+type Factory struct {
+	branchFileListReader BranchFileListReader
+}
+
+// NewFactory creates a new ListBranchFiles activity factory with the provided branch file list reader.
+func NewFactory(branchFileListReader BranchFileListReader) *Factory {
 	return &Factory{
-		gitService: gitService,
+		branchFileListReader: branchFileListReader,
 	}
 }
 
@@ -67,7 +69,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Listing changed files compared to %s", input.TargetBranch))
 
-		files, err := f.gitService.GetChangedFilesInBranch(input.TargetBranch)
+		files, err := f.branchFileListReader.GetChangedFilesInBranch(input.TargetBranch)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 		}

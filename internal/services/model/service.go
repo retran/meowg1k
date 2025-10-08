@@ -62,41 +62,37 @@ type ResolvedModel struct {
 	RateLimit       RateLimitConfig   // Rate limiting config
 }
 
-// Service provides model configuration resolution capabilities.
-type Service interface {
-	// Get retrieves a model instance with validation using the current config.
-	Get(model Model) (*ResolvedModel, error)
-
-	// GetInstanceKey returns a unique key for the model instance for rate limiting.
-	// The key is based on provider:baseURL:model:apiKeyEnv to ensure
-	// that different API keys or endpoints get separate rate limiters.
-	GetInstanceKey(resolved *ResolvedModel) string
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
 }
 
-// serviceImpl is the concrete implementation of the model resolver service.
-type serviceImpl struct {
-	providerService provider.Service
-	configService   config.Service
-	resolvedModels  map[Model]*ResolvedModel
-	mu              sync.RWMutex
+// ProviderDefinitionRegistry retrieves provider definitions.
+type ProviderDefinitionRegistry interface {
+	Get(providerType provider.Provider) (provider.ProviderDefinition, error)
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
+// Service resolves and caches model configurations.
+type Service struct {
+	providerRegistry ProviderDefinitionRegistry
+	configReader     ApplicationConfigReader
+	resolvedModels   map[Model]*ResolvedModel
+	mu               sync.RWMutex
+}
 
 // NewService creates a new model resolver service.
-func NewService(configService config.Service, providerService provider.Service) Service {
-	service := &serviceImpl{
-		providerService: providerService,
-		configService:   configService,
-		resolvedModels:  make(map[Model]*ResolvedModel),
+func NewService(configReader ApplicationConfigReader, providerRegistry ProviderDefinitionRegistry) *Service {
+	service := &Service{
+		providerRegistry: providerRegistry,
+		configReader:     configReader,
+		resolvedModels:   make(map[Model]*ResolvedModel),
 	}
 
 	return service
 }
 
 // Get retrieves a model using cached data from initialization.
-func (s *serviceImpl) Get(model Model) (*ResolvedModel, error) {
+func (s *Service) Get(model Model) (*ResolvedModel, error) {
 	s.mu.RLock()
 	if resolved, exists := s.resolvedModels[model]; exists {
 		s.mu.RUnlock()
@@ -111,7 +107,7 @@ func (s *serviceImpl) Get(model Model) (*ResolvedModel, error) {
 		return resolved, nil
 	}
 
-	cfg := s.configService.GetConfig()
+	cfg := s.configReader.GetConfig()
 
 	resolved, err := s.resolveModelInternal(model, cfg)
 	if err != nil {
@@ -124,7 +120,7 @@ func (s *serviceImpl) Get(model Model) (*ResolvedModel, error) {
 }
 
 // GetInstanceKey returns a unique key for rate limiting based on the model instance characteristics.
-func (s *serviceImpl) GetInstanceKey(resolved *ResolvedModel) string {
+func (s *Service) GetInstanceKey(resolved *ResolvedModel) string {
 	// Generate key based on: provider:baseURL:model:apiKeyEnv
 	// This ensures different API keys or endpoints get separate rate limiters
 	// IMPORTANT: Use environment variable name, never the actual API key value
@@ -137,7 +133,7 @@ func (s *serviceImpl) GetInstanceKey(resolved *ResolvedModel) string {
 }
 
 // resolveModelInternal performs the actual model resolution logic.
-func (s *serviceImpl) resolveModelInternal(
+func (s *Service) resolveModelInternal(
 	model Model,
 	cfg *config.Config,
 ) (*ResolvedModel, error) {
@@ -150,7 +146,7 @@ func (s *serviceImpl) resolveModelInternal(
 		return nil, fmt.Errorf("%w: %s", ErrModelNotFound, model)
 	}
 
-	providerDef, err := s.providerService.Get(provider.Provider(modelDef.Provider))
+	providerDef, err := s.providerRegistry.Get(provider.Provider(modelDef.Provider))
 	if err != nil {
 		return nil, fmt.Errorf("unknown provider '%s' in model '%s': %w", modelDef.Provider, model, err)
 	}
@@ -200,7 +196,7 @@ func (s *serviceImpl) resolveModelInternal(
 }
 
 // validateResolvedModel validates a resolved model configuration.
-func (s *serviceImpl) validateResolvedModel(resolved *ResolvedModel) error {
+func (s *Service) validateResolvedModel(resolved *ResolvedModel) error {
 	if resolved == nil {
 		return ErrResolvedModelCannotBeNil
 	}

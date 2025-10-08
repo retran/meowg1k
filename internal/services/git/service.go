@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/retran/meowg1k/internal/services/workspace"
 )
 
 // Git command errors
@@ -39,36 +37,29 @@ type FileChange struct {
 	ChangedFileContent  string
 }
 
-// Service provides Git repository operations.
-type Service interface {
-	ReadStagedFiles() ([]string, error)
-	ReadStagedChanges(filePath string) (string, error)
-	ReadStagedFileContent(filePath string) (string, error)
-	ReadOriginalFileContent(filePath string) (string, error)
-	GetCurrentBranch() (string, error)
-	GetChangedFilesInBranch(targetBranch string) ([]string, error)
-	GetBranchDiff(filePath, targetBranch string) (string, error)
+type WorkspaceDirProvider interface {
+	GetWorkspaceDir() (string, error)
 }
 
-// serviceImpl implements GitService.
-type serviceImpl struct {
-	workspaceService workspace.Service
-	semaphore        chan struct{} // Worker pool with 1 worker for sequential execution
+// Service implements GitService.
+type Service struct {
+	workspaceDirProvider WorkspaceDirProvider
+	semaphore            chan struct{} // Worker pool with 1 worker for sequential execution
 }
 
 // NewService creates a new Git service.
 // Git commands will be executed sequentially using a worker pool (semaphore with capacity 1)
 // to prevent race conditions while keeping OS threads free.
-func NewService(workspaceService workspace.Service) Service {
-	return &serviceImpl{
-		workspaceService: workspaceService,
-		semaphore:        make(chan struct{}, 1), // Only 1 concurrent git command
+func NewService(workspaceDirProvider WorkspaceDirProvider) *Service {
+	return &Service{
+		workspaceDirProvider: workspaceDirProvider,
+		semaphore:            make(chan struct{}, 1), // Only 1 concurrent git command
 	}
 }
 
 // runGitCommand executes a git command with the provided arguments in the workspace directory.
-func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
-	workspaceDir, err := g.workspaceService.GetWorkspaceDir()
+func (g *Service) runGitCommand(args ...string) (string, error) {
+	workspaceDir, err := g.workspaceDirProvider.GetWorkspaceDir()
 	if err != nil {
 		return "", fmt.Errorf("could not get workspace directory: %w", err)
 	}
@@ -91,7 +82,7 @@ func (g *serviceImpl) runGitCommand(args ...string) (string, error) {
 }
 
 // ReadStagedFiles returns a list of files that are currently staged.
-func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
+func (g *Service) ReadStagedFiles() ([]string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -109,7 +100,7 @@ func (g *serviceImpl) ReadStagedFiles() ([]string, error) {
 }
 
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
-func (g *serviceImpl) ReadStagedChanges(filePath string) (string, error) {
+func (g *Service) ReadStagedChanges(filePath string) (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -117,7 +108,7 @@ func (g *serviceImpl) ReadStagedChanges(filePath string) (string, error) {
 }
 
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
-func (g *serviceImpl) ReadStagedFileContent(filePath string) (string, error) {
+func (g *Service) ReadStagedFileContent(filePath string) (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -125,7 +116,7 @@ func (g *serviceImpl) ReadStagedFileContent(filePath string) (string, error) {
 }
 
 // ReadOriginalFileContent returns the content of the specified file from the HEAD commit.
-func (g *serviceImpl) ReadOriginalFileContent(filePath string) (string, error) {
+func (g *Service) ReadOriginalFileContent(filePath string) (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -133,7 +124,7 @@ func (g *serviceImpl) ReadOriginalFileContent(filePath string) (string, error) {
 }
 
 // GetCurrentBranch returns the name of the current Git branch.
-func (g *serviceImpl) GetCurrentBranch() (string, error) {
+func (g *Service) GetCurrentBranch() (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -145,7 +136,7 @@ func (g *serviceImpl) GetCurrentBranch() (string, error) {
 }
 
 // GetChangedFilesInBranch returns the list of files that differ between the current branch and the target branch.
-func (g *serviceImpl) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
+func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -171,7 +162,7 @@ func (g *serviceImpl) GetChangedFilesInBranch(targetBranch string) ([]string, er
 }
 
 // GetBranchDiff returns the diff of a specific file between the current branch and the target branch.
-func (g *serviceImpl) GetBranchDiff(filePath, targetBranch string) (string, error) {
+func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 

@@ -20,8 +20,16 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/testutil/servicemocks"
 )
+
+// mockConfigProvider is a local mock implementation of ConfigProvider for testing.
+type mockConfigProvider struct {
+	cfg *config.Config
+}
+
+func (m *mockConfigProvider) GetConfig() *config.Config {
+	return m.cfg
+}
 
 func TestNewService(t *testing.T) {
 	cfg := &config.Config{
@@ -29,9 +37,9 @@ func TestNewService(t *testing.T) {
 			Ignore: []string{"*.tmp", ".git/**"},
 		},
 	}
-	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
+	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configSvc)
+	service := NewService(configProvider)
 
 	if service == nil {
 		t.Error("NewService returned nil")
@@ -42,9 +50,9 @@ func TestNewServiceNilFilter(t *testing.T) {
 	cfg := &config.Config{
 		Filter: nil,
 	}
-	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
+	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configSvc)
+	service := NewService(configProvider)
 
 	if service == nil {
 		t.Error("NewService returned nil")
@@ -57,9 +65,9 @@ func TestIsIgnoredFile(t *testing.T) {
 			Ignore: []string{"*.tmp", ".git/**"},
 		},
 	}
-	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
+	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configSvc)
+	service := NewService(configProvider)
 
 	tests := []struct {
 		file     string
@@ -85,9 +93,9 @@ func TestIsIgnoredFileNoPatterns(t *testing.T) {
 			Ignore: []string{},
 		},
 	}
-	configSvc := &servicemocks.MockConfigService{Cfg: cfg}
+	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configSvc)
+	service := NewService(configProvider)
 
 	if service.IsIgnoredFile("anyfile.txt") {
 		t.Error("Expected no files to be ignored when no patterns")

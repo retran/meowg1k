@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
 )
@@ -36,12 +35,6 @@ var (
 	ErrNoConfigurationAvailable        = errors.New("no configuration available")
 )
 
-// Service provides task configuration resolution capabilities.
-type Service interface {
-	// Get returns the resolved task configuration.
-	Get() *Configuration
-}
-
 // Configuration represents a resolved task configuration.
 type Configuration struct {
 	Name         string
@@ -50,13 +43,26 @@ type Configuration struct {
 	UserPrompt   string
 }
 
-// serviceImpl is the concrete implementation of the task resolver service.
-type serviceImpl struct {
-	cachedConfig *Configuration
+// TaskParametersReader reads task parameters from command line.
+type TaskParametersReader interface {
+	GetTaskName() (string, error)
+	GetUserPrompt() (string, error)
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
+}
+
+// ProfileResolver resolves profile configurations.
+type ProfileResolver interface {
+	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
+}
+
+// Service resolves and caches task configurations.
+type Service struct {
+	cachedConfig *Configuration
+}
 
 // resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
 func resolveTaskConfiguration(
@@ -132,27 +138,27 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 	return nil
 }
 
-// NewService creates a new task resolver service.
+// NewService creates a new task configuration service.
 func NewService(
-	commandService command.Service,
-	configService config.Service,
-	profileService profile.Service,
-) (Service, error) {
-	service := &serviceImpl{}
+	taskParametersReader TaskParametersReader,
+	configReader ApplicationConfigReader,
+	profileResolver ProfileResolver,
+) (*Service, error) {
+	service := &Service{}
 
-	cfg := configService.GetConfig()
+	cfg := configReader.GetConfig()
 	if cfg == nil {
 		return nil, ErrNoConfigurationAvailable
 	}
 
-	taskName, err := commandService.GetTaskName()
+	taskName, err := taskParametersReader.GetTaskName()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task name: %w", err)
 	}
 
 	taskName = strings.TrimSpace(taskName)
 
-	cmdUserPrompt, err := commandService.GetUserPrompt()
+	cmdUserPrompt, err := taskParametersReader.GetUserPrompt()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
@@ -167,7 +173,7 @@ func NewService(
 		return nil, err
 	}
 
-	resolvedProfile, err := profileService.Get(profile.Profile(profileName))
+	resolvedProfile, err := profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 	}
@@ -183,6 +189,6 @@ func NewService(
 }
 
 // Get returns the cached task configuration.
-func (s *serviceImpl) Get() *Configuration {
+func (s *Service) Get() *Configuration {
 	return s.cachedConfig
 }

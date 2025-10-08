@@ -26,18 +26,48 @@ import (
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/provider"
-	"github.com/retran/meowg1k/internal/testutil/servicemocks"
 )
 
 // Mock implementations for testing
 
 var errMockProfileNotFound = errors.New("mock profile not found")
 
-type mockProfileService struct {
+// mockTaskParametersReader is a mock implementation of TaskParametersReader for testing.
+type mockTaskParametersReader struct {
+	TaskName   string
+	UserPrompt string
+	Err        error
+}
+
+func (m *mockTaskParametersReader) GetTaskName() (string, error) {
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.TaskName, nil
+}
+
+func (m *mockTaskParametersReader) GetUserPrompt() (string, error) {
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.UserPrompt, nil
+}
+
+// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
+type mockApplicationConfigReader struct {
+	Cfg *config.Config
+}
+
+func (m *mockApplicationConfigReader) GetConfig() *config.Config {
+	return m.Cfg
+}
+
+// mockProfileResolver is a mock implementation of ProfileResolver for testing.
+type mockProfileResolver struct {
 	profiles map[profile.Profile]*profile.ResolvedProfile
 }
 
-func (m *mockProfileService) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
 	if resolved, exists := m.profiles[profile]; exists {
 		return resolved, nil
 	}
@@ -55,12 +85,12 @@ func TestNewServiceSuccess(t *testing.T) {
 		},
 	}
 
-	commandSvc := &servicemocks.MockCommandService{
+	commandSvc := &mockTaskParametersReader{
 		TaskName:   "",
 		UserPrompt: "Test user prompt",
 	}
 
-	configSvc := &servicemocks.MockConfigService{Cfg: config}
+	configSvc := &mockApplicationConfigReader{Cfg: config}
 
 	resolvedProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -68,7 +98,7 @@ func TestNewServiceSuccess(t *testing.T) {
 		Timeout:  5 * time.Minute,
 	}
 
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"test-profile": resolvedProfile,
 		},
@@ -121,19 +151,19 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 		},
 	}
 
-	commandSvc := &servicemocks.MockCommandService{
+	commandSvc := &mockTaskParametersReader{
 		TaskName:   "specific-task",
 		UserPrompt: "Command user prompt", // Should override task user prompt
 	}
 
-	configSvc := &servicemocks.MockConfigService{Cfg: config}
+	configSvc := &mockApplicationConfigReader{Cfg: config}
 
 	taskProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
 		Model:    "gpt-3.5-turbo",
 	}
 
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"task-profile": taskProfile,
 		},
@@ -180,19 +210,19 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 		},
 	}
 
-	commandSvc := &servicemocks.MockCommandService{
+	commandSvc := &mockTaskParametersReader{
 		TaskName:   "task-no-profile",
 		UserPrompt: "",
 	}
 
-	configSvc := &servicemocks.MockConfigService{Cfg: config}
+	configSvc := &mockApplicationConfigReader{Cfg: config}
 
 	defaultProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 	}
 
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"default-profile": defaultProfile,
 		},
@@ -222,15 +252,15 @@ func TestNewServiceErrorCases(t *testing.T) {
 	testCases := []struct {
 		name        string
 		config      *config.Config
-		commandSvc  *servicemocks.MockCommandService
-		profileSvc  *mockProfileService
+		commandSvc  *mockTaskParametersReader
+		profileSvc  *mockProfileResolver
 		expectedErr string
 	}{
 		{
 			name:        "nil config",
 			config:      nil,
-			commandSvc:  &servicemocks.MockCommandService{},
-			profileSvc:  &mockProfileService{},
+			commandSvc:  &mockTaskParametersReader{},
+			profileSvc:  &mockProfileResolver{},
 			expectedErr: "no configuration available",
 		},
 		{
@@ -240,15 +270,15 @@ func TestNewServiceErrorCases(t *testing.T) {
 					Tasks: map[string]*config.GenerateTask{},
 				},
 			},
-			commandSvc:  &servicemocks.MockCommandService{TaskName: "non-existent-task"},
-			profileSvc:  &mockProfileService{},
+			commandSvc:  &mockTaskParametersReader{TaskName: "non-existent-task"},
+			profileSvc:  &mockProfileResolver{},
 			expectedErr: "task not found in configuration: non-existent-task",
 		},
 		{
 			name:        "no default configuration",
 			config:      &config.Config{},
-			commandSvc:  &servicemocks.MockCommandService{TaskName: "", UserPrompt: "test"},
-			profileSvc:  &mockProfileService{},
+			commandSvc:  &mockTaskParametersReader{TaskName: "", UserPrompt: "test"},
+			profileSvc:  &mockProfileResolver{},
 			expectedErr: "no default configuration available",
 		},
 		{
@@ -261,8 +291,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 					},
 				},
 			},
-			commandSvc:  &servicemocks.MockCommandService{UserPrompt: "test"},
-			profileSvc:  &mockProfileService{},
+			commandSvc:  &mockTaskParametersReader{UserPrompt: "test"},
+			profileSvc:  &mockProfileResolver{},
 			expectedErr: "no profile configured",
 		},
 		{
@@ -275,8 +305,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 					},
 				},
 			},
-			commandSvc: &servicemocks.MockCommandService{TaskName: "", UserPrompt: ""}, // No task name and no user prompt
-			profileSvc: &mockProfileService{
+			commandSvc: &mockTaskParametersReader{TaskName: "", UserPrompt: ""}, // No task name and no user prompt
+			profileSvc: &mockProfileResolver{
 				profiles: map[profile.Profile]*profile.ResolvedProfile{
 					"test-profile": {},
 				},
@@ -293,15 +323,15 @@ func TestNewServiceErrorCases(t *testing.T) {
 					},
 				},
 			},
-			commandSvc:  &servicemocks.MockCommandService{UserPrompt: "test"},
-			profileSvc:  &mockProfileService{profiles: map[profile.Profile]*profile.ResolvedProfile{}},
+			commandSvc:  &mockTaskParametersReader{UserPrompt: "test"},
+			profileSvc:  &mockProfileResolver{profiles: map[profile.Profile]*profile.ResolvedProfile{}},
 			expectedErr: "failed to resolve profile 'non-existent-profile'",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			configSvc := &servicemocks.MockConfigService{Cfg: tc.config}
+			configSvc := &mockApplicationConfigReader{Cfg: tc.config}
 
 			_, err := NewService(tc.commandSvc, configSvc, tc.profileSvc)
 
@@ -349,11 +379,8 @@ func TestConfigurationFields(t *testing.T) {
 }
 
 func TestServiceImplStructure(t *testing.T) {
-	// Test that the service implements the interface
-	var _ Service = (*serviceImpl)(nil)
-
 	// Test basic service implementation structure
-	impl := &serviceImpl{}
+	impl := &Service{}
 	if impl.Get() != nil {
 		t.Error("Expected Get() to return nil for uninitialized service")
 	}

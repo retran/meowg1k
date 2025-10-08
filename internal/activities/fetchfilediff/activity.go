@@ -31,17 +31,22 @@ type Input struct {
 	Filename string
 }
 
-// Factory creates instances of the FetchFileDiff activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// StagedChangesReader reads staged file changes from git.
+type StagedChangesReader interface {
+	ReadStagedChanges(filename string) (string, error)
+	ReadOriginalFileContent(filename string) (string, error)
+	ReadStagedFileContent(filename string) (string, error)
 }
 
-// NewFactory creates a new FetchFileDiff activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
+// Factory creates instances of the FetchFileDiff activity with injected dependencies.
+type Factory struct {
+	stagedChangesReader StagedChangesReader
+}
+
+// NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
+func NewFactory(stagedChangesReader StagedChangesReader) *Factory {
 	return &Factory{
-		gitService: gitService,
+		stagedChangesReader: stagedChangesReader,
 	}
 }
 
@@ -59,12 +64,12 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		executorCtx.SendRunning("Fetching diff")
 
-		change, err := f.gitService.ReadStagedChanges(input.Filename)
+		change, err := f.stagedChangesReader.ReadStagedChanges(input.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged changes in %s: %w", input.Filename, err)
 		}
 
-		originalFileContent, err := f.gitService.ReadOriginalFileContent(input.Filename)
+		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
 				originalFileContent = "" // File is new or was deleted
@@ -73,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			}
 		}
 
-		stagedFileContent, err := f.gitService.ReadStagedFileContent(input.Filename)
+		stagedFileContent, err := f.stagedChangesReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") {
 				// File was deleted - return with empty staged content but include original content and diff

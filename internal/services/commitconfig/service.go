@@ -22,35 +22,39 @@ import (
 	"github.com/retran/meowg1k/internal/services/profile"
 )
 
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
+}
+
+// ProfileResolver resolves profile configurations.
+type ProfileResolver interface {
+	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
+}
+
 // ResolvedCommitConfig represents the resolved configuration for generating a commit message.
 type ResolvedCommitConfig struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
 }
 
-// Service provides functionality for resolving commit configuration.
-type Service interface {
-	// GetCommitConfig returns the resolved configuration for generating commit messages.
-	GetCommitConfig() (*ResolvedCommitConfig, error)
+// Service resolves commit configuration from application config and profiles.
+type Service struct {
+	configReader    ApplicationConfigReader
+	profileResolver ProfileResolver
 }
 
-// serviceImpl is the concrete implementation of the Service interface.
-type serviceImpl struct {
-	configService  config.Service
-	profileService profile.Service
-}
-
-// NewService creates a new instance of the commit config service.
-func NewService(configService config.Service, profileService profile.Service) Service {
-	return &serviceImpl{
-		configService:  configService,
-		profileService: profileService,
+// NewService creates a new commit configuration service.
+func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+	return &Service{
+		configReader:    configReader,
+		profileResolver: profileResolver,
 	}
 }
 
 // GetCommitConfig resolves the commit configuration.
-func (s *serviceImpl) GetCommitConfig() (*ResolvedCommitConfig, error) {
-	config := s.configService.GetConfig()
+func (s *Service) GetCommitConfig() (*ResolvedCommitConfig, error) {
+	config := s.configReader.GetConfig()
 
 	var profileName string
 	var systemPrompt string
@@ -60,7 +64,7 @@ func (s *serviceImpl) GetCommitConfig() (*ResolvedCommitConfig, error) {
 		systemPrompt = config.Commit.SystemPrompt
 	}
 
-	resolvedProfile, err := s.profileService.Get(profile.Profile(profileName))
+	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
 		return nil, err
 	}

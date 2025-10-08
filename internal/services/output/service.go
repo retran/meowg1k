@@ -24,22 +24,16 @@ import (
 	"strings"
 )
 
-// Service provides functionality for outputting content.
-// All output is buffered in memory and will only be written to the
-// destination when Flush() is explicitly called.
-type Service interface {
-	// Print adds content to the in-memory buffer.
+// Writer defines the interface for output operations.
+type Writer interface {
 	Print(content string)
-	// PrintLine adds content with a trailing newline to the in-memory buffer.
 	PrintLine(content string)
-	// Printf adds formatted content to the in-memory buffer.
 	Printf(format string, args ...any)
-	// Flush writes all buffered content to the configured destination.
 	Flush() error
 }
 
-// serviceImpl is the concrete implementation of the Service interface.
-type serviceImpl struct {
+// Service is the concrete implementation of the Writer interface.
+type Service struct {
 	destination io.Writer
 	buffer      strings.Builder
 }
@@ -57,7 +51,7 @@ const (
 )
 
 // NewService creates a new instance of the buffered output service.
-func NewService(destination Destination) Service {
+func NewService(destination Destination) *Service {
 	var destWriter io.Writer
 	switch destination {
 	case Stdout:
@@ -68,30 +62,30 @@ func NewService(destination Destination) Service {
 		destWriter = io.Discard
 	}
 
-	return &serviceImpl{
+	return &Service{
 		destination: destWriter,
 	}
 }
 
 // Print adds content to the buffer.
-func (s *serviceImpl) Print(content string) {
+func (s *Service) Print(content string) {
 	s.buffer.WriteString(content)
 }
 
 // PrintLine adds content with a newline to the buffer.
-func (s *serviceImpl) PrintLine(content string) {
+func (s *Service) PrintLine(content string) {
 	s.buffer.WriteString(content)
 	s.buffer.WriteString("\n")
 }
 
 // Printf adds formatted content to the buffer.
-func (s *serviceImpl) Printf(format string, args ...any) {
+func (s *Service) Printf(format string, args ...any) {
 	fmt.Fprintf(&s.buffer, format, args...)
 }
 
 // Flush writes all accumulated content from the buffer to the destination
 // in a single write operation and then clears the buffer.
-func (s *serviceImpl) Flush() error {
+func (s *Service) Flush() error {
 	if s.buffer.Len() == 0 {
 		return nil
 	}

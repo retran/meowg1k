@@ -25,6 +25,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
+	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
@@ -62,6 +63,7 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 	commitConfigService := commitconfig.NewService(c.ConfigService, profileService)
 
 	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	// Activities for regular staged commit mode
 	listStagedActivityFactory := liststaged.NewFactory(gitService)
@@ -75,9 +77,9 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 
 	// Common activities
 	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
-	summarizeFileFactory := summarizefile.NewFactory(gatewayFactory, summarizeService)
+	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
-	composeCommitFactory := composecommit.NewFactory(gatewayFactory)
+	composeCommitFactory := composecommit.NewFactory(invokeLLMFactory)
 
 	flowFactory := commit.NewFactory(
 		listStagedActivityFactory,
@@ -119,12 +121,13 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	}
 
 	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	flowFactory := generate.NewFlowFactory(
 		taskService,
 		generatePromptService,
 		generatePromptService,
-		gatewayFactory,
+		invokeLLMFactory,
 		c.OutputService,
 	)
 
@@ -146,6 +149,7 @@ func (c *Container) CreatePRFlow() executor.Flow {
 	prConfigService := prconfig.NewService(c.ConfigService, profileService)
 
 	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
+	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
 	// Activities for branch diff mode
 	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)
@@ -154,9 +158,9 @@ func (c *Container) CreatePRFlow() executor.Flow {
 
 	// Common activities
 	applyFiltersActivityFactory := applyfilters.NewFactory(filterService)
-	summarizeFileFactory := summarizefile.NewFactory(gatewayFactory, summarizeService)
+	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
-	composePRFactory := composepr.NewFactory(gatewayFactory)
+	composePRFactory := composepr.NewFactory(invokeLLMFactory)
 
 	flowFactory := pr.NewFactory(
 		listBranchFilesActivityFactory,

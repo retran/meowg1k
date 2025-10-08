@@ -28,7 +28,7 @@ var _ EmbeddingsGateway = (*voyageGateway)(nil)
 // voyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.
 type voyageGateway struct {
 	ComputeDistanceMixin
-	client voyage.Service
+	client *voyage.Service
 }
 
 // NewVoyageGateway creates and initializes a new VoyageGateway.

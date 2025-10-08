@@ -124,24 +124,19 @@ type TokenProb struct {
 }
 
 // Service provides methods to interact with LLM completion API
-type Service interface {
-	Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error)
-}
-
-// serviceImpl provides methods to interact with LLM completion API
-type serviceImpl struct {
+type Service struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
 // NewService creates a new client for interacting with the LLM completion endpoint.
-func NewService(baseURL, apiKey string) (Service, error) {
+func NewService(baseURL, apiKey string) (*Service, error) {
 	if baseURL == "" {
 		return nil, ErrBaseURLRequired
 	}
 
-	return &serviceImpl{
+	return &Service{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 10 * time.Minute},
@@ -149,7 +144,7 @@ func NewService(baseURL, apiKey string) (Service, error) {
 }
 
 // Complete generates a completion based on the provided request.
-func (c *serviceImpl) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
+func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFailedToMarshalRequest, err)

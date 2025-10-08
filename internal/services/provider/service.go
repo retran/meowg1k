@@ -65,23 +65,14 @@ type ProviderDefinition struct {
 	DefaultTimeout  time.Duration     `json:"default_timeout"`
 }
 
-// Service provides provider registry capabilities.
-type Service interface {
-	// Get retrieves a provider definition by provider type.
-	Get(providerType Provider) (ProviderDefinition, error)
-}
-
-// serviceImpl is the concrete implementation of the registry service.
-type serviceImpl struct {
+// Service is the concrete implementation of the registry service.
+type Service struct {
 	providers map[Provider]ProviderDefinition
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
-
 // NewService creates a new provider registry service with default providers.
-func NewService() Service {
-	s := &serviceImpl{
+func NewService() *Service {
+	s := &Service{
 		providers: map[Provider]ProviderDefinition{
 			Gemini: {
 				Type:            Gemini,
@@ -177,7 +168,7 @@ func NewService() Service {
 }
 
 // Get retrieves a provider definition by provider type.
-func (s *serviceImpl) Get(providerType Provider) (ProviderDefinition, error) {
+func (s *Service) Get(providerType Provider) (ProviderDefinition, error) {
 	provider, exists := s.providers[providerType]
 	if !exists {
 		return ProviderDefinition{}, fmt.Errorf("%w: %s", ErrProviderNotFound, providerType)

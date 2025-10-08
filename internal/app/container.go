@@ -54,16 +54,16 @@ type Container struct {
 	Logger *slog.Logger
 
 	// ShutdownService handles graceful shutdown of the application.
-	ShutdownService shutdown.Service
+	ShutdownService *shutdown.Service
 
 	// CommandService handles command-line parameters and flags.
-	CommandService command.Service
+	CommandService *command.Service
 
 	// ConfigService manages application configuration.
-	ConfigService config.Service
+	ConfigService *config.Service
 
 	// OutputService handles application output to stdout/stderr.
-	OutputService output.Service
+	OutputService output.Writer
 
 	// DBHost provides access to database connections
 	DBHost db.Host

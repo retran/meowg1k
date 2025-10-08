@@ -24,47 +24,68 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/output"
-	"github.com/retran/meowg1k/internal/services/prompt"
 	"github.com/retran/meowg1k/internal/services/task"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
+// ErrInvalidActivityOutputType is returned when an unexpected activity output type is received.
 var ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
+
+// TaskConfigProvider provides resolved task configuration.
+type TaskConfigProvider interface {
+	Get() *task.Configuration
+}
+
+// UserPromptProvider provides the user prompt for content generation.
+type UserPromptProvider interface {
+	GetUserPrompt() (string, error)
+}
+
+// SystemPromptProvider provides the system prompt for content generation.
+type SystemPromptProvider interface {
+	GetSystemPrompt() (string, error)
+}
+
+// ContentGenerationActivityFactory creates content generation activities.
+type ContentGenerationActivityFactory interface {
+	NewActivity() executor.Activity[any, any]
+}
+
+// OutputWriter writes output to the user.
+type OutputWriter interface {
+	PrintLine(line string)
+}
 
 // FlowFactory creates instances of the generate flow with injected dependencies.
 type FlowFactory struct {
-	taskService          task.Service
-	userPromptProvider   prompt.UserPromptProvider
-	systemPromptProvider prompt.SystemPromptProvider
-	invokeLLMFactory     *invokellm.Factory
-	outputService        output.Service
+	taskConfigProvider               TaskConfigProvider
+	userPromptProvider               UserPromptProvider
+	systemPromptProvider             SystemPromptProvider
+	contentGenerationActivityFactory ContentGenerationActivityFactory
+	outputWriter                     OutputWriter
 }
 
 // NewFlowFactory creates a new generate flow factory with injected services.
 func NewFlowFactory(
-	taskService task.Service,
-	userPromptProvider prompt.UserPromptProvider,
-	systemPromptProvider prompt.SystemPromptProvider,
-	gatewayFactory gateway.Factory,
-	outputService output.Service,
+	taskConfigProvider TaskConfigProvider,
+	userPromptProvider UserPromptProvider,
+	systemPromptProvider SystemPromptProvider,
+	contentGenerationActivityFactory ContentGenerationActivityFactory,
+	outputWriter OutputWriter,
 ) *FlowFactory {
-	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 	return &FlowFactory{
-		taskService:          taskService,
-		userPromptProvider:   userPromptProvider,
-		systemPromptProvider: systemPromptProvider,
-		invokeLLMFactory:     invokeLLMFactory,
-		outputService:        outputService,
+		taskConfigProvider:               taskConfigProvider,
+		userPromptProvider:               userPromptProvider,
+		systemPromptProvider:             systemPromptProvider,
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
+		outputWriter:                     outputWriter,
 	}
 }
 
 // NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		task := f.taskService.Get()
+		task := f.taskConfigProvider.Get()
 
 		flowCtx.SendRunning("Generating content")
 
@@ -78,7 +99,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return fmt.Errorf("failed to get system prompt: %w", err)
 		}
 
-		activity := f.invokeLLMFactory.NewActivity()
+		activity := f.contentGenerationActivityFactory.NewActivity()
 		input := &invokellm.Input{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
@@ -102,7 +123,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		time.Sleep(300 * time.Millisecond)
 
-		f.outputService.PrintLine(invokeOutput.Content)
+		f.outputWriter.PrintLine(invokeOutput.Content)
 
 		return nil
 	}

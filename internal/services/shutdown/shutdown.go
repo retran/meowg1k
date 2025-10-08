@@ -28,17 +28,9 @@ import (
 	"time"
 )
 
-// Service interface provides methods for managing graceful shutdown.
-type Service interface {
-	Context() context.Context
-	Register(callback Callback)
-	ListenForSignals() bool
-	Shutdown()
-}
-
-// serviceImpl handles graceful shutdown of the application.
+// Service handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
-type serviceImpl struct {
+type Service struct {
 	mu        sync.RWMutex
 	ctx       context.Context //nolint:containedctx // stored to expose shutdown context to consumers
 	cancel    context.CancelFunc
@@ -53,14 +45,14 @@ type Callback func(ctx context.Context) error
 
 // NewService creates a new shutdown manager with the specified timeout.
 // timeout sets the maximum time to wait for all callbacks to complete.
-func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) Service {
+func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) *Service {
 	ctx, cancel := context.WithCancel(ctx)
 
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	return &serviceImpl{
+	return &Service{
 		ctx:       ctx,
 		cancel:    cancel,
 		logger:    logger,
@@ -71,7 +63,7 @@ func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration)
 
 // Context returns the shutdown context.
 // This context is canceled when shutdown begins.
-func (m *serviceImpl) Context() context.Context {
+func (m *Service) Context() context.Context {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -80,7 +72,7 @@ func (m *serviceImpl) Context() context.Context {
 
 // Register adds a callback to be executed during shutdown.
 // Callbacks are executed in the order they were registered.
-func (m *serviceImpl) Register(callback Callback) {
+func (m *Service) Register(callback Callback) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -95,7 +87,7 @@ func (m *serviceImpl) Register(callback Callback) {
 // ListenForSignals starts listening for shutdown signals (SIGINT, SIGTERM).
 // This function blocks until a signal is received or the context is canceled.
 // Returns true if shutdown was triggered by a signal, false if context was canceled.
-func (m *serviceImpl) ListenForSignals() bool {
+func (m *Service) ListenForSignals() bool {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -124,12 +116,12 @@ func (m *serviceImpl) ListenForSignals() bool {
 }
 
 // Shutdown triggers graceful shutdown manually.
-func (m *serviceImpl) Shutdown() {
+func (m *Service) Shutdown() {
 	m.shutdown()
 }
 
 // shutdown performs the actual shutdown process.
-func (m *serviceImpl) shutdown() {
+func (m *Service) shutdown() {
 	m.logger.InfoContext(context.Background(), "Beginning graceful shutdown",
 		"timeout", m.timeout.String(),
 		"registered_callbacks", len(m.callbacks))

@@ -17,13 +17,63 @@ limitations under the License.
 package app
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/testutil"
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
+
+	"github.com/retran/meowg1k/internal/db"
+	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/spf13/cobra"
 )
+
+// mockDBHost is a test mock implementation of db.Host using in-memory SQLite.
+type mockDBHost struct {
+	mainDB    *sql.DB
+	projectDB *sql.DB
+}
+
+func (h *mockDBHost) GetDB() *sql.DB {
+	return h.mainDB
+}
+
+func (h *mockDBHost) GetProjectDB() *sql.DB {
+	return h.projectDB
+}
+
+func (h *mockDBHost) Close() error {
+	if err := h.mainDB.Close(); err != nil {
+		return err
+	}
+	return h.projectDB.Close()
+}
+
+// newMockDBHost creates a new mock db.Host with in-memory databases for testing.
+func newMockDBHost() (db.Host, error) {
+	mainDB, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	// Run migrations
+	allMigrations := []migrations.Migration{}
+	allMigrations = append(allMigrations, ratelimit.Migrations...)
+	if err := migrations.RunMigrations(mainDB, allMigrations); err != nil {
+		mainDB.Close()
+		return nil, err
+	}
+
+	projectDB := mainDB // Use same DB for both
+
+	return &mockDBHost{
+		mainDB:    mainDB,
+		projectDB: projectDB,
+	}, nil
+}
 
 func TestCreateCommitFlow(t *testing.T) {
 	tempDir := t.TempDir()
@@ -63,7 +113,7 @@ filter:
 	cmd.Flags().Set("config", configPath)
 
 	// Create mock DB host for testing (uses in-memory database)
-	dbHost, err := testutil.NewMockDBHost()
+	dbHost, err := newMockDBHost()
 	if err != nil {
 		t.Fatalf("Failed to create mock DB host: %v", err)
 	}
@@ -126,7 +176,7 @@ filter:
 	cmd.Flags().Set("config", configPath)
 
 	// Create mock DB host for testing (uses in-memory database)
-	dbHost, err := testutil.NewMockDBHost()
+	dbHost, err := newMockDBHost()
 	if err != nil {
 		t.Fatalf("Failed to create mock DB host: %v", err)
 	}
@@ -181,7 +231,7 @@ generate:
 	cmd.Flags().Set("user-prompt", "Custom prompt")
 
 	// Create mock DB host for testing (uses in-memory database)
-	dbHost, err := testutil.NewMockDBHost()
+	dbHost, err := newMockDBHost()
 	if err != nil {
 		t.Fatalf("Failed to create mock DB host: %v", err)
 	}
@@ -234,7 +284,7 @@ generate:
 	cmd.Flags().Set("config", configPath)
 
 	// Create mock DB host for testing (uses in-memory database)
-	dbHost, err := testutil.NewMockDBHost()
+	dbHost, err := newMockDBHost()
 	if err != nil {
 		t.Fatalf("Failed to create mock DB host: %v", err)
 	}

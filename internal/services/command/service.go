@@ -26,50 +26,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Service provides command context capabilities.
-type Service interface {
-	// GetCommand retrieves the current executing command.
-	GetCommand() *cobra.Command
-
-	// GetCommandName retrieves the name of the current executing command.
-	GetCommandName() string
-
-	// GetConfigPath retrieves the config path from command flags or global variable.
-	GetConfigPath() (string, error)
-
-	// GetTaskName retrieves the task name from command flags.
-	GetTaskName() (string, error)
-
-	// GetUserPrompt retrieves the user prompt from command flags.
-	GetUserPrompt() (string, error)
-
-	// GetSilentFlag retrieves the silent flag from command flags.
-	GetSilentFlag() (bool, error)
-
-	// GetIntentFlag retrieves the intent flag from command flags.
-	GetIntentFlag() (string, error)
-
-	// GetTargetBranchFlag retrieves the target-branch flag from command flags.
-	GetTargetBranchFlag() (string, error)
-
-	// GetBaseBranchFlag retrieves the base-branch flag from command flags.
-	GetBaseBranchFlag() (string, error)
-
-	// GetStdIn retrieves the standard input sent to the command.
-	GetStdIn() string
-}
-
-// serviceImpl is the concrete implementation of the command service.
-type serviceImpl struct {
+// Service is the concrete implementation of the command service.
+type Service struct {
 	cmd   *cobra.Command
 	stdin string
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
-
 // NewService creates a new command context service with the provided command.
-func NewService(cmd *cobra.Command) (Service, error) {
+func NewService(cmd *cobra.Command) (*Service, error) {
 	if cmd == nil {
 		panic("command cannot be nil")
 	}
@@ -90,58 +54,58 @@ func NewService(cmd *cobra.Command) (Service, error) {
 		stdin = strings.TrimSpace(string(input))
 	}
 
-	return &serviceImpl{
+	return &Service{
 		cmd:   cmd,
 		stdin: stdin,
 	}, nil
 }
 
 // GetCommand retrieves the current executing command.
-func (s *serviceImpl) GetCommand() *cobra.Command {
+func (s *Service) GetCommand() *cobra.Command {
 	return s.cmd
 }
 
 // GetCommandName retrieves the name of the current executing command.
-func (s *serviceImpl) GetCommandName() string {
+func (s *Service) GetCommandName() string {
 	return s.cmd.Name()
 }
 
 // GetConfigPath retrieves the config path from command flags.
-func (s *serviceImpl) GetConfigPath() (string, error) {
+func (s *Service) GetConfigPath() (string, error) {
 	return s.cmd.Flags().GetString("config")
 }
 
 // GetTaskName retrieves the task name from command flags.
-func (s *serviceImpl) GetTaskName() (string, error) {
+func (s *Service) GetTaskName() (string, error) {
 	return s.cmd.Flags().GetString("task")
 }
 
 // GetUserPrompt retrieves the user prompt from command flags.
-func (s *serviceImpl) GetUserPrompt() (string, error) {
+func (s *Service) GetUserPrompt() (string, error) {
 	return s.cmd.Flags().GetString("user-prompt")
 }
 
 // GetSilentFlag retrieves the silent flag from command flags.
-func (s *serviceImpl) GetSilentFlag() (bool, error) {
+func (s *Service) GetSilentFlag() (bool, error) {
 	return s.cmd.Flags().GetBool("silent")
 }
 
 // GetIntentFlag retrieves the intent flag from command flags.
-func (s *serviceImpl) GetIntentFlag() (string, error) {
+func (s *Service) GetIntentFlag() (string, error) {
 	return s.cmd.Flags().GetString("intent")
 }
 
 // GetTargetBranchFlag retrieves the target-branch flag from command flags.
-func (s *serviceImpl) GetTargetBranchFlag() (string, error) {
+func (s *Service) GetTargetBranchFlag() (string, error) {
 	return s.cmd.Flags().GetString("target-branch")
 }
 
 // GetBaseBranchFlag retrieves the base-branch flag from command flags.
-func (s *serviceImpl) GetBaseBranchFlag() (string, error) {
+func (s *Service) GetBaseBranchFlag() (string, error) {
 	return s.cmd.Flags().GetString("base")
 }
 
 // GetStdIn retrieves the standard input sent to the command.
-func (s *serviceImpl) GetStdIn() string {
+func (s *Service) GetStdIn() string {
 	return s.stdin
 }

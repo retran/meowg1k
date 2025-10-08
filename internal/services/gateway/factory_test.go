@@ -56,7 +56,7 @@ func TestNewGatewayFactory(t *testing.T) {
 
 	factory := NewFactory(repo)
 	assert.NotNil(t, factory)
-	assert.IsType(t, &gatewayFactory{}, factory)
+	assert.IsType(t, &Factory{}, factory)
 }
 
 func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
@@ -296,7 +296,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 }
 
 func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
-	factory := &gatewayFactory{}
+	factory := &Factory{}
 	ctx := context.Background()
 
 	tests := []struct {

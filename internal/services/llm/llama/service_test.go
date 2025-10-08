@@ -70,11 +70,10 @@ func TestNewService(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, service)
-				impl := service.(*serviceImpl)
-				assert.Equal(t, tt.baseURL, impl.baseURL)
-				assert.Equal(t, tt.apiKey, impl.apiKey)
-				assert.NotNil(t, impl.httpClient)
-				assert.Equal(t, 10*time.Minute, impl.httpClient.Timeout)
+				assert.Equal(t, tt.baseURL, service.baseURL)
+				assert.Equal(t, tt.apiKey, service.apiKey)
+				assert.NotNil(t, service.httpClient)
+				assert.Equal(t, 10*time.Minute, service.httpClient.Timeout)
 			}
 		})
 	}
@@ -390,7 +389,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var service Service
+			var service *Service
 			var err error
 
 			if tt.name == "HTTP request creation with invalid URL characters" {

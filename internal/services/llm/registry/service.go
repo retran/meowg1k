@@ -18,30 +18,19 @@ package registry
 
 import "github.com/retran/meowg1k/internal/services/llm"
 
-// Service defines the interface for model registry operations.
-type Service interface {
-	GetModelInfo(modelName string) llm.ModelInfo
-	GetMaxContextTokens(modelName string) int
-	GetTokenizerType(modelName string) llm.TokenizerType
-	GetDefaultEmbedDimension(modelName string) int
-	GetProvider(modelName string) string
-	GetMaxOutputTokens(modelName string) int
-	ListKnownModels() []string
-}
-
-// serviceImpl is the private implementation of the Service interface.
-type serviceImpl struct {
+// Service is the private implementation of the Service interface.
+type Service struct {
 	models map[string]llm.ModelInfo
 }
 
-func NewService() Service {
-	return &serviceImpl{
+func NewService() *Service {
+	return &Service{
 		models: models,
 	}
 }
 
 // GetModelInfo returns information about a specific model.
-func (r *serviceImpl) GetModelInfo(modelName string) llm.ModelInfo {
+func (r *Service) GetModelInfo(modelName string) llm.ModelInfo {
 	if info, exists := r.models[modelName]; exists {
 		return info
 	}
@@ -56,28 +45,28 @@ func (r *serviceImpl) GetModelInfo(modelName string) llm.ModelInfo {
 }
 
 // GetMaxContextTokens returns the maximum context tokens for a model.
-func (r *serviceImpl) GetMaxContextTokens(modelName string) int {
+func (r *Service) GetMaxContextTokens(modelName string) int {
 	return r.GetModelInfo(modelName).MaxContextTokens
 }
 
 // GetTokenizerType returns the tokenizer type for a model.
-func (r *serviceImpl) GetTokenizerType(modelName string) llm.TokenizerType {
+func (r *Service) GetTokenizerType(modelName string) llm.TokenizerType {
 	return r.GetModelInfo(modelName).TokenizerType
 }
 
 // GetDefaultEmbedDimension returns the default embedding dimension for a model.
-func (r *serviceImpl) GetDefaultEmbedDimension(modelName string) int {
+func (r *Service) GetDefaultEmbedDimension(modelName string) int {
 	return r.GetModelInfo(modelName).DefaultEmbedDimension
 }
 
 // GetProvider returns the provider for a model.
-func (r *serviceImpl) GetProvider(modelName string) string {
+func (r *Service) GetProvider(modelName string) string {
 	return r.GetModelInfo(modelName).Provider
 }
 
 // GetMaxOutputTokens returns the maximum output tokens for a model.
 // Returns 4096 as a safe default if the model is not found or has no limit specified.
-func (r *serviceImpl) GetMaxOutputTokens(modelName string) int {
+func (r *Service) GetMaxOutputTokens(modelName string) int {
 	maxOutputTokens := r.GetModelInfo(modelName).MaxOutputTokens
 	if maxOutputTokens <= 0 {
 		return 4096 // Safe default
@@ -87,7 +76,7 @@ func (r *serviceImpl) GetMaxOutputTokens(modelName string) int {
 }
 
 // ListKnownModels returns a list of all models in the registry.
-func (r *serviceImpl) ListKnownModels() []string {
+func (r *Service) ListKnownModels() []string {
 	models := make([]string, 0, len(r.models))
 	for model := range r.models {
 		models = append(models, model)

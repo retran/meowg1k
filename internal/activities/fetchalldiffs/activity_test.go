@@ -21,19 +21,29 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// mockFileDiffActivityFactory is a mock implementation of FileDiffActivityFactory for testing.
+type mockFileDiffActivityFactory struct {
+	activity executor.Activity[any, any]
+}
+
+func (m *mockFileDiffActivityFactory) NewActivity() executor.Activity[any, any] {
+	return m.activity
+}
+
 func TestNewFactory(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockFileDiffActivityFactory{}
+	factory := NewFactory(mockFactory)
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
 func TestActivityNilInput(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockFileDiffActivityFactory{}
+	factory := NewFactory(mockFactory)
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
@@ -44,7 +54,8 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockFileDiffActivityFactory{}
+	factory := NewFactory(mockFactory)
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
@@ -55,18 +66,19 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	mockExec := &testutil.MockExecutor{}
-	mockFetchDiffFactory := &testutil.MockActivityFactory{
-		ActivityFunc: func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-			return &git.FileChange{Filename: "test.go"}, nil
-		},
+	mockActivity := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+		return &git.FileChange{Filename: "test.go"}, nil
 	}
 
-	factory := &Factory{
-		fetchFileDiffActivityFactory: mockFetchDiffFactory,
+	mockFactory := &mockFileDiffActivityFactory{
+		activity: mockActivity,
 	}
+
+	factory := NewFactory(mockFactory)
 	activity := factory.NewActivity()
+
 	ctx := context.Background()
+	mockExec := executor.NewExecutor()
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{

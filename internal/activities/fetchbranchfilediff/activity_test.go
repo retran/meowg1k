@@ -21,9 +21,36 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// mockBranchDiffReader is a mock implementation of BranchDiffReader for testing.
+type mockBranchDiffReader struct {
+	GetBranchDiffFunc           func(filePath, targetBranch string) (string, error)
+	ReadOriginalFileContentFunc func(filename string) (string, error)
+	ReadStagedFileContentFunc   func(filename string) (string, error)
+}
+
+func (m *mockBranchDiffReader) GetBranchDiff(filePath, targetBranch string) (string, error) {
+	if m.GetBranchDiffFunc != nil {
+		return m.GetBranchDiffFunc(filePath, targetBranch)
+	}
+	return "", nil
+}
+
+func (m *mockBranchDiffReader) ReadOriginalFileContent(filename string) (string, error) {
+	if m.ReadOriginalFileContentFunc != nil {
+		return m.ReadOriginalFileContentFunc(filename)
+	}
+	return "", nil
+}
+
+func (m *mockBranchDiffReader) ReadStagedFileContent(filename string) (string, error) {
+	if m.ReadStagedFileContentFunc != nil {
+		return m.ReadStagedFileContentFunc(filename)
+	}
+	return "", nil
+}
 
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(nil)
@@ -55,7 +82,7 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	gitSvc := &testutil.MockGitService{
+	gitSvc := &mockBranchDiffReader{
 		GetBranchDiffFunc: func(filePath, targetBranch string) (string, error) {
 			return "diff content", nil
 		},

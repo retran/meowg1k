@@ -21,17 +21,26 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil/configmocks"
 )
 
 // Mock implementations for testing
 
-type mockProfileService struct {
+// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
+type mockApplicationConfigReader struct {
+	Cfg *config.Config
+}
+
+func (m *mockApplicationConfigReader) GetConfig() *config.Config {
+	return m.Cfg
+}
+
+// mockProfileResolver is a mock implementation of ProfileResolver for testing.
+type mockProfileResolver struct {
 	profiles map[profile.Profile]*profile.ResolvedProfile
 	err      error
 }
 
-func (m *mockProfileService) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -39,8 +48,8 @@ func (m *mockProfileService) Get(p profile.Profile) (*profile.ResolvedProfile, e
 }
 
 func TestNewService(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{}
-	profileSvc := &mockProfileService{}
+	configSvc := &mockApplicationConfigReader{}
+	profileSvc := &mockProfileResolver{}
 	svc := NewService(configSvc, profileSvc)
 	if svc == nil {
 		t.Fatal("NewService returned nil")
@@ -48,10 +57,10 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{},
 	}
-	profileSvc := &mockProfileService{}
+	profileSvc := &mockProfileResolver{}
 	svc := NewService(configSvc, profileSvc)
 
 	result, err := svc.GetSummarizationConfig("test.go")
@@ -64,7 +73,7 @@ func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_SkipRule(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
@@ -76,7 +85,7 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileService{}
+	profileSvc := &mockProfileResolver{}
 	svc := NewService(configSvc, profileSvc)
 
 	result, err := svc.GetSummarizationConfig("test.go")
@@ -92,7 +101,7 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
@@ -107,7 +116,7 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"default": {
 				Name:     "default",
@@ -143,7 +152,7 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
@@ -170,7 +179,7 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"golang": {
 				Name:     "golang",
@@ -203,7 +212,7 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_ProfileError(t *testing.T) {
-	configSvc := &configmocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
@@ -212,7 +221,7 @@ func TestGetSummarizationConfig_ProfileError(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileService{
+	profileSvc := &mockProfileResolver{
 		err: profile.ErrProfileNotFound,
 	}
 	svc := NewService(configSvc, profileSvc)

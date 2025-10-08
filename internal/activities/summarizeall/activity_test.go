@@ -22,9 +22,28 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
+	"github.com/retran/meowg1k/pkg/future"
 )
+
+// mockExecutor is a mock implementation of the executor for testing.
+type mockExecutor struct{}
+
+func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
+	f := future.NewFuture[any]()
+	result, err := activity(ctx, executorCtx, input)
+	if err != nil {
+		f.CompleteWithError(err)
+	} else {
+		f.Complete(result)
+	}
+	return f
+}
+
+func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
+	flowCtx := executor.NewContext(name, nil, m)
+	return flow(ctx, flowCtx)
+}
 
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(nil)
@@ -72,7 +91,7 @@ func TestActivitySuccess(t *testing.T) {
 	factory := NewFactory((*summarizefile.Factory)(nil))
 	activity := factory.NewActivity()
 	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, &testutil.MockExecutor{})
+	execCtx := executor.NewContext("test", nil, &mockExecutor{})
 
 	input := &Input{
 		Changes: []*git.FileChange{},

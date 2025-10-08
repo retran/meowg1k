@@ -28,12 +28,27 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/commitconfig"
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// CommitConfigProvider provides commit message configuration.
+type CommitConfigProvider interface {
+	GetCommitConfig() (*commitconfig.ResolvedCommitConfig, error)
+}
+
+// CommandParametersReader reads command-line parameters and flags.
+type CommandParametersReader interface {
+	GetTargetBranchFlag() (string, error)
+	GetIntentFlag() (string, error)
+	GetStdIn() string
+}
+
+// OutputWriter writes output to the user.
+type OutputWriter interface {
+	PrintLine(line string)
+}
 
 // Factory creates instances of the commit flow with injected dependencies.
 type Factory struct {
@@ -44,9 +59,9 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory
 	summarizeAllFactory        executor.ActivityFactory
 	composeCommitFactory       executor.ActivityFactory
-	commitConfigService        commitconfig.Service
-	commandService             command.Service
-	outputService              output.Service
+	commitConfigProvider       CommitConfigProvider
+	commandParametersReader    CommandParametersReader
+	outputWriter               OutputWriter
 }
 
 // NewFactory creates a new commit flow factory with injected services.
@@ -58,9 +73,9 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory,
 	summarizeAllFactory executor.ActivityFactory,
 	composeCommitFactory executor.ActivityFactory,
-	commitConfigService commitconfig.Service,
-	commandService command.Service,
-	outputService output.Service,
+	commitConfigProvider CommitConfigProvider,
+	commandParametersReader CommandParametersReader,
+	outputWriter OutputWriter,
 ) *Factory {
 	return &Factory{
 		listStagedFactory:          listStagedFactory,
@@ -70,9 +85,9 @@ func NewFactory(
 		fetchAllBranchDiffsFactory: fetchAllBranchDiffsFactory,
 		summarizeAllFactory:        summarizeAllFactory,
 		composeCommitFactory:       composeCommitFactory,
-		commitConfigService:        commitConfigService,
-		commandService:             commandService,
-		outputService:              outputService,
+		commitConfigProvider:       commitConfigProvider,
+		commandParametersReader:    commandParametersReader,
+		outputWriter:               outputWriter,
 	}
 }
 
@@ -82,7 +97,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		flowCtx.SendRunning("Composing commit message")
 
 		// Check if we're in squash mode (branch comparison)
-		targetBranch, err := f.commandService.GetTargetBranchFlag()
+		targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get target-branch flag: %w", err)
 		}
@@ -187,18 +202,18 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose commit message
-		commitConfig, err := f.commitConfigService.GetCommitConfig()
+		commitConfig, err := f.commitConfigProvider.GetCommitConfig()
 		if err != nil {
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}
 
-		intent, err := f.commandService.GetIntentFlag()
+		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
-			intent = f.commandService.GetStdIn()
+			intent = f.commandParametersReader.GetStdIn()
 		}
 
 		composeCommit := f.composeCommitFactory.NewActivity()
@@ -221,7 +236,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		f.outputService.PrintLine(commitResult.CommitMessage)
+		f.outputWriter.PrintLine(commitResult.CommitMessage)
 
 		return nil
 	}

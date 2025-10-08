@@ -37,17 +37,20 @@ type Output struct {
 	Changes []*git.FileChange
 }
 
-// Factory creates instances of the FetchAllDiffs activity with injected dependencies.
-type Factory struct {
-	fetchFileDiffActivityFactory executor.ActivityFactory
+// FileDiffActivityFactory creates activities that fetch file diffs.
+type FileDiffActivityFactory interface {
+	NewActivity() executor.Activity[any, any]
 }
 
-// NewFactory creates a new FetchAllDiffs activity factory with injected services.
-func NewFactory(
-	fetchFileDiffActivityFactory executor.ActivityFactory,
-) *Factory {
+// Factory creates instances of the FetchAllDiffs activity with injected dependencies.
+type Factory struct {
+	fileDiffActivityFactory FileDiffActivityFactory
+}
+
+// NewFactory creates a new FetchAllDiffs activity factory with the provided file diff activity factory.
+func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) *Factory {
 	return &Factory{
-		fetchFileDiffActivityFactory: fetchFileDiffActivityFactory,
+		fileDiffActivityFactory: fileDiffActivityFactory,
 	}
 }
 
@@ -67,7 +70,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
 		for _, file := range input.Files {
-			fetchFileDiff := f.fetchFileDiffActivityFactory.NewActivity()
+			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
 			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchFileDiff, &fetchfilediff.Input{
 				Filename: file,
 			})

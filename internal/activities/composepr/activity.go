@@ -24,7 +24,6 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -42,15 +41,20 @@ type Output struct {
 	PRDescription string
 }
 
-// Factory creates instances of the ComposePR activity with injected dependencies.
-type Factory struct {
-	invokeLLMFactory *invokellm.Factory
+// ContentGenerationActivityFactory creates content generation activities.
+type ContentGenerationActivityFactory interface {
+	NewActivity() executor.Activity[any, any]
 }
 
-// NewFactory creates a new ComposePR activity factory with injected services.
-func NewFactory(gatewayFactory gateway.Factory) *Factory {
+// Factory creates instances of the ComposePR activity with injected dependencies.
+type Factory struct {
+	contentGenerationActivityFactory ContentGenerationActivityFactory
+}
+
+// NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.
+func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) *Factory {
 	return &Factory{
-		invokeLLMFactory: invokellm.NewFactory(gatewayFactory),
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
 	}
 }
 
@@ -85,7 +89,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		content := contentBuilder.String()
 
-		invokeLLM := f.invokeLLMFactory.NewActivity()
+		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
 
 		invokeInput := &invokellm.Input{
 			Profile:      input.Profile,
@@ -93,7 +97,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "InvokeLLM", invokeLLM, invokeInput)
+		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "GenerateContent", contentGenerationActivity, invokeInput)
 		invokeResult, err := invokeFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)

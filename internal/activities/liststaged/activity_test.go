@@ -20,12 +20,23 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// mockStagedFileListReader is a mock implementation of StagedFileListReader for testing.
+type mockStagedFileListReader struct {
+	ReadStagedFilesFunc func() ([]string, error)
+}
+
+func (m *mockStagedFileListReader) ReadStagedFiles() ([]string, error) {
+	if m.ReadStagedFilesFunc != nil {
+		return m.ReadStagedFilesFunc()
+	}
+	return nil, nil
+}
+
 func TestNewFactory(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedFileListReader{}
 	factory := NewFactory(gitSvc)
 
 	if factory == nil {
@@ -34,7 +45,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestNewActivity(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedFileListReader{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -44,7 +55,7 @@ func TestNewActivity(t *testing.T) {
 }
 
 func TestActivityExecute(t *testing.T) {
-	gitSvc := &testutil.MockGitService{
+	gitSvc := &mockStagedFileListReader{
 		ReadStagedFilesFunc: func() ([]string, error) {
 			return []string{"file1.txt", "file2.go"}, nil
 		},
@@ -80,7 +91,7 @@ func TestActivityExecute(t *testing.T) {
 }
 
 func TestActivityExecuteNilInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedFileListReader{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -94,7 +105,7 @@ func TestActivityExecuteNilInput(t *testing.T) {
 }
 
 func TestActivityExecuteInvalidInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedFileListReader{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 

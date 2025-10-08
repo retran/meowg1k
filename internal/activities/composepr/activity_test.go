@@ -23,9 +23,42 @@ import (
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
+	"github.com/retran/meowg1k/pkg/future"
 )
+
+// mockContentGenerationActivityFactory is a mock implementation of ContentGenerationActivityFactory for testing.
+type mockContentGenerationActivityFactory struct {
+	activity executor.Activity[any, any]
+}
+
+func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[any, any] {
+	if m.activity != nil {
+		return m.activity
+	}
+	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
+		return &invokellm.Output{Content: "test content"}, nil
+	}
+}
+
+// mockExecutor is a mock implementation of the executor for testing.
+type mockExecutor struct{}
+
+func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
+	f := future.NewFuture[any]()
+	result, err := activity(ctx, executorCtx, input)
+	if err != nil {
+		f.CompleteWithError(err)
+	} else {
+		f.Complete(result)
+	}
+	return f
+}
+
+func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
+	flowCtx := executor.NewContext(name, nil, m)
+	return flow(ctx, flowCtx)
+}
 
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(nil)
@@ -57,7 +90,7 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	mockExec := &testutil.MockExecutor{}
+	mockExec := &mockExecutor{}
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
 		return &invokellm.Output{
 			Content: "test PR description",

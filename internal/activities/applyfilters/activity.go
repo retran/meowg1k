@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -35,15 +34,20 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ApplyFilters activity with injected dependencies.
-type Factory struct {
-	filterService filter.Service
+// FileIgnoreChecker checks if a file should be ignored based on filter rules.
+type FileIgnoreChecker interface {
+	IsIgnoredFile(file string) bool
 }
 
-// NewFactory creates a new ApplyFilters activity factory with injected services.
-func NewFactory(filterService filter.Service) executor.ActivityFactory {
+// Factory creates instances of the ApplyFilters activity with injected dependencies.
+type Factory struct {
+	fileIgnoreChecker FileIgnoreChecker
+}
+
+// NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
+func NewFactory(fileIgnoreChecker FileIgnoreChecker) executor.ActivityFactory {
 	return &Factory{
-		filterService: filterService,
+		fileIgnoreChecker: fileIgnoreChecker,
 	}
 }
 
@@ -64,7 +68,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		filteredFiles := make([]string, 0, len(input.Files))
 
 		for _, file := range input.Files {
-			if !f.filterService.IsIgnoredFile(file) {
+			if !f.fileIgnoreChecker.IsIgnoredFile(file) {
 				filteredFiles = append(filteredFiles, file)
 			}
 		}

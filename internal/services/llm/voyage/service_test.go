@@ -77,20 +77,19 @@ func TestNewService(t *testing.T) {
 				require.NoError(t, err)
 				assert.NotNil(t, service)
 
-				impl := service.(*serviceImpl)
-				assert.Equal(t, tt.apiKey, impl.apiKey)
+				assert.Equal(t, tt.apiKey, service.apiKey)
 
 				expectedbaseURL := tt.baseURL
 				if expectedbaseURL == "" {
 					expectedbaseURL = DefaultBaseURL
 				}
-				assert.Equal(t, expectedbaseURL, impl.baseURL)
+				assert.Equal(t, expectedbaseURL, service.baseURL)
 
 				expectedTimeout := tt.timeout
 				if expectedTimeout == 0 {
 					expectedTimeout = 30 * time.Second
 				}
-				assert.Equal(t, expectedTimeout, impl.httpClient.Timeout)
+				assert.Equal(t, expectedTimeout, service.httpClient.Timeout)
 			}
 		})
 	}

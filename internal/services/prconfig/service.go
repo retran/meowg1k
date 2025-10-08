@@ -28,29 +28,33 @@ type ResolvedPRConfig struct {
 	SystemPrompt string
 }
 
-// Service provides functionality for resolving PR configuration.
-type Service interface {
-	// GetPRConfig returns the resolved configuration for generating PR descriptions.
-	GetPRConfig() (*ResolvedPRConfig, error)
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
 }
 
-// serviceImpl is the concrete implementation of the Service interface.
-type serviceImpl struct {
-	configService  config.Service
-	profileService profile.Service
+// ProfileResolver resolves profile configurations.
+type ProfileResolver interface {
+	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 }
 
-// NewService creates a new instance of the PR config service.
-func NewService(configService config.Service, profileService profile.Service) Service {
-	return &serviceImpl{
-		configService:  configService,
-		profileService: profileService,
+// Service resolves PR configuration from application config and profiles.
+type Service struct {
+	configReader    ApplicationConfigReader
+	profileResolver ProfileResolver
+}
+
+// NewService creates a new PR configuration service.
+func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+	return &Service{
+		configReader:    configReader,
+		profileResolver: profileResolver,
 	}
 }
 
 // GetPRConfig resolves the PR configuration.
-func (s *serviceImpl) GetPRConfig() (*ResolvedPRConfig, error) {
-	config := s.configService.GetConfig()
+func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
+	config := s.configReader.GetConfig()
 
 	var profileName string
 	var systemPrompt string
@@ -60,7 +64,7 @@ func (s *serviceImpl) GetPRConfig() (*ResolvedPRConfig, error) {
 		systemPrompt = config.PR.SystemPrompt
 	}
 
-	resolvedProfile, err := s.profileService.Get(profile.Profile(profileName))
+	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
 		return nil, err
 	}

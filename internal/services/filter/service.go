@@ -22,21 +22,25 @@ import (
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
 
-// Service defines the interface for filtering files.
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
+}
+
+// Service provides file filtering based on ignore patterns.
 type Service interface {
-	// IsIgnoredFile checks if the given file path matches any of the ignore patterns.
 	IsIgnoredFile(path string) bool
 }
 
-// serviceImpl is the concrete implementation of the Service interface.
+// serviceImpl implements the Service interface.
 type serviceImpl struct {
 	matcher *gitignore.Matcher
 }
 
-// NewService creates a new instance of the filter service.
-func NewService(configService config.Service) Service {
+// NewService creates a file filter service with ignore patterns from configuration.
+func NewService(configReader ApplicationConfigReader) Service {
 	var patterns []string
-	if config := configService.GetConfig(); config.Filter != nil {
+	if config := configReader.GetConfig(); config.Filter != nil {
 		patterns = config.Filter.Ignore
 	}
 	matcher := gitignore.NewMatcher(patterns)

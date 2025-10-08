@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 
@@ -93,15 +94,6 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 }
 
 // mockOutputService is a mock implementation of output.Service for testing
-type mockOutputService struct {
-	flushError error
-}
-
-func (m *mockOutputService) Print(content string)              {}
-func (m *mockOutputService) PrintLine(content string)          {}
-func (m *mockOutputService) Printf(format string, args ...any) {}
-func (m *mockOutputService) Flush() error                      { return m.flushError }
-
 func TestNewFlowRunner(t *testing.T) {
 	container := &Container{
 		Logger: slog.Default(),
@@ -118,20 +110,41 @@ func TestNewFlowRunner(t *testing.T) {
 	}
 }
 
+// mockOutputWriter is a mock implementation of output.Writer for testing that can return errors on Flush.
+type mockOutputWriter struct {
+	flushError error
+}
+
+func (m *mockOutputWriter) Print(content string) {
+	// No-op
+}
+
+func (m *mockOutputWriter) PrintLine(content string) {
+	// No-op
+}
+
+func (m *mockOutputWriter) Printf(format string, args ...any) {
+	// No-op
+}
+
+func (m *mockOutputWriter) Flush() error {
+	return m.flushError
+}
+
 func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	cmd.Flags().Bool("silent", true, "silent flag")
+	cmd.Flags().Bool("silent", false, "silent flag") // Not silent so Flush() is called
 
 	commandService, err := command.NewService(cmd)
 	if err != nil {
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	// Create a mock output service that will fail on flush
-	mockOutput := &mockOutputService{
-		flushError: context.DeadlineExceeded,
+	// Create a mock output writer that will return an error on Flush
+	mockOutput := &mockOutputWriter{
+		flushError: context.Canceled,
 	}
 
 	container := &Container{
@@ -148,7 +161,12 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 	err = runner.RunFlow(context.Background(), "TestFlow", flow)
 
 	if err == nil {
-		t.Error("RunFlow() expected error from flush, got nil")
+		t.Error("RunFlow() expected error from Flush, got nil")
+	}
+
+	// Error is wrapped, so we check with errors.Is
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("RunFlow() expected wrapped flush error (context.Canceled), got: %v", err)
 	}
 }
 
@@ -163,10 +181,8 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	// Create a mock output service that will fail on flush
-	mockOutput := &mockOutputService{
-		flushError: context.DeadlineExceeded,
-	}
+	// Create an output service for testing
+	mockOutput := output.NewService(output.Discard)
 
 	container := &Container{
 		Logger:         slog.Default(),
@@ -176,7 +192,7 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 
 	runner := NewFlowRunner(container)
 
-	// Use a flow that also fails
+	// Use a flow that fails
 	flow := mockFlow(context.Canceled)
 
 	err = runner.RunFlow(context.Background(), "TestFlow", flow)

@@ -20,9 +20,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// mockBranchFileListReader is a mock implementation of BranchFileListReader for testing.
+type mockBranchFileListReader struct {
+	GetChangedFilesInBranchFunc func(targetBranch string) ([]string, error)
+}
+
+func (m *mockBranchFileListReader) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
+	if m.GetChangedFilesInBranchFunc != nil {
+		return m.GetChangedFilesInBranchFunc(targetBranch)
+	}
+	return nil, nil
+}
 
 func TestNewFactory(t *testing.T) {
 	factory := NewFactory(nil)
@@ -54,7 +65,7 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	gitSvc := &testutil.MockGitService{
+	gitSvc := &mockBranchFileListReader{
 		GetChangedFilesInBranchFunc: func(targetBranch string) ([]string, error) {
 			return []string{"file1.go", "file2.go"}, nil
 		},

@@ -21,11 +21,40 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil/gatewaymocks"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
+
+// mockGenerationGateway is a mock implementation of GenerationGateway for testing.
+type mockGenerationGateway struct {
+	Content string
+	Err     error
+}
+
+func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.Content, nil
+}
+
+// mockGenerationGatewayFactory is a mock implementation of GenerationGatewayFactory for testing.
+type mockGenerationGatewayFactory struct {
+	Gateway gateway.GenerationGateway
+	Err     error
+}
+
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gateway.GenerationGateway, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	if m.Gateway != nil {
+		return m.Gateway, nil
+	}
+	return &mockGenerationGateway{Content: "test content"}, nil
+}
 
 // mockExecutor is a mock implementation of executor.Executor
 type mockExecutor struct{}
@@ -39,7 +68,7 @@ func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.F
 }
 
 func TestNewFactory(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
+	gwFactory := &mockGenerationGatewayFactory{}
 	factory := NewFactory(gwFactory)
 
 	if factory == nil {
@@ -48,8 +77,8 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_Success(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
-		GenerationGateway: &gatewaymocks.MockGenerationGateway{
+	gwFactory := &mockGenerationGatewayFactory{
+		Gateway: &mockGenerationGateway{
 			Content: "Generated content",
 		},
 	}
@@ -85,7 +114,7 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_NilInput(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
+	gwFactory := &mockGenerationGatewayFactory{}
 	factory := NewFactory(gwFactory)
 	activity := factory.NewActivity()
 
@@ -99,7 +128,7 @@ func TestInvokeLLMActivity_NilInput(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_InvalidInputType(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
+	gwFactory := &mockGenerationGatewayFactory{}
 	factory := NewFactory(gwFactory)
 	activity := factory.NewActivity()
 
@@ -113,7 +142,7 @@ func TestInvokeLLMActivity_InvalidInputType(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_GatewayError(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
+	gwFactory := &mockGenerationGatewayFactory{
 		Err: errors.New("gateway creation failed"),
 	}
 
@@ -139,8 +168,8 @@ func TestInvokeLLMActivity_GatewayError(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_GenerationError(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
-		GenerationGateway: &gatewaymocks.MockGenerationGateway{
+	gwFactory := &mockGenerationGatewayFactory{
+		Gateway: &mockGenerationGateway{
 			Err: errors.New("generation failed"),
 		},
 	}

@@ -32,17 +32,22 @@ type Input struct {
 	TargetBranch string
 }
 
-// Factory creates instances of the FetchBranchFileDiff activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// BranchDiffReader reads file diffs between branches.
+type BranchDiffReader interface {
+	GetBranchDiff(filename, targetBranch string) (string, error)
+	ReadOriginalFileContent(filename string) (string, error)
+	ReadStagedFileContent(filename string) (string, error)
 }
 
-// NewFactory creates a new FetchBranchFileDiff activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
+// Factory creates instances of the FetchBranchFileDiff activity with injected dependencies.
+type Factory struct {
+	branchDiffReader BranchDiffReader
+}
+
+// NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.
+func NewFactory(branchDiffReader BranchDiffReader) *Factory {
 	return &Factory{
-		gitService: gitService,
+		branchDiffReader: branchDiffReader,
 	}
 }
 
@@ -60,13 +65,13 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		executorCtx.SendRunning("Fetching branch diff")
 
-		change, err := f.gitService.GetBranchDiff(input.Filename, input.TargetBranch)
+		change, err := f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
 		// For branch diff, we get content from target branch (base) and current HEAD
-		originalFileContent, err := f.gitService.ReadOriginalFileContent(input.Filename)
+		originalFileContent, err := f.branchDiffReader.ReadOriginalFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
 				originalFileContent = "" // File is new
@@ -76,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		// For branch diff, "staged" content is actually current HEAD content
-		stagedFileContent, err := f.gitService.ReadStagedFileContent(input.Filename)
+		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") {
 				// File was deleted - return with empty staged content

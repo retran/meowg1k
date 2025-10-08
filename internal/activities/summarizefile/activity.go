@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -43,17 +42,27 @@ type Output struct {
 	Skipped  bool
 }
 
-// Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
-type Factory struct {
-	invokeLLMFactory *invokellm.Factory
-	summarizeService summarize.Service
+// ContentGenerationActivityFactory creates content generation activities.
+type ContentGenerationActivityFactory interface {
+	NewActivity() executor.Activity[any, any]
 }
 
-// NewFactory creates a new SummarizeFileChanges activity factory with injected services.
-func NewFactory(gatewayFactory gateway.Factory, summarizeService summarize.Service) *Factory {
+// FileSummarizationConfigProvider provides summarization configuration for files.
+type FileSummarizationConfigProvider interface {
+	GetSummarizationConfig(filename string) (*summarize.ResolvedSummarizationConfig, error)
+}
+
+// Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
+type Factory struct {
+	contentGenerationActivityFactory ContentGenerationActivityFactory
+	fileSummarizationConfigProvider  FileSummarizationConfigProvider
+}
+
+// NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
+func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory, fileSummarizationConfigProvider FileSummarizationConfigProvider) *Factory {
 	return &Factory{
-		invokeLLMFactory: invokellm.NewFactory(gatewayFactory),
-		summarizeService: summarizeService,
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
+		fileSummarizationConfigProvider:  fileSummarizationConfigProvider,
 	}
 }
 
@@ -69,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
 		}
 
-		config, err := f.summarizeService.GetSummarizationConfig(input.Filename)
+		config, err := f.fileSummarizationConfigProvider.GetSummarizationConfig(input.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get summarization config for %s: %w", input.Filename, err)
 		}
@@ -100,7 +109,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		content := strings.Join(contentParts, "")
 
-		invokeLLM := f.invokeLLMFactory.NewActivity()
+		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
 
 		invokeInput := &invokellm.Input{
 			Profile:      config.Profile,
@@ -108,7 +117,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "InvokeLLM", invokeLLM, invokeInput)
+		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "GenerateContent", contentGenerationActivity, invokeInput)
 		invokeResult, err := invokeFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)

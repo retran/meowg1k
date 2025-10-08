@@ -23,19 +23,29 @@ import (
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// mockContentGenerationActivityFactory is a mock implementation of ContentGenerationActivityFactory for testing.
+type mockContentGenerationActivityFactory struct {
+	activity executor.Activity[any, any]
+}
+
+func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[any, any] {
+	return m.activity
+}
+
 func TestNewFactory(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockContentGenerationActivityFactory{}
+	factory := NewFactory(mockFactory)
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
 func TestActivityNilInput(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockContentGenerationActivityFactory{}
+	factory := NewFactory(mockFactory)
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
@@ -46,7 +56,8 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := &mockContentGenerationActivityFactory{}
+	factory := NewFactory(mockFactory)
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
@@ -57,52 +68,22 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	mockExec := &testutil.MockExecutor{}
+	// Create a mock activity that returns predefined content
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
 		return &invokellm.Output{
 			Content: "test commit message",
 		}, nil
 	}
 
-	factory := &Factory{
-		invokeLLMFactory: &invokellm.Factory{},
+	mockFactory := &mockContentGenerationActivityFactory{
+		activity: mockInvokeLLM,
 	}
-	// Replace the invokeLLM activity with mock
-	factory.invokeLLMFactory = &invokellm.Factory{}
 
-	// We need to create a wrapper that uses our mock
-	activity := func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, executor.ErrInvalidInputType
-		}
-
-		invokeFuture := mockExec.RunActivity(ctx, executorCtx, "InvokeLLM", mockInvokeLLM, &invokellm.Input{
-			Profile:      input.Profile,
-			SystemPrompt: input.SystemPrompt,
-			UserPrompt:   "test",
-		})
-
-		invokeResult, err := invokeFuture.Get(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		invokeOutput, ok := invokeResult.(*invokellm.Output)
-		if !ok {
-			return nil, executor.ErrInvalidOutputType
-		}
-
-		return &Output{
-			CommitMessage: invokeOutput.Content,
-		}, nil
-	}
+	factory := NewFactory(mockFactory)
+	activity := factory.NewActivity()
 
 	ctx := context.Background()
+	mockExec := executor.NewExecutor()
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{

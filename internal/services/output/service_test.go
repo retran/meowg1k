@@ -51,7 +51,7 @@ func TestNewServiceDefault(t *testing.T) {
 
 func TestPrint(t *testing.T) {
 	var buf bytes.Buffer
-	service := &serviceImpl{destination: &buf}
+	service := &Service{destination: &buf}
 
 	service.Print("hello")
 	service.Print(" world")
@@ -68,7 +68,7 @@ func TestPrint(t *testing.T) {
 
 func TestPrintLine(t *testing.T) {
 	var buf bytes.Buffer
-	service := &serviceImpl{destination: &buf}
+	service := &Service{destination: &buf}
 
 	service.PrintLine("hello")
 	service.PrintLine("world")
@@ -86,7 +86,7 @@ func TestPrintLine(t *testing.T) {
 
 func TestPrintf(t *testing.T) {
 	var buf bytes.Buffer
-	service := &serviceImpl{destination: &buf}
+	service := &Service{destination: &buf}
 
 	service.Printf("count: %d", 42)
 	service.Printf(" name: %s", "test")
@@ -103,7 +103,7 @@ func TestPrintf(t *testing.T) {
 
 func TestFlushEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	service := &serviceImpl{destination: &buf}
+	service := &Service{destination: &buf}
 
 	err := service.Flush()
 	if err != nil {
@@ -117,7 +117,7 @@ func TestFlushEmpty(t *testing.T) {
 
 func TestFlushMultipleTimes(t *testing.T) {
 	var buf bytes.Buffer
-	service := &serviceImpl{destination: &buf}
+	service := &Service{destination: &buf}
 
 	service.Print("first")
 	err := service.Flush()

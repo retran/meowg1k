@@ -37,17 +37,20 @@ type Output struct {
 	Summaries []*summarizefile.Output
 }
 
-// Factory creates instances of the SummarizeAll activity with injected dependencies.
-type Factory struct {
-	summarizeFileFactory *summarizefile.Factory
+// FileSummarizationActivityFactory creates file summarization activities.
+type FileSummarizationActivityFactory interface {
+	NewActivity() executor.Activity[any, any]
 }
 
-// NewFactory creates a new SummarizeAll activity factory with injected services.
-func NewFactory(
-	summarizeFileFactory *summarizefile.Factory,
-) *Factory {
+// Factory creates instances of the SummarizeAll activity with injected dependencies.
+type Factory struct {
+	fileSummarizationActivityFactory FileSummarizationActivityFactory
+}
+
+// NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
+func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactory) *Factory {
 	return &Factory{
-		summarizeFileFactory: summarizeFileFactory,
+		fileSummarizationActivityFactory: fileSummarizationActivityFactory,
 	}
 }
 
@@ -67,7 +70,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		summarizeFutures := make([]*future.Future[any], 0, len(input.Changes))
 		for _, change := range input.Changes {
-			summarizeFile := f.summarizeFileFactory.NewActivity()
+			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
 			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, change.Filename, summarizeFile, &summarizefile.Input{
 				Filename:            change.Filename,
 				Change:              change.Change,

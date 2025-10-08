@@ -43,24 +43,15 @@ var (
 	ErrVoyageAPIKeyRequired = errors.New("voyage provider requires an API key")
 )
 
-// Factory is the interface for creating LLM gateways.
-type Factory interface {
-	// NewGenerationGateway creates a new generation gateway based on the provided profile.
-	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (GenerationGateway, error)
-	// NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
-	NewEmbeddingsGateway(ctx context.Context, profile *profile.ResolvedProfile) (EmbeddingsGateway, error)
-}
-
-// gatewayFactory is the implementation of GatewayFactory.
-type gatewayFactory struct {
+type Factory struct {
 	mu       sync.Mutex
 	limiters map[string]*ratelimit.Limiter // key is profile name
 	repo     ratelimit.Repository          // database repository for rate limiting
 }
 
 // NewFactory creates a new gateway factory.
-func NewFactory(repo ratelimit.Repository) Factory {
-	return &gatewayFactory{
+func NewFactory(repo ratelimit.Repository) *Factory {
+	return &Factory{
 		limiters: make(map[string]*ratelimit.Limiter),
 		repo:     repo,
 	}
@@ -70,7 +61,7 @@ func NewFactory(repo ratelimit.Repository) Factory {
 // This method is thread-safe. Each unique model instance gets its own rate limiter.
 // The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
 // or endpoints get separate rate limiters.
-func (f *gatewayFactory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Limiter {
+func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Limiter {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -106,7 +97,7 @@ func (f *gatewayFactory) getRateLimiter(profile *profile.ResolvedProfile) *ratel
 }
 
 // NewGenerationGateway creates a new generation gateway based on the provided profile.
-func (f *gatewayFactory) NewGenerationGateway(
+func (f *Factory) NewGenerationGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
 ) (GenerationGateway, error) {
@@ -175,7 +166,7 @@ func (f *gatewayFactory) NewGenerationGateway(
 }
 
 // NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
-func (f *gatewayFactory) NewEmbeddingsGateway(
+func (f *Factory) NewEmbeddingsGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
 ) (EmbeddingsGateway, error) {

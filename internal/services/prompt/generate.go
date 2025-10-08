@@ -19,29 +19,32 @@ package prompt
 import (
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/task"
 )
 
-// GeneratePromptService is a service that provides prompts for the generate command.
+// StandardInputReader reads content from standard input.
+type StandardInputReader interface {
+	GetStdIn() string
+}
+
+// TaskConfigurationProvider provides task configuration.
+type TaskConfigurationProvider interface {
+	Get() *task.Configuration
+}
+
+// GeneratePromptService constructs prompts for the generate command.
 type GeneratePromptService struct {
 	systemPrompt string
 	userPrompt   string
 }
 
-// Compile-time interface satisfaction check
-var (
-	_ SystemPromptProvider = (*GeneratePromptService)(nil)
-	_ UserPromptProvider   = (*GeneratePromptService)(nil)
-)
-
-// NewGeneratePromptService creates a new instance of the prompt service for generate command.
+// NewGeneratePromptService creates a prompt service for the generate command.
 func NewGeneratePromptService(
-	commandService command.Service,
-	taskService task.Service,
+	stdInReader StandardInputReader,
+	taskConfigProvider TaskConfigurationProvider,
 ) (*GeneratePromptService, error) {
-	systemPrompt := buildSystemPrompt(taskService)
-	userPrompt := buildUserPrompt(commandService, taskService)
+	systemPrompt := buildSystemPrompt(taskConfigProvider)
+	userPrompt := buildUserPrompt(stdInReader, taskConfigProvider)
 
 	return &GeneratePromptService{
 		systemPrompt: systemPrompt,
@@ -59,16 +62,16 @@ func (g *GeneratePromptService) GetUserPrompt() (string, error) {
 	return g.userPrompt, nil
 }
 
-func buildSystemPrompt(taskService task.Service) string {
-	return taskService.Get().SystemPrompt
+func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) string {
+	return taskConfigProvider.Get().SystemPrompt
 }
 
-func buildUserPrompt(commandService command.Service, taskService task.Service) string {
+func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskConfigurationProvider) string {
 	sb := strings.Builder{}
 
-	userPrompt := taskService.Get().UserPrompt
+	userPrompt := taskConfigProvider.Get().UserPrompt
 
-	contents := commandService.GetStdIn()
+	contents := stdInReader.GetStdIn()
 
 	if userPrompt != "" {
 		sb.WriteString(userPrompt)

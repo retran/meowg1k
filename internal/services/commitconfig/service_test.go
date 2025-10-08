@@ -21,12 +21,33 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil/servicemocks"
 )
 
+// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
+type mockApplicationConfigReader struct {
+	Cfg *config.Config
+}
+
+func (m *mockApplicationConfigReader) GetConfig() *config.Config {
+	return m.Cfg
+}
+
+// mockProfileResolver is a mock implementation of ProfileResolver for testing.
+type mockProfileResolver struct {
+	Profile *profile.ResolvedProfile
+	Err     error
+}
+
+func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return m.Profile, nil
+}
+
 func TestNewService(t *testing.T) {
-	configSvc := &servicemocks.MockConfigService{}
-	profileSvc := &servicemocks.MockProfileService{}
+	configSvc := &mockApplicationConfigReader{}
+	profileSvc := &mockProfileResolver{}
 	service := NewService(configSvc, profileSvc)
 
 	if service == nil {
@@ -40,7 +61,7 @@ func TestGetCommitConfig(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &servicemocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Commit: &config.CommandConfig{
 				Profile:      "test",
@@ -48,7 +69,7 @@ func TestGetCommitConfig(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &servicemocks.MockProfileService{
+	profileSvc := &mockProfileResolver{
 		Profile: resolvedProfile,
 	}
 
@@ -74,12 +95,12 @@ func TestGetCommitConfigDefault(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &servicemocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{
 			Commit: nil,
 		},
 	}
-	profileSvc := &servicemocks.MockProfileService{
+	profileSvc := &mockProfileResolver{
 		Profile: resolvedProfile,
 	}
 
@@ -97,10 +118,10 @@ func TestGetCommitConfigDefault(t *testing.T) {
 }
 
 func TestGetCommitConfigProfileError(t *testing.T) {
-	configSvc := &servicemocks.MockConfigService{
+	configSvc := &mockApplicationConfigReader{
 		Cfg: &config.Config{},
 	}
-	profileSvc := &servicemocks.MockProfileService{
+	profileSvc := &mockProfileResolver{
 		Err: profile.ErrProfileNotFound,
 	}
 

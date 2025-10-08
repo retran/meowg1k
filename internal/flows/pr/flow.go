@@ -26,12 +26,27 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/internal/services/prconfig"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// PRConfigProvider provides pull request configuration.
+type PRConfigProvider interface {
+	GetPRConfig() (*prconfig.ResolvedPRConfig, error)
+}
+
+// CommandParametersReader reads command-line parameters and flags.
+type CommandParametersReader interface {
+	GetBaseBranchFlag() (string, error)
+	GetIntentFlag() (string, error)
+	GetStdIn() string
+}
+
+// OutputWriter writes output to the user.
+type OutputWriter interface {
+	PrintLine(line string)
+}
 
 // Factory creates instances of the PR flow with injected dependencies.
 type Factory struct {
@@ -40,9 +55,9 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory
 	summarizeAllFactory        executor.ActivityFactory
 	composePRFactory           executor.ActivityFactory
-	prConfigService            prconfig.Service
-	commandService             command.Service
-	outputService              output.Service
+	prConfigProvider           PRConfigProvider
+	commandParametersReader    CommandParametersReader
+	outputWriter               OutputWriter
 }
 
 // NewFactory creates a new PR flow factory with injected services.
@@ -52,9 +67,9 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory,
 	summarizeAllFactory executor.ActivityFactory,
 	composePRFactory executor.ActivityFactory,
-	prConfigService prconfig.Service,
-	commandService command.Service,
-	outputService output.Service,
+	prConfigProvider PRConfigProvider,
+	commandParametersReader CommandParametersReader,
+	outputWriter OutputWriter,
 ) *Factory {
 	return &Factory{
 		listBranchFilesFactory:     listBranchFilesFactory,
@@ -62,9 +77,9 @@ func NewFactory(
 		fetchAllBranchDiffsFactory: fetchAllBranchDiffsFactory,
 		summarizeAllFactory:        summarizeAllFactory,
 		composePRFactory:           composePRFactory,
-		prConfigService:            prConfigService,
-		commandService:             commandService,
-		outputService:              outputService,
+		prConfigProvider:           prConfigProvider,
+		commandParametersReader:    commandParametersReader,
+		outputWriter:               outputWriter,
 	}
 }
 
@@ -74,7 +89,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		flowCtx.SendRunning("Composing Pull Request description")
 
 		// Get the base branch to compare against
-		baseBranch, err := f.commandService.GetBaseBranchFlag()
+		baseBranch, err := f.commandParametersReader.GetBaseBranchFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get base-branch flag: %w", err)
 		}
@@ -144,18 +159,18 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose PR description
-		prConfig, err := f.prConfigService.GetPRConfig()
+		prConfig, err := f.prConfigProvider.GetPRConfig()
 		if err != nil {
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
 		}
 
-		intent, err := f.commandService.GetIntentFlag()
+		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
-			intent = f.commandService.GetStdIn()
+			intent = f.commandParametersReader.GetStdIn()
 		}
 
 		composePR := f.composePRFactory.NewActivity()
@@ -178,7 +193,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		f.outputService.PrintLine(prResult.PRDescription)
+		f.outputWriter.PrintLine(prResult.PRDescription)
 
 		return nil
 	}

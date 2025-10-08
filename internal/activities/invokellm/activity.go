@@ -39,13 +39,18 @@ type Output struct {
 	Metadata map[string]any
 }
 
-// Factory creates instances of the InvokeLLM activity with injected dependencies.
-type Factory struct {
-	gatewayFactory gateway.Factory
+// GenerationGatewayFactory creates generation gateways for LLM providers.
+type GenerationGatewayFactory interface {
+	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gateway.GenerationGateway, error)
 }
 
-// NewFactory creates a new InvokeLLM activity factory with injected services.
-func NewFactory(gatewayFactory gateway.Factory) *Factory {
+// Factory creates instances of the InvokeLLM activity with injected dependencies.
+type Factory struct {
+	gatewayFactory GenerationGatewayFactory
+}
+
+// NewFactory creates a new InvokeLLM activity factory with the provided gateway factory.
+func NewFactory(gatewayFactory GenerationGatewayFactory) *Factory {
 	return &Factory{
 		gatewayFactory: gatewayFactory,
 	}

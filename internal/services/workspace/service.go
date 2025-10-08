@@ -22,20 +22,14 @@ import (
 	"os"
 )
 
-// Service provides workspace directory operations.
-type Service interface {
-	// GetWorkspaceDir returns the current workspace directory path.
-	GetWorkspaceDir() (string, error)
-}
-
-type serviceImpl struct{}
+type Service struct{}
 
 // NewService creates a new workspace service instance.
-func NewService() Service {
-	return &serviceImpl{}
+func NewService() *Service {
+	return &Service{}
 }
 
-func (g *serviceImpl) GetWorkspaceDir() (string, error) {
+func (g *Service) GetWorkspaceDir() (string, error) {
 	path, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current working directory: %w", err)

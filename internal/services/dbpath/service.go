@@ -22,28 +22,22 @@ import (
 	"path/filepath"
 )
 
-// Service provides database path resolution capabilities.
-type Service interface {
-	// GetMainDBPath returns the path to the main database file.
-	GetMainDBPath() string
-}
-
-// serviceImpl is the concrete implementation of the database path service.
-type serviceImpl struct {
+// Service is the concrete implementation of the database path service.
+type Service struct {
 	mainDBPath string
 }
 
 // NewService creates a new database path service.
 // It determines the appropriate location for the main database file
 // based on XDG Base Directory specification or fallback to current directory.
-func NewService() Service {
-	return &serviceImpl{
+func NewService() *Service {
+	return &Service{
 		mainDBPath: determineMainDBPath(),
 	}
 }
 
 // GetMainDBPath returns the path to the main database file.
-func (s *serviceImpl) GetMainDBPath() string {
+func (s *Service) GetMainDBPath() string {
 	return s.mainDBPath
 }
 

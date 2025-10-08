@@ -33,29 +33,33 @@ type ResolvedSummarizationConfig struct {
 	IncludeChangedFile  bool
 }
 
-// Service provides functionality for resolving file summarization configuration.
-type Service interface {
-	// GetSummarizationConfig returns the resolved configuration for summarizing a specific file.
-	GetSummarizationConfig(filename string) (*ResolvedSummarizationConfig, error)
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
 }
 
-// serviceImpl is the concrete implementation of the Service interface.
-type serviceImpl struct {
-	configService  config.Service
-	profileService profile.Service
+// ProfileResolver resolves profile configurations.
+type ProfileResolver interface {
+	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 }
 
-// NewService creates a new instance of the summarization service.
-func NewService(configService config.Service, profileService profile.Service) Service {
-	return &serviceImpl{
-		configService:  configService,
-		profileService: profileService,
+// Service resolves file summarization configurations.
+type Service struct {
+	configReader    ApplicationConfigReader
+	profileResolver ProfileResolver
+}
+
+// NewService creates a new file summarization configuration service.
+func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+	return &Service{
+		configReader:    configReader,
+		profileResolver: profileResolver,
 	}
 }
 
 // GetSummarizationConfig resolves the summarization configuration for a given file.
-func (s *serviceImpl) GetSummarizationConfig(filename string) (*ResolvedSummarizationConfig, error) {
-	currentConfig := s.configService.GetConfig()
+func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizationConfig, error) {
+	currentConfig := s.configReader.GetConfig()
 
 	if currentConfig.Summarize == nil {
 		return nil, nil
@@ -106,7 +110,7 @@ func (s *serviceImpl) GetSummarizationConfig(filename string) (*ResolvedSummariz
 		}
 	}
 
-	resolvedProfile, err := s.profileService.Get(profile.Profile(profileName))
+	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
 		return nil, err
 	}

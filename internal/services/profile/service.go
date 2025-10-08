@@ -65,28 +65,29 @@ type ResolvedProfile struct {
 	TopK        *int          // TopK parameter (optional)
 }
 
-// Service provides profile configuration resolution capabilities.
-type Service interface {
-	// Get retrieves a profile with validation using the current config.
-	Get(profile Profile) (*ResolvedProfile, error)
+// ApplicationConfigReader reads the application configuration.
+type ApplicationConfigReader interface {
+	GetConfig() *config.Config
 }
 
-// serviceImpl is the concrete implementation of the profile resolver service.
-type serviceImpl struct {
-	modelService     model.Service
-	configService    config.Service
+// ModelResolver resolves model configurations.
+type ModelResolver interface {
+	Get(model model.Model) (*model.ResolvedModel, error)
+}
+
+// Service resolves and caches profile configurations.
+type Service struct {
+	modelResolver    ModelResolver
+	configReader     ApplicationConfigReader
 	resolvedProfiles map[Profile]*ResolvedProfile
 	mu               sync.RWMutex
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
-
 // NewService creates a new profile resolver service.
-func NewService(configService config.Service, modelService model.Service) Service {
-	service := &serviceImpl{
-		modelService:     modelService,
-		configService:    configService,
+func NewService(configReader ApplicationConfigReader, modelResolver ModelResolver) *Service {
+	service := &Service{
+		modelResolver:    modelResolver,
+		configReader:     configReader,
 		resolvedProfiles: make(map[Profile]*ResolvedProfile),
 	}
 
@@ -94,7 +95,7 @@ func NewService(configService config.Service, modelService model.Service) Servic
 }
 
 // Get retrieves a profile using cached data from initialization.
-func (s *serviceImpl) Get(profile Profile) (*ResolvedProfile, error) {
+func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
 	s.mu.RLock()
 	if resolved, exists := s.resolvedProfiles[profile]; exists {
 		s.mu.RUnlock()
@@ -109,7 +110,7 @@ func (s *serviceImpl) Get(profile Profile) (*ResolvedProfile, error) {
 		return resolved, nil
 	}
 
-	cfg := s.configService.GetConfig()
+	cfg := s.configReader.GetConfig()
 
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
@@ -122,7 +123,7 @@ func (s *serviceImpl) Get(profile Profile) (*ResolvedProfile, error) {
 }
 
 // resolveProfileInternal performs the actual profile resolution logic.
-func (s *serviceImpl) resolveProfileInternal(
+func (s *Service) resolveProfileInternal(
 	profile Profile,
 	cfg *config.Config,
 ) (*ResolvedProfile, error) {
@@ -141,7 +142,7 @@ func (s *serviceImpl) resolveProfileInternal(
 	}
 
 	// Resolve the model instance
-	resolvedModel, err := s.modelService.Get(model.Model(profileDef.Model))
+	resolvedModel, err := s.modelResolver.Get(model.Model(profileDef.Model))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve model '%s' for profile '%s': %w", profileDef.Model, profile, err)
 	}
@@ -187,7 +188,7 @@ func (s *serviceImpl) resolveProfileInternal(
 }
 
 // validateResolvedProfile validates a resolved profile configuration.
-func (s *serviceImpl) validateResolvedProfile(resolved *ResolvedProfile) error {
+func (s *Service) validateResolvedProfile(resolved *ResolvedProfile) error {
 	if resolved == nil {
 		return ErrResolvedProfileCannotBeNil
 	}

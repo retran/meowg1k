@@ -25,7 +25,6 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/llm"
 )
 
@@ -229,26 +228,22 @@ type CommandConfig struct {
 	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 }
 
-// Service provides configuration loading and management capabilities.
-type Service interface {
-	// GetConfig returns the loaded configuration.
-	GetConfig() *Config
+// ConfigFilePathResolver resolves the configuration file path.
+type ConfigFilePathResolver interface {
+	GetConfigPath() (string, error)
 }
 
-// serviceImpl is the concrete implementation of the config service.
-type serviceImpl struct {
+// Service loads and provides application configuration.
+type Service struct {
 	config *Config
 }
 
-// Compile-time interface satisfaction check
-var _ Service = (*serviceImpl)(nil)
-
 // NewService creates a new configuration service and loads configuration at creation time.
-func NewService(commandSvc command.Service) (Service, error) {
-	service := &serviceImpl{}
+func NewService(configPathResolver ConfigFilePathResolver) (*Service, error) {
+	service := &Service{}
 	v := viper.New()
 
-	configPath, err := commandSvc.GetConfigPath()
+	configPath, err := configPathResolver.GetConfigPath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config path from command: %w", err)
 	}
@@ -375,6 +370,6 @@ func getConfigPaths() []string {
 }
 
 // GetConfig returns the loaded configuration.
-func (s *serviceImpl) GetConfig() *Config {
+func (s *Service) GetConfig() *Config {
 	return s.config
 }

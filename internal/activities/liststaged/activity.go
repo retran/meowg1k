@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -33,17 +32,20 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ListStaged activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// StagedFileListReader reads list of staged files from git.
+type StagedFileListReader interface {
+	ReadStagedFiles() ([]string, error)
 }
 
-// NewFactory creates a new ListStaged activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
+// Factory creates instances of the ListStaged activity with injected dependencies.
+type Factory struct {
+	stagedFileListReader StagedFileListReader
+}
+
+// NewFactory creates a new ListStaged activity factory with the provided staged file list reader.
+func NewFactory(stagedFileListReader StagedFileListReader) *Factory {
 	return &Factory{
-		gitService: gitService,
+		stagedFileListReader: stagedFileListReader,
 	}
 }
 
@@ -63,7 +65,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		_ = input // input is empty struct, but we validate it
 
-		files, err := f.gitService.ReadStagedFiles()
+		files, err := f.stagedFileListReader.ReadStagedFiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged files: %w", err)
 		}

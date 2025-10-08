@@ -21,12 +21,39 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/testutil"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// mockStagedChangesReader is a mock implementation of StagedChangesReader for testing.
+type mockStagedChangesReader struct {
+	ReadStagedChangesFunc       func(filename string) (string, error)
+	ReadOriginalFileContentFunc func(filename string) (string, error)
+	ReadStagedFileContentFunc   func(filename string) (string, error)
+}
+
+func (m *mockStagedChangesReader) ReadStagedChanges(filename string) (string, error) {
+	if m.ReadStagedChangesFunc != nil {
+		return m.ReadStagedChangesFunc(filename)
+	}
+	return "", nil
+}
+
+func (m *mockStagedChangesReader) ReadOriginalFileContent(filename string) (string, error) {
+	if m.ReadOriginalFileContentFunc != nil {
+		return m.ReadOriginalFileContentFunc(filename)
+	}
+	return "", nil
+}
+
+func (m *mockStagedChangesReader) ReadStagedFileContent(filename string) (string, error) {
+	if m.ReadStagedFileContentFunc != nil {
+		return m.ReadStagedFileContentFunc(filename)
+	}
+	return "", nil
+}
+
 func TestNewFactory(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedChangesReader{}
 	factory := NewFactory(gitSvc)
 
 	if factory == nil {
@@ -35,7 +62,7 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestActivityNilInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedChangesReader{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -49,7 +76,7 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivityInvalidInput(t *testing.T) {
-	gitSvc := &testutil.MockGitService{}
+	gitSvc := &mockStagedChangesReader{}
 	factory := NewFactory(gitSvc)
 	activity := factory.NewActivity()
 
@@ -63,7 +90,7 @@ func TestActivityInvalidInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	gitSvc := &testutil.MockGitService{
+	gitSvc := &mockStagedChangesReader{
 		ReadStagedChangesFunc: func(filePath string) (string, error) {
 			return "diff content", nil
 		},

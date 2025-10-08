@@ -293,7 +293,7 @@ func TestGetProfileWithTemperature(t *testing.T) {
 func TestValidateResolvedProfileSuccess(t *testing.T) {
 	configService := &mockConfigService{}
 	modelService := &mockModelService{}
-	service := NewService(configService, modelService).(*serviceImpl)
+	service := NewService(configService, modelService)
 
 	validProfile := &ResolvedProfile{
 		ModelID:         "gpt4",
@@ -313,7 +313,7 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 func TestValidateResolvedProfileErrors(t *testing.T) {
 	configService := &mockConfigService{}
 	modelService := &mockModelService{}
-	service := NewService(configService, modelService).(*serviceImpl)
+	service := NewService(configService, modelService)
 
 	testCases := []struct {
 		name    string

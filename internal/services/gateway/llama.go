@@ -34,7 +34,7 @@ var _ GenerationGateway = (*llamaGateway)(nil)
 
 // llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
 type llamaGateway struct {
-	client llama.Service
+	client *llama.Service
 }
 
 const (
