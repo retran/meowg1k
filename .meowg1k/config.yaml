@@ -1,18 +1,27 @@
-profiles:
-  fast:
+models:
+  qwen-flash:
     provider: "openrouter"
     model: "qwen/qwen3-coder-flash"
-    requestsPerMinute: 60
-    tokensPerMinute: 1000000
-    requestsPerDay: 10000
+    rateLimit:
+      requestsPerMinute: 60
+      tokensPerMinute: 1000000
+      requestsPerDay: 10000
 
-  smart:
+  qwen-plus:
     provider: "openrouter"
     model: "qwen/qwen3-coder-plus"
+    rateLimit:
+      requestsPerMinute: 60
+      tokensPerMinute: 1000000
+      requestsPerDay: 10000
+
+profiles:
+  fast:
+    model: "qwen-flash"
+
+  smart:
+    model: "qwen-plus"
     timeout: "10m"
-    requestsPerMinute: 60
-    tokensPerMinute: 1000000
-    requestsPerDay: 10000
 
 generate:
   default:

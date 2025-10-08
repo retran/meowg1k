@@ -53,5 +53,6 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 // estimateTokenCount provides a rough estimate of token count.
 // Typically ~4 characters per token for English text.
 func estimateTokenCount(text string) int {
+	// TODO implement precise token counting
 	return len(text) / 4
 }

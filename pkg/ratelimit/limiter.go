@@ -21,11 +21,12 @@ import (
 	"time"
 )
 
-// Limiter provides multi-dimensional rate limiting.
+// Limiter provides multi-dimensional rate limiting with database persistence.
 type Limiter struct {
 	rpm *Bucket // Requests per minute
 	tpm *Bucket // Tokens per minute (input)
 	rpd *Bucket // Requests per day
+	id  string  // Unique identifier for this limiter
 }
 
 // Config defines rate limiting configuration.
@@ -42,23 +43,37 @@ var Unlimited = Config{
 	RequestsPerDay:    0,
 }
 
-// NewLimiter creates a new multi-dimensional rate limiter.
-func NewLimiter(config Config) *Limiter {
-	limiter := &Limiter{}
+// NewLimiter creates a new multi-dimensional rate limiter with database persistence.
+// The id parameter is used to uniquely identify this limiter's buckets in the database.
+func NewLimiter(id string, config Config, repo Repository) (*Limiter, error) {
+	limiter := &Limiter{
+		id: id,
+	}
+
+	var err error
 
 	if config.RequestsPerMinute > 0 {
-		limiter.rpm = NewBucket(config.RequestsPerMinute, config.RequestsPerMinute, time.Minute)
+		limiter.rpm, err = NewBucket(id+":rpm", config.RequestsPerMinute, config.RequestsPerMinute, time.Minute, repo)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if config.TokensPerMinute > 0 {
-		limiter.tpm = NewBucket(config.TokensPerMinute, config.TokensPerMinute, time.Minute)
+		limiter.tpm, err = NewBucket(id+":tpm", config.TokensPerMinute, config.TokensPerMinute, time.Minute, repo)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if config.RequestsPerDay > 0 {
-		limiter.rpd = NewBucket(config.RequestsPerDay, config.RequestsPerDay, 24*time.Hour)
+		limiter.rpd, err = NewBucket(id+":rpd", config.RequestsPerDay, config.RequestsPerDay, 24*time.Hour, repo)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return limiter
+	return limiter, nil
 }
 
 // Wait waits until the request with the specified token count can be processed.

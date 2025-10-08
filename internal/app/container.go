@@ -28,12 +28,17 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/spf13/cobra"
 
+	"github.com/retran/meowg1k/internal/db"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/services/dbpath"
 	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/internal/services/shutdown"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 var (
@@ -59,6 +64,12 @@ type Container struct {
 
 	// OutputService handles application output to stdout/stderr.
 	OutputService output.Service
+
+	// DBHost provides access to database connections
+	DBHost db.Host
+
+	// RateLimitRepo is the repository for rate limiting state
+	RateLimitRepo ratelimit.Repository
 }
 
 const (
@@ -155,11 +166,28 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return outputService.Flush()
 	})
 
+	// Initialize database path service and host
+	dbPathService := dbpath.NewService()
+	dbHost, err := db.NewLocalHost(dbPathService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize database host: %w", err)
+	}
+
+	mainDB := dbHost.GetDB()
+
+	rateLimitRepo := ratelimit.NewRepository(mainDB)
+
+	shutdownService.Register(func(ctx context.Context) error {
+		return dbHost.Close()
+	})
+
 	container.Logger = logger
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
+	container.DBHost = dbHost
+	container.RateLimitRepo = rateLimitRepo
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
 	cmd.SetContext(shutdownCtx)

@@ -43,6 +43,9 @@ const (
 
 // Config represents the complete meowg1k configuration.
 type Config struct {
+	// Models define LLM API instances with their connection parameters and rate limits
+	Models map[string]*ModelDefinition `yaml:"models" mapstructure:"models"`
+
 	// Profiles define reusable LLM request configurations
 	Profiles map[string]*ProfileDefinition `yaml:"profiles" mapstructure:"profiles"`
 
@@ -62,14 +65,21 @@ type Config struct {
 	PR *CommandConfig `yaml:"pr" mapstructure:"pr"`
 }
 
-// ProfileDefinition defines a reusable LLM configuration that can be referenced by different commands.
-// Profiles allow you to define provider settings once and reuse them across tasks.
-type ProfileDefinition struct {
-	// Provider specifies the LLM provider to use
+// ModelDefinition defines an LLM API instance with connection parameters.
+// A model instance represents a specific API endpoint with its own rate limits.
+// Multiple profiles can reference the same model instance to share rate limits.
+type ModelDefinition struct {
+	// Provider specifies the LLM provider (required)
 	Provider string `yaml:"provider" mapstructure:"provider"`
 
-	// Model specifies the model name (optional, uses smart defaults if omitted)
+	// Model specifies the model name (optional, uses provider defaults if omitted)
 	Model string `yaml:"model" mapstructure:"model"`
+
+	// BaseURL sets the API base URL (required for "llama" and "openai-compatible" providers)
+	BaseURL string `yaml:"baseURL" mapstructure:"baseURL"`
+
+	// APIKeyEnv specifies the environment variable containing the API key (optional)
+	APIKeyEnv string `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
 
 	// MaxInputTokens sets the maximum input token limit (optional, defaults to model limits)
 	MaxInputTokens int `yaml:"maxInputTokens" mapstructure:"maxInputTokens"`
@@ -77,18 +87,15 @@ type ProfileDefinition struct {
 	// MaxOutputTokens sets the maximum output token limit (optional, defaults to model limits)
 	MaxOutputTokens int `yaml:"maxOutputTokens" mapstructure:"maxOutputTokens"`
 
-	// Timeout sets the request timeout duration (optional, defaults to 5m)
-	Timeout time.Duration `yaml:"timeout" mapstructure:"timeout"`
-
-	// BaseURL sets the API base URL (required for "llama" and "openai-compatible" providers)
-	BaseURL string `yaml:"baseURL" mapstructure:"baseURL"`
-
-	// APIKeyEnv specifies the environment variable containing the API key (optional, uses smart defaults)
-	APIKeyEnv string `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
-
 	// TokenizerType specifies the tokenizer to use (optional, auto-detected from model)
 	TokenizerType llm.TokenizerType `yaml:"tokenizerType" mapstructure:"tokenizerType"`
 
+	// RateLimit defines rate limiting for this model instance
+	RateLimit *ModelRateLimitConfig `yaml:"rateLimit" mapstructure:"rateLimit"`
+}
+
+// ModelRateLimitConfig defines rate limiting for a model instance.
+type ModelRateLimitConfig struct {
 	// RequestsPerMinute sets the maximum requests per minute (0 = unlimited)
 	RequestsPerMinute int `yaml:"requestsPerMinute" mapstructure:"requestsPerMinute"`
 
@@ -97,6 +104,28 @@ type ProfileDefinition struct {
 
 	// RequestsPerDay sets the maximum requests per day (0 = unlimited)
 	RequestsPerDay int `yaml:"requestsPerDay" mapstructure:"requestsPerDay"`
+}
+
+// ProfileDefinition defines request-specific parameters for using a model.
+// Profiles reference a model instance and add request-specific settings like timeout and temperature.
+type ProfileDefinition struct {
+	// Model references a model defined in the models section (required)
+	Model string `yaml:"model" mapstructure:"model"`
+
+	// Timeout sets the request timeout duration (optional, defaults to 5m)
+	Timeout time.Duration `yaml:"timeout" mapstructure:"timeout"`
+
+	// Temperature controls randomness in generation (optional, model-specific defaults)
+	Temperature *float64 `yaml:"temperature" mapstructure:"temperature"`
+
+	// TopP controls nucleus sampling (optional, model-specific defaults)
+	TopP *float64 `yaml:"topP" mapstructure:"topP"`
+
+	// TopK controls top-k sampling (optional, model-specific defaults)
+	TopK *int `yaml:"topK" mapstructure:"topK"`
+
+	// MaxTokens overrides the model's default max output tokens for this profile (optional)
+	MaxTokens *int `yaml:"maxTokens" mapstructure:"maxTokens"`
 }
 
 // GenerateConfig holds configuration for the generate command.

@@ -55,25 +55,28 @@ type Factory interface {
 type gatewayFactory struct {
 	mu       sync.Mutex
 	limiters map[string]*ratelimit.Limiter // key is profile name
+	repo     ratelimit.Repository          // database repository for rate limiting
 }
 
 // NewFactory creates a new gateway factory.
-func NewFactory() Factory {
+func NewFactory(repo ratelimit.Repository) Factory {
 	return &gatewayFactory{
 		limiters: make(map[string]*ratelimit.Limiter),
+		repo:     repo,
 	}
 }
 
 // getRateLimiter returns or creates a rate limiter for the given profile.
-// This method is thread-safe. Each unique profile gets its own rate limiter instance.
+// This method is thread-safe. Each unique model instance gets its own rate limiter.
+// The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
+// or endpoints get separate rate limiters.
 func (f *gatewayFactory) getRateLimiter(profile *profile.ResolvedProfile) *ratelimit.Limiter {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	key := profile.Name
-	if key == "" {
-		key = string(profile.Provider) + ":" + profile.Model
-	}
+	// Generate key based on model instance characteristics
+	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
+	key := string(profile.Provider) + ":" + profile.BaseURL + ":" + profile.Model + ":" + profile.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {
 		return limiter
@@ -90,7 +93,13 @@ func (f *gatewayFactory) getRateLimiter(profile *profile.ResolvedProfile) *ratel
 		config = ratelimit.Unlimited
 	}
 
-	limiter := ratelimit.NewLimiter(config)
+	limiter, err := ratelimit.NewLimiter(key, config, f.repo)
+	if err != nil {
+		// If we can't create a limiter, return an unlimited one
+		// This ensures the gateway can still function
+		limiter, _ = ratelimit.NewLimiter(key, ratelimit.Unlimited, f.repo)
+	}
+
 	f.limiters[key] = limiter
 
 	return limiter

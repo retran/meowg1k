@@ -36,6 +36,7 @@ import (
 	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/services/model"
 	"github.com/retran/meowg1k/internal/services/prconfig"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/prompt"
@@ -53,13 +54,14 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 	filterService := filter.NewService(c.ConfigService)
 
 	providerService := provider.NewService()
-	profileService := profile.NewService(c.ConfigService, providerService)
+	modelService := model.NewService(c.ConfigService, providerService)
+	profileService := profile.NewService(c.ConfigService, modelService)
 
 	summarizeService := summarize.NewService(c.ConfigService, profileService)
 
 	commitConfigService := commitconfig.NewService(c.ConfigService, profileService)
 
-	gatewayFactory := gateway.NewFactory()
+	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
 
 	// Activities for regular staged commit mode
 	listStagedActivityFactory := liststaged.NewFactory(gitService)
@@ -96,7 +98,8 @@ func (c *Container) CreateCommitFlow() executor.Flow {
 // CreateGenerateFlow creates a complete generate flow with all dependencies.
 func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	providerService := provider.NewService()
-	profileService := profile.NewService(c.ConfigService, providerService)
+	modelService := model.NewService(c.ConfigService, providerService)
+	profileService := profile.NewService(c.ConfigService, modelService)
 
 	taskService, err := task.NewService(
 		c.CommandService,
@@ -115,7 +118,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	gatewayFactory := gateway.NewFactory()
+	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
 
 	flowFactory := generate.NewFlowFactory(
 		taskService,
@@ -135,13 +138,14 @@ func (c *Container) CreatePRFlow() executor.Flow {
 	filterService := filter.NewService(c.ConfigService)
 
 	providerService := provider.NewService()
-	profileService := profile.NewService(c.ConfigService, providerService)
+	modelService := model.NewService(c.ConfigService, providerService)
+	profileService := profile.NewService(c.ConfigService, modelService)
 
 	summarizeService := summarize.NewService(c.ConfigService, profileService)
 
 	prConfigService := prconfig.NewService(c.ConfigService, profileService)
 
-	gatewayFactory := gateway.NewFactory()
+	gatewayFactory := gateway.NewFactory(c.RateLimitRepo)
 
 	// Activities for branch diff mode
 	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)

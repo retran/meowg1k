@@ -20,12 +20,12 @@ package profile
 import (
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/llm"
+	"github.com/retran/meowg1k/internal/services/model"
 	"github.com/retran/meowg1k/internal/services/provider"
 )
 
@@ -35,33 +35,34 @@ var (
 	ErrProfileNotFound            = errors.New("profile not found in configuration")
 	ErrResolvedProfileCannotBeNil = errors.New("resolved profile cannot be nil")
 	ErrTimeoutTooSmall            = errors.New("timeout must be at least 1 second")
-	ErrMaxOutputTokensTooLarge    = errors.New("max output tokens too large")
-	ErrMaxInputTokensTooLarge     = errors.New("max input tokens too large")
-	ErrModelNameRequired          = errors.New("model name is required")
+	ErrModelReferenceRequired     = errors.New("profile must reference a model")
 )
 
 // Profile defines an enumeration for configured profile names.
 type Profile string
 
-// RateLimitConfig contains rate limiting configuration for a profile.
-type RateLimitConfig struct {
-	RequestsPerMinute int
-	TokensPerMinute   int
-	RequestsPerDay    int
-}
-
-// ResolvedProfile represents a profile with all values resolved.
+// ResolvedProfile represents a profile with all values resolved from both model and profile config.
 type ResolvedProfile struct {
-	Name            string
-	Provider        provider.Provider
-	Model           string
-	MaxInputTokens  int
-	MaxOutputTokens int
-	Timeout         time.Duration
-	BaseURL         string
-	APIKey          string
-	TokenizerType   llm.TokenizerType
-	RateLimit       RateLimitConfig
+	// Profile information
+	Name string
+
+	// Model instance information (from model config)
+	ModelID         string                // Model instance ID
+	Provider        provider.Provider     // Provider type
+	Model           string                // Model name
+	MaxInputTokens  int                   // Maximum input tokens
+	MaxOutputTokens int                   // Maximum output tokens (can be overridden by profile)
+	BaseURL         string                // API base URL
+	APIKey          string                // Resolved API key (actual value)
+	APIKeyEnv       string                // Environment variable name for API key
+	TokenizerType   llm.TokenizerType     // Tokenizer type
+	RateLimit       model.RateLimitConfig // Rate limiting config
+
+	// Request-specific parameters (from profile config)
+	Timeout     time.Duration // Request timeout
+	Temperature *float64      // Temperature parameter (optional)
+	TopP        *float64      // TopP parameter (optional)
+	TopK        *int          // TopK parameter (optional)
 }
 
 // Service provides profile configuration resolution capabilities.
@@ -72,7 +73,7 @@ type Service interface {
 
 // serviceImpl is the concrete implementation of the profile resolver service.
 type serviceImpl struct {
-	providerService  provider.Service
+	modelService     model.Service
 	configService    config.Service
 	resolvedProfiles map[Profile]*ResolvedProfile
 	mu               sync.RWMutex
@@ -82,9 +83,9 @@ type serviceImpl struct {
 var _ Service = (*serviceImpl)(nil)
 
 // NewService creates a new profile resolver service.
-func NewService(configService config.Service, providerService provider.Service) Service {
+func NewService(configService config.Service, modelService model.Service) Service {
 	service := &serviceImpl{
-		providerService:  providerService,
+		modelService:     modelService,
 		configService:    configService,
 		resolvedProfiles: make(map[Profile]*ResolvedProfile),
 	}
@@ -134,41 +135,48 @@ func (s *serviceImpl) resolveProfileInternal(
 		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
 	}
 
-	providerDef, err := s.providerService.Get(provider.Provider(profileDef.Provider))
+	// Profile must reference a model
+	if profileDef.Model == "" {
+		return nil, fmt.Errorf("%w: profile '%s'", ErrModelReferenceRequired, profile)
+	}
+
+	// Resolve the model instance
+	resolvedModel, err := s.modelService.Get(model.Model(profileDef.Model))
 	if err != nil {
-		return nil, fmt.Errorf("unknown provider '%s' in profile '%s': %w", profileDef.Provider, profile, err)
+		return nil, fmt.Errorf("failed to resolve model '%s' for profile '%s': %w", profileDef.Model, profile, err)
 	}
 
+	// Create resolved profile by combining model and profile settings
 	resolved := &ResolvedProfile{
-		Name:            string(profile),
-		Provider:        providerDef.Type,
-		Model:           profileDef.Model,
-		MaxInputTokens:  profileDef.MaxInputTokens,
-		MaxOutputTokens: profileDef.MaxOutputTokens,
-		Timeout:         profileDef.Timeout,
-		BaseURL:         profileDef.BaseURL,
-		TokenizerType:   profileDef.TokenizerType,
-		RateLimit: RateLimitConfig{
-			RequestsPerMinute: profileDef.RequestsPerMinute,
-			TokensPerMinute:   profileDef.TokensPerMinute,
-			RequestsPerDay:    profileDef.RequestsPerDay,
-		},
+		Name: string(profile),
+
+		// Model instance information
+		ModelID:         resolvedModel.ID,
+		Provider:        resolvedModel.Provider,
+		Model:           resolvedModel.Model,
+		MaxInputTokens:  resolvedModel.MaxInputTokens,
+		MaxOutputTokens: resolvedModel.MaxOutputTokens,
+		BaseURL:         resolvedModel.BaseURL,
+		APIKey:          resolvedModel.APIKey,
+		APIKeyEnv:       resolvedModel.APIKeyEnv,
+		TokenizerType:   resolvedModel.TokenizerType,
+		RateLimit:       resolvedModel.RateLimit,
+
+		// Request-specific parameters from profile
+		Timeout:     profileDef.Timeout,
+		Temperature: profileDef.Temperature,
+		TopP:        profileDef.TopP,
+		TopK:        profileDef.TopK,
 	}
 
-	resolved.Model = defaultValue(resolved.Model, providerDef.DefaultModel)
-	resolved.MaxInputTokens = defaultValue(resolved.MaxInputTokens, providerDef.MaxInputTokens)
-	resolved.MaxOutputTokens = defaultValue(resolved.MaxOutputTokens, providerDef.MaxOutputTokens)
-	resolved.Timeout = defaultValue(resolved.Timeout, providerDef.DefaultTimeout)
-	resolved.TokenizerType = defaultValue(resolved.TokenizerType, providerDef.TokenizerType)
-	resolved.BaseURL = defaultValue(resolved.BaseURL, providerDef.DefaultBaseURL)
-
-	apiKeyEnv := profileDef.APIKeyEnv
-	if apiKeyEnv == "" && providerDef.DefaultEnvVar != "" {
-		apiKeyEnv = providerDef.DefaultEnvVar
+	// Apply default timeout if not specified
+	if resolved.Timeout == 0 {
+		resolved.Timeout = 5 * time.Minute
 	}
 
-	if apiKeyEnv != "" {
-		resolved.APIKey = os.Getenv(apiKeyEnv)
+	// Profile can override max output tokens
+	if profileDef.MaxTokens != nil && *profileDef.MaxTokens > 0 {
+		resolved.MaxOutputTokens = *profileDef.MaxTokens
 	}
 
 	if err := s.validateResolvedProfile(resolved); err != nil {
@@ -188,26 +196,15 @@ func (s *serviceImpl) validateResolvedProfile(resolved *ResolvedProfile) error {
 		return fmt.Errorf("%w, got %v", ErrTimeoutTooSmall, resolved.Timeout)
 	}
 
-	if resolved.MaxOutputTokens > 200000 {
-		return fmt.Errorf("%w: %d (max 200000)", ErrMaxOutputTokensTooLarge, resolved.MaxOutputTokens)
-	}
-
-	if resolved.MaxInputTokens > 2000000 {
-		return fmt.Errorf("%w: %d (max 2000000)", ErrMaxInputTokensTooLarge, resolved.MaxInputTokens)
-	}
-
+	// Model validation is already done by model.Service
+	// Just verify the resolved profile has required fields
 	if resolved.Model == "" {
-		return ErrModelNameRequired
+		return fmt.Errorf("resolved profile has empty model name")
+	}
+
+	if resolved.ModelID == "" {
+		return fmt.Errorf("resolved profile has empty model ID")
 	}
 
 	return nil
-}
-
-func defaultValue[T comparable](value, fallback T) T {
-	var zero T
-	if value != zero {
-		return value
-	}
-
-	return fallback
 }

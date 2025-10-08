@@ -30,10 +30,13 @@ func TestNewServiceWithSpecificConfig(t *testing.T) {
 	// Create a temporary config file
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "test-config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"
@@ -79,12 +82,22 @@ generate:
 		t.Fatal("Test profile should exist")
 	}
 
-	if testProfile.Provider != "openai" {
-		t.Errorf("Expected provider 'openai', got '%s'", testProfile.Provider)
+	if testProfile.Model != "gpt-35-turbo" {
+		t.Errorf("Expected model reference 'gpt-35-turbo', got '%s'", testProfile.Model)
 	}
 
-	if testProfile.Model != "gpt-3.5-turbo" {
-		t.Errorf("Expected model 'gpt-3.5-turbo', got '%s'", testProfile.Model)
+	// Check model definition
+	testModel, exists := config.Models["gpt-35-turbo"]
+	if !exists {
+		t.Fatal("Model 'gpt-35-turbo' should exist")
+	}
+
+	if testModel.Provider != "openai" {
+		t.Errorf("Expected provider 'openai', got '%s'", testModel.Provider)
+	}
+
+	if testModel.Model != "gpt-3.5-turbo" {
+		t.Errorf("Expected model 'gpt-3.5-turbo', got '%s'", testModel.Model)
 	}
 
 	if config.Generate == nil {
@@ -190,10 +203,13 @@ func TestNewServiceWithSystemConfigDirs(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `profiles:
-  default:
+	configContent := `models:
+  gpt4:
     provider: "openai"
     model: "gpt-4"
+profiles:
+  default:
+    model: "gpt4"
 generate:
   default:
     profile: "default"
@@ -227,7 +243,7 @@ generate:
 	}
 
 	config := configSvc.GetConfig()
-	if config.Profiles["default"].Provider != "openai" {
+	if config.Profiles["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
 		t.Error("Failed to load config from XDG_CONFIG_DIRS location")
 	}
 }
@@ -250,10 +266,13 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `profiles:
-  user:
+	configContent := `models:
+  claude3:
     provider: "anthropic"
     model: "claude-3"
+profiles:
+  user:
+    model: "claude3"
 generate:
   default:
     profile: "user"
@@ -282,7 +301,7 @@ generate:
 	}
 
 	config := configSvc.GetConfig()
-	if config.Profiles["user"].Provider != "anthropic" {
+	if config.Profiles["user"].Model != "claude3" || config.Models["claude3"].Provider != "anthropic" {
 		t.Error("Failed to load config from XDG_CONFIG_HOME location")
 	}
 }
@@ -305,10 +324,13 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 	os.MkdirAll(homeConfigDir, 0o755)
 
 	configPath := filepath.Join(homeConfigDir, "config.yaml")
-	configContent := `profiles:
-  home:
+	configContent := `models:
+  gemini:
     provider: "google"
     model: "gemini-pro"
+profiles:
+  home:
+    model: "gemini"
 generate:
   default:
     profile: "home"
@@ -337,7 +359,7 @@ generate:
 	}
 
 	config := configSvc.GetConfig()
-	if config.Profiles["home"].Provider != "google" {
+	if config.Profiles["home"].Model != "gemini" || config.Models["gemini"].Provider != "google" {
 		t.Error("Failed to load config from HOME/.config location")
 	}
 }
@@ -349,9 +371,12 @@ func TestNewServiceWithCurrentDirectoryConfig(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `profiles:
-  local:
+	configContent := `models:
+  llama-local:
     provider: "local"
+    model: "llama-local"
+profiles:
+  local:
     model: "llama-local"
 generate:
   default:
@@ -396,7 +421,7 @@ generate:
 	}
 
 	config := configSvc.GetConfig()
-	if config.Profiles["local"].Provider != "local" {
+	if config.Profiles["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
 		t.Error("Failed to load config from current directory")
 	}
 }

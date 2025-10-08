@@ -23,12 +23,13 @@ import (
 
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/llm"
+	"github.com/retran/meowg1k/internal/services/model"
 	"github.com/retran/meowg1k/internal/services/provider"
 )
 
 // Mock implementations for testing
 
-var errProviderNotFound = fmt.Errorf("provider not found")
+var errModelNotFound = fmt.Errorf("model not found")
 
 type mockConfigService struct {
 	config *config.Config
@@ -38,22 +39,31 @@ func (m *mockConfigService) GetConfig() *config.Config {
 	return m.config
 }
 
-type mockProviderService struct {
-	providers map[provider.Provider]provider.ProviderDefinition
+type mockModelService struct {
+	models map[model.Model]*model.ResolvedModel
 }
 
-func (m *mockProviderService) Get(providerType provider.Provider) (provider.ProviderDefinition, error) {
-	if provider, exists := m.providers[providerType]; exists {
-		return provider, nil
+func (m *mockModelService) Get(modelRef model.Model) (*model.ResolvedModel, error) {
+	if resolved, exists := m.models[modelRef]; exists {
+		return resolved, nil
 	}
-	return provider.ProviderDefinition{}, fmt.Errorf("%w: '%s'", errProviderNotFound, providerType)
+	return nil, fmt.Errorf("%w: '%s'", errModelNotFound, modelRef)
+}
+
+func (m *mockModelService) GetInstanceKey(resolved *model.ResolvedModel) string {
+	return fmt.Sprintf("%s:%s:%s:%s",
+		resolved.Provider,
+		resolved.BaseURL,
+		resolved.Model,
+		resolved.APIKeyEnv,
+	)
 }
 
 func TestNewService(t *testing.T) {
 	configService := &mockConfigService{}
-	providerService := &mockProviderService{}
+	modelService := &mockModelService{}
 
-	service := NewService(configService, providerService)
+	service := NewService(configService, modelService)
 	if service == nil {
 		t.Fatal("Service should not be nil")
 	}
@@ -61,40 +71,46 @@ func TestNewService(t *testing.T) {
 
 func TestGetProfileSuccess(t *testing.T) {
 	// Setup mock services
-	config := &config.Config{
+	cfg := &config.Config{
+		Models: map[string]*config.ModelDefinition{
+			"gpt4": {
+				Provider: "openai",
+				Model:    "gpt-4",
+			},
+		},
 		Profiles: map[string]*config.ProfileDefinition{
 			"test-profile": {
-				Provider:        "openai",
-				Model:           "gpt-4",
-				MaxInputTokens:  128000,
-				MaxOutputTokens: 4096,
-				Timeout:         5 * time.Minute,
-				TokenizerType:   llm.TokenizerCL100K,
+				Model:   "gpt4",
+				Timeout: 5 * time.Minute,
 			},
 		},
 	}
 
-	providerDef := provider.ProviderDefinition{
-		Type:            provider.OpenAI,
-		DefaultModel:    "gpt-3.5-turbo",
-		DefaultBaseURL:  "https://api.openai.com/v1",
-		DefaultEnvVar:   "OPENAI_API_KEY",
-		RequiresAPIKey:  true,
-		RequiresBaseURL: false,
-		TokenizerType:   llm.TokenizerCL100K,
+	resolvedModel := &model.ResolvedModel{
+		ID:              "gpt4",
+		Provider:        provider.OpenAI,
+		Model:           "gpt-4",
 		MaxInputTokens:  128000,
 		MaxOutputTokens: 4096,
-		DefaultTimeout:  5 * time.Minute,
-	}
-
-	configService := &mockConfigService{config: config}
-	providerService := &mockProviderService{
-		providers: map[provider.Provider]provider.ProviderDefinition{
-			provider.OpenAI: providerDef,
+		BaseURL:         "https://api.openai.com/v1",
+		APIKey:          "test-key",
+		APIKeyEnv:       "OPENAI_API_KEY",
+		TokenizerType:   llm.TokenizerCL100K,
+		RateLimit: model.RateLimitConfig{
+			RequestsPerMinute: 10,
+			TokensPerMinute:   100000,
+			RequestsPerDay:    1000,
 		},
 	}
 
-	service := NewService(configService, providerService)
+	configService := &mockConfigService{config: cfg}
+	modelService := &mockModelService{
+		models: map[model.Model]*model.ResolvedModel{
+			"gpt4": resolvedModel,
+		},
+	}
+
+	service := NewService(configService, modelService)
 
 	// Test getting a profile
 	profile, err := service.Get(Profile("test-profile"))
@@ -113,6 +129,14 @@ func TestGetProfileSuccess(t *testing.T) {
 	if profile.Model != "gpt-4" {
 		t.Errorf("Expected model 'gpt-4', got '%s'", profile.Model)
 	}
+
+	if profile.ModelID != "gpt4" {
+		t.Errorf("Expected model ID 'gpt4', got '%s'", profile.ModelID)
+	}
+
+	if profile.APIKeyEnv != "OPENAI_API_KEY" {
+		t.Errorf("Expected APIKeyEnv 'OPENAI_API_KEY', got '%s'", profile.APIKeyEnv)
+	}
 }
 
 func TestGetProfileNotFound(t *testing.T) {
@@ -121,9 +145,9 @@ func TestGetProfileNotFound(t *testing.T) {
 	}
 
 	configService := &mockConfigService{config: config}
-	providerService := &mockProviderService{providers: map[provider.Provider]provider.ProviderDefinition{}}
+	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, providerService)
+	service := NewService(configService, modelService)
 
 	// Test getting a non-existent profile
 	_, err := service.Get(Profile("non-existent"))
@@ -138,9 +162,9 @@ func TestGetProfileNoProfilesConfigured(t *testing.T) {
 	}
 
 	configService := &mockConfigService{config: config}
-	providerService := &mockProviderService{providers: map[provider.Provider]provider.ProviderDefinition{}}
+	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, providerService)
+	service := NewService(configService, modelService)
 
 	// Test getting a profile when no profiles are configured
 	_, err := service.Get(Profile("test"))
@@ -149,69 +173,130 @@ func TestGetProfileNoProfilesConfigured(t *testing.T) {
 	}
 }
 
-func TestGetProfileWithDefaults(t *testing.T) {
-	// Test profile that uses provider defaults
+func TestGetProfileModelNotFound(t *testing.T) {
+	// Test profile that references non-existent model
 	config := &config.Config{
 		Profiles: map[string]*config.ProfileDefinition{
-			"minimal-profile": {
-				Provider: "openai",
-				// No model, tokens, timeout specified - should use defaults
+			"test": {
+				Model: "non-existent-model",
 			},
 		},
 	}
 
-	providerDef := provider.ProviderDefinition{
-		Type:            provider.OpenAI,
-		DefaultModel:    "gpt-3.5-turbo",
-		DefaultBaseURL:  "https://api.openai.com/v1",
-		MaxInputTokens:  100000,
-		MaxOutputTokens: 2000,
-		DefaultTimeout:  3 * time.Minute,
-		TokenizerType:   llm.TokenizerCL100K,
-	}
-
 	configService := &mockConfigService{config: config}
-	providerService := &mockProviderService{
-		providers: map[provider.Provider]provider.ProviderDefinition{
-			provider.OpenAI: providerDef,
+	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
+
+	service := NewService(configService, modelService)
+
+	_, err := service.Get(Profile("test"))
+	if err == nil {
+		t.Error("Expected error for non-existent model")
+	}
+}
+
+func TestGetProfileWithMaxTokensOverride(t *testing.T) {
+	maxTokens := 2000
+	config := &config.Config{
+		Models: map[string]*config.ModelDefinition{
+			"gpt4": {
+				Provider: "openai",
+				Model:    "gpt-4",
+			},
+		},
+		Profiles: map[string]*config.ProfileDefinition{
+			"test": {
+				Model:     "gpt4",
+				MaxTokens: &maxTokens,
+			},
 		},
 	}
 
-	service := NewService(configService, providerService)
+	resolvedModel := &model.ResolvedModel{
+		ID:              "gpt4",
+		Provider:        provider.OpenAI,
+		Model:           "gpt-4",
+		MaxOutputTokens: 4096,
+		BaseURL:         "https://api.openai.com/v1",
+		APIKey:          "test-key",
+		APIKeyEnv:       "OPENAI_API_KEY",
+	}
 
-	profile, err := service.Get(Profile("minimal-profile"))
+	configService := &mockConfigService{config: config}
+	modelService := &mockModelService{
+		models: map[model.Model]*model.ResolvedModel{
+			"gpt4": resolvedModel,
+		},
+	}
+
+	service := NewService(configService, modelService)
+
+	profile, err := service.Get(Profile("test"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Should use provider defaults
-	if profile.Model != "gpt-3.5-turbo" {
-		t.Errorf("Expected default model 'gpt-3.5-turbo', got '%s'", profile.Model)
+	// Profile should override max output tokens
+	if profile.MaxOutputTokens != maxTokens {
+		t.Errorf("Expected MaxOutputTokens %d, got %d", maxTokens, profile.MaxOutputTokens)
+	}
+}
+
+func TestGetProfileWithTemperature(t *testing.T) {
+	temp := 0.7
+	config := &config.Config{
+		Models: map[string]*config.ModelDefinition{
+			"gpt4": {
+				Provider: "openai",
+				Model:    "gpt-4",
+			},
+		},
+		Profiles: map[string]*config.ProfileDefinition{
+			"test": {
+				Model:       "gpt4",
+				Temperature: &temp,
+			},
+		},
 	}
 
-	if profile.MaxInputTokens != 100000 {
-		t.Errorf("Expected default MaxInputTokens 100000, got %d", profile.MaxInputTokens)
+	resolvedModel := &model.ResolvedModel{
+		ID:        "gpt4",
+		Provider:  provider.OpenAI,
+		Model:     "gpt-4",
+		BaseURL:   "https://api.openai.com/v1",
+		APIKey:    "test-key",
+		APIKeyEnv: "OPENAI_API_KEY",
 	}
 
-	if profile.MaxOutputTokens != 2000 {
-		t.Errorf("Expected default MaxOutputTokens 2000, got %d", profile.MaxOutputTokens)
+	configService := &mockConfigService{config: config}
+	modelService := &mockModelService{
+		models: map[model.Model]*model.ResolvedModel{
+			"gpt4": resolvedModel,
+		},
 	}
 
-	if profile.Timeout != 3*time.Minute {
-		t.Errorf("Expected default timeout 3m, got %v", profile.Timeout)
+	service := NewService(configService, modelService)
+
+	profile, err := service.Get(Profile("test"))
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if profile.BaseURL != "https://api.openai.com/v1" {
-		t.Errorf("Expected default BaseURL 'https://api.openai.com/v1', got '%s'", profile.BaseURL)
+	if profile.Temperature == nil {
+		t.Fatal("Expected temperature to be set")
+	}
+
+	if *profile.Temperature != temp {
+		t.Errorf("Expected temperature %f, got %f", temp, *profile.Temperature)
 	}
 }
 
 func TestValidateResolvedProfileSuccess(t *testing.T) {
 	configService := &mockConfigService{}
-	providerService := &mockProviderService{}
-	service := NewService(configService, providerService).(*serviceImpl)
+	modelService := &mockModelService{}
+	service := NewService(configService, modelService).(*serviceImpl)
 
 	validProfile := &ResolvedProfile{
+		ModelID:         "gpt4",
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
 		MaxInputTokens:  128000,
@@ -227,8 +312,8 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 
 func TestValidateResolvedProfileErrors(t *testing.T) {
 	configService := &mockConfigService{}
-	providerService := &mockProviderService{}
-	service := NewService(configService, providerService).(*serviceImpl)
+	modelService := &mockModelService{}
+	service := NewService(configService, modelService).(*serviceImpl)
 
 	testCases := []struct {
 		name    string
@@ -282,32 +367,40 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 
 func TestCaching(t *testing.T) {
 	config := &config.Config{
-		Profiles: map[string]*config.ProfileDefinition{
-			"cached-profile": {
+		Models: map[string]*config.ModelDefinition{
+			"gpt4": {
 				Provider: "openai",
 				Model:    "gpt-4",
-				Timeout:  5 * time.Minute,
+			},
+		},
+		Profiles: map[string]*config.ProfileDefinition{
+			"cached-profile": {
+				Model:   "gpt4",
+				Timeout: 5 * time.Minute,
 			},
 		},
 	}
 
-	providerDef := provider.ProviderDefinition{
-		Type:            provider.OpenAI,
-		DefaultModel:    "gpt-3.5-turbo",
+	resolvedModel := &model.ResolvedModel{
+		ID:              "gpt4",
+		Provider:        provider.OpenAI,
+		Model:           "gpt-4",
 		MaxInputTokens:  128000,
 		MaxOutputTokens: 4096,
-		DefaultTimeout:  5 * time.Minute,
+		BaseURL:         "https://api.openai.com/v1",
+		APIKey:          "test-key",
+		APIKeyEnv:       "OPENAI_API_KEY",
 		TokenizerType:   llm.TokenizerCL100K,
 	}
 
 	configService := &mockConfigService{config: config}
-	providerService := &mockProviderService{
-		providers: map[provider.Provider]provider.ProviderDefinition{
-			provider.OpenAI: providerDef,
+	modelService := &mockModelService{
+		models: map[model.Model]*model.ResolvedModel{
+			"gpt4": resolvedModel,
 		},
 	}
 
-	service := NewService(configService, providerService)
+	service := NewService(configService, modelService)
 
 	// First call - should resolve and cache
 	profile1, err := service.Get(Profile("cached-profile"))

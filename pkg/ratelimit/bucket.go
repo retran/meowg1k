@@ -19,35 +19,68 @@ package ratelimit
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"sync"
 	"time"
 )
 
-// Bucket implements a leaky bucket rate limiter.
+// Bucket implements a leaky bucket rate limiter with database persistence.
 type Bucket struct {
+	id          string
 	capacity    int
-	tokens      int
 	refillRate  int
 	refillEvery time.Duration
+	repo        Repository
 	mu          sync.Mutex
-	lastRefill  time.Time
 }
 
-// NewBucket creates a new leaky bucket rate limiter.
-func NewBucket(capacity, refillRate int, refillEvery time.Duration) *Bucket {
-	return &Bucket{
+// NewBucket creates a new leaky bucket rate limiter with database persistence.
+// The bucket state is stored in the database and persists across restarts.
+func NewBucket(id string, capacity, refillRate int, refillEvery time.Duration, repo Repository) (*Bucket, error) {
+	bucket := &Bucket{
+		id:          id,
 		capacity:    capacity,
-		tokens:      capacity,
 		refillRate:  refillRate,
 		refillEvery: refillEvery,
-		lastRefill:  time.Now(),
+		repo:        repo,
 	}
+
+	// Try to load existing state or initialize new bucket
+	_, err := repo.GetBucketState(id)
+	if err == sql.ErrNoRows {
+		// Bucket doesn't exist, initialize it
+		if err := repo.InitializeBucket(id, capacity); err != nil {
+			return nil, fmt.Errorf("failed to initialize bucket: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get bucket state: %w", err)
+	}
+
+	return bucket, nil
+}
+
+// loadState loads the current bucket state from the database.
+func (b *Bucket) loadState() (*BucketState, error) {
+	state, err := b.repo.GetBucketState(b.id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load bucket state: %w", err)
+	}
+	return state, nil
+}
+
+// saveState saves the current bucket state to the database.
+func (b *Bucket) saveState(state *BucketState) error {
+	if err := b.repo.SaveBucketState(state); err != nil {
+		return fmt.Errorf("failed to save bucket state: %w", err)
+	}
+	return nil
 }
 
 // refill adds tokens based on time elapsed since last refill.
-func (b *Bucket) refill() {
+func (b *Bucket) refill(state *BucketState) {
 	now := time.Now()
-	elapsed := now.Sub(b.lastRefill)
+	elapsed := now.Sub(state.LastRefill)
 
 	if elapsed < b.refillEvery {
 		return
@@ -56,12 +89,12 @@ func (b *Bucket) refill() {
 	intervals := int(elapsed / b.refillEvery)
 	tokensToAdd := intervals * b.refillRate
 
-	b.tokens += tokensToAdd
-	if b.tokens > b.capacity {
-		b.tokens = b.capacity
+	state.Tokens += tokensToAdd
+	if state.Tokens > b.capacity {
+		state.Tokens = b.capacity
 	}
 
-	b.lastRefill = b.lastRefill.Add(time.Duration(intervals) * b.refillEvery)
+	state.LastRefill = state.LastRefill.Add(time.Duration(intervals) * b.refillEvery)
 }
 
 // TryTake attempts to take the specified number of tokens from the bucket.
@@ -70,10 +103,18 @@ func (b *Bucket) TryTake(count int) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.refill()
+	state, err := b.loadState()
+	if err != nil {
+		return false
+	}
 
-	if b.tokens >= count {
-		b.tokens -= count
+	b.refill(state)
+
+	if state.Tokens >= count {
+		state.Tokens -= count
+		if err := b.saveState(state); err != nil {
+			return false
+		}
 		return true
 	}
 
@@ -101,9 +142,22 @@ func (b *Bucket) Available() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.refill()
+	state, err := b.loadState()
+	if err != nil {
+		return 0
+	}
 
-	return b.tokens
+	oldTokens := state.Tokens
+	b.refill(state)
+
+	// Only save if tokens were refilled
+	if state.Tokens != oldTokens {
+		if err := b.saveState(state); err != nil {
+			return 0
+		}
+	}
+
+	return state.Tokens
 }
 
 // Reset resets the bucket to full capacity.
@@ -111,6 +165,11 @@ func (b *Bucket) Reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.tokens = b.capacity
-	b.lastRefill = time.Now()
+	state := &BucketState{
+		ID:         b.id,
+		Tokens:     b.capacity,
+		LastRefill: time.Now(),
+	}
+
+	_ = b.saveState(state)
 }

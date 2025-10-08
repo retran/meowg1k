@@ -18,11 +18,32 @@ package gateway
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
+
+	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
+
+// setupTestRepository creates an in-memory SQLite database and repository for testing
+func setupTestRepository(t *testing.T) (*sql.DB, ratelimit.Repository) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// Run migrations
+	if err := migrations.RunMigrations(db, ratelimit.Migrations); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	repo := ratelimit.NewRepository(db)
+	return db, repo
+}
 
 // mockGenerationGateway is a mock implementation for testing
 type mockGenerationGateway struct {
@@ -41,11 +62,18 @@ func (m *mockGenerationGateway) GenerateContent(
 }
 
 func TestNewRateLimitedGenerationGateway(t *testing.T) {
+	db, repo := setupTestRepository(t)
+	defer db.Close()
+
 	mockGateway := &mockGenerationGateway{
 		response: "test response",
 	}
 
-	limiter := ratelimit.NewLimiter(ratelimit.Unlimited)
+	limiter, err := ratelimit.NewLimiter("test-new-gateway", ratelimit.Unlimited, repo)
+	if err != nil {
+		t.Fatalf("Failed to create limiter: %v", err)
+	}
+
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
 	if gateway == nil {
@@ -87,12 +115,18 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			db, repo := setupTestRepository(t)
+			defer db.Close()
+
 			mockGateway := &mockGenerationGateway{
 				response: tt.mockResponse,
 				err:      tt.mockErr,
 			}
 
-			limiter := ratelimit.NewLimiter(ratelimit.Unlimited)
+			limiter, err := ratelimit.NewLimiter("test-"+tt.name, ratelimit.Unlimited, repo)
+			if err != nil {
+				t.Fatalf("Failed to create limiter: %v", err)
+			}
 			gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
 			request := NewGenerateContentRequest("test-model", tt.systemPrompt, tt.userPrompt, 1000)
@@ -113,14 +147,20 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 }
 
 func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
+	db, repo := setupTestRepository(t)
+	defer db.Close()
+
 	mockGateway := &mockGenerationGateway{
 		response: "test response",
 	}
 
-	limiter := ratelimit.NewLimiter(ratelimit.Config{
+	limiter, err := ratelimit.NewLimiter("test-with-ratelimit", ratelimit.Config{
 		RequestsPerMinute: 10,
 		TokensPerMinute:   1000,
-	})
+	}, repo)
+	if err != nil {
+		t.Fatalf("Failed to create limiter: %v", err)
+	}
 
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
@@ -138,20 +178,26 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 }
 
 func TestRateLimitedGenerationGateway_ContextCancellation(t *testing.T) {
+	db, repo := setupTestRepository(t)
+	defer db.Close()
+
 	mockGateway := &mockGenerationGateway{
 		response: "test response",
 	}
 
 	// Use rate limits with low capacity
-	limiter := ratelimit.NewLimiter(ratelimit.Config{
+	limiter, err := ratelimit.NewLimiter("test-context-cancel", ratelimit.Config{
 		RequestsPerMinute: 1,
 		TokensPerMinute:   10,
-	})
+	}, repo)
+	if err != nil {
+		t.Fatalf("Failed to create limiter: %v", err)
+	}
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
 	// First request should succeed
 	request := NewGenerateContentRequest("test-model", "System", "User prompt", 1000)
-	_, err := gateway.GenerateContent(context.Background(), request)
+	_, err = gateway.GenerateContent(context.Background(), request)
 	if err != nil {
 		t.Fatalf("First request failed: %v", err)
 	}
@@ -206,11 +252,17 @@ func TestEstimateTokenCount(t *testing.T) {
 }
 
 func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
+	db, repo := setupTestRepository(t)
+	defer db.Close()
+
 	mockGateway := &mockGenerationGateway{
 		response: "test response",
 	}
 
-	limiter := ratelimit.NewLimiter(ratelimit.Unlimited)
+	limiter, err := ratelimit.NewLimiter("test-timeout", ratelimit.Unlimited, repo)
+	if err != nil {
+		t.Fatalf("Failed to create limiter: %v", err)
+	}
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
 	request := NewGenerateContentRequest("test-model", "System", "User", 1000)

@@ -18,25 +18,52 @@ package gateway
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/retran/meowg1k/internal/services/llm"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
+// setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
+func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// Run migrations
+	if err := migrations.RunMigrations(db, ratelimit.Migrations); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	repo := ratelimit.NewRepository(db)
+	return db, repo
+}
+
 func TestNewGatewayFactory(t *testing.T) {
-	factory := NewFactory()
+	db, repo := setupTestRepoForFactory(t)
+	defer db.Close()
+
+	factory := NewFactory(repo)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &gatewayFactory{}, factory)
 }
 
 func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
-	factory := NewFactory()
+	db, repo := setupTestRepoForFactory(t)
+	defer db.Close()
+
+	factory := NewFactory(repo)
 	ctx := context.Background()
 
 	tests := []struct {

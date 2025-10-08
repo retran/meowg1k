@@ -75,12 +75,15 @@ filter:
 func TestCreateGenerateFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"
@@ -128,12 +131,15 @@ filter:
 func TestCreateGenerateFlowWithUserPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"

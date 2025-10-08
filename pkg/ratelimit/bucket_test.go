@@ -18,22 +18,47 @@ package ratelimit
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
+
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
+
+	"github.com/retran/meowg1k/pkg/migrations"
 )
 
+// setupTestDB creates an in-memory SQLite database for testing
+func setupTestDB(t *testing.T) (*sql.DB, Repository) {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+
+	// Run migrations
+	if err := migrations.RunMigrations(db, Migrations); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	repo := NewRepository(db)
+	return db, repo
+}
+
 func TestNewBucket(t *testing.T) {
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
 	capacity := 10
 	refillRate := 2
 	refillEvery := time.Second
 
-	bucket := NewBucket(capacity, refillRate, refillEvery)
+	bucket, err := NewBucket("test-bucket", capacity, refillRate, refillEvery, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	if bucket.capacity != capacity {
 		t.Errorf("Expected capacity %d, got %d", capacity, bucket.capacity)
-	}
-	if bucket.tokens != capacity {
-		t.Errorf("Expected initial tokens %d, got %d", capacity, bucket.tokens)
 	}
 	if bucket.refillRate != refillRate {
 		t.Errorf("Expected refillRate %d, got %d", refillRate, bucket.refillRate)
@@ -41,10 +66,21 @@ func TestNewBucket(t *testing.T) {
 	if bucket.refillEvery != refillEvery {
 		t.Errorf("Expected refillEvery %v, got %v", refillEvery, bucket.refillEvery)
 	}
+
+	// Verify initial tokens in database
+	if available := bucket.Available(); available != capacity {
+		t.Errorf("Expected initial tokens %d, got %d", capacity, available)
+	}
 }
 
 func TestBucketTryTake(t *testing.T) {
-	bucket := NewBucket(5, 1, time.Minute)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-trytake", 5, 1, time.Minute, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	// Should succeed initially
 	if !bucket.TryTake(3) {
@@ -69,7 +105,13 @@ func TestBucketTryTake(t *testing.T) {
 }
 
 func TestBucketTake(t *testing.T) {
-	bucket := NewBucket(2, 2, 100*time.Millisecond)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-take", 2, 2, 100*time.Millisecond, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -81,7 +123,7 @@ func TestBucketTake(t *testing.T) {
 
 	// Try to take more, should wait for refill
 	start := time.Now()
-	err := bucket.Take(ctx, 1)
+	err = bucket.Take(ctx, 1)
 	duration := time.Since(start)
 
 	if err != nil {
@@ -93,7 +135,13 @@ func TestBucketTake(t *testing.T) {
 }
 
 func TestBucketTakeTimeout(t *testing.T) {
-	bucket := NewBucket(1, 1, time.Minute)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-timeout", 1, 1, time.Minute, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
@@ -104,14 +152,20 @@ func TestBucketTakeTimeout(t *testing.T) {
 	}
 
 	// Try to take another, should timeout
-	err := bucket.Take(ctx, 1)
+	err = bucket.Take(ctx, 1)
 	if err != context.DeadlineExceeded {
 		t.Errorf("Expected DeadlineExceeded, got %v", err)
 	}
 }
 
 func TestBucketAvailable(t *testing.T) {
-	bucket := NewBucket(10, 5, time.Minute)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-available", 10, 5, time.Minute, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	if available := bucket.Available(); available != 10 {
 		t.Errorf("Expected 10 available, got %d", available)
@@ -124,7 +178,13 @@ func TestBucketAvailable(t *testing.T) {
 }
 
 func TestBucketReset(t *testing.T) {
-	bucket := NewBucket(10, 5, time.Minute)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-reset", 10, 5, time.Minute, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	bucket.TryTake(7)
 	if bucket.Available() != 3 {
@@ -138,7 +198,13 @@ func TestBucketReset(t *testing.T) {
 }
 
 func TestBucketRefill(t *testing.T) {
-	bucket := NewBucket(10, 2, 50*time.Millisecond)
+	db, repo := setupTestDB(t)
+	defer db.Close()
+
+	bucket, err := NewBucket("test-refill", 10, 2, 50*time.Millisecond, repo)
+	if err != nil {
+		t.Fatalf("Failed to create bucket: %v", err)
+	}
 
 	// Take all tokens
 	bucket.TryTake(10)
