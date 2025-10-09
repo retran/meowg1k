@@ -151,6 +151,7 @@ func (m *Service) shutdown() {
 
 	m.cancel()
 
+	// TODO proper context?
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), m.timeout)
 	defer shutdownCancel()
 

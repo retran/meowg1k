@@ -121,6 +121,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	ctx := cmd.Context()
 	if ctx == nil {
+		// TODO proper error
 		ctx = context.Background()
 	}
 

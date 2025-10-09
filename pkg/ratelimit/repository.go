@@ -27,12 +27,15 @@ import (
 )
 
 var (
+	// ErrNotEnoughTokens is returned when there are not enough tokens in one of the buckets.
 	ErrNotEnoughTokens = errors.New("not enough tokens in one of the buckets")
-	ErrDatabaseIsNil   = errors.New("database connection is nil")
-	ErrBucketNotFound  = errors.New("bucket not found")
+	// ErrDatabaseIsNil is returned when the database connection is nil.
+	ErrDatabaseIsNil = errors.New("database connection is nil")
+	// ErrBucketNotFound is returned when a bucket is not found.
+	ErrBucketNotFound = errors.New("bucket not found")
 )
 
-// BucketConfig описывает параметры для пополнения бакета.
+// BucketConfig defines the configuration for a rate limit bucket.
 type BucketConfig struct {
 	ID          string
 	Capacity    int
@@ -40,34 +43,34 @@ type BucketConfig struct {
 	RefillEvery time.Duration
 }
 
-// AcquisitionRequest описывает, сколько токенов нужно взять из одного бакета.
+// AcquisitionRequest represents a request to acquire tokens from a specific bucket.
 type AcquisitionRequest struct {
 	ID    string
 	Count int
 }
 
-// Repository определяет интерфейс для атомарной работы с бакетами.
+// Repository defines the interface for rate limit data storage.
 type Repository interface {
-	// AcquireTokens атомарно списывает токены из нескольких бакетов.
-	// Если хотя бы в одном бакете не хватает токенов, вся операция откатывается.
+	// AcquireTokens attempts to acquire tokens from the specified buckets.
 	AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error
 
-	// InitializeBuckets создает и инициализирует бакеты, если их нет.
+	// InitializeBuckets initializes the rate limit buckets in the database.
 	InitializeBuckets(ctx context.Context, configs []BucketConfig) error
 
-	// ResetBuckets сбрасывает токены до максимальной емкости.
+	// ResetBuckets resets the tokens in the specified buckets to their full capacity.
 	ResetBuckets(ctx context.Context, configs []BucketConfig) error
 }
 
+// repositoryImpl is a concrete implementation of the Repository interface.
 type repositoryImpl struct {
 	db *sql.DB
 }
 
+// NewRepository creates a new Repository with the given database connection.
 func NewRepository(db *sql.DB) Repository {
 	return &repositoryImpl{db: db}
 }
 
-// refill — это внутренняя функция-помощник для расчета пополнения.
 func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery time.Duration) (int, time.Time) {
 	now := time.Now()
 	elapsed := now.Sub(lastRefill)
@@ -89,13 +92,13 @@ func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery 
 	return tokens, newLastRefill
 }
 
-// AcquireTokens — сердце нового лимитера. Все в одной транзакции.
+// AcquireTokens attempts to acquire the specified number of tokens from the given buckets.
 func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // Безопасный откат, если коммит не удался
+	defer tx.Rollback()
 
 	configMap := make(map[string]BucketConfig)
 	for _, config := range configs {
@@ -109,10 +112,9 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 	}
 	var statesToUpdate []bucketState
 
-	// 1. Фаза проверки (Read Phase)
 	for _, req := range requests {
 		if req.Count <= 0 {
-			continue // Пропускаем запросы на 0 токенов
+			continue
 		}
 
 		config, ok := configMap[req.ID]
@@ -133,7 +135,7 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, time.Unix(0, lastRefillNano), config.RefillEvery)
 
 		if refilledTokens < req.Count {
-			return ErrNotEnoughTokens // Немедленный выход без изменений
+			return ErrNotEnoughTokens
 		}
 
 		statesToUpdate = append(statesToUpdate, bucketState{
@@ -143,7 +145,6 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 		})
 	}
 
-	// 2. Фаза записи (Write Phase)
 	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
@@ -157,10 +158,10 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 		}
 	}
 
-	// 3. Коммит
 	return tx.Commit()
 }
 
+// InitializeBuckets initializes the rate limit buckets in the database.
 func (r *repositoryImpl) InitializeBuckets(ctx context.Context, configs []BucketConfig) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -184,6 +185,7 @@ func (r *repositoryImpl) InitializeBuckets(ctx context.Context, configs []Bucket
 	return tx.Commit()
 }
 
+// ResetBuckets resets the tokens in the specified buckets to their full capacity.
 func (r *repositoryImpl) ResetBuckets(ctx context.Context, configs []BucketConfig) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -206,6 +208,7 @@ func (r *repositoryImpl) ResetBuckets(ctx context.Context, configs []BucketConfi
 	return tx.Commit()
 }
 
+// Migrations defines the database migrations for the rate limit repository.
 var Migrations = []migrations.Migration{
 	{
 		Version: 1,

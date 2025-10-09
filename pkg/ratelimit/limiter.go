@@ -22,19 +22,19 @@ import (
 	"time"
 )
 
-// Limiter определяет интерфейс для rate limiting операций.
+// Limiter defines the interface for rate limiting.
 type Limiter interface {
 	Wait(ctx context.Context, tokenCount int) error
 	TryAcquire(ctx context.Context, tokenCount int) bool
 }
 
-// dbLimiter предоставляет мульти-измерный rate limiting.
+// dbLimiter implements Limiter using a database-backed Repository.
 type dbLimiter struct {
 	repo    Repository
 	configs []BucketConfig
 }
 
-// Config описывает конфигурацию для всех бакетов лимитера.
+// Config defines the rate limiting configuration.
 type Config struct {
 	ID                string
 	RequestsPerMinute int
@@ -42,7 +42,7 @@ type Config struct {
 	RequestsPerDay    int
 }
 
-// Unlimited is a predefined config with no limits
+// Unlimited is a predefined configuration that imposes no rate limits.
 var Unlimited = Config{
 	ID:                "unlimited",
 	RequestsPerMinute: 0,
@@ -50,7 +50,7 @@ var Unlimited = Config{
 	RequestsPerDay:    0,
 }
 
-// NewLimiter создает новый мульти-измерный rate limiter.
+// NewLimiter creates a new Limiter based on the provided configuration and repository.
 func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, error) {
 	if config.ID == "" {
 		return nil, errors.New("config ID is empty")
@@ -86,10 +86,9 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 	}
 
 	if len(configs) == 0 {
-		return NewNoOpLimiter(), nil // Если лимиты не заданы, возвращаем "пустышку"
+		return NewNoOpLimiter(), nil
 	}
 
-	// Инициализируем бакеты в базе данных при старте
 	if err := repo.InitializeBuckets(ctx, configs); err != nil {
 		return nil, err
 	}
@@ -100,7 +99,7 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 	}, nil
 }
 
-// TryAcquire пытается атомарно захватить все необходимые токены.
+// TryAcquire attempts to acquire the specified number of tokens without blocking.
 func (l *dbLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
 	requests := l.buildRequests(tokenCount)
 	if len(requests) == 0 {
@@ -111,24 +110,20 @@ func (l *dbLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
 	return err == nil
 }
 
-// Wait блокирует выполнение, пока не удастся захватить все необходимые токены.
 func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 	requests := l.buildRequests(tokenCount)
 	if len(requests) == 0 {
 		return nil
 	}
 
-	// Интервал опроса, чтобы не "долбить" БД слишком часто.
 	const pollInterval = 100 * time.Millisecond
 
 	for {
 		err := l.repo.AcquireTokens(ctx, l.configs, requests)
 		if err == nil {
-			return nil // Успех
+			return nil
 		}
 
-		// Если не хватает токенов, ждем и пробуем снова.
-		// При других ошибках (например, отмена контекста) выходим.
 		if !errors.Is(err, ErrNotEnoughTokens) {
 			return err
 		}
@@ -137,12 +132,12 @@ func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(pollInterval):
-			// Повторяем попытку
+			// Repeat the attempt
 		}
 	}
 }
 
-// buildRequests создает список запросов на списание на основе конфига.
+// buildRequests constructs the list of AcquisitionRequests based on the token count and configured buckets.
 func (l *dbLimiter) buildRequests(tokenCount int) []AcquisitionRequest {
 	var requests []AcquisitionRequest
 	for _, config := range l.configs {
@@ -160,17 +155,20 @@ func (l *dbLimiter) buildRequests(tokenCount int) []AcquisitionRequest {
 	return requests
 }
 
-// noOpLimiter — реализация, которая ничего не делает.
+// noOpLimiter is a limiter that does nothing.
 type noOpLimiter struct{}
 
+// NewNoOpLimiter creates a new no-op limiter instance.
 func NewNoOpLimiter() Limiter {
 	return &noOpLimiter{}
 }
 
+// Wait is a no-op implementation that always succeeds.
 func (n *noOpLimiter) Wait(ctx context.Context, tokenCount int) error {
 	return nil
 }
 
+// TryAcquire is a no-op implementation that always succeeds.
 func (n *noOpLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
 	return true
 }

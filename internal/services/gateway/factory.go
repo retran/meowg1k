@@ -102,6 +102,7 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 			return nil, fmt.Errorf("rate limiting is configured but database repository is not available")
 		}
 		var err error
+		// TODO proper context
 		limiter, err = ratelimit.NewLimiter(context.Background(), config, repo)
 		if err != nil {
 			// TODO proper error
