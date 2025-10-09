@@ -47,6 +47,8 @@ var (
 	ErrInvalidLogFilename = errors.New("log filename contains invalid characters or path separators")
 	// ErrLogPathOutsideDirectory is returned when a log path is outside the expected directory.
 	ErrLogPathOutsideDirectory = errors.New("log path is outside log directory")
+	// ErrCmdIsNil is returned when the cobra command is nil.
+	ErrCmdIsNil = errors.New("cobra command is nil")
 )
 
 // AppContainer is the main application struct that holds all cross-cutting services.
@@ -109,6 +111,10 @@ var AppContainerKey = appContainerKey{}
 
 // NewAppContainer initializes the main application struct with all necessary services.
 func NewAppContainer(cmd *cobra.Command) (*Container, error) {
+	if cmd == nil {
+		return nil, ErrCmdIsNil
+	}
+
 	container := &Container{}
 
 	ctx := cmd.Context()

@@ -19,10 +19,14 @@ package liststaged
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// ErrStagedFileListReaderIsNil indicates that the stagedFileListReader is nil.
+var ErrStagedFileListReaderIsNil = errors.New("stagedFileListReader is nil")
 
 // Input defines the input structure for the ListStaged activity.
 type Input struct{}
@@ -46,15 +50,22 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ListStaged activity factory with the provided staged file list reader.
-func NewFactory(stagedFileListReader StagedFileListReader) *Factory {
+func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
+	if stagedFileListReader == nil {
+		return nil, ErrStagedFileListReaderIsNil
+	}
 	return &Factory{
 		stagedFileListReader: stagedFileListReader,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the ListStaged activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
+
 		executorCtx.SendRunning("Listing staged files")
 
 		if input == nil {

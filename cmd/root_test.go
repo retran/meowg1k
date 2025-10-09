@@ -320,3 +320,85 @@ func TestRootCmdEdgeCases(t *testing.T) {
 		t.Logf("Got expected error with nil command: %v", err)
 	})
 }
+
+func TestRootCmdPersistentPostRunE(t *testing.T) {
+	t.Run("Skip shutdown for version command", func(t *testing.T) {
+		versionCmd := &cobra.Command{
+			Use: "version",
+		}
+
+		err := rootCmd.PersistentPostRunE(versionCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should not return error for version command: %v", err)
+		}
+	})
+
+	t.Run("Skip shutdown for help command", func(t *testing.T) {
+		helpCmd := &cobra.Command{
+			Use: "help",
+		}
+
+		err := rootCmd.PersistentPostRunE(helpCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should not return error for help command: %v", err)
+		}
+	})
+
+	t.Run("Skip shutdown for meow command", func(t *testing.T) {
+		meowCmd := &cobra.Command{
+			Use: "meow",
+		}
+
+		err := rootCmd.PersistentPostRunE(meowCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should not return error for meow command: %v", err)
+		}
+	})
+
+	t.Run("Skip shutdown for completion command", func(t *testing.T) {
+		completionCmd := &cobra.Command{
+			Use: "completion",
+		}
+
+		err := rootCmd.PersistentPostRunE(completionCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should not return error for completion command: %v", err)
+		}
+	})
+
+	t.Run("Nil command", func(t *testing.T) {
+		err := rootCmd.PersistentPostRunE(nil, []string{})
+		if err == nil {
+			t.Error("Expected error with nil command")
+		}
+
+		if err != ErrCommandIsNil {
+			t.Errorf("Expected ErrCommandIsNil, got: %v", err)
+		}
+
+		t.Logf("Got expected error with nil command: %v", err)
+	})
+
+	t.Run("Command without context", func(t *testing.T) {
+		testCmd := &cobra.Command{
+			Use: "test-no-context",
+		}
+
+		err := rootCmd.PersistentPostRunE(testCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should handle nil context gracefully: %v", err)
+		}
+	})
+
+	t.Run("Command without app container in context", func(t *testing.T) {
+		testCmd := &cobra.Command{
+			Use: "test-no-container",
+		}
+		testCmd.SetContext(context.Background())
+
+		err := rootCmd.PersistentPostRunE(testCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should handle missing app container gracefully: %v", err)
+		}
+	})
+}

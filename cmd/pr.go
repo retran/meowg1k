@@ -46,6 +46,10 @@ You can provide your intent or context in two ways:
 
 The intent will be included in the prompt to help generate a more accurate PR description.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return ErrCommandIsNil
+		}
+
 		ctx := cmd.Context()
 
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -58,7 +62,10 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return err
 		}
 
-		runner := app.NewFlowRunner(appContainer)
+		runner, err := app.NewFlowRunner(appContainer)
+		if err != nil {
+			return err
+		}
 		return runner.RunFlow(ctx, "GeneratePR", flow)
 	},
 }

@@ -57,7 +57,10 @@ func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context,
 
 func TestNewFactory(t *testing.T) {
 	gwFactory := &mockGenerationGatewayFactory{}
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
@@ -71,7 +74,10 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 		},
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
@@ -98,13 +104,17 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 
 func TestInvokeLLMActivity_NilInput(t *testing.T) {
 	gwFactory := &mockGenerationGatewayFactory{}
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
 	executorCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, executorCtx, nil)
+	_, err = activity(ctx, executorCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}
@@ -115,7 +125,11 @@ func TestInvokeLLMActivity_GatewayError(t *testing.T) {
 		Err: errors.New("gateway creation failed"),
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
@@ -130,7 +144,7 @@ func TestInvokeLLMActivity_GatewayError(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	_, err := activity(ctx, executorCtx, input)
+	_, err = activity(ctx, executorCtx, input)
 	if err == nil {
 		t.Error("Expected error from gateway creation")
 	}
@@ -143,7 +157,11 @@ func TestInvokeLLMActivity_GenerationError(t *testing.T) {
 		},
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
@@ -158,7 +176,7 @@ func TestInvokeLLMActivity_GenerationError(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	_, err := activity(ctx, executorCtx, input)
+	_, err = activity(ctx, executorCtx, input)
 	if err == nil {
 		t.Error("Expected error from generation")
 	}

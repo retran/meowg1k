@@ -29,6 +29,10 @@ var generateCmd = &cobra.Command{
 	Aliases: []string{"gen", "g"},
 	Short:   "Generate any content based on input — code, text, or docs",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return ErrCommandIsNil
+		}
+
 		ctx := cmd.Context()
 
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -41,7 +45,10 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
-		runner := app.NewFlowRunner(appContainer)
+		runner, err := app.NewFlowRunner(appContainer)
+		if err != nil {
+			return err
+		}
 		return runner.RunFlow(ctx, "GenerateContent", flow)
 	},
 }

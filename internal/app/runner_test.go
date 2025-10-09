@@ -80,12 +80,14 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 				OutputService:  output.NewService(output.Stdout),
 			}
 
-			runner := NewFlowRunner(container)
+			runner, err := NewFlowRunner(container)
+			if err != nil {
+				t.Fatalf("NewFlowRunner() returned error: %v", err)
+			}
 
 			flow := mockFlow(tt.flowError)
 
 			err = runner.RunFlow(context.Background(), "TestFlow", flow)
-
 			if (err != nil) != tt.wantError {
 				t.Errorf("RunFlow() error = %v, wantError %v", err, tt.wantError)
 			}
@@ -99,7 +101,10 @@ func TestNewFlowRunner(t *testing.T) {
 		Logger: slog.Default(),
 	}
 
-	runner := NewFlowRunner(container)
+	runner, err := NewFlowRunner(container)
+	if err != nil {
+		t.Fatalf("NewFlowRunner() returned error: %v", err)
+	}
 
 	if runner == nil {
 		t.Fatal("NewFlowRunner() returned nil")
@@ -107,6 +112,16 @@ func TestNewFlowRunner(t *testing.T) {
 
 	if runner.container != container {
 		t.Error("NewFlowRunner() did not properly initialize runner")
+	}
+}
+
+func TestNewFlowRunnerNil(t *testing.T) {
+	runner, err := NewFlowRunner(nil)
+	if err == nil {
+		t.Error("Expected error when NewFlowRunner called with nil")
+	}
+	if runner != nil {
+		t.Error("Expected nil runner when error returned")
 	}
 }
 
@@ -156,7 +171,10 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 		OutputService:  mockOutput,
 	}
 
-	runner := NewFlowRunner(container)
+	runner, err := NewFlowRunner(container)
+	if err != nil {
+		t.Fatalf("NewFlowRunner() returned error: %v", err)
+	}
 
 	// Use a flow that succeeds, but flush will fail
 	flow := mockFlow(nil)
@@ -193,7 +211,10 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 		OutputService:  mockOutput,
 	}
 
-	runner := NewFlowRunner(container)
+	runner, err := NewFlowRunner(container)
+	if err != nil {
+		t.Fatalf("NewFlowRunner() returned error: %v", err)
+	}
 
 	// Use a flow that fails
 	flow := mockFlow(context.Canceled)
@@ -223,7 +244,10 @@ func TestFlowRunner_RunFlowWithGetSilentFlagError(t *testing.T) {
 		OutputService:  output.NewService(output.Stdout),
 	}
 
-	runner := NewFlowRunner(container)
+	runner, err := NewFlowRunner(container)
+	if err != nil {
+		t.Fatalf("NewFlowRunner() returned error: %v", err)
+	}
 
 	flow := mockFlow(nil)
 

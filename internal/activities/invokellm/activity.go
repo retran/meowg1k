@@ -19,12 +19,16 @@ package invokellm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// ErrGatewayFactoryIsNil indicates that the gatewayFactory is nil.
+var ErrGatewayFactoryIsNil = errors.New("gatewayFactory is nil")
 
 // Input represents the input for the InvokeLLM activity.
 type Input struct {
@@ -53,15 +57,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new InvokeLLM activity factory with the provided gateway factory.
-func NewFactory(gatewayFactory GenerationGatewayFactory) *Factory {
+func NewFactory(gatewayFactory GenerationGatewayFactory) (*Factory, error) {
+	if gatewayFactory == nil {
+		return nil, ErrGatewayFactoryIsNil
+	}
 	return &Factory{
 		gatewayFactory: gatewayFactory,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the InvokeLLM activity function with progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}

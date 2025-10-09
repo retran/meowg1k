@@ -19,11 +19,15 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/ui"
 )
+
+// ErrContainerIsNil indicates that the container is nil.
+var ErrContainerIsNil = errors.New("container is nil")
 
 // FlowRunner provides a unified way to execute flows with proper tracker and output handling.
 type FlowRunner struct {
@@ -31,8 +35,11 @@ type FlowRunner struct {
 }
 
 // NewFlowRunner creates a new FlowRunner with the given container.
-func NewFlowRunner(container *Container) *FlowRunner {
-	return &FlowRunner{container: container}
+func NewFlowRunner(container *Container) (*FlowRunner, error) {
+	if container == nil {
+		return nil, ErrContainerIsNil
+	}
+	return &FlowRunner{container: container}, nil
 }
 
 // RunFlow executes a flow with proper tracker initialization and cleanup.
@@ -41,6 +48,9 @@ func (r *FlowRunner) RunFlow(
 	flowName string,
 	flow executor.Flow,
 ) error {
+	if r == nil {
+		return ErrContainerIsNil
+	}
 	silent, err := r.container.CommandService.GetSilentFlag()
 	if err != nil {
 		return fmt.Errorf("failed to get silent flag: %w", err)

@@ -54,11 +54,19 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return ErrCommandIsNil
+		}
+
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
 		}
 
 		ctx := cmd.Context()
+		if ctx == nil {
+			return nil
+		}
+
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
 			return nil

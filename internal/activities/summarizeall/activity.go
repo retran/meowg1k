@@ -19,6 +19,7 @@ package summarizeall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
@@ -26,6 +27,9 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
+
+// ErrFileSummarizationActivityFactoryIsNil indicates that the fileSummarizationActivityFactory is nil.
+var ErrFileSummarizationActivityFactoryIsNil = errors.New("fileSummarizationActivityFactory is nil")
 
 // Input defines the input structure for the SummarizeAll activity.
 type Input struct {
@@ -51,15 +55,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
-func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactory) *Factory {
+func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactory) (*Factory, error) {
+	if fileSummarizationActivityFactory == nil {
+		return nil, ErrFileSummarizationActivityFactoryIsNil
+	}
 	return &Factory{
 		fileSummarizationActivityFactory: fileSummarizationActivityFactory,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the SummarizeAll activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}

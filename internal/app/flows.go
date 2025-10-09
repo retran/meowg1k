@@ -86,26 +86,56 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 	}
 
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
-	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
+	}
 
 	// Activities for regular staged commit mode
-	listStagedActivityFactory := liststaged.NewFactory(gitService)
-	fetchFileDiffActivityFactory := fetchfilediff.NewFactory(gitService)
-	fetchAllDiffsFactory := fetchalldiffs.NewFactory(fetchFileDiffActivityFactory)
+	listStagedActivityFactory, err := liststaged.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create list staged activity factory: %w", err)
+	}
+	fetchFileDiffActivityFactory, err := fetchfilediff.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch file diff activity factory: %w", err)
+	}
+	fetchAllDiffsFactory, err := fetchalldiffs.NewFactory(fetchFileDiffActivityFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch all diffs factory: %w", err)
+	}
 
 	// Activities for squash/branch diff mode
-	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)
-	fetchBranchFileDiffActivityFactory := fetchbranchfilediff.NewFactory(gitService)
-	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
+	}
+	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
+	}
+	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
+	}
 
 	// Common activities
 	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
-	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
-	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
-	composeCommitFactory := composecommit.NewFactory(invokeLLMFactory)
+	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
+	}
+	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
+	}
+	composeCommitFactory, err := composecommit.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
+	}
 
 	flowFactory, err := commit.NewFactory(
 		listStagedActivityFactory,
@@ -158,7 +188,10 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	}
 
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
-	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
+	}
 
 	flowFactory, err := generate.NewFlowFactory(
 		taskService,
@@ -210,21 +243,42 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	}
 
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
-	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
+	}
 
 	// Activities for branch diff mode
-	listBranchFilesActivityFactory := listbranchfiles.NewFactory(gitService)
-	fetchBranchFileDiffActivityFactory := fetchbranchfilediff.NewFactory(gitService)
-	fetchAllBranchDiffsFactory := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
+	}
+	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
+	}
+	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
+	}
 
 	// Common activities
 	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
-	summarizeFileFactory := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
-	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
-	composePRFactory := composepr.NewFactory(invokeLLMFactory)
+	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
+	}
+	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
+	}
+	composePRFactory, err := composepr.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compose pr factory: %w", err)
+	}
 
 	flowFactory, err := pr.NewFactory(
 		listBranchFilesActivityFactory,

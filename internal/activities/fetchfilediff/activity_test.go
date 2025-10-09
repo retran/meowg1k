@@ -53,7 +53,10 @@ func (m *mockStagedChangesReader) ReadStagedFileContent(filename string) (string
 
 func TestNewFactory(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
@@ -62,13 +65,17 @@ func TestNewFactory(t *testing.T) {
 
 func TestActivityNilInput(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, execCtx, nil)
+	_, err = activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}
@@ -86,7 +93,10 @@ func TestActivitySuccess(t *testing.T) {
 			return "old content", nil
 		},
 	}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()

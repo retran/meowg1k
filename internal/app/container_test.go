@@ -18,6 +18,8 @@ package app
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,9 +40,31 @@ import (
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
+// testMockDBHost is a simple mock implementation for testing nil validation
+type testMockDBHost struct{}
+
+func (h *testMockDBHost) GetDB() (*sql.DB, error) {
+	return nil, nil
+}
+
+func (h *testMockDBHost) GetProjectDB() (*sql.DB, error) {
+	return nil, nil
+}
+
+func (h *testMockDBHost) Close() error {
+	return nil
+}
+
 // NewTestAppContainer creates a new app.Container for testing with a mock database host.
 // This ensures tests use in-memory databases and don't create files on disk.
 func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error) {
+	if cmd == nil {
+		return nil, ErrCmdIsNil
+	}
+	if dbHost == nil {
+		return nil, db.ErrHostIsNil
+	}
+
 	container := &Container{}
 
 	ctx := cmd.Context()
@@ -243,6 +267,49 @@ generate:
 	if val != container {
 		t.Error("AppContainerKey not set correctly in context")
 	}
+}
+
+func TestNewAppContainerNil(t *testing.T) {
+	container, err := NewAppContainer(nil)
+	if err == nil {
+		t.Fatal("expected error when cmd is nil, got nil")
+	}
+	if !errors.Is(err, ErrCmdIsNil) {
+		t.Errorf("expected ErrCmdIsNil, got: %v", err)
+	}
+	if container != nil {
+		t.Errorf("expected nil container, got: %v", container)
+	}
+}
+
+func TestNewTestAppContainerNil(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+
+	t.Run("nil cmd", func(t *testing.T) {
+		container, err := NewTestAppContainer(nil, &testMockDBHost{})
+		if err == nil {
+			t.Fatal("expected error when cmd is nil, got nil")
+		}
+		if !errors.Is(err, ErrCmdIsNil) {
+			t.Errorf("expected ErrCmdIsNil, got: %v", err)
+		}
+		if container != nil {
+			t.Errorf("expected nil container, got: %v", container)
+		}
+	})
+
+	t.Run("nil dbHost", func(t *testing.T) {
+		container, err := NewTestAppContainer(cmd, nil)
+		if err == nil {
+			t.Fatal("expected error when dbHost is nil, got nil")
+		}
+		if !errors.Is(err, db.ErrHostIsNil) {
+			t.Errorf("expected db.ErrHostIsNil, got: %v", err)
+		}
+		if container != nil {
+			t.Errorf("expected nil container, got: %v", container)
+		}
+	})
 }
 
 func TestNewAppContainerWithErrors(t *testing.T) {

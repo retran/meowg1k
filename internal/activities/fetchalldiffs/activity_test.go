@@ -36,7 +36,10 @@ func (m *mockFileDiffActivityFactory) NewActivity() executor.Activity[*fetchfile
 
 func TestNewFactory(t *testing.T) {
 	mockFactory := &mockFileDiffActivityFactory{}
-	factory := NewFactory(mockFactory)
+	factory, err := NewFactory(mockFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
@@ -44,11 +47,15 @@ func TestNewFactory(t *testing.T) {
 
 func TestActivityNilInput(t *testing.T) {
 	mockFactory := &mockFileDiffActivityFactory{}
-	factory := NewFactory(mockFactory)
+	factory, err := NewFactory(mockFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, nil)
+
+	_, err = activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}
@@ -63,7 +70,10 @@ func TestActivitySuccess(t *testing.T) {
 		activity: mockActivity,
 	}
 
-	factory := NewFactory(mockFactory)
+	factory, err := NewFactory(mockFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()

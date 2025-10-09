@@ -26,25 +26,46 @@ import (
 )
 
 func TestNewFactory(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := (*summarizefile.Factory)(nil)
+	factory, err := NewFactory(mockFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
+func TestNewFactoryNil(t *testing.T) {
+	factory, err := NewFactory(nil)
+	if err == nil {
+		t.Error("Expected error when NewFactory called with nil")
+	}
+	if factory != nil {
+		t.Error("Expected nil factory when error returned")
+	}
+}
+
 func TestActivityNilInput(t *testing.T) {
-	factory := NewFactory(nil)
+	factory, err := NewFactory((*summarizefile.Factory)(nil))
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, nil)
+	_, err = activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}
 }
 
 func TestActivitySuccess(t *testing.T) {
-	factory := NewFactory((*summarizefile.Factory)(nil))
+	factory, err := NewFactory((*summarizefile.Factory)(nil))
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)

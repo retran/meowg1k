@@ -19,6 +19,7 @@ package composecommit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,9 @@ import (
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// ErrContentGenerationActivityFactoryIsNil indicates that the contentGenerationActivityFactory is nil.
+var ErrContentGenerationActivityFactoryIsNil = errors.New("contentGenerationActivityFactory is nil")
 
 // Input defines the input structure for the ComposeCommit activity.
 type Input struct {
@@ -55,15 +59,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposeCommit activity factory with the provided content generation activity factory.
-func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) *Factory {
+func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) (*Factory, error) {
+	if contentGenerationActivityFactory == nil {
+		return nil, ErrContentGenerationActivityFactoryIsNil
+	}
 	return &Factory{
 		contentGenerationActivityFactory: contentGenerationActivityFactory,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the ComposeCommit activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}

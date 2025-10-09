@@ -19,6 +19,7 @@ package fetchalldiffs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
@@ -26,6 +27,9 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
+
+// ErrFileDiffActivityFactoryIsNil indicates that the fileDiffActivityFactory is nil.
+var ErrFileDiffActivityFactoryIsNil = errors.New("fileDiffActivityFactory is nil")
 
 // Input defines the input structure for the FetchAllDiffs activity.
 type Input struct {
@@ -51,15 +55,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new FetchAllDiffs activity factory with the provided file diff activity factory.
-func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) *Factory {
+func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) (*Factory, error) {
+	if fileDiffActivityFactory == nil {
+		return nil, ErrFileDiffActivityFactoryIsNil
+	}
 	return &Factory{
 		fileDiffActivityFactory: fileDiffActivityFactory,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the FetchAllDiffs activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}

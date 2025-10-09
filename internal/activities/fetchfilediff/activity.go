@@ -19,12 +19,16 @@ package fetchfilediff
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// ErrStagedChangesReaderIsNil indicates that the stagedChangesReader is nil.
+var ErrStagedChangesReaderIsNil = errors.New("stagedChangesReader is nil")
 
 // Input defines the input structure for the FetchFileDiff activity.
 type Input struct {
@@ -47,15 +51,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
-func NewFactory(stagedChangesReader StagedChangesReader) *Factory {
+func NewFactory(stagedChangesReader StagedChangesReader) (*Factory, error) {
+	if stagedChangesReader == nil {
+		return nil, ErrStagedChangesReaderIsNil
+	}
 	return &Factory{
 		stagedChangesReader: stagedChangesReader,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}

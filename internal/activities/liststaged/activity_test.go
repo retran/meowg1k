@@ -37,7 +37,10 @@ func (m *mockStagedFileListReader) ReadStagedFiles() ([]string, error) {
 
 func TestNewFactory(t *testing.T) {
 	gitSvc := &mockStagedFileListReader{}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
@@ -46,7 +49,10 @@ func TestNewFactory(t *testing.T) {
 
 func TestNewActivity(t *testing.T) {
 	gitSvc := &mockStagedFileListReader{}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	if activity == nil {
@@ -60,7 +66,10 @@ func TestActivityExecute(t *testing.T) {
 			return []string{"file1.txt", "file2.go"}, nil
 		},
 	}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	input := &Input{}
@@ -87,13 +96,17 @@ func TestActivityExecute(t *testing.T) {
 
 func TestActivityExecuteNilInput(t *testing.T) {
 	gitSvc := &mockStagedFileListReader{}
-	factory := NewFactory(gitSvc)
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, execCtx, nil)
+	_, err = activity(ctx, execCtx, nil)
 	if err != executor.ErrInputCannotBeNil {
 		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
 	}

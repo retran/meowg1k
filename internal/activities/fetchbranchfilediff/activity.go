@@ -19,12 +19,16 @@ package fetchbranchfilediff
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// ErrBranchDiffReaderIsNil indicates that the branchDiffReader is nil.
+var ErrBranchDiffReaderIsNil = errors.New("branchDiffReader is nil")
 
 // Input defines the input structure for the FetchBranchFileDiff activity.
 type Input struct {
@@ -48,15 +52,21 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.
-func NewFactory(branchDiffReader BranchDiffReader) *Factory {
+func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
+	if branchDiffReader == nil {
+		return nil, ErrBranchDiffReaderIsNil
+	}
 	return &Factory{
 		branchDiffReader: branchDiffReader,
-	}
+	}, nil
 }
 
 // NewActivity creates and returns the FetchBranchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+		if f == nil {
+			return nil, errors.New("factory is nil")
+		}
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
