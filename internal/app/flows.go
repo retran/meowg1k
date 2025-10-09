@@ -107,7 +107,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
 	composeCommitFactory := composecommit.NewFactory(invokeLLMFactory)
 
-	flowFactory := commit.NewFactory(
+	flowFactory, err := commit.NewFactory(
 		listStagedActivityFactory,
 		listBranchFilesActivityFactory,
 		applyFiltersActivityFactory,
@@ -119,6 +119,9 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		c.CommandService,
 		c.OutputService,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create commit flow factory: %w", err)
+	}
 
 	return flowFactory.NewFlow(), nil
 }
@@ -157,13 +160,16 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
 
-	flowFactory := generate.NewFlowFactory(
+	flowFactory, err := generate.NewFlowFactory(
 		taskService,
 		generatePromptService,
 		generatePromptService,
 		invokeLLMFactory,
 		c.OutputService,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create generate flow factory: %w", err)
+	}
 
 	return flowFactory.NewFlow(), nil
 }
@@ -220,7 +226,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	summarizeAllFactory := summarizeall.NewFactory(summarizeFileFactory)
 	composePRFactory := composepr.NewFactory(invokeLLMFactory)
 
-	flowFactory := pr.NewFactory(
+	flowFactory, err := pr.NewFactory(
 		listBranchFilesActivityFactory,
 		applyFiltersActivityFactory,
 		fetchAllBranchDiffsFactory,
@@ -230,6 +236,9 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 		c.CommandService,
 		c.OutputService,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pr flow factory: %w", err)
+	}
 
 	return flowFactory.NewFlow(), nil
 }

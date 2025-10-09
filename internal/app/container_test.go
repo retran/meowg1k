@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -71,7 +72,11 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error)
 		return nil, err
 	}
 
-	mainDB := dbHost.GetDB()
+	mainDB, err := dbHost.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get main database: %w", err)
+	}
+
 	rateLimitRepo := ratelimit.NewRepository(mainDB)
 
 	if err := shutdownService.Register(func(ctx context.Context) error {

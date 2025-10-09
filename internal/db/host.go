@@ -22,7 +22,7 @@ import (
 )
 
 type Host interface {
-	GetDB() *sql.DB
-	GetProjectDB() *sql.DB
+	GetDB() (*sql.DB, error)
+	GetProjectDB() (*sql.DB, error)
 	Close() error
 }

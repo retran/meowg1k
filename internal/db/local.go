@@ -18,10 +18,18 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
+)
+
+var (
+	// ErrDBPathServiceIsNil indicates that the DBPathService is nil.
+	ErrDBPathServiceIsNil = errors.New("db path service is nil")
+	// ErrHostIsNil indicates that the host is nil.
+	ErrHostIsNil = errors.New("host is nil")
 )
 
 // DBPathService defines the interface for determining database paths.
@@ -36,6 +44,10 @@ type localHostImpl struct {
 
 // NewLocalHost creates a new local host with databases using the provided path service.
 func NewLocalHost(dbPathService DBPathService) (Host, error) {
+	if dbPathService == nil {
+		return nil, ErrDBPathServiceIsNil
+	}
+
 	mainDBPath, err := dbPathService.GetMainDBPath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get main db path: %w", err)
@@ -64,16 +76,28 @@ func NewLocalHost(dbPathService DBPathService) (Host, error) {
 	return host, nil
 }
 
-func (h *localHostImpl) GetDB() *sql.DB {
-	return h.mainDB
+func (h *localHostImpl) GetDB() (*sql.DB, error) {
+	if h == nil {
+		return nil, ErrHostIsNil
+	}
+
+	return h.mainDB, nil
 }
 
-func (h *localHostImpl) GetProjectDB() *sql.DB {
-	return h.projectDB
+func (h *localHostImpl) GetProjectDB() (*sql.DB, error) {
+	if h == nil {
+		return nil, ErrHostIsNil
+	}
+
+	return h.projectDB, nil
 }
 
 // getMainDBMigrations collects all migrations for the main database.
-func (h *localHostImpl) getMainDBMigrations() []migrations.Migration {
+func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
+	if h == nil {
+		return nil, ErrHostIsNil
+	}
+
 	allMigrations := []migrations.Migration{}
 
 	// Add rate limiting migrations
@@ -82,24 +106,57 @@ func (h *localHostImpl) getMainDBMigrations() []migrations.Migration {
 	// Future: add other subsystem migrations here
 	// allMigrations = append(allMigrations, someother.Migrations...)
 
-	return allMigrations
+	return allMigrations, nil
 }
 
 func (h *localHostImpl) migrateDB() error {
-	allMigrations := h.getMainDBMigrations()
+	if h == nil {
+		return ErrHostIsNil
+	}
+
+	allMigrations, err := h.getMainDBMigrations()
+	if err != nil {
+		return fmt.Errorf("failed to get main db migrations: %w", err)
+	}
+
 	if err := migrations.RunMigrations(h.mainDB, allMigrations); err != nil {
 		return fmt.Errorf("failed to run main db migrations: %w", err)
 	}
+
 	return nil
 }
 
 func (h *localHostImpl) migrateProjectDB() error {
+	if h == nil {
+		return ErrHostIsNil
+	}
+	// No migrations for project DB yet
 	return nil
 }
 
 func (h *localHostImpl) Close() error {
-	mainDBErr := h.mainDB.Close()
-	projectDBErr := h.projectDB.Close()
+	if h == nil {
+		return ErrHostIsNil
+	}
 
-	return fmt.Errorf("failed to close db: %w, %w", mainDBErr, projectDBErr)
+	var errs []error
+
+	if h.mainDB != nil {
+		if err := h.mainDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close main db: %w", err))
+		}
+	}
+
+	// Only close projectDB if it's different from mainDB
+	if h.projectDB != nil && h.projectDB != h.mainDB {
+		if err := h.projectDB.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close project db: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to close db: %v", errs)
+	}
+
+	return nil
 }

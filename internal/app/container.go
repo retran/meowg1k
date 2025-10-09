@@ -206,10 +206,14 @@ func (c *Container) initDB() error {
 			return
 		}
 
-		mainDB := dbHost.GetDB()
+		mainDB, err := dbHost.GetDB()
+		if err != nil {
+			initErr = fmt.Errorf("failed to get main database: %w", err)
+			return
+		}
+
 		rateLimitRepo := ratelimit.NewRepository(mainDB)
 
-		// Register shutdown hook
 		if err := c.ShutdownService.Register(func(ctx context.Context) error {
 			if err := dbHost.Close(); err != nil {
 				return fmt.Errorf("failed to close database host: %w", err)

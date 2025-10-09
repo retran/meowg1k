@@ -29,7 +29,25 @@ import (
 )
 
 // ErrInvalidActivityOutputType is returned when an unexpected activity output type is received.
-var ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
+var (
+	ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
+	// ErrFactoryIsNil indicates that the factory is nil.
+	ErrFactoryIsNil = errors.New("factory is nil")
+	// ErrContextIsNil indicates that the context is nil.
+	ErrContextIsNil = errors.New("context is nil")
+	// ErrFlowContextIsNil indicates that the flow context is nil.
+	ErrFlowContextIsNil = errors.New("flow context is nil")
+	// ErrTaskConfigProviderIsNil indicates that the taskConfigProvider is nil.
+	ErrTaskConfigProviderIsNil = errors.New("taskConfigProvider is nil")
+	// ErrUserPromptProviderIsNil indicates that the userPromptProvider is nil.
+	ErrUserPromptProviderIsNil = errors.New("userPromptProvider is nil")
+	// ErrSystemPromptProviderIsNil indicates that the systemPromptProvider is nil.
+	ErrSystemPromptProviderIsNil = errors.New("systemPromptProvider is nil")
+	// ErrContentGenerationActivityFactoryIsNil indicates that the contentGenerationActivityFactory is nil.
+	ErrContentGenerationActivityFactoryIsNil = errors.New("contentGenerationActivityFactory is nil")
+	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
+	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
+)
 
 // TaskConfigProvider provides resolved task configuration.
 type TaskConfigProvider interface {
@@ -72,19 +90,45 @@ func NewFlowFactory(
 	systemPromptProvider SystemPromptProvider,
 	contentGenerationActivityFactory ContentGenerationActivityFactory,
 	outputWriter OutputWriter,
-) *FlowFactory {
+) (*FlowFactory, error) {
+	if taskConfigProvider == nil {
+		return nil, ErrTaskConfigProviderIsNil
+	}
+	if userPromptProvider == nil {
+		return nil, ErrUserPromptProviderIsNil
+	}
+	if systemPromptProvider == nil {
+		return nil, ErrSystemPromptProviderIsNil
+	}
+	if contentGenerationActivityFactory == nil {
+		return nil, ErrContentGenerationActivityFactoryIsNil
+	}
+	if outputWriter == nil {
+		return nil, ErrOutputWriterIsNil
+	}
+
 	return &FlowFactory{
 		taskConfigProvider:               taskConfigProvider,
 		userPromptProvider:               userPromptProvider,
 		systemPromptProvider:             systemPromptProvider,
 		contentGenerationActivityFactory: contentGenerationActivityFactory,
 		outputWriter:                     outputWriter,
-	}
+	}, nil
 }
 
 // NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
+		if f == nil {
+			return ErrFactoryIsNil
+		}
+		if ctx == nil {
+			return ErrContextIsNil
+		}
+		if flowCtx == nil {
+			return ErrFlowContextIsNil
+		}
+
 		task, err := f.taskConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to get task config: %w", err)

@@ -19,6 +19,7 @@ package pr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
@@ -29,6 +30,31 @@ import (
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/internal/services/prconfig"
 	"github.com/retran/meowg1k/pkg/executor"
+)
+
+var (
+	// ErrFactoryIsNil indicates that the factory is nil.
+	ErrFactoryIsNil = errors.New("factory is nil")
+	// ErrContextIsNil indicates that the context is nil.
+	ErrContextIsNil = errors.New("context is nil")
+	// ErrFlowContextIsNil indicates that the flow context is nil.
+	ErrFlowContextIsNil = errors.New("flow context is nil")
+	// ErrListBranchFilesFactoryIsNil indicates that the listBranchFilesFactory is nil.
+	ErrListBranchFilesFactoryIsNil = errors.New("listBranchFilesFactory is nil")
+	// ErrApplyFiltersFactoryIsNil indicates that the applyFiltersFactory is nil.
+	ErrApplyFiltersFactoryIsNil = errors.New("applyFiltersFactory is nil")
+	// ErrFetchAllBranchDiffsFactoryIsNil indicates that the fetchAllBranchDiffsFactory is nil.
+	ErrFetchAllBranchDiffsFactoryIsNil = errors.New("fetchAllBranchDiffsFactory is nil")
+	// ErrSummarizeAllFactoryIsNil indicates that the summarizeAllFactory is nil.
+	ErrSummarizeAllFactoryIsNil = errors.New("summarizeAllFactory is nil")
+	// ErrComposePRFactoryIsNil indicates that the composePRFactory is nil.
+	ErrComposePRFactoryIsNil = errors.New("composePRFactory is nil")
+	// ErrPRConfigProviderIsNil indicates that the prConfigProvider is nil.
+	ErrPRConfigProviderIsNil = errors.New("prConfigProvider is nil")
+	// ErrCommandParametersReaderIsNil indicates that the commandParametersReader is nil.
+	ErrCommandParametersReaderIsNil = errors.New("commandParametersReader is nil")
+	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
+	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
 )
 
 // PRConfigProvider provides pull request configuration.
@@ -70,7 +96,32 @@ func NewFactory(
 	prConfigProvider PRConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter OutputWriter,
-) *Factory {
+) (*Factory, error) {
+	if listBranchFilesFactory == nil {
+		return nil, ErrListBranchFilesFactoryIsNil
+	}
+	if applyFiltersFactory == nil {
+		return nil, ErrApplyFiltersFactoryIsNil
+	}
+	if fetchAllBranchDiffsFactory == nil {
+		return nil, ErrFetchAllBranchDiffsFactoryIsNil
+	}
+	if summarizeAllFactory == nil {
+		return nil, ErrSummarizeAllFactoryIsNil
+	}
+	if composePRFactory == nil {
+		return nil, ErrComposePRFactoryIsNil
+	}
+	if prConfigProvider == nil {
+		return nil, ErrPRConfigProviderIsNil
+	}
+	if commandParametersReader == nil {
+		return nil, ErrCommandParametersReaderIsNil
+	}
+	if outputWriter == nil {
+		return nil, ErrOutputWriterIsNil
+	}
+
 	return &Factory{
 		listBranchFilesFactory:     listBranchFilesFactory,
 		applyFiltersFactory:        applyFiltersFactory,
@@ -80,12 +131,22 @@ func NewFactory(
 		prConfigProvider:           prConfigProvider,
 		commandParametersReader:    commandParametersReader,
 		outputWriter:               outputWriter,
-	}
+	}, nil
 }
 
 // NewFlow creates and returns the PR composition flow function with added progress reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
+		if f == nil {
+			return ErrFactoryIsNil
+		}
+		if ctx == nil {
+			return ErrContextIsNil
+		}
+		if flowCtx == nil {
+			return ErrFlowContextIsNil
+		}
+
 		flowCtx.SendRunning("Composing Pull Request description")
 
 		// Get the base branch to compare against

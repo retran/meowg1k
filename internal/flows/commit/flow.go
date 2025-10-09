@@ -19,6 +19,7 @@ package commit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
@@ -31,6 +32,35 @@ import (
 	"github.com/retran/meowg1k/internal/services/commitconfig"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
+)
+
+var (
+	// ErrFactoryIsNil indicates that the factory is nil.
+	ErrFactoryIsNil = errors.New("factory is nil")
+	// ErrContextIsNil indicates that the context is nil.
+	ErrContextIsNil = errors.New("context is nil")
+	// ErrFlowContextIsNil indicates that the flow context is nil.
+	ErrFlowContextIsNil = errors.New("flow context is nil")
+	// ErrListStagedFactoryIsNil indicates that the listStagedFactory is nil.
+	ErrListStagedFactoryIsNil = errors.New("listStagedFactory is nil")
+	// ErrListBranchFilesFactoryIsNil indicates that the listBranchFilesFactory is nil.
+	ErrListBranchFilesFactoryIsNil = errors.New("listBranchFilesFactory is nil")
+	// ErrApplyFiltersFactoryIsNil indicates that the applyFiltersFactory is nil.
+	ErrApplyFiltersFactoryIsNil = errors.New("applyFiltersFactory is nil")
+	// ErrFetchAllDiffsFactoryIsNil indicates that the fetchAllDiffsFactory is nil.
+	ErrFetchAllDiffsFactoryIsNil = errors.New("fetchAllDiffsFactory is nil")
+	// ErrFetchAllBranchDiffsFactoryIsNil indicates that the fetchAllBranchDiffsFactory is nil.
+	ErrFetchAllBranchDiffsFactoryIsNil = errors.New("fetchAllBranchDiffsFactory is nil")
+	// ErrSummarizeAllFactoryIsNil indicates that the summarizeAllFactory is nil.
+	ErrSummarizeAllFactoryIsNil = errors.New("summarizeAllFactory is nil")
+	// ErrComposeCommitFactoryIsNil indicates that the composeCommitFactory is nil.
+	ErrComposeCommitFactoryIsNil = errors.New("composeCommitFactory is nil")
+	// ErrCommitConfigProviderIsNil indicates that the commitConfigProvider is nil.
+	ErrCommitConfigProviderIsNil = errors.New("commitConfigProvider is nil")
+	// ErrCommandParametersReaderIsNil indicates that the commandParametersReader is nil.
+	ErrCommandParametersReaderIsNil = errors.New("commandParametersReader is nil")
+	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
+	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
 )
 
 // CommitConfigProvider provides commit message configuration.
@@ -76,7 +106,38 @@ func NewFactory(
 	commitConfigProvider CommitConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter OutputWriter,
-) *Factory {
+) (*Factory, error) {
+	if listStagedFactory == nil {
+		return nil, ErrListStagedFactoryIsNil
+	}
+	if listBranchFilesFactory == nil {
+		return nil, ErrListBranchFilesFactoryIsNil
+	}
+	if applyFiltersFactory == nil {
+		return nil, ErrApplyFiltersFactoryIsNil
+	}
+	if fetchAllDiffsFactory == nil {
+		return nil, ErrFetchAllDiffsFactoryIsNil
+	}
+	if fetchAllBranchDiffsFactory == nil {
+		return nil, ErrFetchAllBranchDiffsFactoryIsNil
+	}
+	if summarizeAllFactory == nil {
+		return nil, ErrSummarizeAllFactoryIsNil
+	}
+	if composeCommitFactory == nil {
+		return nil, ErrComposeCommitFactoryIsNil
+	}
+	if commitConfigProvider == nil {
+		return nil, ErrCommitConfigProviderIsNil
+	}
+	if commandParametersReader == nil {
+		return nil, ErrCommandParametersReaderIsNil
+	}
+	if outputWriter == nil {
+		return nil, ErrOutputWriterIsNil
+	}
+
 	return &Factory{
 		listStagedFactory:          listStagedFactory,
 		listBranchFilesFactory:     listBranchFilesFactory,
@@ -88,12 +149,22 @@ func NewFactory(
 		commitConfigProvider:       commitConfigProvider,
 		commandParametersReader:    commandParametersReader,
 		outputWriter:               outputWriter,
-	}
+	}, nil
 }
 
 // NewFlow creates and returns the commit composition flow function with added progress reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
+		if f == nil {
+			return ErrFactoryIsNil
+		}
+		if ctx == nil {
+			return ErrContextIsNil
+		}
+		if flowCtx == nil {
+			return ErrFlowContextIsNil
+		}
+
 		flowCtx.SendRunning("Composing commit message")
 
 		// Check if we're in squash mode (branch comparison)
