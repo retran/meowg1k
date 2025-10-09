@@ -18,17 +18,12 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
 )
-
-var ErrCommandIsNil = errors.New("command is nil")
-
-var ErrAppNotInitialized = errors.New("application not initialized")
 
 func Execute() error {
 	return rootCmd.Execute()
@@ -39,7 +34,7 @@ var rootCmd = &cobra.Command{
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd == nil {
-			return ErrCommandIsNil
+			return fmt.Errorf("command is nil")
 		}
 
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
@@ -48,7 +43,6 @@ var rootCmd = &cobra.Command{
 
 		_, err := app.NewAppContainer(cmd)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to initialize app: %w", err)
 		}
 
@@ -56,7 +50,7 @@ var rootCmd = &cobra.Command{
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd == nil {
-			return ErrCommandIsNil
+			return fmt.Errorf("command is nil")
 		}
 
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
@@ -65,13 +59,11 @@ var rootCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		if ctx == nil {
-			// TODO proper error
 			return nil
 		}
 
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
-			// TODO proper error
 			return nil
 		}
 

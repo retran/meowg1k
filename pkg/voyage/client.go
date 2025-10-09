@@ -21,18 +21,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
-)
-
-// Voyage service errors
-var (
-	ErrVoyageAPIKeyRequired = errors.New("voyage API key is required")
-	ErrAPIRequestFailed     = errors.New("API request failed")
-	ErrContextIsNil         = errors.New("context cannot be nil")
 )
 
 const (
@@ -52,7 +44,7 @@ type Client struct {
 // NewClient creates a new Voyage AI client with the given configuration.
 func NewClient(baseURL, apiKey string, timeout time.Duration) (*Client, error) {
 	if apiKey == "" {
-		return nil, ErrVoyageAPIKeyRequired
+		return nil, fmt.Errorf("voyage API key is required")
 	}
 
 	if baseURL == "" {
@@ -106,12 +98,11 @@ type ErrorResponse struct {
 // CreateEmbeddings sends a request to create embeddings for the given input texts.
 func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error) {
 	if c == nil {
-		// TODO proper error
-		return nil, errors.New("service is nil")
+		return nil, fmt.Errorf("client is nil")
 	}
 
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if req.Model == "" {
@@ -120,14 +111,13 @@ func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*E
 
 	requestBody, err := json.Marshal(req)
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal embedding request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/embeddings", bytes.NewBuffer(requestBody))
+	url := c.baseURL + "/embeddings"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request to %q: %w", url, err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -135,32 +125,27 @@ func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*E
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read response body from %q: %w", url, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err != nil {
-			// TODO proper error
-			return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(body))
+			return nil, fmt.Errorf("API request to %q failed with status %d: %s", url, resp.StatusCode, string(body))
 		}
 
-		// TODO proper error
-		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, errorResp.Error.Message)
+		return nil, fmt.Errorf("API request to %q failed: %s", url, errorResp.Error.Message)
 	}
 
 	var embeddingResp EmbeddingResponse
 	if err := json.Unmarshal(body, &embeddingResp); err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal embedding response from %q: %w", url, err)
 	}
 
 	return &embeddingResp, nil

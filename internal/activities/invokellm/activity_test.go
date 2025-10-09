@@ -116,8 +116,8 @@ func TestInvokeLLMActivity_NilInput(t *testing.T) {
 	executorCtx := executor.NewContext("test", nil, nil)
 
 	_, err = activity(ctx, executorCtx, nil)
-	if err != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
+	if err == nil {
+		t.Error("Expected error for nil input, got nil")
 	}
 }
 

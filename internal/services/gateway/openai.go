@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/openai/openai-go/v2"
@@ -31,8 +30,6 @@ var (
 	_ GenerationGateway = (*openaiGateway)(nil)
 	_ EmbeddingsGateway = (*openaiGateway)(nil)
 )
-
-var ErrNoChoices = errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
 
 type openaiGateway struct {
 	gateway.ComputeDistanceMixin
@@ -60,15 +57,15 @@ func (g *openaiGateway) GenerateContent(
 	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("openai gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
@@ -80,12 +77,11 @@ func (g *openaiGateway) GenerateContent(
 		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
 	})
 	if err != nil {
-		// TODO proper error
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)
 	}
 
 	if len(response.Choices) == 0 {
-		return "", ErrNoChoices
+		return "", fmt.Errorf("failed to generate content: no choices returned from OpenAI-compatible API for model %q", request.Model())
 	}
 
 	return response.Choices[0].Message.Content, nil
@@ -97,15 +93,15 @@ func (g *openaiGateway) ComputeEmbeddings(
 	request *gateway.ComputeEmbeddingsRequest,
 ) ([]gateway.Embedding, error) {
 	if g == nil {
-		return nil, ErrGatewayIsNil
+		return nil, fmt.Errorf("openai gateway is nil")
 	}
 
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return nil, ErrRequestIsNil
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	params := openai.EmbeddingNewParams{
@@ -121,8 +117,7 @@ func (g *openaiGateway) ComputeEmbeddings(
 
 	response, err := g.client.Embeddings.New(ctx, params)
 	if err != nil {
-		// TODO proper error
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from OpenAI-compatible API for model %q: %w", request.Model(), err)
 	}
 
 	embeddings := make([]gateway.Embedding, 0, len(response.Data))

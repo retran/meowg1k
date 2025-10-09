@@ -18,20 +18,12 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
-)
-
-var (
-	ErrAnthropicAPIKeyRequired          = errors.New("anthropic API key is required")
-	ErrModelRequired                    = errors.New("model is required")
-	ErrNoContentInResponseFromAnthropic = errors.New("no content in response from Anthropic")
-	ErrNoTextContentFoundInResponse     = errors.New("no text content found in Anthropic response")
 )
 
 // Compile-time interface satisfaction check
@@ -45,7 +37,7 @@ type anthropicGateway struct {
 // NewAnthropicGateway creates a new Anthropic
 func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 	if apiKey == "" {
-		return nil, ErrAnthropicAPIKeyRequired
+		return nil, fmt.Errorf("anthropic API key is required")
 	}
 
 	client := anthropic.NewClient(
@@ -63,20 +55,20 @@ func (g *anthropicGateway) GenerateContent(
 	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("anthropic gateway is nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	model := request.Model()
 	if model == "" {
-		return "", ErrModelRequired
+		return "", fmt.Errorf("model is required for anthropic content generation")
 	}
 
 	messages := []anthropic.MessageParam{
@@ -97,12 +89,11 @@ func (g *anthropicGateway) GenerateContent(
 
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
-		// TODO proper error
-		return "", fmt.Errorf("failed to generate content with Anthropic: %w", err)
+		return "", fmt.Errorf("failed to generate content from Anthropic for model %q: %w", model, err)
 	}
 
 	if len(response.Content) == 0 {
-		return "", ErrNoContentInResponseFromAnthropic
+		return "", fmt.Errorf("no content in response from Anthropic for model %q", model)
 	}
 
 	for i := range response.Content {
@@ -112,5 +103,5 @@ func (g *anthropicGateway) GenerateContent(
 		}
 	}
 
-	return "", ErrNoTextContentFoundInResponse
+	return "", fmt.Errorf("no text content found in Anthropic response for model %q", model)
 }

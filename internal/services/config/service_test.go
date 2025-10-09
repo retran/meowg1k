@@ -19,6 +19,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -182,8 +183,9 @@ func TestNewServiceWithoutConfig(t *testing.T) {
 	}
 
 	// Check that error message is appropriate
-	if err != nil && err.Error() != "no configuration file found in standard locations" {
-		t.Errorf("Expected specific error message, got: %v", err)
+	expectedMsg := "no configuration file found in standard locations"
+	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+		t.Errorf("Expected error message to contain %q, got: %v", expectedMsg, err)
 	}
 }
 

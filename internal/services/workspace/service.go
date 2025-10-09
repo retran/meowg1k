@@ -22,9 +22,6 @@ import (
 	"os"
 )
 
-// ErrServiceIsNil indicates that the service is nil.
-var ErrServiceIsNil = fmt.Errorf("service is nil")
-
 type Service struct{}
 
 // NewService creates a new workspace service instance.
@@ -34,12 +31,11 @@ func NewService() *Service {
 
 func (g *Service) GetWorkspaceDir() (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("workspace service is nil")
 	}
 
 	path, err := os.Getwd()
 	if err != nil {
-		// TODO proper error
 		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
 

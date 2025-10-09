@@ -50,7 +50,6 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
 func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*Input, *Output], error) {
 	if fileIgnoreChecker == nil {
-		// TODO proper error
 		return nil, fmt.Errorf("applyfilters.NewFactory: fileIgnoreChecker cannot be nil")
 	}
 
@@ -65,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		executorCtx.SendRunning("Applying filters")
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		filteredFiles := make([]string, 0, len(input.Files))

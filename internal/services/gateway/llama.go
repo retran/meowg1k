@@ -18,15 +18,12 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
 	"github.com/retran/meowg1k/pkg/llama"
 )
-
-var ErrBaseURLRequired = errors.New("base URL is required")
 
 var _ GenerationGateway = (*llamaGateway)(nil)
 
@@ -49,13 +46,12 @@ const (
 // NewLlamaGateway creates and initializes a new LlamaGateway.
 func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 	if baseURL == "" {
-		return nil, ErrBaseURLRequired
+		return nil, fmt.Errorf("base URL is required for llama gateway")
 	}
 
 	client, err := llama.NewClient(baseURL, apiKey)
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("failed to create llama client: %w", err)
+		return nil, fmt.Errorf("failed to create llama client with base URL %q: %w", baseURL, err)
 	}
 
 	return &llamaGateway{
@@ -66,15 +62,15 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 // GenerateContent sends a content generation request to the local LLM server.
 func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("llama gateway is nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	var promptBuilder strings.Builder
@@ -104,8 +100,7 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 
 	resp, err := g.client.Complete(ctx, req)
 	if err != nil {
-		// TODO proper error
-		return "", fmt.Errorf("failed to generate content: failed to fetch response from local LLM API: %w", err)
+		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
 	}
 
 	return resp.Content, nil

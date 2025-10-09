@@ -54,16 +54,25 @@ func TestNewGatewayFactory(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
+}
+
+func TestNewGatewayFactoryNilRepo(t *testing.T) {
+	factory, err := NewFactory(nil)
+	assert.Error(t, err)
+	assert.Nil(t, factory)
+	assert.Contains(t, err.Error(), "repository function is nil")
 }
 
 func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	assert.NoError(t, err)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -128,7 +137,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 				TokenizerType:   model.TokenizerUnknown,
 			},
 			expectError: true,
-			errorMsg:    "anthropic API key is required",
+			errorMsg:    "API key",
 		},
 		{
 			name: "Gemini provider with API key",
@@ -483,7 +492,8 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 // TestGatewayFactory_NoOpLimiterFallback tests that the factory falls back to no-op limiter when DB error occurs
 func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	// Create a factory with a repo function that returns nil (simulating DB error)
-	factory := NewFactory(func() ratelimit.Repository { return nil })
+	factory, err := NewFactory(func() ratelimit.Repository { return nil })
+	assert.NoError(t, err)
 
 	// Create a profile with rate limits enabled
 	prof := &profile.ResolvedProfile{
@@ -519,7 +529,8 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	assert.NoError(t, err)
 
 	// Create a profile with NO rate limits - should use no-op limiter without touching DB
 	prof := &profile.ResolvedProfile{

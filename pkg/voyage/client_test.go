@@ -188,7 +188,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			mockStatusCode: 500,
 			mockError:      "Internal Server Error",
 			expectError:    true,
-			errorMsg:       "API request failed: status 500: Internal Server Error",
+			errorMsg:       "failed with status 500",
 		},
 		{
 			name: "Invalid JSON response",
@@ -198,7 +198,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			mockStatusCode: 200,
 			mockError:      "invalid json response",
 			expectError:    true,
-			errorMsg:       "failed to unmarshal response",
+			errorMsg:       "failed to unmarshal embedding response",
 		},
 	}
 

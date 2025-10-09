@@ -18,21 +18,11 @@ limitations under the License.
 package commit
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/profile"
-)
-
-var (
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = errors.New("service is nil")
-	// ErrConfigReaderIsNil indicates that the config reader is nil.
-	ErrConfigReaderIsNil = errors.New("config reader is nil")
-	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
-	ErrProfileResolverIsNil = errors.New("profile resolver is nil")
 )
 
 // ConfigReader reads the application configuration.
@@ -54,11 +44,11 @@ type Service struct {
 // NewService creates a new commit configuration service.
 func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if profileResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	return &Service{
@@ -70,15 +60,15 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 // GetCommitConfig resolves the commit configuration.
 func (s *Service) GetCommitConfig() (*commit.ResolvedConfig, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("commit service is nil")
 	}
 
 	if s.configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if s.profileResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	cfg, err := s.configReader.GetConfig()
@@ -96,13 +86,11 @@ func (s *Service) GetCommitConfig() (*commit.ResolvedConfig, error) {
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve profile %q: %w", profileName, err)
 	}
 
 	if systemPrompt == "" {
-		// TODO proper error
-		return nil, errors.New("system prompt is required")
+		return nil, fmt.Errorf("system prompt is required")
 	}
 
 	return &commit.ResolvedConfig{

@@ -18,17 +18,10 @@ limitations under the License.
 package provider
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/internal/core/provider"
-)
-
-// Provider service errors
-var (
-	ErrProviderNotFound = errors.New("provider not found")
-	ErrServiceIsNil     = errors.New("service is nil")
 )
 
 // Service is the concrete implementation of the registry service.
@@ -129,13 +122,12 @@ func NewService() *Service {
 // Get retrieves a provider definition by provider type.
 func (s *Service) Get(providerType provider.Provider) (provider.ProviderDefinition, error) {
 	if s == nil {
-		return provider.ProviderDefinition{}, ErrServiceIsNil
+		return provider.ProviderDefinition{}, fmt.Errorf("provider service is nil")
 	}
 
 	providerDefinition, exists := s.providers[providerType]
 	if !exists {
-		// TODO proper error
-		return provider.ProviderDefinition{}, fmt.Errorf("%w: %s", ErrProviderNotFound, providerType)
+		return provider.ProviderDefinition{}, fmt.Errorf("provider not found: %s", providerType)
 	}
 
 	return providerDefinition, nil

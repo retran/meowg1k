@@ -36,7 +36,6 @@ type voyageGateway struct {
 func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
 	client, err := voyage.NewClient("", apiKey, 0)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}
 
@@ -80,15 +79,15 @@ func (g *voyageGateway) ComputeEmbeddings(
 	request *gateway.ComputeEmbeddingsRequest,
 ) ([]gateway.Embedding, error) {
 	if g == nil {
-		return nil, ErrGatewayIsNil
+		return nil, fmt.Errorf("voyage gateway is nil")
 	}
 
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return nil, ErrRequestIsNil
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	inputType := mapTaskTypeToInputType(request.TaskType())
@@ -107,8 +106,7 @@ func (g *voyageGateway) ComputeEmbeddings(
 
 	response, err := g.client.CreateEmbeddings(ctx, req)
 	if err != nil {
-		// TODO proper error
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from Voyage AI for model %q: %w", request.Model(), err)
 	}
 
 	embeddings := make([]gateway.Embedding, 0, len(response.Data))

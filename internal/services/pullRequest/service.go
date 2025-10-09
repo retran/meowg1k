@@ -25,15 +25,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/pullRequest"
 )
 
-var (
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = fmt.Errorf("service is nil")
-	// ErrConfigReaderIsNil indicates that the config reader is nil.
-	ErrConfigReaderIsNil = fmt.Errorf("config reader is nil")
-	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
-	ErrProfileResolverIsNil = fmt.Errorf("profile resolver is nil")
-)
-
 // ConfigReader reads the application configuration.
 type ConfigReader interface {
 	GetConfig() (*config.Config, error)
@@ -53,11 +44,11 @@ type Service struct {
 // NewService creates a new PR configuration service.
 func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if profileResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	return &Service{
@@ -69,12 +60,11 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 // GetPRConfig resolves the PR configuration.
 func (s *Service) GetPRConfig() (*pullRequest.ResolvedConfig, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("pull request service is nil")
 	}
 
 	config, err := s.configReader.GetConfig()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
@@ -88,12 +78,10 @@ func (s *Service) GetPRConfig() (*pullRequest.ResolvedConfig, error) {
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve profile %q: %w", profileName, err)
 	}
 
 	if systemPrompt == "" {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get system prompt")
 	}
 

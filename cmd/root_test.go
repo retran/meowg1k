@@ -372,10 +372,6 @@ func TestRootCmdPersistentPostRunE(t *testing.T) {
 			t.Error("Expected error with nil command")
 		}
 
-		if err != ErrCommandIsNil {
-			t.Errorf("Expected ErrCommandIsNil, got: %v", err)
-		}
-
 		t.Logf("Got expected error with nil command: %v", err)
 	})
 

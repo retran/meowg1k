@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
 	"github.com/retran/meowg1k/pkg/ratelimit"
@@ -43,21 +44,21 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("rate limited generation gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
 
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
 	return g.gateway.GenerateContent(ctx, request)
@@ -90,15 +91,15 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	request *gateway.ComputeEmbeddingsRequest,
 ) ([]gateway.Embedding, error) {
 	if g == nil {
-		return nil, ErrGatewayIsNil
+		return nil, fmt.Errorf("rate limited embeddings gateway is nil")
 	}
 
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return nil, ErrRequestIsNil
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	// Estimate token count from the text chunks
@@ -109,7 +110,7 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	tokenCount := totalChars / 4 // Rough estimate: ~4 chars per token
 
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
 	return g.gateway.ComputeEmbeddings(ctx, request)
@@ -118,7 +119,7 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 // ComputeDistance implements EmbeddingsGateway by delegating to the wrapped gateway.
 func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second gateway.Embedding) (float64, error) {
 	if g == nil {
-		return 0, ErrGatewayIsNil
+		return 0, fmt.Errorf("rate limited embeddings gateway is nil")
 	}
 
 	return g.gateway.ComputeDistance(first, second)

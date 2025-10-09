@@ -19,18 +19,8 @@ package migrations
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"sort"
-)
-
-var (
-	// ErrDatabaseIsNil indicates that the database connection is nil.
-	ErrDatabaseIsNil = errors.New("database connection is nil")
-	// ErrMigrationsIsNil indicates that the migrations slice is nil.
-	ErrMigrationsIsNil = errors.New("migrations slice is nil")
-	// ErrMigrationUpFuncIsNil indicates that a migration's Up function is nil.
-	ErrMigrationUpFuncIsNil = errors.New("migration Up function is nil")
 )
 
 type Migration struct {
@@ -40,11 +30,11 @@ type Migration struct {
 
 func RunMigrations(db *sql.DB, migrations []Migration) error {
 	if db == nil {
-		return ErrDatabaseIsNil
+		return fmt.Errorf("database connection is nil")
 	}
 
 	if migrations == nil {
-		return ErrMigrationsIsNil
+		return fmt.Errorf("migrations slice is nil")
 	}
 
 	_, err := db.Exec(`
@@ -53,7 +43,6 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 		);
 	`)
 	if err != nil {
-		// TODO proper error
 		return fmt.Errorf("failed to create schema_versions table: %w", err)
 	}
 
@@ -63,12 +52,10 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 		if err == sql.ErrNoRows {
 			_, err = db.Exec("INSERT INTO schema_versions (version) VALUES (0)")
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to initialize schema_versions table: %w", err)
 			}
 			currentVersion = 0
 		} else {
-			// TODO proper error
 			return fmt.Errorf("failed to get current schema version: %w", err)
 		}
 	}
@@ -79,24 +66,21 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 
 	tx, err := db.Begin()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	for _, m := range migrations {
 		if m.Version > currentVersion {
 			if m.Up == nil {
-				// TODO proper error
-				return fmt.Errorf("%w for version %d", ErrMigrationUpFuncIsNil, m.Version)
+				return fmt.Errorf("migration Up function is nil for version %d", m.Version)
 			}
 			if err := m.Up(tx); err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to apply migration %d: %w", m.Version, err)
 			}
 
 			_, err := tx.Exec("UPDATE schema_versions SET version = ?", m.Version)
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to update schema version to %d: %w", m.Version, err)
 			}
 		}

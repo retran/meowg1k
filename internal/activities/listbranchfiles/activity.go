@@ -19,14 +19,10 @@ package listbranchfiles
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/pkg/executor"
 )
-
-// ErrBranchFileListReaderIsNil indicates that the branchFileListReader is nil.
-var ErrBranchFileListReaderIsNil = errors.New("branchFileListReader is nil")
 
 // Input defines the input structure for the ListBranchFiles activity.
 type Input struct {
@@ -54,7 +50,7 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new ListBranchFiles activity factory with the provided branch file list reader.
 func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
 	if branchFileListReader == nil {
-		return nil, ErrBranchFileListReaderIsNil
+		return nil, fmt.Errorf("branch file list reader cannot be nil")
 	}
 
 	return &Factory{
@@ -66,16 +62,14 @@ func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("list branch files factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		if input.TargetBranch == "" {
-			// TODO proper error
 			return nil, fmt.Errorf("target branch cannot be empty")
 		}
 
@@ -83,7 +77,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		files, err := f.branchFileListReader.GetChangedFilesInBranch(input.TargetBranch)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 		}
 

@@ -16,7 +16,7 @@ limitations under the License.
 
 package git
 
-// TODO
+// FileChange represents a change made to a file in a git repository.
 type FileChange struct {
 	Filename            string
 	Change              string

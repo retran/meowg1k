@@ -18,7 +18,6 @@ limitations under the License.
 package profile
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -26,18 +25,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/model"
 	"github.com/retran/meowg1k/internal/core/profile"
-)
-
-// Profile service errors
-var (
-	ErrNoProfilesDefined          = errors.New("no profiles defined in configuration")
-	ErrProfileNotFound            = errors.New("profile not found in configuration")
-	ErrResolvedProfileCannotBeNil = errors.New("resolved profile cannot be nil")
-	ErrTimeoutTooSmall            = errors.New("timeout must be at least 1 second")
-	ErrModelReferenceRequired     = errors.New("profile must reference a model")
-	ErrConfigReaderIsNil          = errors.New("config reader is nil")
-	ErrProfileResolverIsNil       = errors.New("profile resolver is nil")
-	ErrServiceIsNil               = errors.New("service is nil")
 )
 
 // ConfigReader reads the application configuration.
@@ -61,11 +48,11 @@ type Service struct {
 // NewService creates a new profile resolver service.
 func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if modelResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	service := &Service{
@@ -79,7 +66,7 @@ func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Servic
 // Get retrieves a profile using cached data from initialization.
 func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("service is nil")
 	}
 
 	s.mu.RLock()
@@ -98,14 +85,12 @@ func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 
 	cfg, err := s.configReader.GetConfig()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve profile %q: %w", profile, err)
 	}
 
 	s.resolvedProfiles[profile] = resolved
@@ -119,35 +104,32 @@ func (s *Service) resolveProfileInternal(
 	cfg *config.Config,
 ) (*profile.ResolvedProfile, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("service is nil")
 	}
 
 	if profileName == "" {
-		return nil, ErrProfileNotFound
+		return nil, fmt.Errorf("profile not found in configuration")
 	}
 
 	if cfg == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if cfg.Profiles == nil {
-		return nil, ErrNoProfilesDefined
+		return nil, fmt.Errorf("no profiles defined in configuration")
 	}
 
 	profileDef, exists := cfg.Profiles[string(profileName)]
 	if !exists {
-		// TODO proper error
-		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profileName)
+		return nil, fmt.Errorf("profile not found in configuration: %s", profileName)
 	}
 
 	if profileDef.Model == "" {
-		// TODO proper error
-		return nil, fmt.Errorf("%w: profileName '%s'", ErrModelReferenceRequired, profileName)
+		return nil, fmt.Errorf("profile must reference a model: profileName '%s'", profileName)
 	}
 
 	resolvedModel, err := s.modelResolver.Get(model.Model(profileDef.Model))
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to resolve model '%s' for profileName '%s': %w", profileDef.Model, profileName, err)
 	}
 
@@ -178,7 +160,6 @@ func (s *Service) resolveProfileInternal(
 	}
 
 	if err := s.validateResolvedProfile(resolved); err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("profileName validation failed: %w", err)
 	}
 
@@ -188,25 +169,22 @@ func (s *Service) resolveProfileInternal(
 // validateResolvedProfile validates a resolved profile configuration.
 func (s *Service) validateResolvedProfile(resolved *profile.ResolvedProfile) error {
 	if s == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("service is nil")
 	}
 
 	if resolved == nil {
-		return ErrResolvedProfileCannotBeNil
+		return fmt.Errorf("resolved profile cannot be nil")
 	}
 
 	if resolved.Timeout < time.Second {
-		// TODO proper error
-		return fmt.Errorf("%w, got %v", ErrTimeoutTooSmall, resolved.Timeout)
+		return fmt.Errorf("timeout must be at least 1 second, got %v", resolved.Timeout)
 	}
 
 	if resolved.Model == "" {
-		// TODO proper error
 		return fmt.Errorf("resolved profile has empty model name")
 	}
 
 	if resolved.ModelID == "" {
-		// TODO proper error
 		return fmt.Errorf("resolved profile has empty model ID")
 	}
 

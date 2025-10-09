@@ -19,6 +19,7 @@ package ratelimit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -53,10 +54,10 @@ var Unlimited = Config{
 // NewLimiter creates a new Limiter based on the provided configuration and repository.
 func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, error) {
 	if config.ID == "" {
-		return nil, errors.New("config ID is empty")
+		return nil, fmt.Errorf("config ID is empty")
 	}
 	if repo == nil {
-		return nil, errors.New("repository is nil")
+		return nil, fmt.Errorf("repository is nil for config %q", config.ID)
 	}
 
 	var configs []BucketConfig
@@ -90,7 +91,7 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 	}
 
 	if err := repo.InitializeBuckets(ctx, configs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to initialize rate limit buckets for config %q: %w", config.ID, err)
 	}
 
 	return &dbLimiter{
@@ -124,13 +125,17 @@ func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 			return nil
 		}
 
-		if !errors.Is(err, ErrNotEnoughTokens) {
-			return err
+		// Check if this is a "not enough tokens" error using type assertion
+		var notEnoughTokensErr *NotEnoughTokensError
+		if !errors.As(err, &notEnoughTokensErr) {
+			// If it's not a token shortage error, return it immediately with context
+			return fmt.Errorf("failed to acquire tokens from rate limiter: %w", err)
 		}
 
+		// Wait and retry for token shortage errors
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("rate limiter wait interrupted: %w", ctx.Err())
 		case <-time.After(pollInterval):
 			// Repeat the attempt
 		}

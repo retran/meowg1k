@@ -17,6 +17,8 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -47,24 +49,24 @@ You can provide your intent or context in two ways:
 The intent will be included in the prompt to help generate a more accurate PR description.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if cmd == nil {
-			return ErrCommandIsNil
+			return fmt.Errorf("command is nil")
 		}
 
 		ctx := cmd.Context()
 
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
-			return ErrAppNotInitialized
+			return fmt.Errorf("application not initialized")
 		}
 
 		flow, err := appContainer.CreatePRFlow()
 		if err != nil {
-			return err // TODO proper error
+			return fmt.Errorf("failed to create PR flow: %w", err)
 		}
 
 		runner, err := app.NewFlowRunner(appContainer)
 		if err != nil {
-			return err // TODO proper error
+			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
 
 		return runner.RunFlow(ctx, "GeneratePR", flow)

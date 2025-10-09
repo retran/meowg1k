@@ -19,16 +19,12 @@ package fetchbranchfilediff
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
-
-// ErrBranchDiffReaderIsNil indicates that the branchDiffReader is nil.
-var ErrBranchDiffReaderIsNil = errors.New("branchDiffReader is nil")
 
 // Input defines the input structure for the FetchBranchFileDiff activity.
 type Input struct {
@@ -54,7 +50,7 @@ var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 // NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.
 func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 	if branchDiffReader == nil {
-		return nil, ErrBranchDiffReaderIsNil
+		return nil, fmt.Errorf("branch diff reader cannot be nil")
 	}
 
 	return &Factory{
@@ -66,19 +62,17 @@ func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("fetch branch file diff factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning("Fetching branch diff")
 
 		change, err := f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
@@ -88,7 +82,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
 				originalFileContent = "" // File is new
 			} else {
-				// TODO proper error
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 			}
 		}
@@ -107,7 +100,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 				}, nil
 			}
 
-			// TODO proper error
 			return nil, fmt.Errorf("failed to read current file content of %s: %w", input.Filename, err)
 		}
 

@@ -47,15 +47,15 @@ func (g *workerPoolGateway) GenerateContent(
 	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("worker pool gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	select {
@@ -64,7 +64,6 @@ func (g *workerPoolGateway) GenerateContent(
 			<-g.semaphore
 		}()
 	case <-ctx.Done():
-		// TODO proper error
 		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 

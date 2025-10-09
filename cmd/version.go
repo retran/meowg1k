@@ -29,7 +29,6 @@ var versionCmd = &cobra.Command{
 	Short: "Show version info",
 	Run: func(cmd *cobra.Command, args []string) {
 		if cmd == nil {
-			// TODO proper error
 			return
 		}
 

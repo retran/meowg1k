@@ -18,7 +18,6 @@ limitations under the License.
 package model
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -26,19 +25,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/model"
 	"github.com/retran/meowg1k/internal/core/provider"
-)
-
-// Model service errors
-var (
-	ErrNoModelsDefined          = errors.New("no models defined in configuration")
-	ErrModelNotFound            = errors.New("model not found in configuration")
-	ErrResolvedModelCannotBeNil = errors.New("resolved model cannot be nil")
-	ErrMaxOutputTokensTooLarge  = errors.New("max output tokens too large")
-	ErrMaxInputTokensTooLarge   = errors.New("max input tokens too large")
-	ErrModelNameRequired        = errors.New("model name is required")
-	ErrConfigReaderIsNil        = errors.New("config reader is nil")
-	ErrProviderRegistryIsNil    = errors.New("provider registry is nil")
-	ErrServiceIsNil             = errors.New("model service is nil")
 )
 
 // ConfigReader reads the application configuration.
@@ -62,11 +48,11 @@ type Service struct {
 // NewService creates a new model resolver service.
 func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRegistry) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if providerRegistry == nil {
-		return nil, ErrProviderRegistryIsNil
+		return nil, fmt.Errorf("provider registry is nil")
 	}
 
 	service := &Service{
@@ -81,7 +67,7 @@ func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRe
 // Get retrieves a model using cached data from initialization.
 func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("model service is nil")
 	}
 
 	s.mu.RLock()
@@ -100,14 +86,12 @@ func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 
 	cfg, err := s.configReader.GetConfig()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	resolved, err := s.resolveModelInternal(model, cfg)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve model %q: %w", model, err)
 	}
 
 	s.resolvedModels[model] = resolved
@@ -118,7 +102,7 @@ func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 // GetInstanceKey returns a unique key for rate limiting based on the model instance characteristics.
 func (s *Service) GetInstanceKey(resolved *model.ResolvedModel) (string, error) {
 	if resolved == nil {
-		return "", ErrResolvedModelCannotBeNil
+		return "", fmt.Errorf("resolved model cannot be nil")
 	}
 
 	// Generate key based on: provider:baseURL:model:apiKeyEnv
@@ -138,18 +122,16 @@ func (s *Service) resolveModelInternal(
 	cfg *config.Config,
 ) (*model.ResolvedModel, error) {
 	if cfg.Models == nil {
-		return nil, ErrNoModelsDefined
+		return nil, fmt.Errorf("no models defined in configuration")
 	}
 
 	modelDef, exists := cfg.Models[string(modelName)]
 	if !exists {
-		// TODO proper error
-		return nil, fmt.Errorf("%w: %s", ErrModelNotFound, modelName)
+		return nil, fmt.Errorf("model not found in configuration: %s", modelName)
 	}
 
 	providerDef, err := s.providerRegistry.Get(provider.Provider(modelDef.Provider))
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("unknown provider '%s' in modelName '%s': %w", modelDef.Provider, modelName, err)
 	}
 
@@ -190,7 +172,6 @@ func (s *Service) resolveModelInternal(
 	}
 
 	if err := s.validateResolvedModel(resolved); err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("modelName validation failed: %w", err)
 	}
 
@@ -200,21 +181,19 @@ func (s *Service) resolveModelInternal(
 // validateResolvedModel validates a resolved model configuration.
 func (s *Service) validateResolvedModel(resolved *model.ResolvedModel) error {
 	if resolved == nil {
-		return ErrResolvedModelCannotBeNil
+		return fmt.Errorf("resolved model cannot be nil")
 	}
 
 	if resolved.MaxOutputTokens > 200000 {
-		// TODO proper error
-		return fmt.Errorf("%w: %d (max 200000)", ErrMaxOutputTokensTooLarge, resolved.MaxOutputTokens)
+		return fmt.Errorf("max output tokens too large: %d (max 200000)", resolved.MaxOutputTokens)
 	}
 
 	if resolved.MaxInputTokens > 2000000 {
-		// TODO proper error
-		return fmt.Errorf("%w: %d (max 2000000)", ErrMaxInputTokensTooLarge, resolved.MaxInputTokens)
+		return fmt.Errorf("max input tokens too large: %d (max 2000000)", resolved.MaxInputTokens)
 	}
 
 	if resolved.Model == "" {
-		return ErrModelNameRequired
+		return fmt.Errorf("model name is required")
 	}
 
 	return nil

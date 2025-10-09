@@ -18,18 +18,10 @@ limitations under the License.
 package filter
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/pkg/gitignore"
-)
-
-var (
-	// ErrConfigReaderIsNil indicates that the config reader is nil.
-	ErrConfigReaderIsNil = errors.New("config reader is nil")
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = errors.New("service is nil")
 )
 
 // ConfigReader reads the application configuration.
@@ -45,14 +37,13 @@ type Service struct {
 // NewService creates a file filter service with ignore patterns from configuration.
 func NewService(configReader ConfigReader) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	var patterns []string
 	if cfg, err := configReader.GetConfig(); cfg != nil && cfg.Filter != nil {
 		patterns = cfg.Filter.Ignore
 	} else if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get cfg: %w", err)
 	}
 	matcher := gitignore.NewMatcher(patterns)
@@ -65,7 +56,6 @@ func NewService(configReader ConfigReader) (*Service, error) {
 // IsIgnoredFile checks if the given file path matches any of the ignore patterns.
 func (s *Service) IsIgnoredFile(path string) bool {
 	if s == nil || s.matcher == nil {
-		// TODO proper error
 		return false
 	}
 

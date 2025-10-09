@@ -26,9 +26,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/output"
 )
 
-// ErrServiceIsNil indicates that the service is nil.
-var ErrServiceIsNil = fmt.Errorf("service is nil")
-
 // Service is the concrete implementation of the Writer interface.
 type Service struct {
 	destination io.Writer
@@ -55,7 +52,7 @@ func NewService(destination output.Destination) *Service {
 // Print adds content to the buffer.
 func (s *Service) Print(content string) error {
 	if s == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("output service is nil")
 	}
 
 	s.buffer.WriteString(content)
@@ -65,7 +62,7 @@ func (s *Service) Print(content string) error {
 // PrintLine adds content with a newline to the buffer.
 func (s *Service) PrintLine(content string) error {
 	if s == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("output service is nil")
 	}
 
 	s.buffer.WriteString(content)
@@ -76,20 +73,22 @@ func (s *Service) PrintLine(content string) error {
 // Printf adds formatted content to the buffer.
 func (s *Service) Printf(format string, args ...any) error {
 	if s == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("output service is nil")
 	}
 
 	_, err := fmt.Fprintf(&s.buffer, format, args...)
+	if err != nil {
+		return fmt.Errorf("failed to write to buffer: %w", err)
+	}
 
-	// TODO proper error
-	return err
+	return nil
 }
 
 // Flush writes all accumulated content from the buffer to the destination
 // in a single write operation and then clears the buffer.
 func (s *Service) Flush() error {
 	if s == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("output service is nil")
 	}
 
 	if s.buffer.Len() == 0 {
@@ -100,7 +99,9 @@ func (s *Service) Flush() error {
 	s.buffer.Reset()
 
 	_, err := fmt.Fprint(s.destination, content)
+	if err != nil {
+		return fmt.Errorf("failed to write to destination: %w", err)
+	}
 
-	// TODO proper error
-	return err
+	return nil
 }

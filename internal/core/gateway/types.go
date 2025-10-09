@@ -1,13 +1,24 @@
+/*
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package gateway
 
 import (
-	"errors"
+	"fmt"
 	"math"
-)
-
-var (
-	ErrVectorsDifferentLength = errors.New("vectors must have the same length")
-	ErrVectorsEmpty           = errors.New("vectors must not be empty")
 )
 
 // GenerateContentRequest holds the parameters for a content generation request.
@@ -126,11 +137,11 @@ type ComputeDistanceMixin struct{}
 // It returns a value between -1 (opposite) and 1 (identical), where 0 indicates orthogonality.
 func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) {
 	if len(a) != len(b) {
-		return 0, ErrVectorsDifferentLength
+		return 0, fmt.Errorf("vectors must have the same length")
 	}
 
 	if len(a) == 0 || len(b) == 0 {
-		return 0, ErrVectorsEmpty
+		return 0, fmt.Errorf("vectors must not be empty")
 	}
 
 	var dotProduct, aMagnitude, bMagnitude float64

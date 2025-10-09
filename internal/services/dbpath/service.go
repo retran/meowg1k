@@ -18,13 +18,10 @@ limitations under the License.
 package dbpath
 
 import (
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 )
-
-// ErrServiceIsNil indicates that the service is nil.
-var ErrServiceIsNil = errors.New("service is nil")
 
 // Service is the concrete implementation of the database path service.
 type Service struct {
@@ -34,16 +31,21 @@ type Service struct {
 // NewService creates a new database path service.
 // It determines the appropriate location for the main database file
 // based on XDG Base Directory specification or fallback to current directory.
-func NewService() *Service {
-	return &Service{
-		mainDBPath: determineMainDBPath(),
+// Returns an error if database directory creation fails in all locations.
+func NewService() (*Service, error) {
+	mainDBPath, err := determineMainDBPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine main database path: %w", err)
 	}
+	return &Service{
+		mainDBPath: mainDBPath,
+	}, nil
 }
 
 // GetMainDBPath returns the path to the main database file.
 func (s *Service) GetMainDBPath() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("database path service is nil")
 	}
 
 	return s.mainDBPath, nil
@@ -54,12 +56,17 @@ func (s *Service) GetMainDBPath() (string, error) {
 // 1. $XDG_DATA_HOME/meowg1k/meowg1k.db
 // 2. $HOME/.local/share/meowg1k/meowg1k.db
 // 3. ./meowg1k.db (current directory as fallback)
-func determineMainDBPath() string {
+// Returns an error if all directory creation attempts fail.
+func determineMainDBPath() (string, error) {
+	var lastErr error
+
 	// Try XDG_DATA_HOME first
 	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
 		dbDir := filepath.Join(xdgDataHome, "meowg1k")
 		if err := os.MkdirAll(dbDir, 0o755); err == nil {
-			return filepath.Join(dbDir, "meowg1k.db")
+			return filepath.Join(dbDir, "meowg1k.db"), nil
+		} else {
+			lastErr = fmt.Errorf("failed to create XDG_DATA_HOME directory: %w", err)
 		}
 	}
 
@@ -67,10 +74,12 @@ func determineMainDBPath() string {
 	if home := os.Getenv("HOME"); home != "" {
 		dbDir := filepath.Join(home, ".local", "share", "meowg1k")
 		if err := os.MkdirAll(dbDir, 0o755); err == nil {
-			return filepath.Join(dbDir, "meowg1k.db")
+			return filepath.Join(dbDir, "meowg1k.db"), nil
+		} else {
+			lastErr = fmt.Errorf("failed to create HOME/.local/share directory: %w", err)
 		}
 	}
 
-	// TODO return error
-	return "meowg1k.db"
+	// Last resort: use current directory
+	return "meowg1k.db", lastErr
 }

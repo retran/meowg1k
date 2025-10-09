@@ -19,14 +19,10 @@ limitations under the License.
 package gitignore
 
 import (
-	"errors"
 	"path/filepath"
 	"regexp"
 	"strings"
 )
-
-// ErrMatcherIsNil indicates that the matcher is nil.
-var ErrMatcherIsNil = errors.New("matcher is nil")
 
 // pattern is the internal representation of a single compiled .gitignore rule.
 type pattern struct {

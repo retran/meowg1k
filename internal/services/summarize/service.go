@@ -18,22 +18,12 @@ limitations under the License.
 package summarize
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/pkg/gitignore"
-)
-
-var (
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = errors.New("service is nil")
-	// ErrConfigReaderIsNil indicates that the config reader is nil.
-	ErrConfigReaderIsNil = errors.New("config reader is nil")
-	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
-	ErrProfileResolverIsNil = errors.New("profile resolver is nil")
 )
 
 // ConfigReader reads the application configuration.
@@ -55,11 +45,11 @@ type Service struct {
 // NewService creates a new file summarization configuration service.
 func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if profileResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	return &Service{
@@ -71,17 +61,15 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 // GetSummarizationConfig resolves the summarization configuration for a given file.
 func (s *Service) GetSummarizationConfig(filename string) (*summarize.ResolvedConfig, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("summarize service is nil")
 	}
 
 	currentConfig, err := s.configReader.GetConfig()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	if currentConfig.Summarize == nil {
-		// TODO proper error
 		return nil, nil
 	}
 
@@ -132,8 +120,7 @@ func (s *Service) GetSummarizationConfig(filename string) (*summarize.ResolvedCo
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve profile: %w", err)
 	}
 
 	if strategy == nil {

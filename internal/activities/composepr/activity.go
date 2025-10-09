@@ -19,7 +19,6 @@ package composepr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -28,9 +27,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
-
-// ErrContentGenerationActivityFactoryIsNil indicates that the contentGenerationActivityFactory is nil.
-var ErrContentGenerationActivityFactoryIsNil = errors.New("contentGenerationActivityFactory is nil")
 
 // Input defines the input structure for the ComposePR activity.
 type Input struct {
@@ -61,7 +57,7 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.
 func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
-		return nil, ErrContentGenerationActivityFactoryIsNil
+		return nil, fmt.Errorf("content generation activity factory cannot be nil")
 	}
 
 	return &Factory{
@@ -73,12 +69,11 @@ func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactor
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("compose PR factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning("Composing Pull Request description")
@@ -119,7 +114,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)
 		}
 

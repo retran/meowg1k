@@ -55,109 +55,95 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create git service: %w", err)
 	}
 
 	filterService, err := filter.NewService(c.ConfigService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create filter service: %w", err)
 	}
 
 	providerService := provider.NewService()
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
 	profileService, err := profile.NewService(c.ConfigService, modelService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
 	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
 
 	commitConfigService, err := commitService.NewService(c.ConfigService, profileService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
 
-	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
+	}
+
 	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
 	// Activities for regular staged commit mode
 	listStagedActivityFactory, err := liststaged.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create list staged activity factory: %w", err)
 	}
 
 	fetchFileDiffActivityFactory, err := fetchfilediff.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch file diff activity factory: %w", err)
 	}
 
 	fetchAllDiffsFactory, err := fetchalldiffs.NewFactory(fetchFileDiffActivityFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch all diffs factory: %w", err)
 	}
 
 	// Activities for squash/branch diff mode
 	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
 	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
-	// TODO proper error
 	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
 	// Common activities
 	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
 	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
 
 	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
 	composeCommitFactory, err := composecommit.NewFactory(invokeLLMFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
 	}
 
@@ -174,7 +160,6 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create commit flow factory: %w", err)
 	}
 
@@ -187,14 +172,12 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
 	profileService, err := profile.NewService(c.ConfigService, modelService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
 	taskService, err := task.NewService(
@@ -203,8 +186,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		profileService,
 	)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create task service: %w", err)
 	}
 
 	generatePromptService, err := prompt.NewGeneratePromptService(
@@ -212,14 +194,16 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		taskService,
 	)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create generate prompt service: %w", err)
 	}
 
-	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
+	}
+
 	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
@@ -231,7 +215,6 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create generate flow factory: %w", err)
 	}
 
@@ -243,90 +226,80 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create git service: %w", err)
 	}
 
 	filterService, err := filter.NewService(c.ConfigService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create filter service: %w", err)
 	}
 
 	providerService := provider.NewService()
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
 	profileService, err := profile.NewService(c.ConfigService, modelService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
 	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
 
 	prConfigService, err := pullRequest.NewService(c.ConfigService, profileService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
 
-	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
+	}
+
 	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
 	// Activities for branch diff mode
 	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
 	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
 
 	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
 	// Common activities
 	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
 	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
 
 	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
 	composePRFactory, err := composepr.NewFactory(invokeLLMFactory)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create compose pullRequest factory: %w", err)
 	}
 
@@ -341,7 +314,6 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create pullRequest flow factory: %w", err)
 	}
 

@@ -19,20 +19,12 @@ package summarizefile
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
-)
-
-var (
-	// ErrContentGenerationActivityFactoryIsNil indicates that the contentGenerationActivityFactory is nil.
-	ErrContentGenerationActivityFactoryIsNil = errors.New("contentGenerationActivityFactory is nil")
-	// ErrFileSummarizationConfigProviderIsNil indicates that the fileSummarizationConfigProvider is nil.
-	ErrFileSummarizationConfigProviderIsNil = errors.New("fileSummarizationConfigProvider is nil")
 )
 
 // Input defines the input structure for the SummarizeFile activity.
@@ -72,11 +64,11 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
 func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory, fileSummarizationConfigProvider FileSummarizationConfigProvider) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
-		return nil, ErrContentGenerationActivityFactoryIsNil
+		return nil, fmt.Errorf("content generation activity factory is nil")
 	}
 
 	if fileSummarizationConfigProvider == nil {
-		return nil, ErrFileSummarizationConfigProviderIsNil
+		return nil, fmt.Errorf("file summarization config provider is nil")
 	}
 
 	return &Factory{
@@ -89,17 +81,15 @@ func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactor
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		config, err := f.fileSummarizationConfigProvider.GetSummarizationConfig(input.Filename)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to get summarization config for %s: %w", input.Filename, err)
 		}
 
@@ -147,7 +137,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		)
 		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)
 		}
 

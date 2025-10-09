@@ -606,8 +606,8 @@ func TestFutureNilComplete(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error when completing nil future")
 	}
-	if !errors.Is(err, ErrFutureIsNil) {
-		t.Errorf("Expected ErrFutureIsNil, got %v", err)
+	if err.Error() != "future is nil" {
+		t.Errorf("Expected 'future is nil' error, got %v", err)
 	}
 }
 
@@ -619,7 +619,7 @@ func TestFutureNilCompleteWithError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error when completing nil future with error")
 	}
-	if !errors.Is(err, ErrFutureIsNil) {
-		t.Errorf("Expected ErrFutureIsNil, got %v", err)
+	if err.Error() != "future is nil" {
+		t.Errorf("Expected 'future is nil' error, got %v", err)
 	}
 }

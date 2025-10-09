@@ -19,34 +19,10 @@ package executor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/pkg/future"
-)
-
-var (
-	// ErrInputCannotBeNil indicates that the input parameter is nil
-	ErrInputCannotBeNil = errors.New("input cannot be nil")
-	// ErrInvalidInputType indicates that the input type is not supported
-	ErrInvalidInputType = errors.New("invalid input type")
-	// ErrInvalidOutputType indicates that the output type is not supported
-	ErrInvalidOutputType = errors.New("invalid output type")
-	// ErrNameCannotBeEmpty indicates that the name parameter is empty
-	ErrNameCannotBeEmpty = errors.New("name cannot be empty")
-	// ErrFeedbackHandlerIsNil indicates that the feedback handler is nil
-	ErrFeedbackHandlerIsNil = errors.New("feedback handler is nil")
-	// ErrProgressOutOfRange indicates that the progress value is out of the valid range
-	ErrProgressOutOfRange = errors.New("progress must be between 0.0 and 1.0")
-	// ErrExecutorCannotBeNil indicates that the executor parameter is nil
-	ErrExecutorCannotBeNil = errors.New("executor cannot be nil")
-	// ErrParentContextCannotBeNil indicates that the parent context parameter is nil
-	ErrParentContextCannotBeNil = errors.New("parent context cannot be nil")
-	// ErrActivityCannotBeNil indicates that the activity parameter is nil
-	ErrActivityCannotBeNil = errors.New("activity cannot be nil")
-	// ErrContextParameterCannotBeNil indicates that the context parameter is nil
-	ErrContextParameterCannotBeNil = errors.New("context cannot be nil")
 )
 
 // Status represents the current status of an activity.
@@ -226,27 +202,27 @@ func RunActivity[T, K any](
 
 	// Validate inputs
 	if e == nil {
-		_ = typedFuture.CompleteWithError(ErrExecutorCannotBeNil)
+		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil"))
 		return typedFuture
 	}
 
 	if ctx == nil {
-		_ = typedFuture.CompleteWithError(ErrContextParameterCannotBeNil)
+		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil"))
 		return typedFuture
 	}
 
 	if parentCtx == nil {
-		_ = typedFuture.CompleteWithError(ErrParentContextCannotBeNil)
+		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil"))
 		return typedFuture
 	}
 
 	if name == "" {
-		_ = typedFuture.CompleteWithError(ErrNameCannotBeEmpty)
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty"))
 		return typedFuture
 	}
 
 	if activity == nil {
-		_ = typedFuture.CompleteWithError(ErrActivityCannotBeNil)
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name))
 		return typedFuture
 	}
 
@@ -254,7 +230,7 @@ func RunActivity[T, K any](
 	untypedActivity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
 		typedInput, ok := input.(T)
 		if !ok {
-			return nil, errors.Join(ErrInvalidInputType, fmt.Errorf("expected %T, got %T", *new(T), input))
+			return nil, fmt.Errorf("invalid input type for activity %q: expected %T, got %T", name, *new(T), input)
 		}
 		return activity(ctx, activityCtx, typedInput)
 	}
@@ -271,7 +247,7 @@ func RunActivity[T, K any](
 
 		typedResult, ok := result.(K)
 		if !ok {
-			_ = typedFuture.CompleteWithError(errors.Join(ErrInvalidOutputType, fmt.Errorf("expected %T, got %T", *new(K), result)))
+			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result))
 			return
 		}
 

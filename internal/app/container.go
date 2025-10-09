@@ -19,7 +19,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -42,15 +41,6 @@ import (
 	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
-)
-
-var (
-	// ErrInvalidLogFilename is returned when a log filename contains invalid characters.
-	ErrInvalidLogFilename = errors.New("log filename contains invalid characters or path separators")
-	// ErrLogPathOutsideDirectory is returned when a log path is outside the expected directory.
-	ErrLogPathOutsideDirectory = errors.New("log path is outside log directory")
-	// ErrCmdIsNil is returned when the cobra command is nil.
-	ErrCmdIsNil = errors.New("cobra command is nil")
 )
 
 // Container is the main application struct that holds all cross-cutting services.
@@ -92,16 +82,14 @@ const (
 // validateLogPath validates the log path to prevent directory traversal attacks
 func validateLogPath(logDir, fileName string) error {
 	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
-		// TODO proper error
-		return fmt.Errorf("%w: %s", ErrInvalidLogFilename, fileName)
+		return fmt.Errorf("log filename contains invalid characters or path separators: %s", fileName)
 	}
 
 	cleanLogDir := filepath.Clean(logDir)
 	logPath := filepath.Join(cleanLogDir, fileName)
 
 	if !strings.HasPrefix(logPath, cleanLogDir) {
-		// TODO proper error
-		return fmt.Errorf("%w: %s is outside %s", ErrLogPathOutsideDirectory, logPath, cleanLogDir)
+		return fmt.Errorf("log path is outside log directory: %s is outside %s", logPath, cleanLogDir)
 	}
 
 	return nil
@@ -116,43 +104,37 @@ var AppContainerKey = appContainerKey{}
 // NewAppContainer initializes the main application struct with all necessary services.
 func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	if cmd == nil {
-		return nil, ErrCmdIsNil
+		return nil, fmt.Errorf("cobra command is nil")
 	}
 
 	container := &Container{}
 
 	ctx := cmd.Context()
 	if ctx == nil {
-		// TODO proper error
 		ctx = context.Background()
 	}
 
 	logDir, err := getLogDir()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get log directory: %w", err)
 	}
 
 	if err = os.MkdirAll(logDir, 0o750); err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	if err = validateLogPath(logDir, logFileName); err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("invalid log path: %w", err)
 	}
 
 	root, err := os.OpenRoot(logDir)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
 	defer root.Close()
 
 	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
 
@@ -165,7 +147,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	err = shutdownService.Register(func(ctx context.Context) error {
 		if logFile != nil {
 			if err = logFile.Close(); err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to close log file: %w", err)
 			}
 		}
@@ -173,20 +154,17 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil
 	})
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to register log file shutdown callback: %w", err)
 	}
 
 	commandService, err := command.NewService(cmd)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create command service: %w", err)
 	}
 
 	configService, err := config.NewService(commandService)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
 
 	outputService := output.NewService(coreOutput.Stdout)
@@ -194,11 +172,13 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return outputService.Flush()
 	})
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to register output service shutdown callback: %w", err)
 	}
 
-	dbPathService := dbpath.NewService()
+	dbPathService, err := dbpath.NewService()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create database path service: %w", err)
+	}
 
 	container.Logger = logger
 	container.ShutdownService = shutdownService
@@ -220,14 +200,12 @@ func (c *Container) initDB() error {
 	c.dbInitOnce.Do(func() {
 		dbHost, err := db.NewLocalHost(c.dbPathService)
 		if err != nil {
-			// TODO proper error
 			initErr = fmt.Errorf("failed to initialize database host: %w", err)
 			return
 		}
 
 		mainDB, err := dbHost.GetDB()
 		if err != nil {
-			// TODO proper error
 			initErr = fmt.Errorf("failed to get main database: %w", err)
 			return
 		}
@@ -236,12 +214,10 @@ func (c *Container) initDB() error {
 
 		if err := c.ShutdownService.Register(func(ctx context.Context) error {
 			if err := dbHost.Close(); err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to close database host: %w", err)
 			}
 			return nil
 		}); err != nil {
-			// TODO proper error
 			initErr = fmt.Errorf("failed to register database shutdown callback: %w", err)
 			return
 		}
@@ -255,7 +231,6 @@ func (c *Container) initDB() error {
 // GetRateLimitRepo returns the rate limit repository, initializing the database if needed.
 func (c *Container) GetRateLimitRepo() ratelimit.Repository {
 	if err := c.initDB(); err != nil {
-		// TODO proper error
 		c.Logger.Error("failed to initialize database", "error", err)
 		return nil
 	}
@@ -267,7 +242,6 @@ func getLogDir() (string, error) {
 	// TODO review if this is the best location for logs
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		// TODO proper error
 		return "", err
 	}
 

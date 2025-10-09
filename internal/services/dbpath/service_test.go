@@ -24,14 +24,20 @@ import (
 )
 
 func TestNewService(t *testing.T) {
-	service := NewService()
+	service, err := NewService()
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	if service == nil {
 		t.Fatal("Service should not be nil")
 	}
 }
 
 func TestGetMainDBPath(t *testing.T) {
-	service := NewService()
+	service, err := NewService()
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	path, err := service.GetMainDBPath()
 	if err != nil {
 		t.Fatalf("GetMainDBPath failed: %v", err)
@@ -58,7 +64,10 @@ func TestGetMainDBPathWithXDGDataHome(t *testing.T) {
 	// Set XDG_DATA_HOME to temp directory
 	os.Setenv("XDG_DATA_HOME", tempDir)
 
-	service := NewService()
+	service, err := NewService()
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	path, err := service.GetMainDBPath()
 	if err != nil {
 		t.Fatalf("GetMainDBPath failed: %v", err)
@@ -90,7 +99,10 @@ func TestGetMainDBPathWithHomeDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	os.Setenv("HOME", tempDir)
 
-	service := NewService()
+	service, err := NewService()
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	path, err := service.GetMainDBPath()
 	if err != nil {
 		t.Fatalf("GetMainDBPath failed: %v", err)
@@ -121,7 +133,10 @@ func TestGetMainDBPathFallbackToCurrentDirectory(t *testing.T) {
 	os.Setenv("XDG_DATA_HOME", "")
 	os.Setenv("HOME", "")
 
-	service := NewService()
+	service, err := NewService()
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	path, err := service.GetMainDBPath()
 	if err != nil {
 		t.Fatalf("GetMainDBPath failed: %v", err)

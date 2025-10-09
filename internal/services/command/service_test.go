@@ -17,7 +17,6 @@ limitations under the License.
 package command
 
 import (
-	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -721,71 +720,71 @@ func TestNilServiceMethods(t *testing.T) {
 
 	t.Run("GetCommand on nil service", func(t *testing.T) {
 		_, err := service.GetCommand()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetCommandName on nil service", func(t *testing.T) {
 		_, err := service.GetCommandName()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetConfigPath on nil service", func(t *testing.T) {
 		_, err := service.GetConfigPath()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetTaskName on nil service", func(t *testing.T) {
 		_, err := service.GetTaskName()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetUserPrompt on nil service", func(t *testing.T) {
 		_, err := service.GetUserPrompt()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetSilentFlag on nil service", func(t *testing.T) {
 		_, err := service.GetSilentFlag()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetIntentFlag on nil service", func(t *testing.T) {
 		_, err := service.GetIntentFlag()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetTargetBranchFlag on nil service", func(t *testing.T) {
 		_, err := service.GetTargetBranchFlag()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetBaseBranchFlag on nil service", func(t *testing.T) {
 		_, err := service.GetBaseBranchFlag()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 
 	t.Run("GetStdIn on nil service", func(t *testing.T) {
 		_, err := service.GetStdIn()
-		if !errors.Is(err, ErrServiceIsNil) {
-			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		if err == nil {
+			t.Error("Expected error for nil service, got nil")
 		}
 	})
 }

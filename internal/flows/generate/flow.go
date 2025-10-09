@@ -19,34 +19,12 @@ package generate
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/core/task"
 	"github.com/retran/meowg1k/pkg/executor"
-)
-
-// ErrInvalidActivityOutputType is returned when an unexpected activity output type is received.
-var (
-	ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
-	// ErrFactoryIsNil indicates that the factory is nil.
-	ErrFactoryIsNil = errors.New("factory is nil")
-	// ErrContextIsNil indicates that the context is nil.
-	ErrContextIsNil = errors.New("context is nil")
-	// ErrFlowContextIsNil indicates that the flow context is nil.
-	ErrFlowContextIsNil = errors.New("flow context is nil")
-	// ErrTaskConfigProviderIsNil indicates that the taskConfigProvider is nil.
-	ErrTaskConfigProviderIsNil = errors.New("taskConfigProvider is nil")
-	// ErrUserPromptProviderIsNil indicates that the userPromptProvider is nil.
-	ErrUserPromptProviderIsNil = errors.New("userPromptProvider is nil")
-	// ErrSystemPromptProviderIsNil indicates that the systemPromptProvider is nil.
-	ErrSystemPromptProviderIsNil = errors.New("systemPromptProvider is nil")
-	// ErrContentGenerationActivityFactoryIsNil indicates that the contentGenerationActivityFactory is nil.
-	ErrContentGenerationActivityFactoryIsNil = errors.New("contentGenerationActivityFactory is nil")
-	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
-	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
 )
 
 // TaskConfigProvider provides resolved task configuration.
@@ -92,23 +70,23 @@ func NewFlowFactory(
 	outputWriter OutputWriter,
 ) (*FlowFactory, error) {
 	if taskConfigProvider == nil {
-		return nil, ErrTaskConfigProviderIsNil
+		return nil, fmt.Errorf("taskConfigProvider is nil")
 	}
 
 	if userPromptProvider == nil {
-		return nil, ErrUserPromptProviderIsNil
+		return nil, fmt.Errorf("userPromptProvider is nil")
 	}
 
 	if systemPromptProvider == nil {
-		return nil, ErrSystemPromptProviderIsNil
+		return nil, fmt.Errorf("systemPromptProvider is nil")
 	}
 
 	if contentGenerationActivityFactory == nil {
-		return nil, ErrContentGenerationActivityFactoryIsNil
+		return nil, fmt.Errorf("contentGenerationActivityFactory is nil")
 	}
 
 	if outputWriter == nil {
-		return nil, ErrOutputWriterIsNil
+		return nil, fmt.Errorf("outputWriter is nil")
 	}
 
 	return &FlowFactory{
@@ -124,18 +102,17 @@ func NewFlowFactory(
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		if f == nil {
-			return ErrFactoryIsNil
+			return fmt.Errorf("factory is nil")
 		}
 		if ctx == nil {
-			return ErrContextIsNil
+			return fmt.Errorf("context is nil")
 		}
 		if flowCtx == nil {
-			return ErrFlowContextIsNil
+			return fmt.Errorf("flow context is nil")
 		}
 
 		task, err := f.taskConfigProvider.Get()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get task config: %w", err)
 		}
 
@@ -143,13 +120,11 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get user prompt: %w", err)
 		}
 
 		systemPrompt, err := f.systemPromptProvider.GetSystemPrompt()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get system prompt: %w", err)
 		}
 
@@ -171,7 +146,6 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		invokeOutput, err := future.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
 		}
 
@@ -180,7 +154,6 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		time.Sleep(300 * time.Millisecond)
 
 		if err := f.outputWriter.PrintLine(invokeOutput.Content); err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to print generated content: %w", err)
 		}
 

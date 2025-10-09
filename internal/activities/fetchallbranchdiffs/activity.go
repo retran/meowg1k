@@ -19,7 +19,6 @@ package fetchallbranchdiffs
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
@@ -27,9 +26,6 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
-
-// ErrBranchFileDiffActivityFactoryIsNil indicates that the branchFileDiffActivityFactory is nil.
-var ErrBranchFileDiffActivityFactoryIsNil = errors.New("branchFileDiffActivityFactory is nil")
 
 // Input defines the input structure for the FetchAllBranchDiffs activity.
 type Input struct {
@@ -58,7 +54,7 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.
 func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) (*Factory, error) {
 	if branchFileDiffActivityFactory == nil {
-		return nil, ErrBranchFileDiffActivityFactoryIsNil
+		return nil, fmt.Errorf("branch file diff activity factory cannot be nil")
 	}
 
 	return &Factory{
@@ -70,12 +66,11 @@ func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) (*F
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("fetch all branch diffs factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
@@ -98,10 +93,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
-		for _, err := range errs {
+		for i, err := range errs {
 			if err != nil {
-				// TODO proper error joining
-				return nil, fmt.Errorf("failed to read branch diffs: %w", err)
+				return nil, fmt.Errorf("failed to read branch diff for file %d: %w", i, err)
 			}
 		}
 

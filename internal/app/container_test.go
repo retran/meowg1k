@@ -19,7 +19,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -60,10 +59,10 @@ func (h *testMockDBHost) Close() error {
 // This ensures tests use in-memory databases and don't create files on disk.
 func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error) {
 	if cmd == nil {
-		return nil, ErrCmdIsNil
+		return nil, fmt.Errorf("cobra command is nil")
 	}
 	if dbHost == nil {
-		return nil, db.ErrHostIsNil
+		return nil, fmt.Errorf("host is nil")
 	}
 
 	container := &Container{}
@@ -275,9 +274,6 @@ func TestNewAppContainerNil(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when cmd is nil, got nil")
 	}
-	if !errors.Is(err, ErrCmdIsNil) {
-		t.Errorf("expected ErrCmdIsNil, got: %v", err)
-	}
 	if container != nil {
 		t.Errorf("expected nil container, got: %v", container)
 	}
@@ -291,9 +287,6 @@ func TestNewTestAppContainerNil(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when cmd is nil, got nil")
 		}
-		if !errors.Is(err, ErrCmdIsNil) {
-			t.Errorf("expected ErrCmdIsNil, got: %v", err)
-		}
 		if container != nil {
 			t.Errorf("expected nil container, got: %v", container)
 		}
@@ -303,9 +296,6 @@ func TestNewTestAppContainerNil(t *testing.T) {
 		container, err := NewTestAppContainer(cmd, nil)
 		if err == nil {
 			t.Fatal("expected error when dbHost is nil, got nil")
-		}
-		if !errors.Is(err, db.ErrHostIsNil) {
-			t.Errorf("expected db.ErrHostIsNil, got: %v", err)
 		}
 		if container != nil {
 			t.Errorf("expected nil container, got: %v", container)

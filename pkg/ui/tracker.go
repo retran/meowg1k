@@ -96,7 +96,6 @@ func NewExecutionTracker(silent bool) *ExecutionTracker {
 // Start launches the goroutine for processing events and rendering the UI.
 func (t *ExecutionTracker) Start() {
 	if t == nil || t.silent {
-		// TODO proper error
 		return
 	}
 
@@ -108,7 +107,6 @@ func (t *ExecutionTracker) Start() {
 // Stop signals the tracker to stop and waits for it to finish.
 func (t *ExecutionTracker) Stop() {
 	if t == nil || t.silent {
-		// TODO proper error
 		return
 	}
 
@@ -123,7 +121,6 @@ func (t *ExecutionTracker) Stop() {
 func (t *ExecutionTracker) FeedbackHandler() executor.FeedbackHandler {
 	return func(feedback *executor.Feedback) {
 		if t == nil || t.feedbackChan == nil || feedback == nil {
-			// TODO proper error
 			return
 		}
 		t.feedbackChan <- feedback
@@ -415,7 +412,6 @@ func getDurationString(exec *ExecutionProgress) string {
 // This method is thread-safe and primarily intended for testing.
 func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
 	if t == nil {
-		// TODO proper error
 		return nil
 	}
 
@@ -424,7 +420,6 @@ func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
 
 	exec, exists := t.executions[name]
 	if !exists || exec == nil {
-		// TODO proper error
 		return nil
 	}
 
@@ -437,7 +432,6 @@ func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
 // This method is thread-safe and primarily intended for testing.
 func (t *ExecutionTracker) GetExecutionCount() int {
 	if t == nil {
-		// TODO proper error
 		return 0
 	}
 

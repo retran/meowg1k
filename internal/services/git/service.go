@@ -24,14 +24,6 @@ import (
 	"strings"
 )
 
-// Git command errors
-var (
-	ErrGitCommandFailed          = errors.New("git command failed")
-	ErrServiceIsNil              = errors.New("git service is nil")
-	ErrFilePathEmpty             = errors.New("file path cannot be empty")
-	ErrWorkspaceDirProviderIsNil = errors.New("workspace dir provider is nil")
-)
-
 type WorkspaceDirProvider interface {
 	GetWorkspaceDir() (string, error)
 }
@@ -47,13 +39,12 @@ type Service struct {
 // to prevent race conditions while keeping OS threads free.
 func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
 	if workspaceDirProvider == nil {
-		return nil, ErrWorkspaceDirProviderIsNil
+		return nil, fmt.Errorf("workspace dir provider is nil")
 	}
 
 	workspaceDir, err := workspaceDirProvider.GetWorkspaceDir()
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to get workspace directory: %w", err)
 	}
 
 	return &Service{
@@ -65,7 +56,7 @@ func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
 // runGitCommand executes a git command with the provided arguments in the workspace directory.
 func (g *Service) runGitCommand(args ...string) (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	finalArgs := append([]string{"-C", g.workspaceDir}, args...)
@@ -77,10 +68,8 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
-			// TODO proper error
-			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
+			return "", fmt.Errorf("git command failed: %s\nargs: %v", strings.TrimSpace(stderr), args)
 		}
-		// TODO proper error
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}
 
@@ -90,7 +79,7 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 // ReadStagedFiles returns a list of files that are currently staged.
 func (g *Service) ReadStagedFiles() ([]string, error) {
 	if g == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("git service is nil")
 	}
 
 	g.semaphore <- struct{}{}
@@ -98,7 +87,6 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 
 	out, err := g.runGitCommand("diff", "--cached", "--name-only")
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}
 
@@ -113,7 +101,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
 func (g *Service) ReadStagedChanges(filePath string) (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	g.semaphore <- struct{}{}
@@ -125,11 +113,11 @@ func (g *Service) ReadStagedChanges(filePath string) (string, error) {
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
 func (g *Service) ReadStagedFileContent(filePath string) (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	if strings.TrimSpace(filePath) == "" {
-		return "", ErrFilePathEmpty
+		return "", fmt.Errorf("file path cannot be empty")
 	}
 
 	g.semaphore <- struct{}{}
@@ -141,11 +129,11 @@ func (g *Service) ReadStagedFileContent(filePath string) (string, error) {
 // ReadOriginalFileContent returns the content of the specified file from the HEAD commit.
 func (g *Service) ReadOriginalFileContent(filePath string) (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	if strings.TrimSpace(filePath) == "" {
-		return "", ErrFilePathEmpty
+		return "", fmt.Errorf("file path cannot be empty")
 	}
 
 	g.semaphore <- struct{}{}
@@ -157,7 +145,7 @@ func (g *Service) ReadOriginalFileContent(filePath string) (string, error) {
 // GetCurrentBranch returns the name of the current Git branch.
 func (g *Service) GetCurrentBranch() (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	g.semaphore <- struct{}{}
@@ -165,7 +153,6 @@ func (g *Service) GetCurrentBranch() (string, error) {
 
 	branch, err := g.runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
-		// TODO proper error
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
 
@@ -175,12 +162,11 @@ func (g *Service) GetCurrentBranch() (string, error) {
 // GetChangedFilesInBranch returns the list of files that differ between the current branch and the target branch.
 func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
 	if g == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("git service is nil")
 	}
 
 	if strings.TrimSpace(targetBranch) == "" {
-		// TODO proper error
-		return nil, errors.New("target branch cannot be empty")
+		return nil, fmt.Errorf("target branch cannot be empty")
 	}
 
 	g.semaphore <- struct{}{}
@@ -188,7 +174,6 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 
 	output, err := g.runGitCommand("diff", "--name-only", targetBranch+"...HEAD")
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 	}
 
@@ -211,11 +196,11 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 // GetBranchDiff returns the diff of a specific file between the current branch and the target branch.
 func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 	if g == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("git service is nil")
 	}
 
 	if strings.TrimSpace(filePath) == "" {
-		return "", ErrFilePathEmpty
+		return "", fmt.Errorf("file path cannot be empty")
 	}
 
 	g.semaphore <- struct{}{}
@@ -223,7 +208,6 @@ func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 
 	diff, err := g.runGitCommand("diff", "--unified=0", targetBranch+"...HEAD", "--", filePath)
 	if err != nil {
-		// TODO proper error
 		return "", fmt.Errorf("failed to get branch diff for %s: %w", filePath, err)
 	}
 

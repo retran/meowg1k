@@ -121,7 +121,7 @@ func TestActivityExecuteNilInput(t *testing.T) {
 	execCtx := executor.NewContext("test", nil, nil)
 
 	_, activityErr := activity(ctx, execCtx, nil)
-	if activityErr != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", activityErr)
+	if activityErr == nil {
+		t.Error("Expected error for nil input, got nil")
 	}
 }

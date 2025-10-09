@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 
@@ -30,16 +29,6 @@ import (
 var (
 	_ GenerationGateway = (*geminiGateway)(nil)
 	_ EmbeddingsGateway = (*geminiGateway)(nil)
-)
-
-var (
-	ErrGenerationStopped        = errors.New("generation stopped for reason")
-	ErrRequestBlocked           = errors.New("request was blocked by the API")
-	ErrEmptyResponse            = errors.New("gemini API returned an empty response")
-	ErrDimensionsOutOfRange     = errors.New("dimensions value exceeds int32 range")
-	ErrFailedToCreateClient     = errors.New("failed to create Gemini client")
-	ErrFailedToFetchResponse    = errors.New("failed to fetch response from Gemini API")
-	ErrFailedToComputeEmbedding = errors.New("failed to compute embedding")
 )
 
 // geminiGateway is a unified client for the Google Gemini API,
@@ -56,8 +45,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
-		// TODO proper error
-		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateClient, err)
+		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
 
 	return &geminiGateway{
@@ -71,15 +59,15 @@ func (g *geminiGateway) GenerateContent(
 	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", ErrGatewayIsNil
+		return "", fmt.Errorf("gemini gateway is nil")
 	}
 
 	if request == nil {
-		return "", ErrRequestIsNil
+		return "", fmt.Errorf("request cannot be nil")
 	}
 
 	generationConfig := &genai.GenerateContentConfig{}
@@ -95,23 +83,20 @@ func (g *geminiGateway) GenerateContent(
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
-		// TODO proper error
-		return "", fmt.Errorf("%w: %w", ErrFailedToFetchResponse, err)
+		return "", fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
 	}
 
 	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
 		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
-		// TODO proper error
-		return "", fmt.Errorf("%w: %s", ErrGenerationStopped, result.Candidates[0].FinishReason)
+		return "", fmt.Errorf("generation stopped for model %q with reason: %s", request.Model(), result.Candidates[0].FinishReason)
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
-			// TODO proper error
-			return "", fmt.Errorf("%w: %s", ErrRequestBlocked, result.PromptFeedback.BlockReason)
+			return "", fmt.Errorf("request was blocked by Gemini API for model %q with reason: %s", request.Model(), result.PromptFeedback.BlockReason)
 		}
 
-		return "", ErrEmptyResponse
+		return "", fmt.Errorf("Gemini API returned an empty response for model %q", request.Model())
 	}
 
 	return result.Text(), nil
@@ -123,15 +108,15 @@ func (g *geminiGateway) ComputeEmbeddings(
 	request *gateway.ComputeEmbeddingsRequest,
 ) ([]gateway.Embedding, error) {
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return nil, ErrGatewayIsNil
+		return nil, fmt.Errorf("gemini gateway is nil")
 	}
 
 	if request == nil {
-		return nil, ErrRequestIsNil
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	contents := make([]*genai.Content, 0, len(request.Chunks()))
@@ -146,8 +131,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 	if request.Dimensions() > 0 {
 		dimensions := request.Dimensions()
 		if dimensions > math.MaxInt32 {
-			// TODO proper error
-			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
+			return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
 		}
 
 		dims := int32(dimensions) // #nosec G115 // overflow checked above
@@ -160,8 +144,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 		config,
 	)
 	if err != nil {
-		// TODO proper error
-		return []gateway.Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from Gemini API for model %q: %w", request.Model(), err)
 	}
 
 	embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))

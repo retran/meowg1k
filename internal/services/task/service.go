@@ -18,26 +18,12 @@ limitations under the License.
 package task
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/task"
-)
-
-// Task service errors
-var (
-	ErrTaskNotFoundInConfig            = errors.New("task not found in configuration")
-	ErrNoDefaultConfigurationAvailable = errors.New("no default configuration available")
-	ErrNoProfileConfigured             = errors.New("no profile configured")
-	ErrUserPromptRequired              = errors.New("user prompt is required (use -p or --user-prompt)")
-	ErrNoConfigurationAvailable        = errors.New("no configuration available")
-	ErrTaskParametersReaderIsNil       = errors.New("task parameters reader is nil")
-	ErrConfigReaderIsNil               = errors.New("config reader is nil")
-	ErrProfileResolverIsNil            = errors.New("profile resolver is nil")
-	ErrServiceIsNil                    = errors.New("service is nil")
 )
 
 // TaskParametersReader reads task parameters from command line.
@@ -72,8 +58,7 @@ func resolveTaskConfiguration(
 
 	task, exists := cfg.Generate.Tasks[taskName]
 	if !exists {
-		// TODO proper error
-		return "", "", "", fmt.Errorf("%w: %s", ErrTaskNotFoundInConfig, taskName)
+		return "", "", "", fmt.Errorf("task not found in configuration: %s", taskName)
 	}
 
 	profileName = task.Profile
@@ -94,7 +79,7 @@ func resolveDefaultConfiguration(
 	cmdUserPrompt string, cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
 	if cfg == nil || cfg.Generate == nil || cfg.Generate.Default == nil {
-		err = ErrNoDefaultConfigurationAvailable
+		err = fmt.Errorf("no default configuration available")
 		return profileName, systemPrompt, userPrompt, err
 	}
 
@@ -126,11 +111,11 @@ func applyDefaults(
 // validateConfiguration validates the resolved configuration.
 func validateConfiguration(taskName, profileName, userPrompt string) error {
 	if profileName == "" {
-		return ErrNoProfileConfigured
+		return fmt.Errorf("no profile configured")
 	}
 
 	if taskName == "" && userPrompt == "" {
-		return ErrUserPromptRequired
+		return fmt.Errorf("user prompt is required (use -p or --user-prompt)")
 	}
 
 	return nil
@@ -143,31 +128,29 @@ func NewService(
 	profileResolver ProfileResolver,
 ) (*Service, error) {
 	if taskParametersReader == nil {
-		return nil, ErrTaskParametersReaderIsNil
+		return nil, fmt.Errorf("task parameters reader is nil")
 	}
 
 	if configReader == nil {
-		return nil, ErrConfigReaderIsNil
+		return nil, fmt.Errorf("config reader is nil")
 	}
 
 	if profileResolver == nil {
-		return nil, ErrProfileResolverIsNil
+		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
 	service := &Service{}
 
 	cfg, err := configReader.GetConfig()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 	if cfg == nil {
-		return nil, ErrNoConfigurationAvailable
+		return nil, fmt.Errorf("no configuration available")
 	}
 
 	taskName, err := taskParametersReader.GetTaskName()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get task name: %w", err)
 	}
 
@@ -175,25 +158,21 @@ func NewService(
 
 	cmdUserPrompt, err := taskParametersReader.GetUserPrompt()
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
 
 	profileName, systemPrompt, userPrompt, err := resolveTaskConfiguration(taskName, cmdUserPrompt, cfg)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve task configuration: %w", err)
 	}
 
 	err = validateConfiguration(taskName, profileName, userPrompt)
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to validate configuration: %w", err)
 	}
 
 	resolvedProfile, err := profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 	}
 
@@ -210,11 +189,11 @@ func NewService(
 // Get returns the cached task configuration.
 func (s *Service) Get() (*task.ResolvedConfig, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("service is nil")
 	}
 
 	if s.resolvedConfig == nil {
-		return nil, ErrNoConfigurationAvailable
+		return nil, fmt.Errorf("no configuration available")
 	}
 
 	return s.resolvedConfig, nil

@@ -18,33 +18,12 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/provider"
 	"github.com/retran/meowg1k/pkg/ratelimit"
-)
-
-var (
-	ErrGeminiAPIKeyRequired            = errors.New("gemini provider requires an API key")
-	ErrLlamaBaseURLRequired            = errors.New("llama provider requires a base URL")
-	ErrOpenAIAPIKeyRequired            = errors.New("openai provider requires an API key")
-	ErrOpenRouterAPIKeyRequired        = errors.New("openrouter provider requires an API key")
-	ErrVoyageNoContentGeneration       = errors.New("voyage provider only supports embeddings, not content generation")
-	ErrOpenAICompatibleBaseURLRequired = errors.New("openai-compatible provider requires a base URL")
-	ErrProviderNotSpecified            = errors.New("a provider must be specified with Withgateway.Provider()")
-	ErrProfileCannotBeNil              = errors.New("profile cannot be nil")
-	ErrLlamaEmbeddingsNotImplemented   = errors.New("llama embedding gateway is not yet implemented")
-	ErrAnthropicNoEmbeddings           = errors.New(
-		"anthropic provider does not provide embedding models " +
-			"(use voyage provider for embeddings recommended by Anthropic)",
-	)
-	ErrVoyageAPIKeyRequired = errors.New("voyage provider requires an API key")
-	ErrGatewayIsNil         = errors.New("gateway is nil")
-	ErrRequestIsNil         = errors.New("request is nil")
-	ErrContextIsNil         = errors.New("context is nil")
 )
 
 type Factory struct {
@@ -55,12 +34,14 @@ type Factory struct {
 
 // NewFactory creates a new gateway factory with a lazy repository function.
 // The repoFunc will only be called when a rate limiter with actual limits is needed.
-func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
-	// TODO proper checks and error
+func NewFactory(repoFunc func() ratelimit.Repository) (*Factory, error) {
+	if repoFunc == nil {
+		return nil, fmt.Errorf("repository function is nil")
+	}
 	return &Factory{
 		limiters: make(map[string]ratelimit.Limiter),
 		repoFunc: repoFunc,
-	}
+	}, nil
 }
 
 // getRateLimiter returns or creates a rate limiter for the given profile.
@@ -69,7 +50,7 @@ func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
 // or endpoints get separate rate limiters.
 func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Limiter, error) {
 	if profile == nil {
-		return nil, ErrProfileCannotBeNil
+		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
 	f.mu.Lock()
@@ -98,14 +79,12 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 	} else {
 		repo := f.repoFunc()
 		if repo == nil {
-			// TODO proper error
 			return nil, fmt.Errorf("rate limiting is configured but database repository is not available")
 		}
 		var err error
 		// TODO proper context
 		limiter, err = ratelimit.NewLimiter(context.Background(), config, repo)
 		if err != nil {
-			// TODO proper error
 			return nil, fmt.Errorf("failed to create rate limiter: %w", err)
 		}
 	}
@@ -121,11 +100,11 @@ func (f *Factory) NewGenerationGateway(
 	profile *profile.ResolvedProfile,
 ) (GenerationGateway, error) {
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if profile == nil {
-		return nil, ErrProfileCannotBeNil
+		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
 	var gateway GenerationGateway
@@ -134,48 +113,48 @@ func (f *Factory) NewGenerationGateway(
 	switch profile.Provider {
 	case provider.Gemini:
 		if profile.APIKey == "" {
-			return nil, ErrGeminiAPIKeyRequired
+			return nil, fmt.Errorf("gemini provider requires an API key for model %q", profile.Model)
 		}
 
 		gateway, err = newGeminiGateway(ctx, profile.APIKey)
 	case provider.Llama:
 		if profile.BaseURL == "" {
-			return nil, ErrLlamaBaseURLRequired
+			return nil, fmt.Errorf("llama provider requires a base URL for model %q", profile.Model)
 		}
 
 		gateway, err = newLlamaGateway(profile.BaseURL, profile.APIKey)
 	case provider.OpenAI:
 		if profile.APIKey == "" {
-			return nil, ErrOpenAIAPIKeyRequired
+			return nil, fmt.Errorf("openai provider requires an API key for model %q", profile.Model)
 		}
 
 		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.OpenRouter:
 		if profile.APIKey == "" {
-			return nil, ErrOpenRouterAPIKeyRequired
+			return nil, fmt.Errorf("openrouter provider requires an API key for model %q", profile.Model)
 		}
 
 		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.Anthropic:
 		if profile.APIKey == "" {
-			return nil, ErrAnthropicAPIKeyRequired
+			return nil, fmt.Errorf("anthropic provider requires an API key for model %q", profile.Model)
 		}
 
 		gateway, err = newAnthropicGateway(profile.APIKey)
 	case provider.Voyage:
-		return nil, ErrVoyageNoContentGeneration
+		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
 	case provider.OpenAICompatible:
 		if profile.BaseURL == "" {
-			return nil, ErrOpenAICompatibleBaseURLRequired
+			return nil, fmt.Errorf("openai-compatible provider requires a base URL for model %q", profile.Model)
 		}
 
 		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	default:
-		return nil, ErrProviderNotSpecified
+		return nil, fmt.Errorf("provider must be specified for model %q", profile.Model)
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
 	}
 
 	// Determine max concurrency based on rate limits
@@ -190,7 +169,6 @@ func (f *Factory) NewGenerationGateway(
 
 	limiter, err := f.getRateLimiter(profile)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
 
@@ -203,11 +181,11 @@ func (f *Factory) NewEmbeddingsGateway(
 	profile *profile.ResolvedProfile,
 ) (EmbeddingsGateway, error) {
 	if ctx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if profile == nil {
-		return nil, ErrProfileCannotBeNil
+		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
 	var gateway EmbeddingsGateway
@@ -216,44 +194,42 @@ func (f *Factory) NewEmbeddingsGateway(
 	switch profile.Provider {
 	case provider.Gemini:
 		if profile.APIKey == "" {
-			return nil, ErrGeminiAPIKeyRequired
+			return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", profile.Model)
 		}
 
 		gateway, err = newGeminiGateway(ctx, profile.APIKey)
 	case provider.Llama:
-		return nil, ErrLlamaEmbeddingsNotImplemented
+		return nil, fmt.Errorf("llama embedding gateway is not yet implemented for model %q", profile.Model)
 	case provider.Anthropic:
-		return nil, ErrAnthropicNoEmbeddings
+		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
 	case provider.OpenAI:
 		if profile.APIKey == "" {
-			return nil, ErrOpenAIAPIKeyRequired
+			return nil, fmt.Errorf("openai provider requires an API key for embeddings model %q", profile.Model)
 		}
 
 		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.OpenRouter:
 		if profile.APIKey == "" {
-			return nil, ErrOpenRouterAPIKeyRequired
+			return nil, fmt.Errorf("openrouter provider requires an API key for embeddings model %q", profile.Model)
 		}
 
 		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
 	case provider.Voyage:
 		if profile.APIKey == "" {
-			return nil, ErrVoyageAPIKeyRequired
+			return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", profile.Model)
 		}
 
 		gateway, err = newVoyageGateway(profile.APIKey)
 	default:
-		return nil, ErrProviderNotSpecified
+		return nil, fmt.Errorf("provider must be specified for embeddings model %q", profile.Model)
 	}
 
 	if err != nil {
-		// TODO proper error
-		return nil, err
+		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", profile.Provider, profile.Model, err)
 	}
 
 	limiter, err := f.getRateLimiter(profile)
 	if err != nil {
-		// TODO proper error
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
 

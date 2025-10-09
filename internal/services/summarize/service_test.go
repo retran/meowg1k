@@ -17,11 +17,11 @@ limitations under the License.
 package summarize
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/internal/core/config"
 	coreProfile "github.com/retran/meowg1k/internal/core/profile"
-	"github.com/retran/meowg1k/internal/services/profile"
 )
 
 // Mock implementations for testing
@@ -235,8 +235,9 @@ func TestGetSummarizationConfig_ProfileError(t *testing.T) {
 			},
 		},
 	}
+	mockErr := fmt.Errorf("profile not found in configuration")
 	profileSvc := &mockProfileResolver{
-		err: profile.ErrProfileNotFound,
+		err: mockErr,
 	}
 	svc, err := NewService(configSvc, profileSvc)
 	if err != nil {

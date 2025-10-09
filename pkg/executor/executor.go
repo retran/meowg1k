@@ -20,48 +20,10 @@ package executor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/pkg/future"
-)
-
-var (
-	// ErrActivityInvalidType indicates that an activity has an invalid type.
-	ErrActivityInvalidType = errors.New("activity has invalid type")
-	// ErrFlowFailed indicates that a flow execution has failed.
-	ErrFlowFailed = errors.New("flow is failed")
-	// ErrUnexpectedEndOfRetry indicates an unexpected condition in the retry logic.
-	ErrUnexpectedEndOfRetry = errors.New("unexpected end of retry loop")
-	// ErrExecutorIsNil indicates that the executor is nil.
-	ErrExecutorIsNil = errors.New("executor is nil")
-	// ErrContextIsNil indicates that the context is nil.
-	ErrContextIsNil = errors.New("context is nil")
-	// ErrFlowIsNil indicates that the flow is nil.
-	ErrFlowIsNil = errors.New("flow is nil")
-	// ErrActivityIsNil indicates that the activity is nil.
-	ErrActivityIsNil = errors.New("activity is nil")
-	// ErrRetryPolicyIsNil indicates that the retry policy is nil.
-	ErrRetryPolicyIsNil = errors.New("retry policy is nil")
-	// ErrFlowNameIsEmpty indicates that the flow name is empty.
-	ErrFlowNameIsEmpty = errors.New("flow name is empty")
-	// ErrActivityNameIsEmpty indicates that the activity name is empty.
-	ErrActivityNameIsEmpty = errors.New("activity name is empty")
-	// ErrInvalidRetryPolicy indicates that the retry policy has invalid values.
-	ErrInvalidRetryPolicy = errors.New("invalid retry policy")
-	// ErrContextCannotBeNil indicates that the context parameter is nil.
-	ErrContextCannotBeNil = errors.New("context cannot be nil")
-	// ErrInvalidMaxAttempts indicates that MaxAttempts is less than 1.
-	ErrInvalidMaxAttempts = errors.New("max attempts must be at least 1")
-	// ErrInvalidMultiplier indicates that Multiplier is less than 1.0.
-	ErrInvalidMultiplier = errors.New("multiplier must be at least 1.0")
-	// ErrFlowCanceled indicates that a flow was canceled.
-	ErrFlowCanceled = errors.New("flow is canceled")
-	// ErrActivityCanceled indicates that an activity was canceled.
-	ErrActivityCanceled = errors.New("activity is canceled")
-	// ErrActivityFailed indicates that an activity failed after retries.
-	ErrActivityFailed = errors.New("activity failed after retries")
 )
 
 // DefaultRetryPolicy returns a sensible default retry policy
@@ -129,19 +91,19 @@ func (e *Impl) RunFlow(
 	flow Flow,
 ) error {
 	if e == nil {
-		return ErrExecutorIsNil
+		return fmt.Errorf("executor is nil")
 	}
 
 	if ctx == nil {
-		return ErrContextCannotBeNil
+		return fmt.Errorf("context cannot be nil")
 	}
 
 	if flowName == "" {
-		return ErrFlowNameIsEmpty
+		return fmt.Errorf("flow name is empty")
 	}
 
 	if flow == nil {
-		return ErrFlowIsNil
+		return fmt.Errorf("flow is nil")
 	}
 
 	fut := future.NewFuture[any]()
@@ -157,9 +119,11 @@ func (e *Impl) RunFlow(
 	}()
 
 	_, err := fut.Get(ctx)
+	if err != nil {
+		return fmt.Errorf("flow execution failed: %w", err)
+	}
 
-	// TODO proper error
-	return err
+	return nil
 }
 
 // runActivity runs a sub-activity asynchronously and returns a future for its result
@@ -175,32 +139,32 @@ func (e *Impl) runActivity(
 
 	// Validate inputs before starting goroutine
 	if e == nil {
-		_ = fut.CompleteWithError(ErrExecutorIsNil)
+		_ = fut.CompleteWithError(fmt.Errorf("executor is nil"))
 		return fut
 	}
 
 	if ctx == nil {
-		_ = fut.CompleteWithError(ErrContextCannotBeNil)
+		_ = fut.CompleteWithError(fmt.Errorf("context cannot be nil"))
 		return fut
 	}
 
 	if parentCtx == nil {
-		_ = fut.CompleteWithError(ErrContextIsNil)
+		_ = fut.CompleteWithError(fmt.Errorf("parent context is nil"))
 		return fut
 	}
 
 	if activityName == "" {
-		_ = fut.CompleteWithError(ErrActivityNameIsEmpty)
+		_ = fut.CompleteWithError(fmt.Errorf("activity name %q is empty", activityName))
 		return fut
 	}
 
 	if activity == nil {
-		_ = fut.CompleteWithError(ErrActivityIsNil)
+		_ = fut.CompleteWithError(fmt.Errorf("activity is nil for activity name %q", activityName))
 		return fut
 	}
 
 	if e.RetryPolicy == nil {
-		_ = fut.CompleteWithError(ErrRetryPolicyIsNil)
+		_ = fut.CompleteWithError(fmt.Errorf("retry policy is nil for activity %q", activityName))
 		return fut
 	}
 
@@ -225,32 +189,32 @@ func (e *Impl) executeFlow(
 	flow func(context.Context, *Context) error,
 ) error {
 	if e == nil {
-		return ErrExecutorIsNil
+		return fmt.Errorf("executor is nil")
 	}
 
 	if ctx == nil {
-		return ErrContextCannotBeNil
+		return fmt.Errorf("context cannot be nil")
 	}
 
 	if flowCtx == nil {
-		return ErrContextIsNil
+		return fmt.Errorf("flow context is nil")
 	}
 
 	if flow == nil {
-		return ErrFlowIsNil
+		return fmt.Errorf("flow is nil")
 	}
 
 	select {
 	case <-ctx.Done():
 		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow %q is canceled", flowCtx.name))
-		return errors.Join(ErrFlowCanceled, ctx.Err())
+		return fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err())
 	default:
 	}
 
 	err := flow(ctx, flowCtx)
 	if err != nil {
 		flowCtx.SendFailed(err, fmt.Sprintf("Flow %q is failed", flowCtx.name))
-		return errors.Join(ErrFlowFailed, err)
+		return fmt.Errorf("flow %q failed: %w", flowCtx.name, err)
 	}
 
 	return nil
@@ -265,31 +229,31 @@ func (e *Impl) executeActivity(
 	policy *RetryPolicy,
 ) (any, error) {
 	if e == nil {
-		return nil, ErrExecutorIsNil
+		return nil, fmt.Errorf("executor is nil")
 	}
 
 	if ctx == nil {
-		return nil, ErrContextCannotBeNil
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if activityCtx == nil {
-		return nil, ErrContextIsNil
+		return nil, fmt.Errorf("activity context is nil")
 	}
 
 	if activity == nil {
-		return nil, ErrActivityIsNil
+		return nil, fmt.Errorf("activity is nil for %q", activityCtx.name)
 	}
 
 	if policy == nil {
-		return nil, ErrRetryPolicyIsNil
+		return nil, fmt.Errorf("retry policy is nil for activity %q", activityCtx.name)
 	}
 
 	if policy.MaxAttempts < 1 {
-		return nil, ErrInvalidMaxAttempts
+		return nil, fmt.Errorf("invalid retry policy for activity %q: max attempts must be at least 1, got %d", activityCtx.name, policy.MaxAttempts)
 	}
 
 	if policy.Multiplier < 1.0 {
-		return nil, ErrInvalidMultiplier
+		return nil, fmt.Errorf("invalid retry policy for activity %q: multiplier must be at least 1.0, got %f", activityCtx.name, policy.Multiplier)
 	}
 
 	name := activityCtx.name
@@ -299,7 +263,7 @@ func (e *Impl) executeActivity(
 		select {
 		case <-ctx.Done():
 			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, errors.Join(ErrActivityCanceled, ctx.Err())
+			return nil, fmt.Errorf("activity %q canceled at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
 		default:
 		}
 
@@ -311,7 +275,7 @@ func (e *Impl) executeActivity(
 		// If this was the last attempt, return the error
 		if attempt == policy.MaxAttempts {
 			activityCtx.SendFailed(err, fmt.Sprintf("Activity %q failed after %d attempts", name, attempt))
-			return nil, errors.Join(ErrActivityFailed, err)
+			return nil, fmt.Errorf("activity %q failed after %d attempts: %w", name, attempt, err)
 		}
 
 		// Send retry feedback
@@ -321,7 +285,7 @@ func (e *Impl) executeActivity(
 		select {
 		case <-ctx.Done():
 			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, errors.Join(ErrActivityCanceled, ctx.Err())
+			return nil, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
 		case <-time.After(delay):
 			// Calculate next delay with exponential backoff
 			delay = min(time.Duration(float64(delay)*policy.Multiplier), policy.MaxDelay)
@@ -329,5 +293,5 @@ func (e *Impl) executeActivity(
 	}
 
 	// This should never be reached, but just in case
-	return nil, ErrUnexpectedEndOfRetry
+	return nil, fmt.Errorf("unexpected end of retry loop for activity %q after %d attempts", name, policy.MaxAttempts)
 }

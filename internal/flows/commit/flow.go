@@ -19,7 +19,6 @@ package commit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
@@ -32,35 +31,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/pkg/executor"
-)
-
-var (
-	// ErrFactoryIsNil indicates that the factory is nil.
-	ErrFactoryIsNil = errors.New("factory is nil")
-	// ErrContextIsNil indicates that the context is nil.
-	ErrContextIsNil = errors.New("context is nil")
-	// ErrFlowContextIsNil indicates that the flow context is nil.
-	ErrFlowContextIsNil = errors.New("flow context is nil")
-	// ErrListStagedFactoryIsNil indicates that the listStagedFactory is nil.
-	ErrListStagedFactoryIsNil = errors.New("listStagedFactory is nil")
-	// ErrListBranchFilesFactoryIsNil indicates that the listBranchFilesFactory is nil.
-	ErrListBranchFilesFactoryIsNil = errors.New("listBranchFilesFactory is nil")
-	// ErrApplyFiltersFactoryIsNil indicates that the applyFiltersFactory is nil.
-	ErrApplyFiltersFactoryIsNil = errors.New("applyFiltersFactory is nil")
-	// ErrFetchAllDiffsFactoryIsNil indicates that the fetchAllDiffsFactory is nil.
-	ErrFetchAllDiffsFactoryIsNil = errors.New("fetchAllDiffsFactory is nil")
-	// ErrFetchAllBranchDiffsFactoryIsNil indicates that the fetchAllBranchDiffsFactory is nil.
-	ErrFetchAllBranchDiffsFactoryIsNil = errors.New("fetchAllBranchDiffsFactory is nil")
-	// ErrSummarizeAllFactoryIsNil indicates that the summarizeAllFactory is nil.
-	ErrSummarizeAllFactoryIsNil = errors.New("summarizeAllFactory is nil")
-	// ErrComposeCommitFactoryIsNil indicates that the composeCommitFactory is nil.
-	ErrComposeCommitFactoryIsNil = errors.New("composeCommitFactory is nil")
-	// ErrCommitConfigProviderIsNil indicates that the commitConfigProvider is nil.
-	ErrCommitConfigProviderIsNil = errors.New("commitConfigProvider is nil")
-	// ErrCommandParametersReaderIsNil indicates that the commandParametersReader is nil.
-	ErrCommandParametersReaderIsNil = errors.New("commandParametersReader is nil")
-	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
-	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
 )
 
 // CommitConfigProvider provides commit message configuration.
@@ -108,43 +78,43 @@ func NewFactory(
 	outputWriter OutputWriter,
 ) (*Factory, error) {
 	if listStagedFactory == nil {
-		return nil, ErrListStagedFactoryIsNil
+		return nil, fmt.Errorf("listStagedFactory is nil")
 	}
 
 	if listBranchFilesFactory == nil {
-		return nil, ErrListBranchFilesFactoryIsNil
+		return nil, fmt.Errorf("listBranchFilesFactory is nil")
 	}
 
 	if applyFiltersFactory == nil {
-		return nil, ErrApplyFiltersFactoryIsNil
+		return nil, fmt.Errorf("applyFiltersFactory is nil")
 	}
 
 	if fetchAllDiffsFactory == nil {
-		return nil, ErrFetchAllDiffsFactoryIsNil
+		return nil, fmt.Errorf("fetchAllDiffsFactory is nil")
 	}
 
 	if fetchAllBranchDiffsFactory == nil {
-		return nil, ErrFetchAllBranchDiffsFactoryIsNil
+		return nil, fmt.Errorf("fetchAllBranchDiffsFactory is nil")
 	}
 
 	if summarizeAllFactory == nil {
-		return nil, ErrSummarizeAllFactoryIsNil
+		return nil, fmt.Errorf("summarizeAllFactory is nil")
 	}
 
 	if composeCommitFactory == nil {
-		return nil, ErrComposeCommitFactoryIsNil
+		return nil, fmt.Errorf("composeCommitFactory is nil")
 	}
 
 	if commitConfigProvider == nil {
-		return nil, ErrCommitConfigProviderIsNil
+		return nil, fmt.Errorf("commitConfigProvider is nil")
 	}
 
 	if commandParametersReader == nil {
-		return nil, ErrCommandParametersReaderIsNil
+		return nil, fmt.Errorf("commandParametersReader is nil")
 	}
 
 	if outputWriter == nil {
-		return nil, ErrOutputWriterIsNil
+		return nil, fmt.Errorf("outputWriter is nil")
 	}
 
 	return &Factory{
@@ -165,15 +135,15 @@ func NewFactory(
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		if f == nil {
-			return ErrFactoryIsNil
+			return fmt.Errorf("factory is nil")
 		}
 
 		if ctx == nil {
-			return ErrContextIsNil
+			return fmt.Errorf("context is nil")
 		}
 
 		if flowCtx == nil {
-			return ErrFlowContextIsNil
+			return fmt.Errorf("flow context is nil")
 		}
 
 		flowCtx.SendRunning("Composing commit message")
@@ -181,7 +151,6 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Check if we're in squash mode (branch comparison)
 		targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get target-branch flag: %w", err)
 		}
 
@@ -204,7 +173,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			branchFiles, err := branchFilesFuture.Get(ctx)
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to list branch files: %w", err)
 			}
 			files = branchFiles.Files
@@ -222,7 +190,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			stagedFiles, err := stagedFilesFuture.Get(ctx)
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to list staged files: %w", err)
 			}
 			files = stagedFiles.Files
@@ -243,7 +210,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to apply filters: %w", err)
 		}
 
@@ -267,7 +233,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to fetch branch diffs: %w", err)
 			}
 
@@ -288,7 +253,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to fetch diffs: %w", err)
 			}
 
@@ -310,27 +274,23 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to summarize changes: %w", err)
 		}
 
 		// Phase 5: Compose commit message
 		cfg, err := f.commitConfigProvider.GetCommitConfig()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}
 
 		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
 			stdin, err := f.commandParametersReader.GetStdIn()
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to get stdin: %w", err)
 			}
 
@@ -354,14 +314,12 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		commitResult, err := commitFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to compose commit message: %w", err)
 		}
 
 		flowCtx.SendCompleted("")
 
 		if err := f.outputWriter.PrintLine(commitResult.CommitMessage); err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to print commit message: %w", err)
 		}
 

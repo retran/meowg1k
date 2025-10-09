@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func (m *mockGenerationGateway) GenerateContent(
 	request *coreGateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
-		return "", ErrContextIsNil
+		return "", fmt.Errorf("context cannot be nil")
 	}
 	if m.err != nil {
 		return "", m.err

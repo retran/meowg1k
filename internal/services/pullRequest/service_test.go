@@ -17,11 +17,11 @@ limitations under the License.
 package pullRequest
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/internal/core/config"
 	coreProfile "github.com/retran/meowg1k/internal/core/profile"
-	"github.com/retran/meowg1k/internal/services/profile"
 )
 
 // mockConfigReader is a mock implementation of ConfigReader for testing.
@@ -124,8 +124,9 @@ func TestGetPRConfigProfileError(t *testing.T) {
 	configSvc := &mockConfigReader{
 		Cfg: &config.Config{},
 	}
+	mockErr := fmt.Errorf("profile not found in configuration")
 	profileSvc := &mockProfileResolver{
-		Err: profile.ErrProfileNotFound,
+		Err: mockErr,
 	}
 
 	service, err := NewService(configSvc, profileSvc)
@@ -134,7 +135,7 @@ func TestGetPRConfigProfileError(t *testing.T) {
 	}
 
 	_, err = service.GetPRConfig()
-	if err != profile.ErrProfileNotFound {
-		t.Errorf("Expected ErrProfileNotFound, got %v", err)
+	if err == nil {
+		t.Error("Expected profile error, got nil")
 	}
 }

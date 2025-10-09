@@ -18,23 +18,12 @@ limitations under the License.
 package command
 
 import (
-	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
-)
-
-var (
-	// ErrCommandIsNil indicates that the command is nil.
-	ErrCommandIsNil = errors.New("command cannot be nil")
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = errors.New("service is nil")
-	// ErrStdinStatFailed indicates that stat on stdin failed.
-	ErrStdinStatFailed = errors.New("failed to stat stdin")
-	// ErrStdinReadFailed indicates that reading from stdin failed.
-	ErrStdinReadFailed = errors.New("failed to read from stdin")
 )
 
 // Service is the concrete implementation of the command service.
@@ -46,20 +35,20 @@ type Service struct {
 // NewService creates a new command context service with the provided command.
 func NewService(cmd *cobra.Command) (*Service, error) {
 	if cmd == nil {
-		return nil, ErrCommandIsNil
+		return nil, fmt.Errorf("command cannot be nil")
 	}
 
 	stdin := ""
 
 	stat, err := os.Stdin.Stat()
 	if err != nil {
-		return nil, errors.Join(ErrStdinStatFailed, err)
+		return nil, fmt.Errorf("failed to stat stdin: %w", err)
 	}
 
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
 		input, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			return nil, errors.Join(ErrStdinReadFailed, err)
+			return nil, fmt.Errorf("failed to read stdin: %w", err)
 		}
 
 		stdin = strings.TrimSpace(string(input))
@@ -74,7 +63,7 @@ func NewService(cmd *cobra.Command) (*Service, error) {
 // GetCommand retrieves the current executing command.
 func (s *Service) GetCommand() (*cobra.Command, error) {
 	if s == nil {
-		return nil, ErrServiceIsNil
+		return nil, fmt.Errorf("command service is nil")
 	}
 
 	return s.cmd, nil
@@ -83,11 +72,11 @@ func (s *Service) GetCommand() (*cobra.Command, error) {
 // GetCommandName retrieves the name of the current executing command.
 func (s *Service) GetCommandName() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Name(), nil
@@ -96,11 +85,11 @@ func (s *Service) GetCommandName() (string, error) {
 // GetConfigPath retrieves the config path from command flags.
 func (s *Service) GetConfigPath() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("config")
@@ -109,11 +98,11 @@ func (s *Service) GetConfigPath() (string, error) {
 // GetTaskName retrieves the task name from command flags.
 func (s *Service) GetTaskName() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("task")
@@ -122,11 +111,11 @@ func (s *Service) GetTaskName() (string, error) {
 // GetUserPrompt retrieves the user prompt from command flags.
 func (s *Service) GetUserPrompt() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("user-prompt")
@@ -135,11 +124,11 @@ func (s *Service) GetUserPrompt() (string, error) {
 // GetSilentFlag retrieves the silent flag from command flags.
 func (s *Service) GetSilentFlag() (bool, error) {
 	if s == nil {
-		return false, ErrServiceIsNil
+		return false, fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return false, ErrCommandIsNil
+		return false, fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetBool("silent")
@@ -148,11 +137,11 @@ func (s *Service) GetSilentFlag() (bool, error) {
 // GetIntentFlag retrieves the intent flag from command flags.
 func (s *Service) GetIntentFlag() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("intent")
@@ -161,11 +150,11 @@ func (s *Service) GetIntentFlag() (string, error) {
 // GetTargetBranchFlag retrieves the target-branch flag from command flags.
 func (s *Service) GetTargetBranchFlag() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("target-branch")
@@ -174,11 +163,11 @@ func (s *Service) GetTargetBranchFlag() (string, error) {
 // GetBaseBranchFlag retrieves the base-branch flag from command flags.
 func (s *Service) GetBaseBranchFlag() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	if s.cmd == nil {
-		return "", ErrCommandIsNil
+		return "", fmt.Errorf("command is nil")
 	}
 
 	return s.cmd.Flags().GetString("base")
@@ -187,7 +176,7 @@ func (s *Service) GetBaseBranchFlag() (string, error) {
 // GetStdIn retrieves the standard input sent to the command.
 func (s *Service) GetStdIn() (string, error) {
 	if s == nil {
-		return "", ErrServiceIsNil
+		return "", fmt.Errorf("command service is nil")
 	}
 
 	return s.stdin, nil

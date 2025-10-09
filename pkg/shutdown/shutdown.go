@@ -20,20 +20,13 @@ package shutdown
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-)
-
-var (
-	// ErrServiceIsNil indicates that the service is nil.
-	ErrServiceIsNil = errors.New("service is nil")
-	// ErrCallbackIsNil indicates that the callback is nil.
-	ErrCallbackIsNil = errors.New("callback is nil")
 )
 
 // Service handles graceful shutdown of the application.
@@ -73,7 +66,6 @@ func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration)
 // This context is canceled when shutdown begins.
 func (m *Service) Context() context.Context {
 	if m == nil {
-		// TODO proper error
 		return context.Background()
 	}
 
@@ -87,11 +79,11 @@ func (m *Service) Context() context.Context {
 // Callbacks are executed in the order they were registered.
 func (m *Service) Register(callback Callback) error {
 	if m == nil {
-		return ErrServiceIsNil
+		return fmt.Errorf("shutdown service is nil")
 	}
 
 	if callback == nil {
-		return ErrCallbackIsNil
+		return fmt.Errorf("shutdown callback is nil")
 	}
 
 	m.mu.Lock()

@@ -19,7 +19,6 @@ package pr
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
@@ -30,31 +29,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/internal/core/pullRequest"
 	"github.com/retran/meowg1k/pkg/executor"
-)
-
-var (
-	// ErrFactoryIsNil indicates that the factory is nil.
-	ErrFactoryIsNil = errors.New("factory is nil")
-	// ErrContextIsNil indicates that the context is nil.
-	ErrContextIsNil = errors.New("context is nil")
-	// ErrFlowContextIsNil indicates that the flow context is nil.
-	ErrFlowContextIsNil = errors.New("flow context is nil")
-	// ErrListBranchFilesFactoryIsNil indicates that the listBranchFilesFactory is nil.
-	ErrListBranchFilesFactoryIsNil = errors.New("listBranchFilesFactory is nil")
-	// ErrApplyFiltersFactoryIsNil indicates that the applyFiltersFactory is nil.
-	ErrApplyFiltersFactoryIsNil = errors.New("applyFiltersFactory is nil")
-	// ErrFetchAllBranchDiffsFactoryIsNil indicates that the fetchAllBranchDiffsFactory is nil.
-	ErrFetchAllBranchDiffsFactoryIsNil = errors.New("fetchAllBranchDiffsFactory is nil")
-	// ErrSummarizeAllFactoryIsNil indicates that the summarizeAllFactory is nil.
-	ErrSummarizeAllFactoryIsNil = errors.New("summarizeAllFactory is nil")
-	// ErrComposePRFactoryIsNil indicates that the composePRFactory is nil.
-	ErrComposePRFactoryIsNil = errors.New("composePRFactory is nil")
-	// ErrPRConfigProviderIsNil indicates that the prConfigProvider is nil.
-	ErrPRConfigProviderIsNil = errors.New("prConfigProvider is nil")
-	// ErrCommandParametersReaderIsNil indicates that the commandParametersReader is nil.
-	ErrCommandParametersReaderIsNil = errors.New("commandParametersReader is nil")
-	// ErrOutputWriterIsNil indicates that the outputWriter is nil.
-	ErrOutputWriterIsNil = errors.New("outputWriter is nil")
 )
 
 // PRConfigProvider provides pull request configuration.
@@ -98,35 +72,35 @@ func NewFactory(
 	outputWriter OutputWriter,
 ) (*Factory, error) {
 	if listBranchFilesFactory == nil {
-		return nil, ErrListBranchFilesFactoryIsNil
+		return nil, fmt.Errorf("listBranchFilesFactory is nil")
 	}
 
 	if applyFiltersFactory == nil {
-		return nil, ErrApplyFiltersFactoryIsNil
+		return nil, fmt.Errorf("applyFiltersFactory is nil")
 	}
 
 	if fetchAllBranchDiffsFactory == nil {
-		return nil, ErrFetchAllBranchDiffsFactoryIsNil
+		return nil, fmt.Errorf("fetchAllBranchDiffsFactory is nil")
 	}
 
 	if summarizeAllFactory == nil {
-		return nil, ErrSummarizeAllFactoryIsNil
+		return nil, fmt.Errorf("summarizeAllFactory is nil")
 	}
 
 	if composePRFactory == nil {
-		return nil, ErrComposePRFactoryIsNil
+		return nil, fmt.Errorf("composePRFactory is nil")
 	}
 
 	if prConfigProvider == nil {
-		return nil, ErrPRConfigProviderIsNil
+		return nil, fmt.Errorf("prConfigProvider is nil")
 	}
 
 	if commandParametersReader == nil {
-		return nil, ErrCommandParametersReaderIsNil
+		return nil, fmt.Errorf("commandParametersReader is nil")
 	}
 
 	if outputWriter == nil {
-		return nil, ErrOutputWriterIsNil
+		return nil, fmt.Errorf("outputWriter is nil")
 	}
 
 	return &Factory{
@@ -145,15 +119,15 @@ func NewFactory(
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		if f == nil {
-			return ErrFactoryIsNil
+			return fmt.Errorf("factory is nil")
 		}
 
 		if ctx == nil {
-			return ErrContextIsNil
+			return fmt.Errorf("context is nil")
 		}
 
 		if flowCtx == nil {
-			return ErrFlowContextIsNil
+			return fmt.Errorf("flow context is nil")
 		}
 
 		flowCtx.SendRunning("Composing Pull Request description")
@@ -161,12 +135,10 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Get the base branch to compare against
 		baseBranch, err := f.commandParametersReader.GetBaseBranchFlag()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get base-branch flag: %w", err)
 		}
 
 		if baseBranch == "" {
-			// TODO proper error
 			return fmt.Errorf("base branch is required for PR command (use --base flag)")
 		}
 
@@ -185,7 +157,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		branchFiles, err := branchFilesFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to list branch files: %w", err)
 		}
 
@@ -204,7 +175,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to apply filters: %w", err)
 		}
 
@@ -224,7 +194,6 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to fetch branch diffs: %w", err)
 		}
 
@@ -246,27 +215,23 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to summarize changes: %w", err)
 		}
 
 		// Phase 5: Compose PR description
 		cfg, err := f.prConfigProvider.GetPRConfig()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
 		}
 
 		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
 			stdin, err := f.commandParametersReader.GetStdIn()
 			if err != nil {
-				// TODO proper error
 				return fmt.Errorf("failed to get stdin: %w", err)
 			}
 
@@ -290,14 +255,12 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		prResult, err := prFuture.Get(ctx)
 		if err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to compose PR description: %w", err)
 		}
 
 		flowCtx.SendCompleted("")
 
 		if err := f.outputWriter.PrintLine(prResult.PRDescription); err != nil {
-			// TODO proper error
 			return fmt.Errorf("failed to print PR description: %w", err)
 		}
 

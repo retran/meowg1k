@@ -19,7 +19,6 @@ package fetchalldiffs
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
@@ -27,9 +26,6 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
-
-// ErrFileDiffActivityFactoryIsNil indicates that the fileDiffActivityFactory is nil.
-var ErrFileDiffActivityFactoryIsNil = errors.New("fileDiffActivityFactory is nil")
 
 // Input defines the input structure for the FetchAllDiffs activity.
 type Input struct {
@@ -57,7 +53,7 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 // NewFactory creates a new FetchAllDiffs activity factory with the provided file diff activity factory.
 func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) (*Factory, error) {
 	if fileDiffActivityFactory == nil {
-		return nil, ErrFileDiffActivityFactoryIsNil
+		return nil, fmt.Errorf("file diff activity factory cannot be nil")
 	}
 
 	return &Factory{
@@ -69,12 +65,11 @@ func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) (*Factory, erro
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
-			// TODO proper error
-			return nil, errors.New("factory is nil")
+			return nil, fmt.Errorf("fetch all diffs factory is nil")
 		}
 
 		if input == nil {
-			return nil, executor.ErrInputCannotBeNil
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files", len(input.Files)))
@@ -98,7 +93,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
 		for _, err := range errs {
 			if err != nil {
-				// TODO proper error
 				return nil, fmt.Errorf("failed to read staged changes: %w", err)
 			}
 		}
