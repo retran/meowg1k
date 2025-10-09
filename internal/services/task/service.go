@@ -33,6 +33,10 @@ var (
 	ErrNoProfileConfigured             = errors.New("no profile configured")
 	ErrUserPromptRequired              = errors.New("user prompt is required (use -p or --user-prompt)")
 	ErrNoConfigurationAvailable        = errors.New("no configuration available")
+	ErrTaskParametersReaderIsNil       = errors.New("task parameters reader is nil")
+	ErrConfigReaderIsNil               = errors.New("config reader is nil")
+	ErrProfileResolverIsNil            = errors.New("profile resolver is nil")
+	ErrServiceIsNil                    = errors.New("service is nil")
 )
 
 // Configuration represents a resolved task configuration.
@@ -49,9 +53,9 @@ type TaskParametersReader interface {
 	GetUserPrompt() (string, error)
 }
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ProfileResolver resolves profile configurations.
@@ -95,7 +99,7 @@ func resolveTaskConfiguration(
 func resolveDefaultConfiguration(
 	cmdUserPrompt string, cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
-	if cfg.Generate == nil || cfg.Generate.Default == nil {
+	if cfg == nil || cfg.Generate == nil || cfg.Generate.Default == nil {
 		err = ErrNoDefaultConfigurationAvailable
 		return profileName, systemPrompt, userPrompt, err
 	}
@@ -114,11 +118,11 @@ func applyDefaults(
 	finalProfileName = profileName
 	finalSystemPrompt = systemPrompt
 
-	if finalProfileName == "" && cfg.Generate.Default != nil {
+	if cfg != nil && cfg.Generate != nil && finalProfileName == "" && cfg.Generate.Default != nil {
 		finalProfileName = cfg.Generate.Default.Profile
 	}
 
-	if finalSystemPrompt == "" && cfg.Generate.Default != nil {
+	if cfg != nil && cfg.Generate != nil && finalSystemPrompt == "" && cfg.Generate.Default != nil {
 		finalSystemPrompt = cfg.Generate.Default.SystemPrompt
 	}
 
@@ -141,12 +145,25 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 // NewService creates a new task configuration service.
 func NewService(
 	taskParametersReader TaskParametersReader,
-	configReader ApplicationConfigReader,
+	configReader ConfigReader,
 	profileResolver ProfileResolver,
 ) (*Service, error) {
+	if taskParametersReader == nil {
+		return nil, ErrTaskParametersReaderIsNil
+	}
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if profileResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
 	service := &Service{}
 
-	cfg := configReader.GetConfig()
+	cfg, err := configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 	if cfg == nil {
 		return nil, ErrNoConfigurationAvailable
 	}
@@ -189,6 +206,12 @@ func NewService(
 }
 
 // Get returns the cached task configuration.
-func (s *Service) Get() *Configuration {
-	return s.cachedConfig
+func (s *Service) Get() (*Configuration, error) {
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+	if s.cachedConfig == nil {
+		return nil, ErrNoConfigurationAvailable
+	}
+	return s.cachedConfig, nil
 }

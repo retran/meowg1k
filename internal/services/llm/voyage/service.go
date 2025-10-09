@@ -32,6 +32,7 @@ import (
 var (
 	ErrVoyageAPIKeyRequired = errors.New("voyage API key is required")
 	ErrAPIRequestFailed     = errors.New("API request failed")
+	ErrContextIsNil         = errors.New("context cannot be nil")
 )
 
 const (
@@ -104,6 +105,13 @@ type ErrorResponse struct {
 
 // CreateEmbeddings sends a request to create embeddings for the given input texts.
 func (c *Service) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error) {
+	if c == nil {
+		return nil, errors.New("service is nil")
+	}
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+
 	if req.Model == "" {
 		req.Model = DefaultModel
 	}

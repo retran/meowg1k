@@ -26,7 +26,7 @@ import (
 
 // DBPathService defines the interface for determining database paths.
 type DBPathService interface {
-	GetMainDBPath() string
+	GetMainDBPath() (string, error)
 }
 
 type localHostImpl struct {
@@ -36,7 +36,10 @@ type localHostImpl struct {
 
 // NewLocalHost creates a new local host with databases using the provided path service.
 func NewLocalHost(dbPathService DBPathService) (Host, error) {
-	mainDBPath := dbPathService.GetMainDBPath()
+	mainDBPath, err := dbPathService.GetMainDBPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get main db path: %w", err)
+	}
 	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on", mainDBPath)
 	db, err := sql.Open("sqlite3", dbURL)
 	if err != nil {

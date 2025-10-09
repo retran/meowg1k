@@ -18,13 +18,23 @@ limitations under the License.
 package filter
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+var (
+	// ErrConfigReaderIsNil indicates that the config reader is nil.
+	ErrConfigReaderIsNil = errors.New("config reader is nil")
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = errors.New("service is nil")
+)
+
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // Service provides file filtering based on ignore patterns.
@@ -38,19 +48,28 @@ type serviceImpl struct {
 }
 
 // NewService creates a file filter service with ignore patterns from configuration.
-func NewService(configReader ApplicationConfigReader) Service {
+func NewService(configReader ConfigReader) (Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+
 	var patterns []string
-	if config := configReader.GetConfig(); config.Filter != nil {
+	if config, err := configReader.GetConfig(); config != nil && config.Filter != nil {
 		patterns = config.Filter.Ignore
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
 	matcher := gitignore.NewMatcher(patterns)
 
 	return &serviceImpl{
 		matcher: matcher,
-	}
+	}, nil
 }
 
 // IsIgnoredFile checks if the given file path matches any of the ignore patterns.
 func (s *serviceImpl) IsIgnoredFile(path string) bool {
+	if s == nil || s.matcher == nil {
+		return false
+	}
 	return s.matcher.Match(path, false)
 }

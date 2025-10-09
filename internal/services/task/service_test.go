@@ -53,13 +53,13 @@ func (m *mockTaskParametersReader) GetUserPrompt() (string, error) {
 	return m.UserPrompt, nil
 }
 
-// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
-type mockApplicationConfigReader struct {
+// mockConfigReader is a mock implementation of ConfigReader for testing.
+type mockConfigReader struct {
 	Cfg *config.Config
 }
 
-func (m *mockApplicationConfigReader) GetConfig() *config.Config {
-	return m.Cfg
+func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+	return m.Cfg, nil
 }
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
@@ -90,7 +90,7 @@ func TestNewServiceSuccess(t *testing.T) {
 		UserPrompt: "Test user prompt",
 	}
 
-	configSvc := &mockApplicationConfigReader{Cfg: config}
+	configSvc := &mockConfigReader{Cfg: config}
 
 	resolvedProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -115,7 +115,11 @@ func TestNewServiceSuccess(t *testing.T) {
 	}
 
 	// Test Get() method
-	taskConfig := service.Get()
+	taskConfig, err := service.Get()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
 	if taskConfig == nil {
 		t.Fatal("Task configuration should not be nil")
 	}
@@ -156,7 +160,7 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 		UserPrompt: "Command user prompt", // Should override task user prompt
 	}
 
-	configSvc := &mockApplicationConfigReader{Cfg: config}
+	configSvc := &mockConfigReader{Cfg: config}
 
 	taskProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -174,7 +178,10 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	taskConfig := service.Get()
+	taskConfig, err := service.Get()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
 
 	if taskConfig.Name != "specific-task" {
 		t.Errorf("Expected task name 'specific-task', got '%s'", taskConfig.Name)
@@ -215,7 +222,7 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 		UserPrompt: "",
 	}
 
-	configSvc := &mockApplicationConfigReader{Cfg: config}
+	configSvc := &mockConfigReader{Cfg: config}
 
 	defaultProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -233,7 +240,10 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	taskConfig := service.Get()
+	taskConfig, err := service.Get()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
 
 	if taskConfig.SystemPrompt != "Default system prompt" {
 		t.Errorf("Expected default system prompt, got '%s'", taskConfig.SystemPrompt)
@@ -331,7 +341,7 @@ func TestNewServiceErrorCases(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			configSvc := &mockApplicationConfigReader{Cfg: tc.config}
+			configSvc := &mockConfigReader{Cfg: tc.config}
 
 			_, err := NewService(tc.commandSvc, configSvc, tc.profileSvc)
 
@@ -381,7 +391,13 @@ func TestConfigurationFields(t *testing.T) {
 func TestServiceImplStructure(t *testing.T) {
 	// Test basic service implementation structure
 	impl := &Service{}
-	if impl.Get() != nil {
+	result, err := impl.Get()
+
+	if err == nil {
+		t.Error("Expected error for uninitialized service")
+	}
+
+	if result != nil {
 		t.Error("Expected Get() to return nil for uninitialized service")
 	}
 }

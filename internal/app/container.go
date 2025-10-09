@@ -148,7 +148,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	shutdownService := shutdown.NewService(logger, ctx, 10*time.Second)
 
-	shutdownService.Register(func(ctx context.Context) error {
+	err = shutdownService.Register(func(ctx context.Context) error {
 		if logFile != nil {
 			if err = logFile.Close(); err != nil {
 				return fmt.Errorf("failed to close log file: %w", err)
@@ -157,6 +157,9 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 		return nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register log file shutdown callback: %w", err)
+	}
 
 	commandService, err := command.NewService(cmd)
 	if err != nil {
@@ -169,9 +172,12 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	}
 
 	outputService := output.NewService(output.Stdout)
-	shutdownService.Register(func(ctx context.Context) error {
+	err = shutdownService.Register(func(ctx context.Context) error {
 		return outputService.Flush()
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register output service shutdown callback: %w", err)
+	}
 
 	// Initialize database path service (but not the DB itself - that's lazy)
 	dbPathService := dbpath.NewService()
@@ -204,12 +210,15 @@ func (c *Container) initDB() error {
 		rateLimitRepo := ratelimit.NewRepository(mainDB)
 
 		// Register shutdown hook
-		c.ShutdownService.Register(func(ctx context.Context) error {
+		if err := c.ShutdownService.Register(func(ctx context.Context) error {
 			if err := dbHost.Close(); err != nil {
 				return fmt.Errorf("failed to close database host: %w", err)
 			}
 			return nil
-		})
+		}); err != nil {
+			initErr = fmt.Errorf("failed to register database shutdown callback: %w", err)
+			return
+		}
 
 		c.dbHost = dbHost
 		c.rateLimitRepo = rateLimitRepo
@@ -221,7 +230,6 @@ func (c *Container) initDB() error {
 func (c *Container) GetRateLimitRepo() ratelimit.Repository {
 	if err := c.initDB(); err != nil {
 		c.Logger.Error("failed to initialize database", "error", err)
-		// Return nil - the factory will handle this by using no-op limiters
 		return nil
 	}
 	return c.rateLimitRepo

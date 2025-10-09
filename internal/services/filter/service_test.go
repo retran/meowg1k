@@ -27,8 +27,8 @@ type mockConfigProvider struct {
 	cfg *config.Config
 }
 
-func (m *mockConfigProvider) GetConfig() *config.Config {
-	return m.cfg
+func (m *mockConfigProvider) GetConfig() (*config.Config, error) {
+	return m.cfg, nil
 }
 
 func TestNewService(t *testing.T) {
@@ -39,8 +39,10 @@ func TestNewService(t *testing.T) {
 	}
 	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configProvider)
-
+	service, err := NewService(configProvider)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	if service == nil {
 		t.Error("NewService returned nil")
 	}
@@ -52,8 +54,10 @@ func TestNewServiceNilFilter(t *testing.T) {
 	}
 	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configProvider)
-
+	service, err := NewService(configProvider)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	if service == nil {
 		t.Error("NewService returned nil")
 	}
@@ -67,7 +71,10 @@ func TestIsIgnoredFile(t *testing.T) {
 	}
 	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configProvider)
+	service, err := NewService(configProvider)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	tests := []struct {
 		file     string
@@ -95,7 +102,10 @@ func TestIsIgnoredFileNoPatterns(t *testing.T) {
 	}
 	configProvider := &mockConfigProvider{cfg: cfg}
 
-	service := NewService(configProvider)
+	service, err := NewService(configProvider)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	if service.IsIgnoredFile("anyfile.txt") {
 		t.Error("Expected no files to be ignored when no patterns")

@@ -60,6 +60,16 @@ func (g *anthropicGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	model := request.Model()
 	if model == "" {
 		return "", ErrModelRequired

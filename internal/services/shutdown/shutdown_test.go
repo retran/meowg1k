@@ -65,7 +65,9 @@ func TestRegister(t *testing.T) {
 		return nil
 	}
 
-	service.Register(callback)
+	if err := service.Register(callback); err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
 
 	service.Shutdown()
 
@@ -96,7 +98,9 @@ func TestMultipleCallbacks(t *testing.T) {
 			callbackOrder = append(callbackOrder, idx)
 			return nil
 		}
-		service.Register(callback)
+		if err := service.Register(callback); err != nil {
+			t.Fatalf("Register failed: %v", err)
+		}
 	}
 
 	// Trigger shutdown

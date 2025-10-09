@@ -17,19 +17,29 @@ limitations under the License.
 package prompt
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/services/task"
 )
 
+var (
+	// ErrStandardInputReaderIsNil indicates that the StandardInputReader is nil.
+	ErrStandardInputReaderIsNil = errors.New("standard input reader is nil")
+	// ErrTaskConfigurationProviderIsNil indicates that the TaskConfigurationProvider is nil.
+	ErrTaskConfigurationProviderIsNil = errors.New("task configuration provider is nil")
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = errors.New("service is nil")
+)
+
 // StandardInputReader reads content from standard input.
 type StandardInputReader interface {
-	GetStdIn() string
+	GetStdIn() (string, error)
 }
 
 // TaskConfigurationProvider provides task configuration.
 type TaskConfigurationProvider interface {
-	Get() *task.Configuration
+	Get() (*task.Configuration, error)
 }
 
 // GeneratePromptService constructs prompts for the generate command.
@@ -43,8 +53,22 @@ func NewGeneratePromptService(
 	stdInReader StandardInputReader,
 	taskConfigProvider TaskConfigurationProvider,
 ) (*GeneratePromptService, error) {
-	systemPrompt := buildSystemPrompt(taskConfigProvider)
-	userPrompt := buildUserPrompt(stdInReader, taskConfigProvider)
+	if stdInReader == nil {
+		return nil, ErrStandardInputReaderIsNil
+	}
+	if taskConfigProvider == nil {
+		return nil, ErrTaskConfigurationProviderIsNil
+	}
+
+	systemPrompt, err := buildSystemPrompt(taskConfigProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	userPrompt, err := buildUserPrompt(stdInReader, taskConfigProvider)
+	if err != nil {
+		return nil, err
+	}
 
 	return &GeneratePromptService{
 		systemPrompt: systemPrompt,
@@ -54,24 +78,44 @@ func NewGeneratePromptService(
 
 // GetSystemPrompt returns the system prompt.
 func (g *GeneratePromptService) GetSystemPrompt() (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
 	return g.systemPrompt, nil
 }
 
 // GetUserPrompt returns the user prompt.
 func (g *GeneratePromptService) GetUserPrompt() (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
 	return g.userPrompt, nil
 }
 
-func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) string {
-	return taskConfigProvider.Get().SystemPrompt
+func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) (string, error) {
+	cfg, err := taskConfigProvider.Get()
+	if err != nil {
+		return "", err
+	}
+	return cfg.SystemPrompt, nil
 }
 
-func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskConfigurationProvider) string {
+func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskConfigurationProvider) (string, error) {
 	sb := strings.Builder{}
 
-	userPrompt := taskConfigProvider.Get().UserPrompt
+	cfg, err := taskConfigProvider.Get()
+	if err != nil {
+		return "", err
+	}
 
-	contents := stdInReader.GetStdIn()
+	userPrompt := cfg.UserPrompt
+
+	contents, err := stdInReader.GetStdIn()
+	if err != nil {
+		return "", err
+	}
 
 	if userPrompt != "" {
 		sb.WriteString(userPrompt)
@@ -92,5 +136,5 @@ func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskCon
 		sb.WriteString("\n")
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }

@@ -18,13 +18,25 @@ limitations under the License.
 package commitconfig
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
 )
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+var (
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = errors.New("service is nil")
+	// ErrConfigReaderIsNil indicates that the config reader is nil.
+	ErrConfigReaderIsNil = errors.New("config reader is nil")
+	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
+	ErrProfileResolverIsNil = errors.New("profile resolver is nil")
+)
+
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ProfileResolver resolves profile configurations.
@@ -40,21 +52,41 @@ type ResolvedCommitConfig struct {
 
 // Service resolves commit configuration from application config and profiles.
 type Service struct {
-	configReader    ApplicationConfigReader
+	configReader    ConfigReader
 	profileResolver ProfileResolver
 }
 
 // NewService creates a new commit configuration service.
-func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if profileResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
 	return &Service{
 		configReader:    configReader,
 		profileResolver: profileResolver,
-	}
+	}, nil
 }
 
 // GetCommitConfig resolves the commit configuration.
 func (s *Service) GetCommitConfig() (*ResolvedCommitConfig, error) {
-	config := s.configReader.GetConfig()
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+	if s.configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if s.profileResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
+	config, err := s.configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 
 	var profileName string
 	var systemPrompt string

@@ -36,6 +36,9 @@ var (
 	ErrResolvedProfileCannotBeNil = errors.New("resolved profile cannot be nil")
 	ErrTimeoutTooSmall            = errors.New("timeout must be at least 1 second")
 	ErrModelReferenceRequired     = errors.New("profile must reference a model")
+	ErrConfigReaderIsNil          = errors.New("config reader is nil")
+	ErrProfileResolverIsNil       = errors.New("profile resolver is nil")
+	ErrServiceIsNil               = errors.New("service is nil")
 )
 
 // Profile defines an enumeration for configured profile names.
@@ -65,9 +68,9 @@ type ResolvedProfile struct {
 	TopK        *int          // TopK parameter (optional)
 }
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ModelResolver resolves model configurations.
@@ -78,24 +81,34 @@ type ModelResolver interface {
 // Service resolves and caches profile configurations.
 type Service struct {
 	modelResolver    ModelResolver
-	configReader     ApplicationConfigReader
+	configReader     ConfigReader
 	resolvedProfiles map[Profile]*ResolvedProfile
 	mu               sync.RWMutex
 }
 
 // NewService creates a new profile resolver service.
-func NewService(configReader ApplicationConfigReader, modelResolver ModelResolver) *Service {
+func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if modelResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
 	service := &Service{
 		modelResolver:    modelResolver,
 		configReader:     configReader,
 		resolvedProfiles: make(map[Profile]*ResolvedProfile),
 	}
-
-	return service
+	return service, nil
 }
 
 // Get retrieves a profile using cached data from initialization.
 func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+
 	s.mu.RLock()
 	if resolved, exists := s.resolvedProfiles[profile]; exists {
 		s.mu.RUnlock()
@@ -110,7 +123,10 @@ func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
 		return resolved, nil
 	}
 
-	cfg := s.configReader.GetConfig()
+	cfg, err := s.configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
@@ -127,6 +143,16 @@ func (s *Service) resolveProfileInternal(
 	profile Profile,
 	cfg *config.Config,
 ) (*ResolvedProfile, error) {
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+	if profile == "" {
+		return nil, ErrProfileNotFound
+	}
+	if cfg == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+
 	if cfg.Profiles == nil {
 		return nil, ErrNoProfilesDefined
 	}
@@ -189,6 +215,10 @@ func (s *Service) resolveProfileInternal(
 
 // validateResolvedProfile validates a resolved profile configuration.
 func (s *Service) validateResolvedProfile(resolved *ResolvedProfile) error {
+	if s == nil {
+		return ErrServiceIsNil
+	}
+
 	if resolved == nil {
 		return ErrResolvedProfileCannotBeNil
 	}

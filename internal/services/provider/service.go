@@ -28,6 +28,7 @@ import (
 // Provider service errors
 var (
 	ErrProviderNotFound = errors.New("provider not found")
+	ErrServiceIsNil     = errors.New("service is nil")
 )
 
 // Provider defines an enumeration for supported LLM providers.
@@ -169,6 +170,10 @@ func NewService() *Service {
 
 // Get retrieves a provider definition by provider type.
 func (s *Service) Get(providerType Provider) (ProviderDefinition, error) {
+	if s == nil {
+		return ProviderDefinition{}, ErrServiceIsNil
+	}
+
 	provider, exists := s.providers[providerType]
 	if !exists {
 		return ProviderDefinition{}, fmt.Errorf("%w: %s", ErrProviderNotFound, providerType)

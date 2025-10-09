@@ -67,6 +67,16 @@ func (g *geminiGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	generationConfig := &genai.GenerateContentConfig{}
 
 	if request.SystemPrompt() != "" {
@@ -104,6 +114,16 @@ func (g *geminiGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *ComputeEmbeddingsRequest,
 ) ([]Embedding, error) {
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if g == nil {
+		return nil, ErrGatewayIsNil
+	}
+	if request == nil {
+		return nil, ErrRequestIsNil
+	}
+
 	contents := make([]*genai.Content, 0, len(request.Chunks()))
 	for _, value := range request.Chunks() {
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))

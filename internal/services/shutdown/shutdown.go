@@ -20,12 +20,20 @@ package shutdown
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+)
+
+var (
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = errors.New("service is nil")
+	// ErrCallbackIsNil indicates that the callback is nil.
+	ErrCallbackIsNil = errors.New("callback is nil")
 )
 
 // Service handles graceful shutdown of the application.
@@ -64,6 +72,10 @@ func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration)
 // Context returns the shutdown context.
 // This context is canceled when shutdown begins.
 func (m *Service) Context() context.Context {
+	if m == nil {
+		return context.Background()
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -72,7 +84,14 @@ func (m *Service) Context() context.Context {
 
 // Register adds a callback to be executed during shutdown.
 // Callbacks are executed in the order they were registered.
-func (m *Service) Register(callback Callback) {
+func (m *Service) Register(callback Callback) error {
+	if m == nil {
+		return ErrServiceIsNil
+	}
+	if callback == nil {
+		return ErrCallbackIsNil
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -82,6 +101,8 @@ func (m *Service) Register(callback Callback) {
 	m.logger.DebugContext(m.ctx, "Registered shutdown callback",
 		"callback_index", callbackIndex,
 		"total_callbacks", len(m.callbacks))
+
+	return nil
 }
 
 // ListenForSignals starts listening for shutdown signals (SIGINT, SIGTERM).

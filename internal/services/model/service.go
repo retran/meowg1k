@@ -36,6 +36,9 @@ var (
 	ErrMaxOutputTokensTooLarge  = errors.New("max output tokens too large")
 	ErrMaxInputTokensTooLarge   = errors.New("max input tokens too large")
 	ErrModelNameRequired        = errors.New("model name is required")
+	ErrConfigReaderIsNil        = errors.New("config reader is nil")
+	ErrProviderRegistryIsNil    = errors.New("provider registry is nil")
+	ErrServiceIsNil             = errors.New("model service is nil")
 )
 
 // Model defines an enumeration for configured model instance names.
@@ -62,9 +65,9 @@ type ResolvedModel struct {
 	RateLimit       RateLimitConfig   // Rate limiting config
 }
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ProviderDefinitionRegistry retrieves provider definitions.
@@ -75,24 +78,35 @@ type ProviderDefinitionRegistry interface {
 // Service resolves and caches model configurations.
 type Service struct {
 	providerRegistry ProviderDefinitionRegistry
-	configReader     ApplicationConfigReader
+	configReader     ConfigReader
 	resolvedModels   map[Model]*ResolvedModel
 	mu               sync.RWMutex
 }
 
 // NewService creates a new model resolver service.
-func NewService(configReader ApplicationConfigReader, providerRegistry ProviderDefinitionRegistry) *Service {
+func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRegistry) (*Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if providerRegistry == nil {
+		return nil, ErrProviderRegistryIsNil
+	}
+
 	service := &Service{
 		providerRegistry: providerRegistry,
 		configReader:     configReader,
 		resolvedModels:   make(map[Model]*ResolvedModel),
 	}
 
-	return service
+	return service, nil
 }
 
 // Get retrieves a model using cached data from initialization.
 func (s *Service) Get(model Model) (*ResolvedModel, error) {
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+
 	s.mu.RLock()
 	if resolved, exists := s.resolvedModels[model]; exists {
 		s.mu.RUnlock()
@@ -107,7 +121,10 @@ func (s *Service) Get(model Model) (*ResolvedModel, error) {
 		return resolved, nil
 	}
 
-	cfg := s.configReader.GetConfig()
+	cfg, err := s.configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 
 	resolved, err := s.resolveModelInternal(model, cfg)
 	if err != nil {
@@ -120,7 +137,11 @@ func (s *Service) Get(model Model) (*ResolvedModel, error) {
 }
 
 // GetInstanceKey returns a unique key for rate limiting based on the model instance characteristics.
-func (s *Service) GetInstanceKey(resolved *ResolvedModel) string {
+func (s *Service) GetInstanceKey(resolved *ResolvedModel) (string, error) {
+	if resolved == nil {
+		return "", ErrResolvedModelCannotBeNil
+	}
+
 	// Generate key based on: provider:baseURL:model:apiKeyEnv
 	// This ensures different API keys or endpoints get separate rate limiters
 	// IMPORTANT: Use environment variable name, never the actual API key value
@@ -129,7 +150,7 @@ func (s *Service) GetInstanceKey(resolved *ResolvedModel) string {
 		resolved.BaseURL,
 		resolved.Model,
 		resolved.APIKeyEnv, // Environment variable name, not the actual key
-	)
+	), nil
 }
 
 // resolveModelInternal performs the actual model resolution logic.

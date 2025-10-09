@@ -24,11 +24,14 @@ import (
 	"strings"
 )
 
+// ErrServiceIsNil indicates that the service is nil.
+var ErrServiceIsNil = fmt.Errorf("service is nil")
+
 // Writer defines the interface for output operations.
 type Writer interface {
-	Print(content string)
-	PrintLine(content string)
-	Printf(format string, args ...any)
+	Print(content string) error
+	PrintLine(content string) error
+	Printf(format string, args ...any) error
 	Flush() error
 }
 
@@ -68,24 +71,43 @@ func NewService(destination Destination) *Service {
 }
 
 // Print adds content to the buffer.
-func (s *Service) Print(content string) {
+func (s *Service) Print(content string) error {
+	if s == nil {
+		return ErrServiceIsNil
+	}
+
 	s.buffer.WriteString(content)
+	return nil
 }
 
 // PrintLine adds content with a newline to the buffer.
-func (s *Service) PrintLine(content string) {
+func (s *Service) PrintLine(content string) error {
+	if s == nil {
+		return ErrServiceIsNil
+	}
+
 	s.buffer.WriteString(content)
 	s.buffer.WriteString("\n")
+	return nil
 }
 
 // Printf adds formatted content to the buffer.
-func (s *Service) Printf(format string, args ...any) {
-	fmt.Fprintf(&s.buffer, format, args...)
+func (s *Service) Printf(format string, args ...any) error {
+	if s == nil {
+		return ErrServiceIsNil
+	}
+
+	_, err := fmt.Fprintf(&s.buffer, format, args...)
+	return err
 }
 
 // Flush writes all accumulated content from the buffer to the destination
 // in a single write operation and then clears the buffer.
 func (s *Service) Flush() error {
+	if s == nil {
+		return ErrServiceIsNil
+	}
+
 	if s.buffer.Len() == 0 {
 		return nil
 	}

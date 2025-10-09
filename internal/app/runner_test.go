@@ -115,16 +115,19 @@ type mockOutputWriter struct {
 	flushError error
 }
 
-func (m *mockOutputWriter) Print(content string) {
+func (m *mockOutputWriter) Print(content string) error {
 	// No-op
+	return nil
 }
 
-func (m *mockOutputWriter) PrintLine(content string) {
+func (m *mockOutputWriter) PrintLine(content string) error {
 	// No-op
+	return nil
 }
 
-func (m *mockOutputWriter) Printf(format string, args ...any) {
+func (m *mockOutputWriter) Printf(format string, args ...any) error {
 	// No-op
+	return nil
 }
 
 func (m *mockOutputWriter) Flush() error {

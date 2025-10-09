@@ -18,9 +18,21 @@ limitations under the License.
 package summarize
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/gitignore"
+)
+
+var (
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = errors.New("service is nil")
+	// ErrConfigReaderIsNil indicates that the config reader is nil.
+	ErrConfigReaderIsNil = errors.New("config reader is nil")
+	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
+	ErrProfileResolverIsNil = errors.New("profile resolver is nil")
 )
 
 // ResolvedSummarizationConfig holds the resolved summarization configuration for a specific file.
@@ -33,9 +45,9 @@ type ResolvedSummarizationConfig struct {
 	IncludeChangedFile  bool
 }
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ProfileResolver resolves profile configurations.
@@ -45,21 +57,35 @@ type ProfileResolver interface {
 
 // Service resolves file summarization configurations.
 type Service struct {
-	configReader    ApplicationConfigReader
+	configReader    ConfigReader
 	profileResolver ProfileResolver
 }
 
 // NewService creates a new file summarization configuration service.
-func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if profileResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
 	return &Service{
 		configReader:    configReader,
 		profileResolver: profileResolver,
-	}
+	}, nil
 }
 
 // GetSummarizationConfig resolves the summarization configuration for a given file.
 func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizationConfig, error) {
-	currentConfig := s.configReader.GetConfig()
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+
+	currentConfig, err := s.configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 
 	if currentConfig.Summarize == nil {
 		return nil, nil

@@ -32,7 +32,10 @@ func (m *mockWorkspaceService) GetWorkspaceDir() (string, error) {
 
 func TestNewService(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 	if service == nil {
 		t.Errorf("NewService() returned nil")
 	}
@@ -40,7 +43,10 @@ func TestNewService(t *testing.T) {
 
 func TestServiceImpl_ReadStagedFiles(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// This test assumes we're in a git repository
 	// It may fail if there are no staged files or if not in a git repo
@@ -59,10 +65,13 @@ func TestServiceImpl_ReadStagedFiles(t *testing.T) {
 
 func TestServiceImpl_ReadStagedChanges(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test with a file that likely doesn't exist in staging
-	_, err := service.ReadStagedChanges("nonexistent.txt")
+	_, err = service.ReadStagedChanges("nonexistent.txt")
 	// This should fail since the file is not staged
 	if err == nil {
 		t.Logf("ReadStagedChanges() unexpectedly succeeded for nonexistent file")
@@ -71,10 +80,13 @@ func TestServiceImpl_ReadStagedChanges(t *testing.T) {
 
 func TestServiceImpl_ReadStagedFileContent(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test with a file that likely doesn't exist in staging
-	_, err := service.ReadStagedFileContent("nonexistent.txt")
+	_, err = service.ReadStagedFileContent("nonexistent.txt")
 	// This should fail since the file is not staged
 	if err == nil {
 		t.Logf("ReadStagedFileContent() unexpectedly succeeded for nonexistent file")
@@ -83,10 +95,13 @@ func TestServiceImpl_ReadStagedFileContent(t *testing.T) {
 
 func TestServiceImpl_ReadOriginalFileContent(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test with a file that likely doesn't exist in HEAD
-	_, err := service.ReadOriginalFileContent("nonexistent.txt")
+	_, err = service.ReadOriginalFileContent("nonexistent.txt")
 	// This should fail since the file is not in HEAD
 	if err == nil {
 		t.Logf("ReadOriginalFileContent() unexpectedly succeeded for nonexistent file")
@@ -119,7 +134,10 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	exec.Command("git", "config", "user.email", "test@example.com").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test with empty repository (no staged files)
 	files, err := service.ReadStagedFiles()
@@ -229,7 +247,10 @@ func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
 	}
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test ReadStagedFiles with no staged files (empty output handling)
 	files, err := service.ReadStagedFiles()
@@ -276,7 +297,10 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	exec.Command("git", "config", "user.email", "test@example.com").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Create multiple files and stage them
 	testFiles := []string{"file1.txt", "file2.txt", "file3.txt"}
@@ -349,7 +373,10 @@ func TestServiceImpl_GetCurrentBranch(t *testing.T) {
 	exec.Command("git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test GetCurrentBranch
 	branch, err := service.GetCurrentBranch()
@@ -405,7 +432,10 @@ func TestServiceImpl_GetChangedFilesInBranch(t *testing.T) {
 	exec.Command("git", "commit", "-m", "Add feature file").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test GetChangedFilesInBranch
 	files, err := service.GetChangedFilesInBranch("master")
@@ -456,7 +486,10 @@ func TestServiceImpl_GetChangedFilesInBranchEmpty(t *testing.T) {
 	exec.Command("git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test GetChangedFilesInBranch with no changes
 	baseBranch := "HEAD"
@@ -513,7 +546,10 @@ func TestServiceImpl_GetBranchDiff(t *testing.T) {
 	exec.Command("git", "commit", "-m", "Modify file").Run()
 
 	workspaceService := &mockWorkspaceService{}
-	service := NewService(workspaceService)
+	service, err := NewService(workspaceService)
+	if err != nil {
+		t.Errorf("NewService() returned error: %v", err)
+	}
 
 	// Test GetBranchDiff
 	diff, err := service.GetBranchDiff(testFile, "master")

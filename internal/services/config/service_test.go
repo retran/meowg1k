@@ -68,7 +68,11 @@ generate:
 	}
 
 	// Test GetConfig
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
 	if config == nil {
 		t.Fatal("Config should not be nil")
 	}
@@ -242,7 +246,11 @@ generate:
 		t.Fatal("Config service should not be nil")
 	}
 
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
 	if config.Profiles["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
 		t.Error("Failed to load config from XDG_CONFIG_DIRS location")
 	}
@@ -300,7 +308,11 @@ generate:
 		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
 	}
 
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
 	if config.Profiles["user"].Model != "claude3" || config.Models["claude3"].Provider != "anthropic" {
 		t.Error("Failed to load config from XDG_CONFIG_HOME location")
 	}
@@ -358,7 +370,11 @@ generate:
 		t.Fatalf("NewService failed with HOME fallback: %v", err)
 	}
 
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
 	if config.Profiles["home"].Model != "gemini" || config.Models["gemini"].Provider != "google" {
 		t.Error("Failed to load config from HOME/.config location")
 	}
@@ -420,7 +436,11 @@ generate:
 		t.Fatalf("NewService failed with current directory config: %v", err)
 	}
 
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
 	if config.Profiles["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
 		t.Error("Failed to load config from current directory")
 	}
@@ -489,7 +509,10 @@ generate:
 		t.Fatalf("NewService failed with config merging: %v", err)
 	}
 
-	config := configSvc.GetConfig()
+	config, err := configSvc.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
 
 	// Should have both system and user profiles
 	if _, exists := config.Profiles["system"]; !exists {

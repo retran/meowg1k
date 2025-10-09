@@ -23,13 +23,13 @@ import (
 	"github.com/retran/meowg1k/internal/services/profile"
 )
 
-// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
-type mockApplicationConfigReader struct {
+// mockConfigReader is a mock implementation of ConfigReader for testing.
+type mockConfigReader struct {
 	Cfg *config.Config
 }
 
-func (m *mockApplicationConfigReader) GetConfig() *config.Config {
-	return m.Cfg
+func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+	return m.Cfg, nil
 }
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
@@ -46,10 +46,12 @@ func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, 
 }
 
 func TestNewService(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{}
+	configSvc := &mockConfigReader{}
 	profileSvc := &mockProfileResolver{}
-	service := NewService(configSvc, profileSvc)
-
+	service, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	if service == nil {
 		t.Error("NewService returned nil")
 	}
@@ -61,7 +63,7 @@ func TestGetCommitConfig(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Commit: &config.CommandConfig{
 				Profile:      "test",
@@ -73,7 +75,10 @@ func TestGetCommitConfig(t *testing.T) {
 		Profile: resolvedProfile,
 	}
 
-	service := NewService(configSvc, profileSvc)
+	service, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := service.GetCommitConfig()
 	if err != nil {
@@ -95,7 +100,7 @@ func TestGetCommitConfigDefault(t *testing.T) {
 		Model:    "gpt-4",
 	}
 
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Commit: nil,
 		},
@@ -104,7 +109,10 @@ func TestGetCommitConfigDefault(t *testing.T) {
 		Profile: resolvedProfile,
 	}
 
-	service := NewService(configSvc, profileSvc)
+	service, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := service.GetCommitConfig()
 	if err != nil {
@@ -118,16 +126,19 @@ func TestGetCommitConfigDefault(t *testing.T) {
 }
 
 func TestGetCommitConfigProfileError(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{},
 	}
 	profileSvc := &mockProfileResolver{
 		Err: profile.ErrProfileNotFound,
 	}
 
-	service := NewService(configSvc, profileSvc)
+	service, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
-	_, err := service.GetCommitConfig()
+	_, err = service.GetCommitConfig()
 	if err != profile.ErrProfileNotFound {
 		t.Errorf("Expected ErrProfileNotFound, got %v", err)
 	}

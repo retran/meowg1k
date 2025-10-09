@@ -57,6 +57,16 @@ func (g *openaiGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
@@ -81,6 +91,16 @@ func (g *openaiGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *ComputeEmbeddingsRequest,
 ) ([]Embedding, error) {
+	if g == nil {
+		return nil, ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if request == nil {
+		return nil, ErrRequestIsNil
+	}
+
 	params := openai.EmbeddingNewParams{
 		Input: openai.EmbeddingNewParamsInputUnion{
 			OfArrayOfStrings: request.Chunks(),

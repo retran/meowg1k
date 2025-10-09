@@ -65,19 +65,23 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error)
 	}
 
 	outputService := output.NewService(output.Stdout)
-	shutdownService.Register(func(ctx context.Context) error {
+	if err := shutdownService.Register(func(ctx context.Context) error {
 		return outputService.Flush()
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	mainDB := dbHost.GetDB()
 	rateLimitRepo := ratelimit.NewRepository(mainDB)
 
-	shutdownService.Register(func(ctx context.Context) error {
+	if err := shutdownService.Register(func(ctx context.Context) error {
 		if dbHost != nil {
 			return dbHost.Close()
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	container.Logger = logger
 	container.ShutdownService = shutdownService
@@ -458,9 +462,9 @@ generate:
 		t.Error("Context should not be nil")
 	}
 
-	config := container.ConfigService.GetConfig()
-	if config == nil {
-		t.Fatal("Config should not be nil")
+	config, err := container.ConfigService.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
 	}
 
 	if len(config.Profiles) != 2 {

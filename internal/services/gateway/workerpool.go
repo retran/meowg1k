@@ -44,6 +44,16 @@ func (g *workerPoolGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	select {
 	case g.semaphore <- struct{}{}:
 		defer func() {

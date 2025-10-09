@@ -42,6 +42,9 @@ var (
 			"(use voyage provider for embeddings recommended by Anthropic)",
 	)
 	ErrVoyageAPIKeyRequired = errors.New("voyage provider requires an API key")
+	ErrGatewayIsNil         = errors.New("gateway is nil")
+	ErrRequestIsNil         = errors.New("request is nil")
+	ErrContextIsNil         = errors.New("context is nil")
 )
 
 type Factory struct {
@@ -64,6 +67,10 @@ func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
 // The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
 // or endpoints get separate rate limiters.
 func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Limiter, error) {
+	if profile == nil {
+		return nil, ErrProfileCannotBeNil
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -111,6 +118,13 @@ func (f *Factory) NewGenerationGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
 ) (GenerationGateway, error) {
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if profile == nil {
+		return nil, ErrProfileCannotBeNil
+	}
+
 	var gateway GenerationGateway
 	var err error
 
@@ -183,6 +197,9 @@ func (f *Factory) NewEmbeddingsGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
 ) (EmbeddingsGateway, error) {
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
 	if profile == nil {
 		return nil, ErrProfileCannotBeNil
 	}

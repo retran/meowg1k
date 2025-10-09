@@ -36,6 +36,7 @@ var (
 	ErrFailedToReadResponse      = errors.New("failed to read response body")
 	ErrAPIRequestFailed          = errors.New("API request failed")
 	ErrFailedToUnmarshalResponse = errors.New("failed to unmarshal response")
+	ErrContextIsNil              = errors.New("context cannot be nil")
 )
 
 // CompletionRequest represents the request body for /completion endpoint
@@ -145,6 +146,16 @@ func NewService(baseURL, apiKey string) (*Service, error) {
 
 // Complete generates a completion based on the provided request.
 func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
+	if c == nil {
+		return nil, errors.New("service is nil")
+	}
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if req == nil {
+		return nil, errors.New("request is nil")
+	}
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFailedToMarshalRequest, err)

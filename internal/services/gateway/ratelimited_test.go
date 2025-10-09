@@ -55,6 +55,9 @@ func (m *mockGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
 	if m.err != nil {
 		return "", m.err
 	}

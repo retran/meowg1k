@@ -31,6 +31,16 @@ func NewService() *Service {
 
 // GetModelInfo returns information about a specific model.
 func (r *Service) GetModelInfo(modelName string) llm.ModelInfo {
+	if r == nil || r.models == nil {
+		// Return sensible defaults for nil service
+		return llm.ModelInfo{
+			Provider:         "unknown",
+			MaxContextTokens: 8192,
+			TokenizerType:    llm.TokenizerUnknown,
+			Description:      "Unknown model (service is nil)",
+		}
+	}
+
 	if info, exists := r.models[modelName]; exists {
 		return info
 	}

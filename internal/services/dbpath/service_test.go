@@ -32,7 +32,10 @@ func TestNewService(t *testing.T) {
 
 func TestGetMainDBPath(t *testing.T) {
 	service := NewService()
-	path := service.GetMainDBPath()
+	path, err := service.GetMainDBPath()
+	if err != nil {
+		t.Fatalf("GetMainDBPath failed: %v", err)
+	}
 
 	if path == "" {
 		t.Fatal("DB path should not be empty")
@@ -56,7 +59,10 @@ func TestGetMainDBPathWithXDGDataHome(t *testing.T) {
 	os.Setenv("XDG_DATA_HOME", tempDir)
 
 	service := NewService()
-	path := service.GetMainDBPath()
+	path, err := service.GetMainDBPath()
+	if err != nil {
+		t.Fatalf("GetMainDBPath failed: %v", err)
+	}
 
 	expectedPath := filepath.Join(tempDir, "meowg1k", "meowg1k.db")
 	if path != expectedPath {
@@ -85,7 +91,10 @@ func TestGetMainDBPathWithHomeDirectory(t *testing.T) {
 	os.Setenv("HOME", tempDir)
 
 	service := NewService()
-	path := service.GetMainDBPath()
+	path, err := service.GetMainDBPath()
+	if err != nil {
+		t.Fatalf("GetMainDBPath failed: %v", err)
+	}
 
 	expectedPath := filepath.Join(tempDir, ".local", "share", "meowg1k", "meowg1k.db")
 	if path != expectedPath {
@@ -113,7 +122,10 @@ func TestGetMainDBPathFallbackToCurrentDirectory(t *testing.T) {
 	os.Setenv("HOME", "")
 
 	service := NewService()
-	path := service.GetMainDBPath()
+	path, err := service.GetMainDBPath()
+	if err != nil {
+		t.Fatalf("GetMainDBPath failed: %v", err)
+	}
 
 	// Should fallback to current directory
 	if path != "meowg1k.db" {

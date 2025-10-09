@@ -18,8 +18,19 @@ limitations under the License.
 package prconfig
 
 import (
+	"fmt"
+
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/profile"
+)
+
+var (
+	// ErrServiceIsNil indicates that the service is nil.
+	ErrServiceIsNil = fmt.Errorf("service is nil")
+	// ErrConfigReaderIsNil indicates that the config reader is nil.
+	ErrConfigReaderIsNil = fmt.Errorf("config reader is nil")
+	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
+	ErrProfileResolverIsNil = fmt.Errorf("profile resolver is nil")
 )
 
 // ResolvedPRConfig represents the resolved configuration for generating a PR description.
@@ -28,9 +39,9 @@ type ResolvedPRConfig struct {
 	SystemPrompt string
 }
 
-// ApplicationConfigReader reads the application configuration.
-type ApplicationConfigReader interface {
-	GetConfig() *config.Config
+// ConfigReader reads the application configuration.
+type ConfigReader interface {
+	GetConfig() (*config.Config, error)
 }
 
 // ProfileResolver resolves profile configurations.
@@ -40,21 +51,35 @@ type ProfileResolver interface {
 
 // Service resolves PR configuration from application config and profiles.
 type Service struct {
-	configReader    ApplicationConfigReader
+	configReader    ConfigReader
 	profileResolver ProfileResolver
 }
 
 // NewService creates a new PR configuration service.
-func NewService(configReader ApplicationConfigReader, profileResolver ProfileResolver) *Service {
+func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
+	if configReader == nil {
+		return nil, ErrConfigReaderIsNil
+	}
+	if profileResolver == nil {
+		return nil, ErrProfileResolverIsNil
+	}
+
 	return &Service{
 		configReader:    configReader,
 		profileResolver: profileResolver,
-	}
+	}, nil
 }
 
 // GetPRConfig resolves the PR configuration.
 func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
-	config := s.configReader.GetConfig()
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+
+	config, err := s.configReader.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
 
 	var profileName string
 	var systemPrompt string

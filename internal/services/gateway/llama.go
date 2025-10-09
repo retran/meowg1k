@@ -63,6 +63,16 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 
 // GenerateContent sends a content generation request to the local LLM server.
 func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {

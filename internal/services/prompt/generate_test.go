@@ -28,8 +28,8 @@ type mockStandardInputReader struct {
 	StdIn string
 }
 
-func (m *mockStandardInputReader) GetStdIn() string {
-	return m.StdIn
+func (m *mockStandardInputReader) GetStdIn() (string, error) {
+	return m.StdIn, nil
 }
 
 // mockTaskConfigurationProvider is a mock implementation of TaskConfigurationProvider for testing.
@@ -37,8 +37,8 @@ type mockTaskConfigurationProvider struct {
 	config *task.Configuration
 }
 
-func (m *mockTaskConfigurationProvider) Get() *task.Configuration {
-	return m.config
+func (m *mockTaskConfigurationProvider) Get() (*task.Configuration, error) {
+	return m.config, nil
 }
 
 func TestNewGeneratePromptService(t *testing.T) {

@@ -18,9 +18,13 @@ limitations under the License.
 package dbpath
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 )
+
+// ErrServiceIsNil indicates that the service is nil.
+var ErrServiceIsNil = errors.New("service is nil")
 
 // Service is the concrete implementation of the database path service.
 type Service struct {
@@ -37,8 +41,11 @@ func NewService() *Service {
 }
 
 // GetMainDBPath returns the path to the main database file.
-func (s *Service) GetMainDBPath() string {
-	return s.mainDBPath
+func (s *Service) GetMainDBPath() (string, error) {
+	if s == nil {
+		return "", ErrServiceIsNil
+	}
+	return s.mainDBPath, nil
 }
 
 // determineMainDBPath determines the appropriate location for the main database file.

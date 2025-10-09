@@ -26,7 +26,10 @@ import (
 
 // Git command errors
 var (
-	ErrGitCommandFailed = errors.New("git command failed")
+	ErrGitCommandFailed          = errors.New("git command failed")
+	ErrServiceIsNil              = errors.New("git service is nil")
+	ErrFilePathEmpty             = errors.New("file path cannot be empty")
+	ErrWorkspaceDirProviderIsNil = errors.New("workspace dir provider is nil")
 )
 
 // FileChange defines the output structure for the FetchFileDiff activity.
@@ -50,11 +53,15 @@ type Service struct {
 // NewService creates a new Git service.
 // Git commands will be executed sequentially using a worker pool (semaphore with capacity 1)
 // to prevent race conditions while keeping OS threads free.
-func NewService(workspaceDirProvider WorkspaceDirProvider) *Service {
+func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
+	if workspaceDirProvider == nil {
+		return nil, ErrWorkspaceDirProviderIsNil
+	}
+
 	return &Service{
 		workspaceDirProvider: workspaceDirProvider,
 		semaphore:            make(chan struct{}, 1), // Only 1 concurrent git command
-	}
+	}, nil
 }
 
 // runGitCommand executes a git command with the provided arguments in the workspace directory.
@@ -83,6 +90,10 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 
 // ReadStagedFiles returns a list of files that are currently staged.
 func (g *Service) ReadStagedFiles() ([]string, error) {
+	if g == nil {
+		return nil, ErrServiceIsNil
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -101,6 +112,10 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
 func (g *Service) ReadStagedChanges(filePath string) (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -109,6 +124,14 @@ func (g *Service) ReadStagedChanges(filePath string) (string, error) {
 
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
 func (g *Service) ReadStagedFileContent(filePath string) (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		return "", ErrFilePathEmpty
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -117,6 +140,14 @@ func (g *Service) ReadStagedFileContent(filePath string) (string, error) {
 
 // ReadOriginalFileContent returns the content of the specified file from the HEAD commit.
 func (g *Service) ReadOriginalFileContent(filePath string) (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		return "", ErrFilePathEmpty
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -125,6 +156,10 @@ func (g *Service) ReadOriginalFileContent(filePath string) (string, error) {
 
 // GetCurrentBranch returns the name of the current Git branch.
 func (g *Service) GetCurrentBranch() (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -137,6 +172,14 @@ func (g *Service) GetCurrentBranch() (string, error) {
 
 // GetChangedFilesInBranch returns the list of files that differ between the current branch and the target branch.
 func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
+	if g == nil {
+		return nil, ErrServiceIsNil
+	}
+
+	if strings.TrimSpace(targetBranch) == "" {
+		return nil, errors.New("target branch cannot be empty")
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
@@ -163,6 +206,14 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 
 // GetBranchDiff returns the diff of a specific file between the current branch and the target branch.
 func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
+	if g == nil {
+		return "", ErrServiceIsNil
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		return "", ErrFilePathEmpty
+	}
+
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 

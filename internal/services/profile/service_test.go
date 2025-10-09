@@ -32,12 +32,12 @@ import (
 
 var errModelNotFound = fmt.Errorf("model not found")
 
-type mockConfigService struct {
+type mockConfigReader struct {
 	config *config.Config
 }
 
-func (m *mockConfigService) GetConfig() *config.Config {
-	return m.config
+func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+	return m.config, nil
 }
 
 type mockModelService struct {
@@ -61,10 +61,13 @@ func (m *mockModelService) GetInstanceKey(resolved *model.ResolvedModel) string 
 }
 
 func TestNewService(t *testing.T) {
-	configService := &mockConfigService{}
+	configReader := &mockConfigReader{}
 	modelService := &mockModelService{}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 	if service == nil {
 		t.Fatal("Service should not be nil")
 	}
@@ -104,14 +107,17 @@ func TestGetProfileSuccess(t *testing.T) {
 		},
 	}
 
-	configService := &mockConfigService{config: cfg}
+	configReader := &mockConfigReader{config: cfg}
 	modelService := &mockModelService{
 		models: map[model.Model]*model.ResolvedModel{
 			"gpt4": resolvedModel,
 		},
 	}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	// Test getting a profile
 	profile, err := service.Get(Profile("test-profile"))
@@ -145,13 +151,16 @@ func TestGetProfileNotFound(t *testing.T) {
 		Profiles: map[string]*config.ProfileDefinition{},
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	// Test getting a non-existent profile
-	_, err := service.Get(Profile("non-existent"))
+	_, err = service.Get(Profile("non-existent"))
 	if err == nil {
 		t.Error("Expected error for non-existent profile")
 	}
@@ -162,13 +171,16 @@ func TestGetProfileNoProfilesConfigured(t *testing.T) {
 		Profiles: nil,
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	// Test getting a profile when no profiles are configured
-	_, err := service.Get(Profile("test"))
+	_, err = service.Get(Profile("test"))
 	if err == nil {
 		t.Error("Expected error when no profiles are configured")
 	}
@@ -184,12 +196,15 @@ func TestGetProfileModelNotFound(t *testing.T) {
 		},
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
-	_, err := service.Get(Profile("test"))
+	_, err = service.Get(Profile("test"))
 	if err == nil {
 		t.Error("Expected error for non-existent model")
 	}
@@ -205,12 +220,15 @@ func TestGetProfileEmptyModelReference(t *testing.T) {
 		},
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{models: map[model.Model]*model.ResolvedModel{}}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
-	_, err := service.Get(Profile("test"))
+	_, err = service.Get(Profile("test"))
 	if err == nil {
 		t.Error("Expected error for empty model reference")
 	}
@@ -246,14 +264,17 @@ func TestGetProfileWithMaxTokensOverride(t *testing.T) {
 		APIKeyEnv:       "OPENAI_API_KEY",
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{
 		models: map[model.Model]*model.ResolvedModel{
 			"gpt4": resolvedModel,
 		},
 	}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	profile, err := service.Get(Profile("test"))
 	if err != nil {
@@ -292,14 +313,17 @@ func TestGetProfileWithTemperature(t *testing.T) {
 		APIKeyEnv: "OPENAI_API_KEY",
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{
 		models: map[model.Model]*model.ResolvedModel{
 			"gpt4": resolvedModel,
 		},
 	}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	profile, err := service.Get(Profile("test"))
 	if err != nil {
@@ -316,9 +340,12 @@ func TestGetProfileWithTemperature(t *testing.T) {
 }
 
 func TestValidateResolvedProfileSuccess(t *testing.T) {
-	configService := &mockConfigService{}
+	configReader := &mockConfigReader{}
 	modelService := &mockModelService{}
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	validProfile := &ResolvedProfile{
 		ModelID:         "gpt4",
@@ -329,16 +356,19 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 		Timeout:         5 * time.Minute,
 	}
 
-	err := service.validateResolvedProfile(validProfile)
+	err = service.validateResolvedProfile(validProfile)
 	if err != nil {
 		t.Errorf("Expected no error for valid profile, got %v", err)
 	}
 }
 
 func TestValidateResolvedProfileErrors(t *testing.T) {
-	configService := &mockConfigService{}
+	configReader := &mockConfigReader{}
 	modelService := &mockModelService{}
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	testCases := []struct {
 		name    string
@@ -418,14 +448,17 @@ func TestCaching(t *testing.T) {
 		TokenizerType:   llm.TokenizerCL100K,
 	}
 
-	configService := &mockConfigService{config: config}
+	configReader := &mockConfigReader{config: config}
 	modelService := &mockModelService{
 		models: map[model.Model]*model.ResolvedModel{
 			"gpt4": resolvedModel,
 		},
 	}
 
-	service := NewService(configService, modelService)
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
 
 	// First call - should resolve and cache
 	profile1, err := service.Get(Profile("cached-profile"))

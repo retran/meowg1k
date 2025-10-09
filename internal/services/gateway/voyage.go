@@ -78,6 +78,16 @@ func (g *voyageGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *ComputeEmbeddingsRequest,
 ) ([]Embedding, error) {
+	if g == nil {
+		return nil, ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if request == nil {
+		return nil, ErrRequestIsNil
+	}
+
 	inputType := mapTaskTypeToInputType(request.TaskType())
 
 	req := voyage.EmbeddingRequest{

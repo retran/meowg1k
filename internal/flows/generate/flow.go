@@ -33,7 +33,7 @@ var ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLL
 
 // TaskConfigProvider provides resolved task configuration.
 type TaskConfigProvider interface {
-	Get() *task.Configuration
+	Get() (*task.Configuration, error)
 }
 
 // UserPromptProvider provides the user prompt for content generation.
@@ -53,7 +53,7 @@ type ContentGenerationActivityFactory interface {
 
 // OutputWriter writes output to the user.
 type OutputWriter interface {
-	PrintLine(line string)
+	PrintLine(line string) error
 }
 
 // FlowFactory creates instances of the generate flow with injected dependencies.
@@ -85,7 +85,10 @@ func NewFlowFactory(
 // NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		task := f.taskConfigProvider.Get()
+		task, err := f.taskConfigProvider.Get()
+		if err != nil {
+			return fmt.Errorf("failed to get task config: %w", err)
+		}
 
 		flowCtx.SendRunning("Generating content")
 
@@ -124,7 +127,9 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		time.Sleep(300 * time.Millisecond)
 
-		f.outputWriter.PrintLine(invokeOutput.Content)
+		if err := f.outputWriter.PrintLine(invokeOutput.Content); err != nil {
+			return fmt.Errorf("failed to print generated content: %w", err)
+		}
 
 		return nil
 	}

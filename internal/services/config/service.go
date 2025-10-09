@@ -32,6 +32,8 @@ import (
 var (
 	ErrSpecifiedConfigFileNotFound = errors.New("specified config file not found")
 	ErrNoConfigFoundInStdLocations = errors.New("no configuration file found in standard locations")
+	ErrConfigPathResolverIsNil     = errors.New("config path resolver is nil")
+	ErrServiceIsNil                = errors.New("service is nil")
 )
 
 const (
@@ -240,6 +242,10 @@ type Service struct {
 
 // NewService creates a new configuration service and loads configuration at creation time.
 func NewService(configPathResolver ConfigFilePathResolver) (*Service, error) {
+	if configPathResolver == nil {
+		return nil, ErrConfigPathResolverIsNil
+	}
+
 	service := &Service{}
 	v := viper.New()
 
@@ -370,6 +376,10 @@ func getConfigPaths() []string {
 }
 
 // GetConfig returns the loaded configuration.
-func (s *Service) GetConfig() *Config {
-	return s.config
+func (s *Service) GetConfig() (*Config, error) {
+	if s == nil {
+		return nil, ErrServiceIsNil
+	}
+
+	return s.config, nil
 }

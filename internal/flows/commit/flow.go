@@ -42,12 +42,12 @@ type CommitConfigProvider interface {
 type CommandParametersReader interface {
 	GetTargetBranchFlag() (string, error)
 	GetIntentFlag() (string, error)
-	GetStdIn() string
+	GetStdIn() (string, error)
 }
 
 // OutputWriter writes output to the user.
 type OutputWriter interface {
-	PrintLine(line string)
+	PrintLine(line string) error
 }
 
 // Factory creates instances of the commit flow with injected dependencies.
@@ -231,7 +231,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		if intent == "" {
-			intent = f.commandParametersReader.GetStdIn()
+			stdin, err := f.commandParametersReader.GetStdIn()
+			if err != nil {
+				return fmt.Errorf("failed to get stdin: %w", err)
+			}
+			intent = stdin
 		}
 
 		composeCommit := f.composeCommitFactory.NewActivity()
@@ -256,7 +260,9 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		f.outputWriter.PrintLine(commitResult.CommitMessage)
+		if err := f.outputWriter.PrintLine(commitResult.CommitMessage); err != nil {
+			return fmt.Errorf("failed to print commit message: %w", err)
+		}
 
 		return nil
 	}

@@ -25,13 +25,13 @@ import (
 
 // Mock implementations for testing
 
-// mockApplicationConfigReader is a mock implementation of ApplicationConfigReader for testing.
-type mockApplicationConfigReader struct {
+// mockConfigReader is a mock implementation of ConfigReader for testing.
+type mockConfigReader struct {
 	Cfg *config.Config
 }
 
-func (m *mockApplicationConfigReader) GetConfig() *config.Config {
-	return m.Cfg
+func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+	return m.Cfg, nil
 }
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
@@ -48,20 +48,26 @@ func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, 
 }
 
 func TestNewService(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{}
+	configSvc := &mockConfigReader{}
 	profileSvc := &mockProfileResolver{}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 	if svc == nil {
 		t.Fatal("NewService returned nil")
 	}
 }
 
 func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{},
 	}
 	profileSvc := &mockProfileResolver{}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := svc.GetSummarizationConfig("test.go")
 	if err != nil {
@@ -73,7 +79,7 @@ func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_SkipRule(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
@@ -86,7 +92,10 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 		},
 	}
 	profileSvc := &mockProfileResolver{}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := svc.GetSummarizationConfig("test.go")
 	if err != nil {
@@ -101,7 +110,7 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
@@ -125,7 +134,10 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := svc.GetSummarizationConfig("test.txt")
 	if err != nil {
@@ -152,7 +164,7 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Rules: []*config.SummarizeRule{
@@ -188,7 +200,10 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 			},
 		},
 	}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
 	result, err := svc.GetSummarizationConfig("main.go")
 	if err != nil {
@@ -212,7 +227,7 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 }
 
 func TestGetSummarizationConfig_ProfileError(t *testing.T) {
-	configSvc := &mockApplicationConfigReader{
+	configSvc := &mockConfigReader{
 		Cfg: &config.Config{
 			Summarize: &config.SummarizeConfig{
 				Default: &config.SummarizeDefault{
@@ -224,9 +239,12 @@ func TestGetSummarizationConfig_ProfileError(t *testing.T) {
 	profileSvc := &mockProfileResolver{
 		err: profile.ErrProfileNotFound,
 	}
-	svc := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, profileSvc)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
 
-	_, err := svc.GetSummarizationConfig("test.txt")
+	_, err = svc.GetSummarizationConfig("test.txt")
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}

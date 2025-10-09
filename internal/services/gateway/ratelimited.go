@@ -41,6 +41,16 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *GenerateContentRequest,
 ) (string, error) {
+	if g == nil {
+		return "", ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return "", ErrContextIsNil
+	}
+	if request == nil {
+		return "", ErrRequestIsNil
+	}
+
 	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
 
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
@@ -76,6 +86,16 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *ComputeEmbeddingsRequest,
 ) ([]Embedding, error) {
+	if g == nil {
+		return nil, ErrGatewayIsNil
+	}
+	if ctx == nil {
+		return nil, ErrContextIsNil
+	}
+	if request == nil {
+		return nil, ErrRequestIsNil
+	}
+
 	// Estimate token count from the text chunks
 	totalChars := 0
 	for _, chunk := range request.Chunks() {
@@ -92,5 +112,8 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 
 // ComputeDistance implements EmbeddingsGateway by delegating to the wrapped gateway.
 func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second Embedding) (float64, error) {
+	if g == nil {
+		return 0, ErrGatewayIsNil
+	}
 	return g.gateway.ComputeDistance(first, second)
 }

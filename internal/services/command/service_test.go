@@ -17,6 +17,7 @@ limitations under the License.
 package command
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -56,7 +57,11 @@ func TestGetCommand(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	if service.GetCommand() != cmd {
+	gotCmd, err := service.GetCommand()
+	if err != nil {
+		t.Fatalf("GetCommand failed: %v", err)
+	}
+	if gotCmd != cmd {
 		t.Error("GetCommand should return the original command")
 	}
 }
@@ -71,8 +76,12 @@ func TestGetCommandName(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	if service.GetCommandName() != "testcmd" {
-		t.Errorf("Expected command name 'testcmd', got '%s'", service.GetCommandName())
+	cmdName, err := service.GetCommandName()
+	if err != nil {
+		t.Fatalf("GetCommandName failed: %v", err)
+	}
+	if cmdName != "testcmd" {
+		t.Errorf("Expected command name 'testcmd', got '%s'", cmdName)
 	}
 }
 
@@ -193,14 +202,20 @@ func TestGetStdIn(t *testing.T) {
 	}
 
 	// When run in test environment, stdin is typically empty
-	stdin := service.GetStdIn()
+	stdin, err := service.GetStdIn()
+	if err != nil {
+		t.Fatalf("GetStdIn failed: %v", err)
+	}
 	if stdin == "" {
 		// This is expected in test environment
 		t.Log("StdIn is empty as expected in test environment")
 	}
 
 	// Test that GetStdIn returns a string (not nil)
-	_ = service.GetStdIn() // Should not panic
+	_, err = service.GetStdIn() // Should not return error
+	if err != nil {
+		t.Fatalf("GetStdIn failed: %v", err)
+	}
 }
 
 func TestNewServiceStdinErrorPaths(t *testing.T) {
@@ -485,13 +500,21 @@ func TestCommandServiceStateManagement(t *testing.T) {
 	}
 
 	// Test that underlying command is preserved
-	if service.GetCommand() != cmd {
+	gotCmd, err := service.GetCommand()
+	if err != nil {
+		t.Fatalf("GetCommand failed: %v", err)
+	}
+	if gotCmd != cmd {
 		t.Error("Service should preserve the original command reference")
 	}
 
 	// Test command name consistency
-	if service.GetCommandName() != "test-state" {
-		t.Errorf("Expected command name 'test-state', got '%s'", service.GetCommandName())
+	cmdName, err := service.GetCommandName()
+	if err != nil {
+		t.Fatalf("GetCommandName failed: %v", err)
+	}
+	if cmdName != "test-state" {
+		t.Errorf("Expected command name 'test-state', got '%s'", cmdName)
 	}
 }
 
@@ -519,7 +542,11 @@ func TestCommandServiceConcurrency(t *testing.T) {
 				return
 			}
 
-			name := service.GetCommandName()
+			name, err := service.GetCommandName()
+			if err != nil {
+				t.Errorf("Goroutine %d: GetCommandName failed: %v", id, err)
+				return
+			}
 			if name != "concurrent-test" {
 				t.Errorf("Goroutine %d: Expected 'concurrent-test', got '%s'", id, name)
 				return
@@ -531,8 +558,12 @@ func TestCommandServiceConcurrency(t *testing.T) {
 				return
 			}
 
-			stdin := service.GetStdIn()
-			_ = stdin // Just verify it doesn't panic
+			stdin, err := service.GetStdIn()
+			if err != nil {
+				t.Errorf("Goroutine %d: GetStdIn failed: %v", id, err)
+				return
+			}
+			_ = stdin // Just verify it doesn't return error
 		}(i)
 	}
 
@@ -592,11 +623,11 @@ func TestCommandServiceMemoryUsage(t *testing.T) {
 	// Make many repeated calls to ensure no memory leaks
 	for i := 0; i < 1000; i++ {
 		_, _ = service.GetConfigPath()
-		_ = service.GetCommandName()
+		_, _ = service.GetCommandName()
 		_, _ = service.GetTaskName()
 		_, _ = service.GetSilentFlag()
-		_ = service.GetStdIn()
-		_ = service.GetCommand()
+		_, _ = service.GetStdIn()
+		_, _ = service.GetCommand()
 	}
 
 	t.Log("Completed 1000 iterations without issues")
@@ -637,7 +668,10 @@ func TestGetStdInWithPipedInput(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	stdin := service.GetStdIn()
+	stdin, err := service.GetStdIn()
+	if err != nil {
+		t.Fatalf("GetStdIn failed: %v", err)
+	}
 	expected := strings.TrimSpace(testInput)
 	if stdin != expected {
 		t.Errorf("Expected stdin '%s', got '%s'", expected, stdin)
@@ -680,4 +714,78 @@ func TestGetIntentFlagUndefined(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when intent flag is not defined")
 	}
+}
+
+func TestNilServiceMethods(t *testing.T) {
+	var service *Service
+
+	t.Run("GetCommand on nil service", func(t *testing.T) {
+		_, err := service.GetCommand()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetCommandName on nil service", func(t *testing.T) {
+		_, err := service.GetCommandName()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetConfigPath on nil service", func(t *testing.T) {
+		_, err := service.GetConfigPath()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetTaskName on nil service", func(t *testing.T) {
+		_, err := service.GetTaskName()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetUserPrompt on nil service", func(t *testing.T) {
+		_, err := service.GetUserPrompt()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetSilentFlag on nil service", func(t *testing.T) {
+		_, err := service.GetSilentFlag()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetIntentFlag on nil service", func(t *testing.T) {
+		_, err := service.GetIntentFlag()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetTargetBranchFlag on nil service", func(t *testing.T) {
+		_, err := service.GetTargetBranchFlag()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetBaseBranchFlag on nil service", func(t *testing.T) {
+		_, err := service.GetBaseBranchFlag()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
+
+	t.Run("GetStdIn on nil service", func(t *testing.T) {
+		_, err := service.GetStdIn()
+		if !errors.Is(err, ErrServiceIsNil) {
+			t.Errorf("Expected ErrServiceIsNil, got %v", err)
+		}
+	})
 }

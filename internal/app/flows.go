@@ -53,16 +53,37 @@ import (
 // CreateCommitFlow creates a complete commit flow with all dependencies.
 func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
-	gitService := git.NewService(workspaceService)
-	filterService := filter.NewService(c.ConfigService)
+	gitService, err := git.NewService(workspaceService)
+	if err != nil {
+		return nil, err
+	}
+
+	filterService, err := filter.NewService(c.ConfigService)
+	if err != nil {
+		return nil, err
+	}
 
 	providerService := provider.NewService()
-	modelService := model.NewService(c.ConfigService, providerService)
-	profileService := profile.NewService(c.ConfigService, modelService)
 
-	summarizeService := summarize.NewService(c.ConfigService, profileService)
+	modelService, err := model.NewService(c.ConfigService, providerService)
+	if err != nil {
+		return nil, err
+	}
 
-	commitConfigService := commitconfig.NewService(c.ConfigService, profileService)
+	profileService, err := profile.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, err
+	}
+
+	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, err
+	}
+
+	commitConfigService, err := commitconfig.NewService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, err
+	}
 
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
@@ -105,8 +126,16 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 // CreateGenerateFlow creates a complete generate flow with all dependencies.
 func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	providerService := provider.NewService()
-	modelService := model.NewService(c.ConfigService, providerService)
-	profileService := profile.NewService(c.ConfigService, modelService)
+
+	modelService, err := model.NewService(c.ConfigService, providerService)
+	if err != nil {
+		return nil, err
+	}
+
+	profileService, err := profile.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, err
+	}
 
 	taskService, err := task.NewService(
 		c.CommandService,
@@ -142,16 +171,37 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 // CreatePRFlow creates a complete PR flow with all dependencies.
 func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
-	gitService := git.NewService(workspaceService)
-	filterService := filter.NewService(c.ConfigService)
+	gitService, err := git.NewService(workspaceService)
+	if err != nil {
+		return nil, err
+	}
+
+	filterService, err := filter.NewService(c.ConfigService)
+	if err != nil {
+		return nil, err
+	}
 
 	providerService := provider.NewService()
-	modelService := model.NewService(c.ConfigService, providerService)
-	profileService := profile.NewService(c.ConfigService, modelService)
 
-	summarizeService := summarize.NewService(c.ConfigService, profileService)
+	modelService, err := model.NewService(c.ConfigService, providerService)
+	if err != nil {
+		return nil, err
+	}
 
-	prConfigService := prconfig.NewService(c.ConfigService, profileService)
+	profileService, err := profile.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, err
+	}
+
+	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, err
+	}
+
+	prConfigService, err := prconfig.NewService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, err
+	}
 
 	gatewayFactory := gateway.NewFactory(c.GetRateLimitRepo)
 	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)

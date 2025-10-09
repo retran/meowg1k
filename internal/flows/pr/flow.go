@@ -40,12 +40,12 @@ type PRConfigProvider interface {
 type CommandParametersReader interface {
 	GetBaseBranchFlag() (string, error)
 	GetIntentFlag() (string, error)
-	GetStdIn() string
+	GetStdIn() (string, error)
 }
 
 // OutputWriter writes output to the user.
 type OutputWriter interface {
-	PrintLine(line string)
+	PrintLine(line string) error
 }
 
 // Factory creates instances of the PR flow with injected dependencies.
@@ -182,7 +182,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		if intent == "" {
-			intent = f.commandParametersReader.GetStdIn()
+			stdin, err := f.commandParametersReader.GetStdIn()
+			if err != nil {
+				return fmt.Errorf("failed to get stdin: %w", err)
+			}
+			intent = stdin
 		}
 
 		composePR := f.composePRFactory.NewActivity()
@@ -207,7 +211,9 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		f.outputWriter.PrintLine(prResult.PRDescription)
+		if err := f.outputWriter.PrintLine(prResult.PRDescription); err != nil {
+			return fmt.Errorf("failed to print PR description: %w", err)
+		}
 
 		return nil
 	}
