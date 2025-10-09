@@ -21,10 +21,11 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/voyage"
 )
 
-var _ EmbeddingsGateway = (*voyageGateway)(nil)
+var _ ports.EmbeddingsGateway = (*voyageGateway)(nil)
 
 // voyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.
 type voyageGateway struct {
@@ -33,7 +34,7 @@ type voyageGateway struct {
 }
 
 // NewVoyageGateway creates and initializes a new VoyageGateway.
-func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
+func newVoyageGateway(apiKey string) (ports.EmbeddingsGateway, error) {
 	client, err := voyage.NewClient("", apiKey, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)

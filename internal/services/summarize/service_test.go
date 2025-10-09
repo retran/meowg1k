@@ -26,12 +26,12 @@ import (
 
 // Mock implementations for testing
 
-// mockConfigReader is a mock implementation of ConfigReader for testing.
+// mockConfigReader is a mock implementation of ConfigResolver for testing.
 type mockConfigReader struct {
 	Cfg *config.Config
 }
 
-func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+func (m *mockConfigReader) Get() (*config.Config, error) {
 	return m.Cfg, nil
 }
 

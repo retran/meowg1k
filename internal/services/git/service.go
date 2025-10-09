@@ -22,11 +22,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-)
 
-type WorkspaceDirProvider interface {
-	GetWorkspaceDir() (string, error)
-}
+	"github.com/retran/meowg1k/internal/core/ports"
+)
 
 // Service implements GitService.
 type Service struct {
@@ -37,12 +35,12 @@ type Service struct {
 // NewService creates a new Git service.
 // Git commands will be executed sequentially using a worker pool (semaphore with capacity 1)
 // to prevent race conditions while keeping OS threads free.
-func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
+func NewService(workspaceDirProvider ports.WorkspaceDirProvider) (*Service, error) {
 	if workspaceDirProvider == nil {
 		return nil, fmt.Errorf("workspace dir provider is nil")
 	}
 
-	workspaceDir, err := workspaceDirProvider.GetWorkspaceDir()
+	workspaceDir, err := workspaceDirProvider.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workspace directory: %w", err)
 	}

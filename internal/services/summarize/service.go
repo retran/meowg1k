@@ -21,31 +21,22 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
 
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
-
-// ProfileResolver resolves profile configurations.
-type ProfileResolver interface {
-	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
-}
-
 // Service resolves file summarization configurations.
 type Service struct {
-	configReader    ConfigReader
-	profileResolver ProfileResolver
+	configResolver  ports.ConfigResolver
+	profileResolver ports.ProfileResolver
 }
 
 // NewService creates a new file summarization configuration service.
-func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	if profileResolver == nil {
@@ -53,7 +44,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 	}
 
 	return &Service{
-		configReader:    configReader,
+		configResolver:  configResolver,
 		profileResolver: profileResolver,
 	}, nil
 }
@@ -64,7 +55,7 @@ func (s *Service) GetSummarizationConfig(filename string) (*summarize.ResolvedCo
 		return nil, fmt.Errorf("summarize service is nil")
 	}
 
-	currentConfig, err := s.configReader.GetConfig()
+	currentConfig, err := s.configResolver.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}

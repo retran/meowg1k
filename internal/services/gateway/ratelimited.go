@@ -21,17 +21,18 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
-// rateLimitedGenerationGateway wraps a GenerationGateway with rate limiting.
+// rateLimitedGenerationGateway wraps a ports.GenerationGateway with rate limiting.
 type rateLimitedGenerationGateway struct {
-	gateway GenerationGateway
+	gateway ports.GenerationGateway
 	limiter ratelimit.Limiter
 }
 
 // newRateLimitedGenerationGateway creates a new rate-limited generation
-func newRateLimitedGenerationGateway(gateway GenerationGateway, limiter ratelimit.Limiter) GenerationGateway {
+func newRateLimitedGenerationGateway(gateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
 	return &rateLimitedGenerationGateway{
 		gateway: gateway,
 		limiter: limiter,
@@ -71,14 +72,14 @@ func estimateTokenCount(text string) int {
 	return len(text) / 4
 }
 
-// rateLimitedEmbeddingsGateway wraps an EmbeddingsGateway with rate limiting.
+// rateLimitedEmbeddingsGateway wraps an ports.EmbeddingsGateway with rate limiting.
 type rateLimitedEmbeddingsGateway struct {
-	gateway EmbeddingsGateway
+	gateway ports.EmbeddingsGateway
 	limiter ratelimit.Limiter
 }
 
 // newRateLimitedEmbeddingsGateway creates a new rate-limited embeddings gateway.
-func newRateLimitedEmbeddingsGateway(gateway EmbeddingsGateway, limiter ratelimit.Limiter) EmbeddingsGateway {
+func newRateLimitedEmbeddingsGateway(gateway ports.EmbeddingsGateway, limiter ratelimit.Limiter) ports.EmbeddingsGateway {
 	return &rateLimitedEmbeddingsGateway{
 		gateway: gateway,
 		limiter: limiter,

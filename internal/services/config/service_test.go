@@ -68,8 +68,8 @@ generate:
 		t.Fatal("Config service should not be nil")
 	}
 
-	// Test GetConfig
-	config, err := configSvc.GetConfig()
+	// Test Get
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
@@ -248,7 +248,7 @@ generate:
 		t.Fatal("Config service should not be nil")
 	}
 
-	config, err := configSvc.GetConfig()
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
@@ -310,7 +310,7 @@ generate:
 		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
 	}
 
-	config, err := configSvc.GetConfig()
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
@@ -372,7 +372,7 @@ generate:
 		t.Fatalf("NewService failed with HOME fallback: %v", err)
 	}
 
-	config, err := configSvc.GetConfig()
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
@@ -438,7 +438,7 @@ generate:
 		t.Fatalf("NewService failed with current directory config: %v", err)
 	}
 
-	config, err := configSvc.GetConfig()
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
@@ -511,7 +511,7 @@ generate:
 		t.Fatalf("NewService failed with config merging: %v", err)
 	}
 
-	config, err := configSvc.GetConfig()
+	config, err := configSvc.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}

@@ -28,27 +28,10 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/git"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
-
-// CommitConfigProvider provides commit message configuration.
-type CommitConfigProvider interface {
-	GetCommitConfig() (*commit.ResolvedConfig, error)
-}
-
-// CommandParametersReader reads command-line parameters and flags.
-type CommandParametersReader interface {
-	GetTargetBranchFlag() (string, error)
-	GetIntentFlag() (string, error)
-	GetStdIn() (string, error)
-}
-
-// OutputWriter writes output to the user.
-type OutputWriter interface {
-	PrintLine(line string) error
-}
 
 // Factory creates instances of the commit flow with injected dependencies.
 type Factory struct {
@@ -59,9 +42,9 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
-	commitConfigProvider       CommitConfigProvider
-	commandParametersReader    CommandParametersReader
-	outputWriter               OutputWriter
+	commitConfigProvider       ports.CommitConfigProvider
+	commandParametersReader    ports.CommandParametersReader
+	outputWriter               ports.OutputWriter
 }
 
 // NewFactory creates a new commit flow factory with injected services.
@@ -73,9 +56,9 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composeCommitFactory executor.ActivityFactory[*composecommit.Input, *composecommit.Output],
-	commitConfigProvider CommitConfigProvider,
-	commandParametersReader CommandParametersReader,
-	outputWriter OutputWriter,
+	commitConfigProvider ports.CommitConfigProvider,
+	commandParametersReader ports.CommandParametersReader,
+	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
 	if listStagedFactory == nil {
 		return nil, fmt.Errorf("listStagedFactory is nil")

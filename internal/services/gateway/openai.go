@@ -24,11 +24,12 @@ import (
 	"github.com/openai/openai-go/v2/option"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 var (
-	_ GenerationGateway = (*openaiGateway)(nil)
-	_ EmbeddingsGateway = (*openaiGateway)(nil)
+	_ ports.GenerationGateway = (*openaiGateway)(nil)
+	_ ports.EmbeddingsGateway = (*openaiGateway)(nil)
 )
 
 type openaiGateway struct {
@@ -37,7 +38,7 @@ type openaiGateway struct {
 }
 
 // newOpenAIGateway creates and initializes a new OpenAI-compatible gateway.
-func newOpenAIGateway(baseURL, apiKey string) Gateway {
+func newOpenAIGateway(baseURL, apiKey string) ports.Gateway {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
 	}

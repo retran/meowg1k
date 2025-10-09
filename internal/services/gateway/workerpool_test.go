@@ -24,6 +24,7 @@ import (
 	"time"
 
 	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 func TestNewWorkerPoolGateway(t *testing.T) {
@@ -108,7 +109,7 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 
 	// Create a custom gateway that tracks active requests
 	type trackingWorkerPool struct {
-		gateway   GenerationGateway
+		gateway   ports.GenerationGateway
 		semaphore chan struct{}
 		tracker   func()
 	}

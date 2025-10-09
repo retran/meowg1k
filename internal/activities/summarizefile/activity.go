@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/core/summarize"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -42,27 +42,17 @@ type Output struct {
 	Skipped  bool
 }
 
-// ContentGenerationActivityFactory creates content generation activities.
-type ContentGenerationActivityFactory interface {
-	NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output]
-}
-
-// FileSummarizationConfigProvider provides summarization configuration for files.
-type FileSummarizationConfigProvider interface {
-	GetSummarizationConfig(filename string) (*summarize.ResolvedConfig, error)
-}
-
 // Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
 type Factory struct {
-	contentGenerationActivityFactory ContentGenerationActivityFactory
-	fileSummarizationConfigProvider  FileSummarizationConfigProvider
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	fileSummarizationConfigProvider  ports.FileSummarizationConfigProvider
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
-func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory, fileSummarizationConfigProvider FileSummarizationConfigProvider) (*Factory, error) {
+func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output], fileSummarizationConfigProvider ports.FileSummarizationConfigProvider) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
 		return nil, fmt.Errorf("content generation activity factory is nil")
 	}

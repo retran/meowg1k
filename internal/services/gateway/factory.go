@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/provider"
 	"github.com/retran/meowg1k/pkg/ratelimit"
@@ -98,7 +99,7 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 func (f *Factory) NewGenerationGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
-) (GenerationGateway, error) {
+) (ports.GenerationGateway, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context cannot be nil")
 	}
@@ -107,7 +108,7 @@ func (f *Factory) NewGenerationGateway(
 		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
-	var gateway GenerationGateway
+	var gateway ports.GenerationGateway
 	var err error
 
 	switch profile.Provider {
@@ -179,7 +180,7 @@ func (f *Factory) NewGenerationGateway(
 func (f *Factory) NewEmbeddingsGateway(
 	ctx context.Context,
 	profile *profile.ResolvedProfile,
-) (EmbeddingsGateway, error) {
+) (ports.EmbeddingsGateway, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context cannot be nil")
 	}
@@ -188,7 +189,7 @@ func (f *Factory) NewEmbeddingsGateway(
 		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
-	var gateway EmbeddingsGateway
+	var gateway ports.EmbeddingsGateway
 	var err error
 
 	switch profile.Provider {

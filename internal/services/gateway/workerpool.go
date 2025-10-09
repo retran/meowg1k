@@ -21,16 +21,17 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
-// workerPoolGateway wraps a GenerationGateway with a worker pool to limit concurrency.
+// workerPoolGateway wraps a ports.GenerationGateway with a worker pool to limit concurrency.
 type workerPoolGateway struct {
-	gateway   GenerationGateway
+	gateway   ports.GenerationGateway
 	semaphore chan struct{}
 }
 
 // newWorkerPoolGateway creates a new gateway with worker pool concurrency control.
-func newWorkerPoolGateway(gateway GenerationGateway, maxConcurrency int) GenerationGateway {
+func newWorkerPoolGateway(gateway ports.GenerationGateway, maxConcurrency int) ports.GenerationGateway {
 	if maxConcurrency <= 0 {
 		maxConcurrency = 1 // At least one worker
 	}

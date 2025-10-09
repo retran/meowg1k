@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -32,21 +33,16 @@ type Output struct {
 	Files []string
 }
 
-// StagedFileListReader reads list of staged files from git.
-type StagedFileListReader interface {
-	ReadStagedFiles() ([]string, error)
-}
-
 // Factory creates instances of the ListStaged activity with injected dependencies.
 type Factory struct {
-	stagedFileListReader StagedFileListReader
+	stagedFileListReader ports.StagedFileListReader
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ListStaged activity factory with the provided staged file list reader.
-func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
+func NewFactory(stagedFileListReader ports.StagedFileListReader) (*Factory, error) {
 	if stagedFileListReader == nil {
 		return nil, fmt.Errorf("staged file list reader cannot be nil")
 	}

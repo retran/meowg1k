@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -34,21 +35,16 @@ type Output struct {
 	Files []string
 }
 
-// FileIgnoreChecker checks if a file should be ignored based on filter rules.
-type FileIgnoreChecker interface {
-	IsIgnoredFile(file string) bool
-}
-
 // Factory creates instances of the ApplyFilters activity with injected dependencies.
 type Factory struct {
-	fileIgnoreChecker FileIgnoreChecker
+	fileIgnoreChecker ports.FileIgnoreChecker
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
-func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(fileIgnoreChecker ports.FileIgnoreChecker) (executor.ActivityFactory[*Input, *Output], error) {
 	if fileIgnoreChecker == nil {
 		return nil, fmt.Errorf("applyfilters.NewFactory: fileIgnoreChecker cannot be nil")
 	}

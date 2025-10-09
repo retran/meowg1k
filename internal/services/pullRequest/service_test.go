@@ -29,7 +29,7 @@ type mockConfigReader struct {
 	Cfg *config.Config
 }
 
-func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+func (m *mockConfigReader) Get() (*config.Config, error) {
 	return m.Cfg, nil
 }
 

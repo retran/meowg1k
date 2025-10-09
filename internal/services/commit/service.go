@@ -21,30 +21,20 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/commit"
-	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
 )
 
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
-
-// ProfileResolver resolves profile configurations.
-type ProfileResolver interface {
-	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
-}
-
 // Service resolves commit configuration from application config and profiles.
 type Service struct {
-	configReader    ConfigReader
-	profileResolver ProfileResolver
+	configResolver  ports.ConfigResolver
+	profileResolver ports.ProfileResolver
 }
 
 // NewService creates a new commit configuration service.
-func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Service, error) {
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	if profileResolver == nil {
@@ -52,7 +42,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 	}
 
 	return &Service{
-		configReader:    configReader,
+		configResolver:  configResolver,
 		profileResolver: profileResolver,
 	}, nil
 }
@@ -63,7 +53,7 @@ func (s *Service) GetCommitConfig() (*commit.ResolvedConfig, error) {
 		return nil, fmt.Errorf("commit service is nil")
 	}
 
-	if s.configReader == nil {
+	if s.configResolver == nil {
 		return nil, fmt.Errorf("config reader is nil")
 	}
 
@@ -71,7 +61,7 @@ func (s *Service) GetCommitConfig() (*commit.ResolvedConfig, error) {
 		return nil, fmt.Errorf("profile resolver is nil")
 	}
 
-	cfg, err := s.configReader.GetConfig()
+	cfg, err := s.configResolver.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application cfg: %w", err)
 	}

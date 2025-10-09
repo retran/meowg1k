@@ -525,7 +525,7 @@ generate:
 		t.Error("Context should not be nil")
 	}
 
-	config, err := container.ConfigService.GetConfig()
+	config, err := container.ConfigService.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}

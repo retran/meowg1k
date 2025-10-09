@@ -29,7 +29,7 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func (g *Service) GetWorkspaceDir() (string, error) {
+func (g *Service) Get() (string, error) {
 	if g == nil {
 		return "", fmt.Errorf("workspace service is nil")
 	}

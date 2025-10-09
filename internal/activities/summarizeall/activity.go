@@ -37,21 +37,16 @@ type Output struct {
 	Summaries []*summarizefile.Output
 }
 
-// FileSummarizationActivityFactory creates file summarization activities.
-type FileSummarizationActivityFactory interface {
-	NewActivity() executor.Activity[*summarizefile.Input, *summarizefile.Output]
-}
-
 // Factory creates instances of the SummarizeAll activity with injected dependencies.
 type Factory struct {
-	fileSummarizationActivityFactory FileSummarizationActivityFactory
+	fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
-func NewFactory(fileSummarizationActivityFactory FileSummarizationActivityFactory) (*Factory, error) {
+func NewFactory(fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]) (*Factory, error) {
 	if fileSummarizationActivityFactory == nil {
 		return nil, fmt.Errorf("file summarization activity factory cannot be nil")
 	}

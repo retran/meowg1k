@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 const (
@@ -33,18 +34,13 @@ const (
 	configFileName   = "config"
 )
 
-// FilePathResolver resolves the configuration file path.
-type FilePathResolver interface {
-	GetConfigPath() (string, error)
-}
-
 // Service loads and provides application configuration.
 type Service struct {
 	config *config.Config
 }
 
 // NewService creates a new configuration service and loads configuration at creation time.
-func NewService(filePathResolver FilePathResolver) (*Service, error) {
+func NewService(filePathResolver ports.FilePathResolver) (*Service, error) {
 	if filePathResolver == nil {
 		return nil, fmt.Errorf("config path resolver is nil")
 	}
@@ -178,8 +174,8 @@ func getConfigPaths() []string {
 	return configPaths
 }
 
-// GetConfig returns the loaded configuration.
-func (s *Service) GetConfig() (*config.Config, error) {
+// Get returns the loaded configuration.
+func (s *Service) Get() (*config.Config, error) {
 	if s == nil {
 		return nil, fmt.Errorf("config service is nil")
 	}

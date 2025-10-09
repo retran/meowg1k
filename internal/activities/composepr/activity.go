@@ -41,21 +41,16 @@ type Output struct {
 	PRDescription string
 }
 
-// ContentGenerationActivityFactory creates content generation activities.
-type ContentGenerationActivityFactory interface {
-	NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output]
-}
-
 // Factory creates instances of the ComposePR activity with injected dependencies.
 type Factory struct {
-	contentGenerationActivityFactory ContentGenerationActivityFactory
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.
-func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactory) (*Factory, error) {
+func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
 		return nil, fmt.Errorf("content generation activity factory cannot be nil")
 	}

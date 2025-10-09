@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 func TestNewGeminiGateway(t *testing.T) {
@@ -40,8 +41,8 @@ func TestNewGeminiGateway(t *testing.T) {
 		}
 
 		// Verify it implements both interfaces
-		var _ GenerationGateway = gateway
-		var _ EmbeddingsGateway = gateway
+		var _ ports.GenerationGateway = gateway
+		var _ ports.EmbeddingsGateway = gateway
 		t.Log("GeminiGateway correctly implements both GenerationGateway and EmbeddingsGateway interfaces")
 	})
 
@@ -276,8 +277,8 @@ func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
 	}
 
 	// Verify that the gateway implements both interfaces
-	var _ GenerationGateway = gateway
-	var _ EmbeddingsGateway = gateway
+	var _ ports.GenerationGateway = gateway
+	var _ ports.EmbeddingsGateway = gateway
 	_ = gateway // Should implement the unified Gateway interface
 
 	t.Log("GeminiGateway correctly implements GenerationGateway, EmbeddingsGateway, and Gateway interfaces")

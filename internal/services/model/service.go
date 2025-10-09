@@ -24,31 +24,22 @@ import (
 
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/model"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/provider"
 )
 
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
-
-// ProviderDefinitionRegistry retrieves provider definitions.
-type ProviderDefinitionRegistry interface {
-	Get(providerType provider.Provider) (provider.ProviderDefinition, error)
-}
-
 // Service resolves and caches model configurations.
 type Service struct {
-	providerRegistry ProviderDefinitionRegistry
-	configReader     ConfigReader
+	providerRegistry ports.ProviderDefinitionRegistry
+	configResolver   ports.ConfigResolver
 	resolvedModels   map[model.Model]*model.ResolvedModel
 	mu               sync.RWMutex
 }
 
 // NewService creates a new model resolver service.
-func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRegistry) (*Service, error) {
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+func NewService(configResolver ports.ConfigResolver, providerRegistry ports.ProviderDefinitionRegistry) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	if providerRegistry == nil {
@@ -57,7 +48,7 @@ func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRe
 
 	service := &Service{
 		providerRegistry: providerRegistry,
-		configReader:     configReader,
+		configResolver:   configResolver,
 		resolvedModels:   make(map[model.Model]*model.ResolvedModel),
 	}
 
@@ -84,7 +75,7 @@ func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 		return resolved, nil
 	}
 
-	cfg, err := s.configReader.GetConfig()
+	cfg, err := s.configResolver.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}

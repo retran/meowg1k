@@ -26,7 +26,7 @@ import (
 
 type mockWorkspaceService struct{}
 
-func (m *mockWorkspaceService) GetWorkspaceDir() (string, error) {
+func (m *mockWorkspaceService) Get() (string, error) {
 	return ".", nil
 }
 
@@ -205,7 +205,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 
 func TestServiceImpl_RunGitCommandErrorHandling(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
-	workspaceDir, _ := workspaceService.GetWorkspaceDir()
+	workspaceDir, _ := workspaceService.Get()
 	service := &Service{
 		workspaceDir: workspaceDir,
 	}

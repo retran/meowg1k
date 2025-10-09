@@ -22,25 +22,10 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/core/task"
 )
-
-// TaskParametersReader reads task parameters from command line.
-type TaskParametersReader interface {
-	GetTaskName() (string, error)
-	GetUserPrompt() (string, error)
-}
-
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
-
-// ProfileResolver resolves profile configurations.
-type ProfileResolver interface {
-	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
-}
 
 // Service resolves and caches task configurations.
 type Service struct {
@@ -123,16 +108,16 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 
 // NewService creates a new task configuration service.
 func NewService(
-	taskParametersReader TaskParametersReader,
-	configReader ConfigReader,
-	profileResolver ProfileResolver,
+	taskParametersReader ports.TaskParametersReader,
+	configResolver ports.ConfigResolver,
+	profileResolver ports.ProfileResolver,
 ) (*Service, error) {
 	if taskParametersReader == nil {
 		return nil, fmt.Errorf("task parameters reader is nil")
 	}
 
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	if profileResolver == nil {
@@ -141,7 +126,7 @@ func NewService(
 
 	service := &Service{}
 
-	cfg, err := configReader.GetConfig()
+	cfg, err := configResolver.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}

@@ -38,21 +38,16 @@ type Output struct {
 	Changes []*git.FileChange
 }
 
-// BranchFileDiffActivityFactory creates activities that fetch branch file diffs.
-type BranchFileDiffActivityFactory interface {
-	NewActivity() executor.Activity[*fetchbranchfilediff.Input, *git.FileChange]
-}
-
 // Factory creates instances of the FetchAllBranchDiffs activity with injected dependencies.
 type Factory struct {
-	branchFileDiffActivityFactory BranchFileDiffActivityFactory
+	branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.
-func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) (*Factory, error) {
+func NewFactory(branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]) (*Factory, error) {
 	if branchFileDiffActivityFactory == nil {
 		return nil, fmt.Errorf("branch file diff activity factory cannot be nil")
 	}

@@ -22,8 +22,8 @@ import (
 	"testing"
 
 	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
-	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -42,11 +42,11 @@ func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *co
 
 // mockGenerationGatewayFactory is a mock implementation of GenerationGatewayFactory for testing.
 type mockGenerationGatewayFactory struct {
-	Gateway gateway.GenerationGateway
+	Gateway ports.GenerationGateway
 	Err     error
 }
 
-func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gateway.GenerationGateway, error) {
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}

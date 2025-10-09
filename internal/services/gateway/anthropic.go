@@ -24,10 +24,11 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 // Compile-time interface satisfaction check
-var _ GenerationGateway = (*anthropicGateway)(nil)
+var _ ports.GenerationGateway = (*anthropicGateway)(nil)
 
 // anthropicGateway wraps the Anthropic SDK client for content generation.
 type anthropicGateway struct {
@@ -35,7 +36,7 @@ type anthropicGateway struct {
 }
 
 // NewAnthropicGateway creates a new Anthropic
-func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
+func newAnthropicGateway(apiKey string) (ports.GenerationGateway, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}

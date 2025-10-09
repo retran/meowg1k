@@ -31,9 +31,9 @@ func TestNewService(t *testing.T) {
 func TestGetWorkspaceDir(t *testing.T) {
 	service := NewService()
 
-	dir, err := service.GetWorkspaceDir()
+	dir, err := service.Get()
 	if err != nil {
-		t.Errorf("GetWorkspaceDir failed: %v", err)
+		t.Errorf("Get failed: %v", err)
 	}
 
 	expected, err := os.Getwd()
@@ -62,20 +62,20 @@ func TestGetWorkspaceDirFromTempDir(t *testing.T) {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
-	dir, err := service.GetWorkspaceDir()
+	dir, err := service.Get()
 	if err != nil {
-		t.Errorf("GetWorkspaceDir failed: %v", err)
+		t.Errorf("Get failed: %v", err)
 	}
 
 	// On macOS, /var might be a symlink to /private/var, so we need to check both
-	// GetWorkspaceDir should return a valid path
+	// Get should return a valid path
 	if _, err := os.Stat(dir); err != nil {
 		t.Errorf("Returned directory %s does not exist or is not accessible: %v", dir, err)
 	}
 
 	// Verify we're in the expected directory
 	if _, err := os.Stat(dir); err != nil {
-		t.Errorf("Directory returned by GetWorkspaceDir is not accessible: %v", err)
+		t.Errorf("Directory returned by Get is not accessible: %v", err)
 	}
 }
 
@@ -89,9 +89,9 @@ func TestGetWorkspaceDirAfterChangeDir(t *testing.T) {
 	}
 
 	// Get directory initially
-	dir1, err := service.GetWorkspaceDir()
+	dir1, err := service.Get()
 	if err != nil {
-		t.Errorf("GetWorkspaceDir failed: %v", err)
+		t.Errorf("Get failed: %v", err)
 	}
 
 	// Create temp directory and change to it
@@ -102,9 +102,9 @@ func TestGetWorkspaceDirAfterChangeDir(t *testing.T) {
 	}
 
 	// Get directory after changing
-	dir2, err := service.GetWorkspaceDir()
+	dir2, err := service.Get()
 	if err != nil {
-		t.Errorf("GetWorkspaceDir failed after changing directory: %v", err)
+		t.Errorf("Get failed after changing directory: %v", err)
 	}
 
 	// Restore original directory
@@ -120,6 +120,6 @@ func TestGetWorkspaceDirAfterChangeDir(t *testing.T) {
 
 	// Directories should be different
 	if dir1 == dir2 {
-		t.Error("GetWorkspaceDir should return different directories after changing working directory")
+		t.Error("Get should return different directories after changing working directory")
 	}
 }

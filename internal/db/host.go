@@ -18,11 +18,8 @@ limitations under the License.
 package db
 
 import (
-	"database/sql"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
-type Host interface {
-	GetDB() (*sql.DB, error)
-	GetProjectDB() (*sql.DB, error)
-	Close() error
-}
+// Host is now defined in ports package.
+type Host = ports.Host

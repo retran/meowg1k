@@ -36,7 +36,7 @@ type mockConfigReader struct {
 	config *config.Config
 }
 
-func (m *mockConfigReader) GetConfig() (*config.Config, error) {
+func (m *mockConfigReader) Get() (*config.Config, error) {
 	return m.config, nil
 }
 

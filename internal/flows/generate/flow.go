@@ -23,51 +23,26 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/core/task"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// TaskConfigProvider provides resolved task configuration.
-type TaskConfigProvider interface {
-	Get() (*task.ResolvedConfig, error)
-}
-
-// UserPromptProvider provides the user prompt for content generation.
-type UserPromptProvider interface {
-	GetUserPrompt() (string, error)
-}
-
-// SystemPromptProvider provides the system prompt for content generation.
-type SystemPromptProvider interface {
-	GetSystemPrompt() (string, error)
-}
-
-// ContentGenerationActivityFactory creates content generation activities.
-type ContentGenerationActivityFactory interface {
-	NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output]
-}
-
-// OutputWriter writes output to the user.
-type OutputWriter interface {
-	PrintLine(line string) error
-}
-
 // FlowFactory creates instances of the generate flow with injected dependencies.
 type FlowFactory struct {
-	taskConfigProvider               TaskConfigProvider
-	userPromptProvider               UserPromptProvider
-	systemPromptProvider             SystemPromptProvider
-	contentGenerationActivityFactory ContentGenerationActivityFactory
-	outputWriter                     OutputWriter
+	taskConfigProvider               ports.TaskConfigProvider
+	userPromptProvider               ports.UserPromptProvider
+	systemPromptProvider             ports.SystemPromptProvider
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	outputWriter                     ports.OutputWriter
 }
 
 // NewFlowFactory creates a new generate flow factory with injected services.
 func NewFlowFactory(
-	taskConfigProvider TaskConfigProvider,
-	userPromptProvider UserPromptProvider,
-	systemPromptProvider SystemPromptProvider,
-	contentGenerationActivityFactory ContentGenerationActivityFactory,
-	outputWriter OutputWriter,
+	taskConfigProvider ports.TaskConfigProvider,
+	userPromptProvider ports.UserPromptProvider,
+	systemPromptProvider ports.SystemPromptProvider,
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	outputWriter ports.OutputWriter,
 ) (*FlowFactory, error) {
 	if taskConfigProvider == nil {
 		return nil, fmt.Errorf("taskConfigProvider is nil")

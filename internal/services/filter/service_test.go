@@ -27,7 +27,7 @@ type mockConfigProvider struct {
 	cfg *config.Config
 }
 
-func (m *mockConfigProvider) GetConfig() (*config.Config, error) {
+func (m *mockConfigProvider) Get() (*config.Config, error) {
 	return m.cfg, nil
 }
 

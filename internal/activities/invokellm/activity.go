@@ -22,8 +22,8 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
-	gatewayService "github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -40,21 +40,16 @@ type Output struct {
 	Metadata map[string]any
 }
 
-// GenerationGatewayFactory creates generation gateways for LLM providers.
-type GenerationGatewayFactory interface {
-	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gatewayService.GenerationGateway, error)
-}
-
 // Factory creates instances of the InvokeLLM activity with injected dependencies.
 type Factory struct {
-	gatewayFactory GenerationGatewayFactory
+	gatewayFactory ports.GenerationGatewayFactory
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new InvokeLLM activity factory with the provided gateway factory.
-func NewFactory(gatewayFactory GenerationGatewayFactory) (*Factory, error) {
+func NewFactory(gatewayFactory ports.GenerationGatewayFactory) (*Factory, error) {
 	if gatewayFactory == nil {
 		return nil, fmt.Errorf("gateway factory cannot be nil")
 	}

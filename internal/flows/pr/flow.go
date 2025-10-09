@@ -27,26 +27,9 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
 	"github.com/retran/meowg1k/internal/core/git"
-	"github.com/retran/meowg1k/internal/core/pullRequest"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
-
-// PRConfigProvider provides pull request configuration.
-type PRConfigProvider interface {
-	GetPRConfig() (*pullRequest.ResolvedConfig, error)
-}
-
-// CommandParametersReader reads command-line parameters and flags.
-type CommandParametersReader interface {
-	GetBaseBranchFlag() (string, error)
-	GetIntentFlag() (string, error)
-	GetStdIn() (string, error)
-}
-
-// OutputWriter writes output to the user.
-type OutputWriter interface {
-	PrintLine(line string) error
-}
 
 // Factory creates instances of the PR flow with injected dependencies.
 type Factory struct {
@@ -55,9 +38,9 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
-	prConfigProvider           PRConfigProvider
-	commandParametersReader    CommandParametersReader
-	outputWriter               OutputWriter
+	prConfigProvider           ports.PRConfigProvider
+	commandParametersReader    ports.CommandParametersReader
+	outputWriter               ports.OutputWriter
 }
 
 // NewFactory creates a new PR flow factory with injected services.
@@ -67,9 +50,9 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composePRFactory executor.ActivityFactory[*composepr.Input, *composepr.Output],
-	prConfigProvider PRConfigProvider,
-	commandParametersReader CommandParametersReader,
-	outputWriter OutputWriter,
+	prConfigProvider ports.PRConfigProvider,
+	commandParametersReader ports.CommandParametersReader,
+	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
 	if listBranchFilesFactory == nil {
 		return nil, fmt.Errorf("listBranchFilesFactory is nil")

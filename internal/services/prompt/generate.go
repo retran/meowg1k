@@ -20,18 +20,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/core/task"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
-
-// StandardInputReader reads content from standard input.
-type StandardInputReader interface {
-	GetStdIn() (string, error)
-}
-
-// TaskConfigurationProvider provides task configuration.
-type TaskConfigurationProvider interface {
-	Get() (*task.ResolvedConfig, error)
-}
 
 // GeneratePromptService constructs prompts for the generate command.
 type GeneratePromptService struct {
@@ -41,8 +31,8 @@ type GeneratePromptService struct {
 
 // NewGeneratePromptService creates a prompt service for the generate command.
 func NewGeneratePromptService(
-	stdInReader StandardInputReader,
-	taskConfigProvider TaskConfigurationProvider,
+	stdInReader ports.StandardInputReader,
+	taskConfigProvider ports.TaskConfigurationProvider,
 ) (*GeneratePromptService, error) {
 	if stdInReader == nil {
 		return nil, fmt.Errorf("standard input reader is nil")
@@ -86,7 +76,7 @@ func (g *GeneratePromptService) GetUserPrompt() (string, error) {
 	return g.userPrompt, nil
 }
 
-func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) (string, error) {
+func buildSystemPrompt(taskConfigProvider ports.TaskConfigurationProvider) (string, error) {
 	cfg, err := taskConfigProvider.Get()
 	if err != nil {
 		return "", fmt.Errorf("failed to get task configuration: %w", err)
@@ -95,7 +85,7 @@ func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) (string, er
 	return cfg.SystemPrompt, nil
 }
 
-func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskConfigurationProvider) (string, error) {
+func buildUserPrompt(stdInReader ports.StandardInputReader, taskConfigProvider ports.TaskConfigurationProvider) (string, error) {
 	sb := strings.Builder{}
 
 	cfg, err := taskConfigProvider.Get()

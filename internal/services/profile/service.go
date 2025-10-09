@@ -24,31 +24,22 @@ import (
 
 	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/internal/core/model"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/core/profile"
 )
 
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
-
-// ModelResolver resolves model configurations.
-type ModelResolver interface {
-	Get(model model.Model) (*model.ResolvedModel, error)
-}
-
 // Service resolves and caches profile configurations.
 type Service struct {
-	modelResolver    ModelResolver
-	configReader     ConfigReader
+	modelResolver    ports.ModelResolver
+	configResolver   ports.ConfigResolver
 	resolvedProfiles map[profile.Profile]*profile.ResolvedProfile
 	mu               sync.RWMutex
 }
 
 // NewService creates a new profile resolver service.
-func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Service, error) {
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+func NewService(configResolver ports.ConfigResolver, modelResolver ports.ModelResolver) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	if modelResolver == nil {
@@ -57,7 +48,7 @@ func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Servic
 
 	service := &Service{
 		modelResolver:    modelResolver,
-		configReader:     configReader,
+		configResolver:   configResolver,
 		resolvedProfiles: make(map[profile.Profile]*profile.ResolvedProfile),
 	}
 	return service, nil
@@ -83,7 +74,7 @@ func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 		return resolved, nil
 	}
 
-	cfg, err := s.configReader.GetConfig()
+	cfg, err := s.configResolver.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}

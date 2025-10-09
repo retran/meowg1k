@@ -22,10 +22,11 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/llama"
 )
 
-var _ GenerationGateway = (*llamaGateway)(nil)
+var _ ports.GenerationGateway = (*llamaGateway)(nil)
 
 // TODO Uncomment when implemented
 // var _ EmbeddingGateway = (*llamaGateway)(nil)
@@ -44,7 +45,7 @@ const (
 )
 
 // NewLlamaGateway creates and initializes a new LlamaGateway.
-func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
+func newLlamaGateway(baseURL, apiKey string) (ports.GenerationGateway, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL is required for llama gateway")
 	}

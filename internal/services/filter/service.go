@@ -20,14 +20,9 @@ package filter
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
-
-// ConfigReader reads the application configuration.
-type ConfigReader interface {
-	GetConfig() (*config.Config, error)
-}
 
 // Service implements the Service interface.
 type Service struct {
@@ -35,13 +30,13 @@ type Service struct {
 }
 
 // NewService creates a file filter service with ignore patterns from configuration.
-func NewService(configReader ConfigReader) (*Service, error) {
-	if configReader == nil {
-		return nil, fmt.Errorf("config reader is nil")
+func NewService(configResolver ports.ConfigResolver) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
 	}
 
 	var patterns []string
-	if cfg, err := configReader.GetConfig(); cfg != nil && cfg.Filter != nil {
+	if cfg, err := configResolver.Get(); cfg != nil && cfg.Filter != nil {
 		patterns = cfg.Filter.Ignore
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to get cfg: %w", err)

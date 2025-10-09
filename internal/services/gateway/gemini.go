@@ -24,11 +24,12 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/ports"
 )
 
 var (
-	_ GenerationGateway = (*geminiGateway)(nil)
-	_ EmbeddingsGateway = (*geminiGateway)(nil)
+	_ ports.GenerationGateway = (*geminiGateway)(nil)
+	_ ports.EmbeddingsGateway = (*geminiGateway)(nil)
 )
 
 // geminiGateway is a unified client for the Google Gemini API,
@@ -39,7 +40,7 @@ type geminiGateway struct {
 }
 
 // NewGeminiGateway creates and initializes a new unified GeminiGateway.
-func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
+func newGeminiGateway(ctx context.Context, apiKey string) (ports.Gateway, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
