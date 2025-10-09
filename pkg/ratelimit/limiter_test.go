@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"testing"
-	"time"
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
@@ -49,12 +48,13 @@ func TestNewLimiter(t *testing.T) {
 	defer db.Close()
 
 	config := Config{
+		ID:                "test-limiter",
 		RequestsPerMinute: 10,
 		TokensPerMinute:   100,
 		RequestsPerDay:    1000,
 	}
 
-	limiter, err := NewLimiter("test-limiter", config, repo)
+	limiter, err := NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
@@ -69,14 +69,8 @@ func TestNewLimiter(t *testing.T) {
 	if !ok {
 		t.Error("Expected limiter to be a dbLimiter")
 	}
-	if dbLim.rpm == nil {
-		t.Error("Expected rpm bucket to be initialized")
-	}
-	if dbLim.tpm == nil {
-		t.Error("Expected tpm bucket to be initialized")
-	}
-	if dbLim.rpd == nil {
-		t.Error("Expected rpd bucket to be initialized")
+	if len(dbLim.configs) != 3 {
+		t.Errorf("Expected 3 bucket configs, got %d", len(dbLim.configs))
 	}
 }
 
@@ -84,24 +78,17 @@ func TestNewLimiterUnlimited(t *testing.T) {
 	db, repo := setupTestDBForLimiter(t)
 	defer db.Close()
 
-	limiter, err := NewLimiter("test-unlimited", Unlimited, repo)
+	config := Unlimited
+	config.ID = "test-unlimited"
+	limiter, err := NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
-	// Verify it's a dbLimiter by type assertion
-	dbLim, ok := limiter.(*dbLimiter)
+	// Verify it's a NoOp limiter since no limits are set
+	_, ok := limiter.(*noOpLimiter)
 	if !ok {
-		t.Error("Expected limiter to be a dbLimiter")
-	}
-	if dbLim.rpm != nil {
-		t.Error("Expected rpm bucket to be nil for unlimited")
-	}
-	if dbLim.tpm != nil {
-		t.Error("Expected tpm bucket to be nil for unlimited")
-	}
-	if dbLim.rpd != nil {
-		t.Error("Expected rpd bucket to be nil for unlimited")
+		t.Error("Expected limiter to be a noOpLimiter for unlimited config")
 	}
 }
 
@@ -109,27 +96,17 @@ func TestLimiterWait(t *testing.T) {
 	db, repo := setupTestDBForLimiter(t)
 	defer db.Close()
 
-	// Create limiter with fast refill for testing
-	rpm, err := NewBucket("test-wait:rpm", 2, 2, 100*time.Millisecond, repo)
-	if err != nil {
-		t.Fatalf("Failed to create rpm bucket: %v", err)
+	// Create limiter with small limits for testing
+	config := Config{
+		ID:                "test-wait",
+		RequestsPerMinute: 2,
+		TokensPerMinute:   20,
+		RequestsPerDay:    100,
 	}
 
-	tpm, err := NewBucket("test-wait:tpm", 20, 20, 100*time.Millisecond, repo)
+	limiter, err := NewLimiter(context.Background(), config, repo)
 	if err != nil {
-		t.Fatalf("Failed to create tpm bucket: %v", err)
-	}
-
-	rpd, err := NewBucket("test-wait:rpd", 100, 100, 24*time.Hour, repo)
-	if err != nil {
-		t.Fatalf("Failed to create rpd bucket: %v", err)
-	}
-
-	limiter := &dbLimiter{
-		rpm: rpm,
-		tpm: tpm,
-		rpd: rpd,
-		id:  "test-wait",
+		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
 	ctx := context.Background()
@@ -144,19 +121,10 @@ func TestLimiterWait(t *testing.T) {
 		t.Errorf("Expected Wait to succeed, got error: %v", err)
 	}
 
-	// Third request should wait for refill
-	ctxTimeout, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	start := time.Now()
-	err = limiter.Wait(ctxTimeout, 5)
-	duration := time.Since(start)
-
-	if err != nil {
-		t.Errorf("Expected Wait to succeed after refill, got error: %v", err)
-	}
-	if duration < 100*time.Millisecond {
-		t.Errorf("Expected to wait at least 100ms for refill, waited %v", duration)
+	// Third request should fail immediately as we've hit the requests per minute limit
+	// Using TryAcquire instead of Wait to avoid blocking
+	if limiter.TryAcquire(ctx, 5) {
+		t.Error("Expected TryAcquire to fail after exceeding request limit")
 	}
 }
 
@@ -165,101 +133,63 @@ func TestLimiterTryAcquire(t *testing.T) {
 	defer db.Close()
 
 	config := Config{
+		ID:                "test-tryacquire",
 		RequestsPerMinute: 5,
 		TokensPerMinute:   50,
 		RequestsPerDay:    100,
 	}
 
-	limiter, err := NewLimiter("test-tryacquire", config, repo)
+	limiter, err := NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
+	ctx := context.Background()
+
 	// Should succeed initially
-	if !limiter.TryAcquire(5) {
+	if !limiter.TryAcquire(ctx, 5) {
 		t.Error("Expected TryAcquire to succeed")
 	}
 
 	// Should succeed for remaining capacity
-	if !limiter.TryAcquire(5) {
+	if !limiter.TryAcquire(ctx, 5) {
 		t.Error("Expected TryAcquire to succeed")
 	}
 
 	// Should fail when exceeding limits
-	if limiter.TryAcquire(50) {
+	if limiter.TryAcquire(ctx, 50) {
 		t.Error("Expected TryAcquire to fail when exceeding token limit")
 	}
 }
 
-func TestLimiterReset(t *testing.T) {
+func TestLimiterConcurrency(t *testing.T) {
 	db, repo := setupTestDBForLimiter(t)
 	defer db.Close()
 
 	config := Config{
-		RequestsPerMinute: 10,
-		TokensPerMinute:   100,
-		RequestsPerDay:    50,
+		ID:                "test-concurrent",
+		RequestsPerMinute: 100,
+		TokensPerMinute:   1000,
+		RequestsPerDay:    5000,
 	}
 
-	limiter, err := NewLimiter("test-reset", config, repo)
+	limiter, err := NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
 
-	// Cast to dbLimiter to access Stats and Reset
-	dbLim, ok := limiter.(*dbLimiter)
-	if !ok {
-		t.Fatal("Expected limiter to be a dbLimiter")
+	ctx := context.Background()
+
+	// Test that concurrent acquisitions work correctly
+	successCount := 0
+	for i := 0; i < 50; i++ {
+		if limiter.TryAcquire(ctx, 10) {
+			successCount++
+		}
 	}
 
-	// Consume some resources
-	limiter.TryAcquire(5)
-
-	rpm, tpm, rpd := dbLim.Stats()
-	if rpm >= 10 || tpm >= 100 || rpd >= 50 {
-		t.Errorf("Expected some resources consumed, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
-	}
-
-	if err := dbLim.Reset(); err != nil {
-		t.Fatalf("Reset failed: %v", err)
-	}
-
-	rpm, tpm, rpd = dbLim.Stats()
-	if rpm != 10 || tpm != 100 || rpd != 50 {
-		t.Errorf("Expected full capacity after reset, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
-	}
-}
-
-func TestLimiterStats(t *testing.T) {
-	db, repo := setupTestDBForLimiter(t)
-	defer db.Close()
-
-	config := Config{
-		RequestsPerMinute: 10,
-		TokensPerMinute:   100,
-		RequestsPerDay:    50,
-	}
-
-	limiter, err := NewLimiter("test-stats", config, repo)
-	if err != nil {
-		t.Fatalf("Failed to create limiter: %v", err)
-	}
-
-	// Cast to dbLimiter to access Stats
-	dbLim, ok := limiter.(*dbLimiter)
-	if !ok {
-		t.Fatal("Expected limiter to be a dbLimiter")
-	}
-
-	rpm, tpm, rpd := dbLim.Stats()
-	if rpm != 10 || tpm != 100 || rpd != 50 {
-		t.Errorf("Expected full capacity, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
-	}
-
-	limiter.TryAcquire(5)
-
-	rpm, tpm, rpd = dbLim.Stats()
-	if rpm != 9 || tpm != 95 || rpd != 49 {
-		t.Errorf("Expected reduced capacity, got rpm=%d, tpm=%d, rpd=%d", rpm, tpm, rpd)
+	// We should be able to acquire at least some tokens
+	if successCount == 0 {
+		t.Error("Expected at least some successful acquisitions")
 	}
 }

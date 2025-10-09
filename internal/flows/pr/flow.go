@@ -100,24 +100,31 @@ func NewFactory(
 	if listBranchFilesFactory == nil {
 		return nil, ErrListBranchFilesFactoryIsNil
 	}
+
 	if applyFiltersFactory == nil {
 		return nil, ErrApplyFiltersFactoryIsNil
 	}
+
 	if fetchAllBranchDiffsFactory == nil {
 		return nil, ErrFetchAllBranchDiffsFactoryIsNil
 	}
+
 	if summarizeAllFactory == nil {
 		return nil, ErrSummarizeAllFactoryIsNil
 	}
+
 	if composePRFactory == nil {
 		return nil, ErrComposePRFactoryIsNil
 	}
+
 	if prConfigProvider == nil {
 		return nil, ErrPRConfigProviderIsNil
 	}
+
 	if commandParametersReader == nil {
 		return nil, ErrCommandParametersReaderIsNil
 	}
+
 	if outputWriter == nil {
 		return nil, ErrOutputWriterIsNil
 	}
@@ -140,9 +147,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		if f == nil {
 			return ErrFactoryIsNil
 		}
+
 		if ctx == nil {
 			return ErrContextIsNil
 		}
+
 		if flowCtx == nil {
 			return ErrFlowContextIsNil
 		}
@@ -152,10 +161,12 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Get the base branch to compare against
 		baseBranch, err := f.commandParametersReader.GetBaseBranchFlag()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get base-branch flag: %w", err)
 		}
 
 		if baseBranch == "" {
+			// TODO proper error
 			return fmt.Errorf("base branch is required for PR command (use --base flag)")
 		}
 
@@ -171,8 +182,10 @@ func (f *Factory) NewFlow() executor.Flow {
 				TargetBranch: baseBranch,
 			},
 		)
+
 		branchFiles, err := branchFilesFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to list branch files: %w", err)
 		}
 
@@ -188,8 +201,10 @@ func (f *Factory) NewFlow() executor.Flow {
 				Files: branchFiles.Files,
 			},
 		)
+
 		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to apply filters: %w", err)
 		}
 
@@ -206,8 +221,10 @@ func (f *Factory) NewFlow() executor.Flow {
 				TargetBranch: baseBranch,
 			},
 		)
+
 		fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to fetch branch diffs: %w", err)
 		}
 
@@ -226,27 +243,33 @@ func (f *Factory) NewFlow() executor.Flow {
 				Changes: changes,
 			},
 		)
+
 		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to summarize changes: %w", err)
 		}
 
 		// Phase 5: Compose PR description
 		prConfig, err := f.prConfigProvider.GetPRConfig()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
 		}
 
 		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
 			stdin, err := f.commandParametersReader.GetStdIn()
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to get stdin: %w", err)
 			}
+
 			intent = stdin
 		}
 
@@ -267,12 +290,14 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		prResult, err := prFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to compose PR description: %w", err)
 		}
 
 		flowCtx.SendCompleted("")
 
 		if err := f.outputWriter.PrintLine(prResult.PRDescription); err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to print PR description: %w", err)
 		}
 

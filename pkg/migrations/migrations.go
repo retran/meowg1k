@@ -42,6 +42,7 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 	if db == nil {
 		return ErrDatabaseIsNil
 	}
+
 	if migrations == nil {
 		return ErrMigrationsIsNil
 	}
@@ -52,6 +53,7 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 		);
 	`)
 	if err != nil {
+		// TODO proper error
 		return fmt.Errorf("failed to create schema_versions table: %w", err)
 	}
 
@@ -61,10 +63,12 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 		if err == sql.ErrNoRows {
 			_, err = db.Exec("INSERT INTO schema_versions (version) VALUES (0)")
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to initialize schema_versions table: %w", err)
 			}
 			currentVersion = 0
 		} else {
+			// TODO proper error
 			return fmt.Errorf("failed to get current schema version: %w", err)
 		}
 	}
@@ -82,14 +86,17 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 	for _, m := range migrations {
 		if m.Version > currentVersion {
 			if m.Up == nil {
+				// TODO proper error
 				return fmt.Errorf("%w for version %d", ErrMigrationUpFuncIsNil, m.Version)
 			}
 			if err := m.Up(tx); err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to apply migration %d: %w", m.Version, err)
 			}
 
 			_, err := tx.Exec("UPDATE schema_versions SET version = ?", m.Version)
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to update schema version to %d: %w", m.Version, err)
 			}
 		}

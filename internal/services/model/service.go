@@ -88,6 +88,7 @@ func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRe
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if providerRegistry == nil {
 		return nil, ErrProviderRegistryIsNil
 	}
@@ -123,11 +124,13 @@ func (s *Service) Get(model Model) (*ResolvedModel, error) {
 
 	cfg, err := s.configReader.GetConfig()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	resolved, err := s.resolveModelInternal(model, cfg)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
@@ -149,7 +152,7 @@ func (s *Service) GetInstanceKey(resolved *ResolvedModel) (string, error) {
 		resolved.Provider,
 		resolved.BaseURL,
 		resolved.Model,
-		resolved.APIKeyEnv, // Environment variable name, not the actual key
+		resolved.APIKeyEnv,
 	), nil
 }
 
@@ -164,11 +167,13 @@ func (s *Service) resolveModelInternal(
 
 	modelDef, exists := cfg.Models[string(model)]
 	if !exists {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %s", ErrModelNotFound, model)
 	}
 
 	providerDef, err := s.providerRegistry.Get(provider.Provider(modelDef.Provider))
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("unknown provider '%s' in model '%s': %w", modelDef.Provider, model, err)
 	}
 
@@ -210,6 +215,7 @@ func (s *Service) resolveModelInternal(
 	}
 
 	if err := s.validateResolvedModel(resolved); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("model validation failed: %w", err)
 	}
 
@@ -223,10 +229,12 @@ func (s *Service) validateResolvedModel(resolved *ResolvedModel) error {
 	}
 
 	if resolved.MaxOutputTokens > 200000 {
+		// TODO proper error
 		return fmt.Errorf("%w: %d (max 200000)", ErrMaxOutputTokensTooLarge, resolved.MaxOutputTokens)
 	}
 
 	if resolved.MaxInputTokens > 2000000 {
+		// TODO proper error
 		return fmt.Errorf("%w: %d (max 2000000)", ErrMaxInputTokensTooLarge, resolved.MaxInputTokens)
 	}
 

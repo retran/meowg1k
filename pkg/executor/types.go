@@ -209,7 +209,7 @@ type Executor interface {
 		activity Activity[any, any],
 		input any,
 	) *future.Future[any]
-	RunFlow(ctx context.Context, name string, flow Flow, retryPolicy *RetryPolicy) error
+	RunFlow(ctx context.Context, name string, flow Flow) error
 }
 
 // RunActivity is a generic wrapper around the executor's runActivity method.
@@ -229,18 +229,22 @@ func RunActivity[T, K any](
 		_ = typedFuture.CompleteWithError(ErrExecutorCannotBeNil)
 		return typedFuture
 	}
+
 	if ctx == nil {
 		_ = typedFuture.CompleteWithError(ErrContextParameterCannotBeNil)
 		return typedFuture
 	}
+
 	if parentCtx == nil {
 		_ = typedFuture.CompleteWithError(ErrParentContextCannotBeNil)
 		return typedFuture
 	}
+
 	if name == "" {
 		_ = typedFuture.CompleteWithError(ErrNameCannotBeEmpty)
 		return typedFuture
 	}
+
 	if activity == nil {
 		_ = typedFuture.CompleteWithError(ErrActivityCannotBeNil)
 		return typedFuture

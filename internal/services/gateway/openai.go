@@ -60,9 +60,11 @@ func (g *openaiGateway) GenerateContent(
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -76,6 +78,7 @@ func (g *openaiGateway) GenerateContent(
 		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
 	})
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
@@ -94,9 +97,11 @@ func (g *openaiGateway) ComputeEmbeddings(
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if request == nil {
 		return nil, ErrRequestIsNil
 	}
@@ -114,6 +119,7 @@ func (g *openaiGateway) ComputeEmbeddings(
 
 	response, err := g.client.Embeddings.New(ctx, params)
 	if err != nil {
+		// TODO proper error
 		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 

@@ -115,14 +115,9 @@ func TestGetPRConfigDefault(t *testing.T) {
 		t.Errorf("NewService returned error: %v", err)
 	}
 
-	result, err := service.GetPRConfig()
-	if err != nil {
-		t.Errorf("GetPRConfig failed: %v", err)
-	}
-
-	expectedPrompt := "You are an expert software engineer. Write a clear and detailed Pull Request description based on the provided change summaries. Include a concise title and a detailed description explaining what changed and why."
-	if result.SystemPrompt != expectedPrompt {
-		t.Errorf("Expected default prompt, got '%s'", result.SystemPrompt)
+	_, err = service.GetPRConfig()
+	if err == nil {
+		t.Error("Expected error when PR config is nil, got nil")
 	}
 }
 

@@ -73,6 +73,7 @@ func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration)
 // This context is canceled when shutdown begins.
 func (m *Service) Context() context.Context {
 	if m == nil {
+		// TODO proper error
 		return context.Background()
 	}
 
@@ -88,6 +89,7 @@ func (m *Service) Register(callback Callback) error {
 	if m == nil {
 		return ErrServiceIsNil
 	}
+
 	if callback == nil {
 		return ErrCallbackIsNil
 	}
@@ -147,10 +149,8 @@ func (m *Service) shutdown() {
 		"timeout", m.timeout.String(),
 		"registered_callbacks", len(m.callbacks))
 
-	// Cancel the main context to signal shutdown
 	m.cancel()
 
-	// Create a timeout context for the shutdown process
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), m.timeout)
 	defer shutdownCancel()
 
@@ -159,7 +159,6 @@ func (m *Service) shutdown() {
 	copy(callbacks, m.callbacks)
 	m.mu.RUnlock()
 
-	// Execute all shutdown callbacks
 	for i, callback := range callbacks {
 		callbackStart := time.Now()
 

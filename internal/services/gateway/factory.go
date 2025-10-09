@@ -56,6 +56,7 @@ type Factory struct {
 // NewFactory creates a new gateway factory with a lazy repository function.
 // The repoFunc will only be called when a rate limiter with actual limits is needed.
 func NewFactory(repoFunc func() ratelimit.Repository) *Factory {
+	// TODO proper checks and error
 	return &Factory{
 		limiters: make(map[string]ratelimit.Limiter),
 		repoFunc: repoFunc,
@@ -76,6 +77,7 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 
 	// Generate key based on model instance characteristics
 	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
+	// TODO use centralized method to generate keys
 	key := string(profile.Provider) + ":" + profile.BaseURL + ":" + profile.Model + ":" + profile.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {
@@ -83,6 +85,7 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 	}
 
 	config := ratelimit.Config{
+		ID:                key,
 		RequestsPerMinute: profile.RateLimit.RequestsPerMinute,
 		TokensPerMinute:   profile.RateLimit.TokensPerMinute,
 		RequestsPerDay:    profile.RateLimit.RequestsPerDay,
@@ -90,20 +93,18 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 
 	var limiter ratelimit.Limiter
 
-	// If no limits are set, use no-op limiter (no DB required)
 	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
 		limiter = ratelimit.NewNoOpLimiter()
 	} else {
-		// Get the repository (this will initialize DB if needed)
 		repo := f.repoFunc()
 		if repo == nil {
-			// Fail fast if we can't get a repository when rate limiting is configured
+			// TODO proper error
 			return nil, fmt.Errorf("rate limiting is configured but database repository is not available")
 		}
 		var err error
-		limiter, err = ratelimit.NewLimiter(key, config, repo)
+		limiter, err = ratelimit.NewLimiter(context.Background(), config, repo)
 		if err != nil {
-			// Fail fast if we can't create a limiter when rate limiting is configured
+			// TODO proper error
 			return nil, fmt.Errorf("failed to create rate limiter: %w", err)
 		}
 	}
@@ -121,6 +122,7 @@ func (f *Factory) NewGenerationGateway(
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if profile == nil {
 		return nil, ErrProfileCannotBeNil
 	}
@@ -187,8 +189,10 @@ func (f *Factory) NewGenerationGateway(
 
 	limiter, err := f.getRateLimiter(profile)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
+
 	return newRateLimitedGenerationGateway(gateway, limiter), nil
 }
 
@@ -200,6 +204,7 @@ func (f *Factory) NewEmbeddingsGateway(
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if profile == nil {
 		return nil, ErrProfileCannotBeNil
 	}
@@ -241,11 +246,13 @@ func (f *Factory) NewEmbeddingsGateway(
 	}
 
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	limiter, err := f.getRateLimiter(profile)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
 

@@ -46,8 +46,8 @@ type WorkspaceDirProvider interface {
 
 // Service implements GitService.
 type Service struct {
-	workspaceDirProvider WorkspaceDirProvider
-	semaphore            chan struct{} // Worker pool with 1 worker for sequential execution
+	workspaceDir string
+	semaphore    chan struct{} // Worker pool with 1 worker for sequential execution
 }
 
 // NewService creates a new Git service.
@@ -58,20 +58,25 @@ func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
 		return nil, ErrWorkspaceDirProviderIsNil
 	}
 
+	workspaceDir, err := workspaceDirProvider.GetWorkspaceDir()
+	if err != nil {
+		// TODO proper error
+		return nil, err
+	}
+
 	return &Service{
-		workspaceDirProvider: workspaceDirProvider,
-		semaphore:            make(chan struct{}, 1), // Only 1 concurrent git command
+		workspaceDir: workspaceDir,
+		semaphore:    make(chan struct{}, 1), // Only 1 concurrent git command
 	}, nil
 }
 
 // runGitCommand executes a git command with the provided arguments in the workspace directory.
 func (g *Service) runGitCommand(args ...string) (string, error) {
-	workspaceDir, err := g.workspaceDirProvider.GetWorkspaceDir()
-	if err != nil {
-		return "", fmt.Errorf("could not get workspace directory: %w", err)
+	if g == nil {
+		return "", ErrServiceIsNil
 	}
 
-	finalArgs := append([]string{"-C", workspaceDir}, args...)
+	finalArgs := append([]string{"-C", g.workspaceDir}, args...)
 	// #nosec G204 - git command with controlled arguments, not shell execution
 	cmd := exec.Command("git", finalArgs...)
 
@@ -80,8 +85,10 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			stderr := string(exitErr.Stderr)
+			// TODO proper error
 			return "", fmt.Errorf("%w: %s\nargs: %v", ErrGitCommandFailed, strings.TrimSpace(stderr), args)
 		}
+		// TODO proper error
 		return "", fmt.Errorf("failed to run git command: %w", err)
 	}
 
@@ -99,6 +106,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 
 	out, err := g.runGitCommand("diff", "--cached", "--name-only")
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}
 
@@ -165,8 +173,10 @@ func (g *Service) GetCurrentBranch() (string, error) {
 
 	branch, err := g.runGitCommand("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
+
 	return strings.TrimSpace(branch), nil
 }
 
@@ -177,6 +187,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 	}
 
 	if strings.TrimSpace(targetBranch) == "" {
+		// TODO proper error
 		return nil, errors.New("target branch cannot be empty")
 	}
 
@@ -185,6 +196,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 
 	output, err := g.runGitCommand("diff", "--name-only", targetBranch+"...HEAD")
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 	}
 
@@ -219,7 +231,9 @@ func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 
 	diff, err := g.runGitCommand("diff", "--unified=0", targetBranch+"...HEAD", "--", filePath)
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to get branch diff for %s: %w", filePath, err)
 	}
+
 	return diff, nil
 }

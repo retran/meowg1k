@@ -51,7 +51,7 @@ var (
 	ErrCmdIsNil = errors.New("cobra command is nil")
 )
 
-// AppContainer is the main application struct that holds all cross-cutting services.
+// Container is the main application struct that holds all cross-cutting services.
 type Container struct {
 	// Logger is the structured logger for the application.
 	Logger *slog.Logger
@@ -90,6 +90,7 @@ const (
 // validateLogPath validates the log path to prevent directory traversal attacks
 func validateLogPath(logDir, fileName string) error {
 	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
+		// TODO proper error
 		return fmt.Errorf("%w: %s", ErrInvalidLogFilename, fileName)
 	}
 
@@ -97,6 +98,7 @@ func validateLogPath(logDir, fileName string) error {
 	logPath := filepath.Join(cleanLogDir, fileName)
 
 	if !strings.HasPrefix(logPath, cleanLogDir) {
+		// TODO proper error
 		return fmt.Errorf("%w: %s is outside %s", ErrLogPathOutsideDirectory, logPath, cleanLogDir)
 	}
 
@@ -124,27 +126,30 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	logDir, err := getLogDir()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get log directory: %w", err)
 	}
 
 	if err = os.MkdirAll(logDir, 0o750); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
 	if err = validateLogPath(logDir, logFileName); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("invalid log path: %w", err)
 	}
 
 	root, err := os.OpenRoot(logDir)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
 	defer root.Close()
+
 	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %w", err)
-	}
-	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
 
@@ -157,6 +162,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	err = shutdownService.Register(func(ctx context.Context) error {
 		if logFile != nil {
 			if err = logFile.Close(); err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to close log file: %w", err)
 			}
 		}
@@ -164,16 +170,19 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil
 	})
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to register log file shutdown callback: %w", err)
 	}
 
 	commandService, err := command.NewService(cmd)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	configService, err := config.NewService(commandService)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
@@ -182,10 +191,10 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return outputService.Flush()
 	})
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to register output service shutdown callback: %w", err)
 	}
 
-	// Initialize database path service (but not the DB itself - that's lazy)
 	dbPathService := dbpath.NewService()
 
 	container.Logger = logger
@@ -208,12 +217,14 @@ func (c *Container) initDB() error {
 	c.dbInitOnce.Do(func() {
 		dbHost, err := db.NewLocalHost(c.dbPathService)
 		if err != nil {
+			// TODO proper error
 			initErr = fmt.Errorf("failed to initialize database host: %w", err)
 			return
 		}
 
 		mainDB, err := dbHost.GetDB()
 		if err != nil {
+			// TODO proper error
 			initErr = fmt.Errorf("failed to get main database: %w", err)
 			return
 		}
@@ -222,10 +233,12 @@ func (c *Container) initDB() error {
 
 		if err := c.ShutdownService.Register(func(ctx context.Context) error {
 			if err := dbHost.Close(); err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to close database host: %w", err)
 			}
 			return nil
 		}); err != nil {
+			// TODO proper error
 			initErr = fmt.Errorf("failed to register database shutdown callback: %w", err)
 			return
 		}
@@ -239,6 +252,7 @@ func (c *Container) initDB() error {
 // GetRateLimitRepo returns the rate limit repository, initializing the database if needed.
 func (c *Container) GetRateLimitRepo() ratelimit.Repository {
 	if err := c.initDB(); err != nil {
+		// TODO proper error
 		c.Logger.Error("failed to initialize database", "error", err)
 		return nil
 	}
@@ -250,6 +264,7 @@ func getLogDir() (string, error) {
 	// TODO review if this is the best location for logs
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
+		// TODO proper error
 		return "", err
 	}
 

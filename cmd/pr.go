@@ -59,13 +59,14 @@ The intent will be included in the prompt to help generate a more accurate PR de
 
 		flow, err := appContainer.CreatePRFlow()
 		if err != nil {
-			return err
+			return err // TODO proper error
 		}
 
 		runner, err := app.NewFlowRunner(appContainer)
 		if err != nil {
-			return err
+			return err // TODO proper error
 		}
+
 		return runner.RunFlow(ctx, "GeneratePR", flow)
 	},
 }
@@ -74,7 +75,5 @@ func init() {
 	rootCmd.AddCommand(prCmd)
 	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the PR (can also be provided via stdin)")
 	prCmd.Flags().StringP("base", "b", "", "Base branch to compare against (required)")
-	// This should never fail as we're just marking a flag as required
-	// If it does fail, it's a programming error in the command setup
 	_ = prCmd.MarkFlagRequired("base")
 }

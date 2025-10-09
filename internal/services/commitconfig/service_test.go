@@ -105,6 +105,7 @@ func TestGetCommitConfigDefault(t *testing.T) {
 			Commit: nil,
 		},
 	}
+
 	profileSvc := &mockProfileResolver{
 		Profile: resolvedProfile,
 	}
@@ -114,14 +115,9 @@ func TestGetCommitConfigDefault(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	result, err := service.GetCommitConfig()
-	if err != nil {
-		t.Errorf("GetCommitConfig failed: %v", err)
-	}
-
-	expectedPrompt := "You are an expert software engineer. Write a clear and descriptive commit message in the Conventional Commits format based on the provided change summaries."
-	if result.SystemPrompt != expectedPrompt {
-		t.Errorf("Expected default prompt, got '%s'", result.SystemPrompt)
+	_, err = service.GetCommitConfig()
+	if err == nil {
+		t.Error("Expected error when Commit config is nil, got nil")
 	}
 }
 

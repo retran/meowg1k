@@ -103,19 +103,21 @@ func NewExecutor() *Impl {
 }
 
 // WithRetryPolicy sets the retry policy for this executor
-func (e *Impl) WithRetryPolicy(policy *RetryPolicy) Executor {
+func (e *Impl) WithRetryPolicy(policy *RetryPolicy) *Impl {
 	if policy == nil {
 		policy = DefaultRetryPolicy()
 	}
+
 	e.RetryPolicy = policy
 	return e
 }
 
 // WithFeedbackHandler sets the feedback handler for this executor
-func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) Executor {
+func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) *Impl {
 	if handler == nil {
 		handler = NoOpFeedbackHandler
 	}
+
 	e.FeedbackHandler = handler
 	return e
 }
@@ -125,17 +127,19 @@ func (e *Impl) RunFlow(
 	ctx context.Context,
 	flowName string,
 	flow Flow,
-	retryPolicy *RetryPolicy,
 ) error {
 	if e == nil {
 		return ErrExecutorIsNil
 	}
+
 	if ctx == nil {
 		return ErrContextCannotBeNil
 	}
+
 	if flowName == "" {
 		return ErrFlowNameIsEmpty
 	}
+
 	if flow == nil {
 		return ErrFlowIsNil
 	}
@@ -154,6 +158,7 @@ func (e *Impl) RunFlow(
 
 	_, err := fut.Get(ctx)
 
+	// TODO proper error
 	return err
 }
 
@@ -173,22 +178,27 @@ func (e *Impl) runActivity(
 		_ = fut.CompleteWithError(ErrExecutorIsNil)
 		return fut
 	}
+
 	if ctx == nil {
 		_ = fut.CompleteWithError(ErrContextCannotBeNil)
 		return fut
 	}
+
 	if parentCtx == nil {
 		_ = fut.CompleteWithError(ErrContextIsNil)
 		return fut
 	}
+
 	if activityName == "" {
 		_ = fut.CompleteWithError(ErrActivityNameIsEmpty)
 		return fut
 	}
+
 	if activity == nil {
 		_ = fut.CompleteWithError(ErrActivityIsNil)
 		return fut
 	}
+
 	if e.RetryPolicy == nil {
 		_ = fut.CompleteWithError(ErrRetryPolicyIsNil)
 		return fut
@@ -217,12 +227,15 @@ func (e *Impl) executeFlow(
 	if e == nil {
 		return ErrExecutorIsNil
 	}
+
 	if ctx == nil {
 		return ErrContextCannotBeNil
 	}
+
 	if flowCtx == nil {
 		return ErrContextIsNil
 	}
+
 	if flow == nil {
 		return ErrFlowIsNil
 	}
@@ -254,21 +267,27 @@ func (e *Impl) executeActivity(
 	if e == nil {
 		return nil, ErrExecutorIsNil
 	}
+
 	if ctx == nil {
 		return nil, ErrContextCannotBeNil
 	}
+
 	if activityCtx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if activity == nil {
 		return nil, ErrActivityIsNil
 	}
+
 	if policy == nil {
 		return nil, ErrRetryPolicyIsNil
 	}
+
 	if policy.MaxAttempts < 1 {
 		return nil, ErrInvalidMaxAttempts
 	}
+
 	if policy.Multiplier < 1.0 {
 		return nil, ErrInvalidMultiplier
 	}

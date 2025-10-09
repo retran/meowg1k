@@ -56,6 +56,7 @@ func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 	if branchDiffReader == nil {
 		return nil, ErrBranchDiffReaderIsNil
 	}
+
 	return &Factory{
 		branchDiffReader: branchDiffReader,
 	}, nil
@@ -65,8 +66,10 @@ func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
@@ -75,6 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 
 		change, err := f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
@@ -84,6 +88,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
 				originalFileContent = "" // File is new
 			} else {
+				// TODO proper error
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 			}
 		}
@@ -101,6 +106,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 					ChangedFileContent:  "", // Empty for deleted files
 				}, nil
 			}
+
+			// TODO proper error
 			return nil, fmt.Errorf("failed to read current file content of %s: %w", input.Filename, err)
 		}
 

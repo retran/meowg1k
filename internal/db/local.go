@@ -50,11 +50,14 @@ func NewLocalHost(dbPathService DBPathService) (Host, error) {
 
 	mainDBPath, err := dbPathService.GetMainDBPath()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get main db path: %w", err)
 	}
+
 	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on", mainDBPath)
 	db, err := sql.Open("sqlite3", dbURL)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to open main db at %s: %w", mainDBPath, err)
 	}
 
@@ -66,10 +69,12 @@ func NewLocalHost(dbPathService DBPathService) (Host, error) {
 	}
 
 	if err := host.migrateDB(); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to migrate db: %w", err)
 	}
 
 	if err := host.migrateProjectDB(); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to migrate project db: %w", err)
 	}
 
@@ -116,10 +121,12 @@ func (h *localHostImpl) migrateDB() error {
 
 	allMigrations, err := h.getMainDBMigrations()
 	if err != nil {
+		// TODO proper error
 		return fmt.Errorf("failed to get main db migrations: %w", err)
 	}
 
 	if err := migrations.RunMigrations(h.mainDB, allMigrations); err != nil {
+		// TODO proper error
 		return fmt.Errorf("failed to run main db migrations: %w", err)
 	}
 
@@ -143,6 +150,7 @@ func (h *localHostImpl) Close() error {
 
 	if h.mainDB != nil {
 		if err := h.mainDB.Close(); err != nil {
+			// TODO proper error
 			errs = append(errs, fmt.Errorf("failed to close main db: %w", err))
 		}
 	}
@@ -150,11 +158,13 @@ func (h *localHostImpl) Close() error {
 	// Only close projectDB if it's different from mainDB
 	if h.projectDB != nil && h.projectDB != h.mainDB {
 		if err := h.projectDB.Close(); err != nil {
+			// TODO proper error
 			errs = append(errs, fmt.Errorf("failed to close project db: %w", err))
 		}
 	}
 
 	if len(errs) > 0 {
+		// TODO proper error
 		return fmt.Errorf("failed to close db: %v", errs)
 	}
 

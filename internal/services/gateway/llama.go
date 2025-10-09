@@ -53,6 +53,7 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 
 	client, err := llama.NewService(baseURL, apiKey)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to create llama client: %w", err)
 	}
 
@@ -66,9 +67,11 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateCon
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -100,6 +103,7 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateCon
 
 	resp, err := g.client.Complete(ctx, req)
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to generate content: failed to fetch response from local LLM API: %w", err)
 	}
 

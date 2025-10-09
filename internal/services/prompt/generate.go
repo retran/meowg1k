@@ -56,17 +56,20 @@ func NewGeneratePromptService(
 	if stdInReader == nil {
 		return nil, ErrStandardInputReaderIsNil
 	}
+
 	if taskConfigProvider == nil {
 		return nil, ErrTaskConfigurationProviderIsNil
 	}
 
 	systemPrompt, err := buildSystemPrompt(taskConfigProvider)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	userPrompt, err := buildUserPrompt(stdInReader, taskConfigProvider)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
@@ -97,8 +100,10 @@ func (g *GeneratePromptService) GetUserPrompt() (string, error) {
 func buildSystemPrompt(taskConfigProvider TaskConfigurationProvider) (string, error) {
 	cfg, err := taskConfigProvider.Get()
 	if err != nil {
+		// TODO proper error
 		return "", err
 	}
+
 	return cfg.SystemPrompt, nil
 }
 
@@ -107,6 +112,7 @@ func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskCon
 
 	cfg, err := taskConfigProvider.Get()
 	if err != nil {
+		// TODO proper error
 		return "", err
 	}
 
@@ -114,6 +120,7 @@ func buildUserPrompt(stdInReader StandardInputReader, taskConfigProvider TaskCon
 
 	contents, err := stdInReader.GetStdIn()
 	if err != nil {
+		// TODO proper error
 		return "", err
 	}
 

@@ -60,6 +60,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if profileResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
@@ -78,6 +79,7 @@ func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
 
 	config, err := s.configReader.GetConfig()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
@@ -91,11 +93,13 @@ func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	if systemPrompt == "" {
-		systemPrompt = "You are an expert software engineer. Write a clear and detailed Pull Request description based on the provided change summaries. Include a concise title and a detailed description explaining what changed and why."
+		// TODO proper error
+		return nil, fmt.Errorf("failed to get system prompt")
 	}
 
 	return &ResolvedPRConfig{

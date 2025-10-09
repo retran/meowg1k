@@ -58,13 +58,14 @@ The intent will be included in the prompt to help generate a more accurate commi
 
 		flow, err := appContainer.CreateCommitFlow()
 		if err != nil {
-			return err
+			return err // TODO proper error
 		}
 
 		runner, err := app.NewFlowRunner(appContainer)
 		if err != nil {
-			return err
+			return err // TODO proper error
 		}
+
 		return runner.RunFlow(ctx, "GenerateCommit", flow)
 	},
 }

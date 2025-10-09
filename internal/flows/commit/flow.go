@@ -110,30 +110,39 @@ func NewFactory(
 	if listStagedFactory == nil {
 		return nil, ErrListStagedFactoryIsNil
 	}
+
 	if listBranchFilesFactory == nil {
 		return nil, ErrListBranchFilesFactoryIsNil
 	}
+
 	if applyFiltersFactory == nil {
 		return nil, ErrApplyFiltersFactoryIsNil
 	}
+
 	if fetchAllDiffsFactory == nil {
 		return nil, ErrFetchAllDiffsFactoryIsNil
 	}
+
 	if fetchAllBranchDiffsFactory == nil {
 		return nil, ErrFetchAllBranchDiffsFactoryIsNil
 	}
+
 	if summarizeAllFactory == nil {
 		return nil, ErrSummarizeAllFactoryIsNil
 	}
+
 	if composeCommitFactory == nil {
 		return nil, ErrComposeCommitFactoryIsNil
 	}
+
 	if commitConfigProvider == nil {
 		return nil, ErrCommitConfigProviderIsNil
 	}
+
 	if commandParametersReader == nil {
 		return nil, ErrCommandParametersReaderIsNil
 	}
+
 	if outputWriter == nil {
 		return nil, ErrOutputWriterIsNil
 	}
@@ -158,9 +167,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		if f == nil {
 			return ErrFactoryIsNil
 		}
+
 		if ctx == nil {
 			return ErrContextIsNil
 		}
+
 		if flowCtx == nil {
 			return ErrFlowContextIsNil
 		}
@@ -170,6 +181,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Check if we're in squash mode (branch comparison)
 		targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get target-branch flag: %w", err)
 		}
 
@@ -189,8 +201,10 @@ func (f *Factory) NewFlow() executor.Flow {
 					TargetBranch: targetBranch,
 				},
 			)
+
 			branchFiles, err := branchFilesFuture.Get(ctx)
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to list branch files: %w", err)
 			}
 			files = branchFiles.Files
@@ -205,8 +219,10 @@ func (f *Factory) NewFlow() executor.Flow {
 				listStaged,
 				&liststaged.Input{},
 			)
+
 			stagedFiles, err := stagedFilesFuture.Get(ctx)
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to list staged files: %w", err)
 			}
 			files = stagedFiles.Files
@@ -224,8 +240,10 @@ func (f *Factory) NewFlow() executor.Flow {
 				Files: files,
 			},
 		)
+
 		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to apply filters: %w", err)
 		}
 
@@ -246,11 +264,13 @@ func (f *Factory) NewFlow() executor.Flow {
 					TargetBranch: targetBranch,
 				},
 			)
+
 			fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to fetch branch diffs: %w", err)
 			}
-			// Convert to generic slice
+
 			changes = append(changes, fetchAllBranchDiffsOutput.Changes...)
 		} else {
 			// Normal mode: fetch staged diffs
@@ -265,11 +285,13 @@ func (f *Factory) NewFlow() executor.Flow {
 					Files: filteredFiles.Files,
 				},
 			)
+
 			fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to fetch diffs: %w", err)
 			}
-			// Convert to generic slice
+
 			changes = append(changes, fetchAllDiffsOutput.Changes...)
 		}
 
@@ -285,27 +307,33 @@ func (f *Factory) NewFlow() executor.Flow {
 				Changes: changes,
 			},
 		)
+
 		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to summarize changes: %w", err)
 		}
 
 		// Phase 5: Compose commit message
 		commitConfig, err := f.commitConfigProvider.GetCommitConfig()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}
 
 		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
 			stdin, err := f.commandParametersReader.GetStdIn()
 			if err != nil {
+				// TODO proper error
 				return fmt.Errorf("failed to get stdin: %w", err)
 			}
+
 			intent = stdin
 		}
 
@@ -326,12 +354,14 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		commitResult, err := commitFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to compose commit message: %w", err)
 		}
 
 		flowCtx.SendCompleted("")
 
 		if err := f.outputWriter.PrintLine(commitResult.CommitMessage); err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to print commit message: %w", err)
 		}
 

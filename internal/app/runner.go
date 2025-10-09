@@ -39,6 +39,7 @@ func NewFlowRunner(container *Container) (*FlowRunner, error) {
 	if container == nil {
 		return nil, ErrContainerIsNil
 	}
+
 	return &FlowRunner{container: container}, nil
 }
 
@@ -51,8 +52,10 @@ func (r *FlowRunner) RunFlow(
 	if r == nil {
 		return ErrContainerIsNil
 	}
+
 	silent, err := r.container.CommandService.GetSilentFlag()
 	if err != nil {
+		// TODO proper error
 		return fmt.Errorf("failed to get silent flag: %w", err)
 	}
 
@@ -60,16 +63,20 @@ func (r *FlowRunner) RunFlow(
 	executionTracker.Start()
 
 	exec := executor.NewExecutor().
+		WithRetryPolicy(executor.DefaultRetryPolicy()).
 		WithFeedbackHandler(executionTracker.FeedbackHandler())
 
-	flowErr := exec.RunFlow(ctx, flowName, flow, executor.DefaultRetryPolicy())
+	flowErr := exec.RunFlow(ctx, flowName, flow)
 
 	executionTracker.Stop()
 
 	if flushErr := r.container.OutputService.Flush(); flushErr != nil {
 		if flowErr != nil {
+			// TODO proper error
 			return fmt.Errorf("flow error: %w, flush error: %v", flowErr, flushErr)
 		}
+
+		// TODO proper error
 		return fmt.Errorf("failed to flush output: %w", flushErr)
 	}
 

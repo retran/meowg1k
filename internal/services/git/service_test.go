@@ -205,8 +205,9 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 
 func TestServiceImpl_RunGitCommandErrorHandling(t *testing.T) {
 	workspaceService := &mockWorkspaceService{}
+	workspaceDir, _ := workspaceService.GetWorkspaceDir()
 	service := &Service{
-		workspaceDirProvider: workspaceService,
+		workspaceDir: workspaceDir,
 	}
 
 	// Test with invalid git command to trigger error handling

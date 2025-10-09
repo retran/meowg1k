@@ -45,6 +45,7 @@ func (s *Service) GetMainDBPath() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	return s.mainDBPath, nil
 }
 
@@ -70,6 +71,6 @@ func determineMainDBPath() string {
 		}
 	}
 
-	// Fallback to current directory
+	// TODO return error
 	return "meowg1k.db"
 }

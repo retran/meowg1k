@@ -39,7 +39,9 @@ func (g *Service) GetWorkspaceDir() (string, error) {
 
 	path, err := os.Getwd()
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
+
 	return path, nil
 }

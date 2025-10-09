@@ -176,6 +176,7 @@ func (s *Service) Get(providerType Provider) (ProviderDefinition, error) {
 
 	provider, exists := s.providers[providerType]
 	if !exists {
+		// TODO proper error
 		return ProviderDefinition{}, fmt.Errorf("%w: %s", ErrProviderNotFound, providerType)
 	}
 

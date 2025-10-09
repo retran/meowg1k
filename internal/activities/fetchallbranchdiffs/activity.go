@@ -60,6 +60,7 @@ func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) (*F
 	if branchFileDiffActivityFactory == nil {
 		return nil, ErrBranchFileDiffActivityFactoryIsNil
 	}
+
 	return &Factory{
 		branchFileDiffActivityFactory: branchFileDiffActivityFactory,
 	}, nil
@@ -69,8 +70,10 @@ func NewFactory(branchFileDiffActivityFactory BranchFileDiffActivityFactory) (*F
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
@@ -97,6 +100,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
 		for _, err := range errs {
 			if err != nil {
+				// TODO proper error joining
 				return nil, fmt.Errorf("failed to read branch diffs: %w", err)
 			}
 		}

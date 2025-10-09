@@ -63,6 +63,7 @@ func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactor
 	if contentGenerationActivityFactory == nil {
 		return nil, ErrContentGenerationActivityFactoryIsNil
 	}
+
 	return &Factory{
 		contentGenerationActivityFactory: contentGenerationActivityFactory,
 	}, nil
@@ -72,8 +73,10 @@ func NewFactory(contentGenerationActivityFactory ContentGenerationActivityFactor
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
@@ -113,8 +116,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			contentGenerationActivity,
 			invokeInput,
 		)
+
 		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)
 		}
 

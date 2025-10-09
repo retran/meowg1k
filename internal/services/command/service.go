@@ -76,6 +76,7 @@ func (s *Service) GetCommand() (*cobra.Command, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
+
 	return s.cmd, nil
 }
 
@@ -84,9 +85,11 @@ func (s *Service) GetCommandName() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Name(), nil
 }
 
@@ -95,9 +98,11 @@ func (s *Service) GetConfigPath() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("config")
 }
 
@@ -106,9 +111,11 @@ func (s *Service) GetTaskName() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("task")
 }
 
@@ -117,9 +124,11 @@ func (s *Service) GetUserPrompt() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("user-prompt")
 }
 
@@ -128,9 +137,11 @@ func (s *Service) GetSilentFlag() (bool, error) {
 	if s == nil {
 		return false, ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return false, ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetBool("silent")
 }
 
@@ -139,9 +150,11 @@ func (s *Service) GetIntentFlag() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("intent")
 }
 
@@ -150,9 +163,11 @@ func (s *Service) GetTargetBranchFlag() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("target-branch")
 }
 
@@ -161,9 +176,11 @@ func (s *Service) GetBaseBranchFlag() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	if s.cmd == nil {
 		return "", ErrCommandIsNil
 	}
+
 	return s.cmd.Flags().GetString("base")
 }
 
@@ -172,5 +189,6 @@ func (s *Service) GetStdIn() (string, error) {
 	if s == nil {
 		return "", ErrServiceIsNil
 	}
+
 	return s.stdin, nil
 }

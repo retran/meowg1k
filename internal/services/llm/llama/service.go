@@ -147,17 +147,22 @@ func NewService(baseURL, apiKey string) (*Service, error) {
 // Complete generates a completion based on the provided request.
 func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
 	if c == nil {
+		// TODO proper error
 		return nil, errors.New("service is nil")
 	}
+
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if req == nil {
+		// TODO proper error
 		return nil, errors.New("request is nil")
 	}
 
 	body, err := json.Marshal(req)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToMarshalRequest, err)
 	}
 
@@ -165,6 +170,7 @@ func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*Comple
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateRequest, err)
 	}
 
@@ -176,21 +182,25 @@ func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*Comple
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToReadResponse, err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(bodyBytes))
 	}
 
 	var completionResp CompletionResponse
 	if err := json.Unmarshal(bodyBytes, &completionResp); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToUnmarshalResponse, err)
 	}
 

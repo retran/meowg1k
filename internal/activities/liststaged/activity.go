@@ -54,6 +54,7 @@ func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
 	if stagedFileListReader == nil {
 		return nil, ErrStagedFileListReaderIsNil
 	}
+
 	return &Factory{
 		stagedFileListReader: stagedFileListReader,
 	}, nil
@@ -63,6 +64,7 @@ func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
 
@@ -74,6 +76,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		files, err := f.stagedFileListReader.ReadStagedFiles()
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to read staged files: %w", err)
 		}
 

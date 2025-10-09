@@ -72,7 +72,9 @@ func TestNewRateLimitedGenerationGateway(t *testing.T) {
 		response: "test response",
 	}
 
-	limiter, err := ratelimit.NewLimiter("test-new-gateway", ratelimit.Unlimited, repo)
+	config := ratelimit.Unlimited
+	config.ID = "test-new-gateway"
+	limiter, err := ratelimit.NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}
@@ -126,7 +128,9 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 				err:      tt.mockErr,
 			}
 
-			limiter, err := ratelimit.NewLimiter("test-"+tt.name, ratelimit.Unlimited, repo)
+			config := ratelimit.Unlimited
+			config.ID = "test-" + tt.name
+			limiter, err := ratelimit.NewLimiter(context.Background(), config, repo)
 			if err != nil {
 				t.Fatalf("Failed to create limiter: %v", err)
 			}
@@ -157,7 +161,8 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 		response: "test response",
 	}
 
-	limiter, err := ratelimit.NewLimiter("test-with-ratelimit", ratelimit.Config{
+	limiter, err := ratelimit.NewLimiter(context.Background(), ratelimit.Config{
+		ID:                "test-with-ratelimit",
 		RequestsPerMinute: 10,
 		TokensPerMinute:   1000,
 	}, repo)
@@ -189,7 +194,8 @@ func TestRateLimitedGenerationGateway_ContextCancellation(t *testing.T) {
 	}
 
 	// Use rate limits with low capacity
-	limiter, err := ratelimit.NewLimiter("test-context-cancel", ratelimit.Config{
+	limiter, err := ratelimit.NewLimiter(context.Background(), ratelimit.Config{
+		ID:                "test-context-cancel",
 		RequestsPerMinute: 1,
 		TokensPerMinute:   10,
 	}, repo)
@@ -262,7 +268,9 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 		response: "test response",
 	}
 
-	limiter, err := ratelimit.NewLimiter("test-timeout", ratelimit.Unlimited, repo)
+	config := ratelimit.Unlimited
+	config.ID = "test-timeout"
+	limiter, err := ratelimit.NewLimiter(context.Background(), config, repo)
 	if err != nil {
 		t.Fatalf("Failed to create limiter: %v", err)
 	}

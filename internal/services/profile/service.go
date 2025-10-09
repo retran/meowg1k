@@ -91,6 +91,7 @@ func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Servic
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if modelResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
@@ -125,11 +126,13 @@ func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
 
 	cfg, err := s.configReader.GetConfig()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	resolved, err := s.resolveProfileInternal(profile, cfg)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
@@ -146,9 +149,11 @@ func (s *Service) resolveProfileInternal(
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
+
 	if profile == "" {
 		return nil, ErrProfileNotFound
 	}
+
 	if cfg == nil {
 		return nil, ErrConfigReaderIsNil
 	}
@@ -159,25 +164,23 @@ func (s *Service) resolveProfileInternal(
 
 	profileDef, exists := cfg.Profiles[string(profile)]
 	if !exists {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
 	}
 
-	// Profile must reference a model
 	if profileDef.Model == "" {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: profile '%s'", ErrModelReferenceRequired, profile)
 	}
 
-	// Resolve the model instance
 	resolvedModel, err := s.modelResolver.Get(model.Model(profileDef.Model))
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to resolve model '%s' for profile '%s': %w", profileDef.Model, profile, err)
 	}
 
-	// Create resolved profile by combining model and profile settings
 	resolved := &ResolvedProfile{
-		Name: string(profile),
-
-		// Model instance information
+		Name:            string(profile),
 		ModelID:         resolvedModel.ID,
 		Provider:        resolvedModel.Provider,
 		Model:           resolvedModel.Model,
@@ -188,25 +191,22 @@ func (s *Service) resolveProfileInternal(
 		APIKeyEnv:       resolvedModel.APIKeyEnv,
 		TokenizerType:   resolvedModel.TokenizerType,
 		RateLimit:       resolvedModel.RateLimit,
-
-		// Request-specific parameters from profile
-		Timeout:     profileDef.Timeout,
-		Temperature: profileDef.Temperature,
-		TopP:        profileDef.TopP,
-		TopK:        profileDef.TopK,
+		Timeout:         profileDef.Timeout,
+		Temperature:     profileDef.Temperature,
+		TopP:            profileDef.TopP,
+		TopK:            profileDef.TopK,
 	}
 
-	// Apply default timeout if not specified
 	if resolved.Timeout == 0 {
 		resolved.Timeout = 5 * time.Minute
 	}
 
-	// Profile can override max output tokens
 	if profileDef.MaxTokens != nil && *profileDef.MaxTokens > 0 {
 		resolved.MaxOutputTokens = *profileDef.MaxTokens
 	}
 
 	if err := s.validateResolvedProfile(resolved); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("profile validation failed: %w", err)
 	}
 
@@ -224,16 +224,17 @@ func (s *Service) validateResolvedProfile(resolved *ResolvedProfile) error {
 	}
 
 	if resolved.Timeout < time.Second {
+		// TODO proper error
 		return fmt.Errorf("%w, got %v", ErrTimeoutTooSmall, resolved.Timeout)
 	}
 
-	// Model validation is already done by model.Service
-	// Just verify the resolved profile has required fields
 	if resolved.Model == "" {
+		// TODO proper error
 		return fmt.Errorf("resolved profile has empty model name")
 	}
 
 	if resolved.ModelID == "" {
+		// TODO proper error
 		return fmt.Errorf("resolved profile has empty model ID")
 	}
 

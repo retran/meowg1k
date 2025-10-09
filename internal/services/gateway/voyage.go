@@ -35,6 +35,7 @@ type voyageGateway struct {
 func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
 	client, err := voyage.NewService("", apiKey, 0)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}
 
@@ -45,7 +46,6 @@ func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
 }
 
 const (
-	// Defaultgateway.TaskType is the default task type for Voyage AI embeddings.
 	DefaultTaskType = "query"
 )
 
@@ -81,9 +81,11 @@ func (g *voyageGateway) ComputeEmbeddings(
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if request == nil {
 		return nil, ErrRequestIsNil
 	}
@@ -104,6 +106,7 @@ func (g *voyageGateway) ComputeEmbeddings(
 
 	response, err := g.client.CreateEmbeddings(ctx, req)
 	if err != nil {
+		// TODO proper error
 		return []Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
 	}
 

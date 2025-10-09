@@ -44,9 +44,11 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -89,9 +91,11 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if request == nil {
 		return nil, ErrRequestIsNil
 	}
@@ -115,5 +119,6 @@ func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second Embedding) 
 	if g == nil {
 		return 0, ErrGatewayIsNil
 	}
+
 	return g.gateway.ComputeDistance(first, second)
 }

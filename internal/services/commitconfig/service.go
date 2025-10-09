@@ -61,6 +61,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if profileResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
@@ -76,33 +77,37 @@ func (s *Service) GetCommitConfig() (*ResolvedCommitConfig, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
+
 	if s.configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if s.profileResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
 
-	config, err := s.configReader.GetConfig()
+	cfg, err := s.configReader.GetConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get application config: %w", err)
+		return nil, fmt.Errorf("failed to get application cfg: %w", err)
 	}
 
 	var profileName string
 	var systemPrompt string
 
-	if config.Commit != nil {
-		profileName = config.Commit.Profile
-		systemPrompt = config.Commit.SystemPrompt
+	if cfg.Commit != nil {
+		profileName = cfg.Commit.Profile
+		systemPrompt = cfg.Commit.SystemPrompt
 	}
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	if systemPrompt == "" {
-		systemPrompt = "You are an expert software engineer. Write a clear and descriptive commit message in the Conventional Commits format based on the provided change summaries."
+		// TODO proper error
+		return nil, errors.New("system prompt is required")
 	}
 
 	return &ResolvedCommitConfig{

@@ -61,6 +61,7 @@ func NewFactory(gatewayFactory GenerationGatewayFactory) (*Factory, error) {
 	if gatewayFactory == nil {
 		return nil, ErrGatewayFactoryIsNil
 	}
+
 	return &Factory{
 		gatewayFactory: gatewayFactory,
 	}, nil
@@ -70,8 +71,10 @@ func NewFactory(gatewayFactory GenerationGatewayFactory) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
@@ -80,6 +83,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to create generation gateway: %w", err)
 		}
 
@@ -92,6 +96,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		content, err := generationGateway.GenerateContent(ctx, request)
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to generate content: %w", err)
 		}
 

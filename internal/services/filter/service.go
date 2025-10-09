@@ -37,39 +37,37 @@ type ConfigReader interface {
 	GetConfig() (*config.Config, error)
 }
 
-// Service provides file filtering based on ignore patterns.
-type Service interface {
-	IsIgnoredFile(path string) bool
-}
-
-// serviceImpl implements the Service interface.
-type serviceImpl struct {
+// Service implements the Service interface.
+type Service struct {
 	matcher *gitignore.Matcher
 }
 
 // NewService creates a file filter service with ignore patterns from configuration.
-func NewService(configReader ConfigReader) (Service, error) {
+func NewService(configReader ConfigReader) (*Service, error) {
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
 
 	var patterns []string
-	if config, err := configReader.GetConfig(); config != nil && config.Filter != nil {
-		patterns = config.Filter.Ignore
+	if cfg, err := configReader.GetConfig(); cfg != nil && cfg.Filter != nil {
+		patterns = cfg.Filter.Ignore
 	} else if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
+		// TODO proper error
+		return nil, fmt.Errorf("failed to get cfg: %w", err)
 	}
 	matcher := gitignore.NewMatcher(patterns)
 
-	return &serviceImpl{
+	return &Service{
 		matcher: matcher,
 	}, nil
 }
 
 // IsIgnoredFile checks if the given file path matches any of the ignore patterns.
-func (s *serviceImpl) IsIgnoredFile(path string) bool {
+func (s *Service) IsIgnoredFile(path string) bool {
 	if s == nil || s.matcher == nil {
+		// TODO proper error
 		return false
 	}
+
 	return s.matcher.Match(path, false)
 }

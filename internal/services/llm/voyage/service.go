@@ -106,8 +106,10 @@ type ErrorResponse struct {
 // CreateEmbeddings sends a request to create embeddings for the given input texts.
 func (c *Service) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*EmbeddingResponse, error) {
 	if c == nil {
+		// TODO proper error
 		return nil, errors.New("service is nil")
 	}
+
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
@@ -118,11 +120,13 @@ func (c *Service) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*
 
 	requestBody, err := json.Marshal(req)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/embeddings", bytes.NewBuffer(requestBody))
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -131,26 +135,31 @@ func (c *Service) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		var errorResp ErrorResponse
 		if err := json.Unmarshal(body, &errorResp); err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("%w: status %d: %s", ErrAPIRequestFailed, resp.StatusCode, string(body))
 		}
 
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %s", ErrAPIRequestFailed, errorResp.Error.Message)
 	}
 
 	var embeddingResp EmbeddingResponse
 	if err := json.Unmarshal(body, &embeddingResp); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 

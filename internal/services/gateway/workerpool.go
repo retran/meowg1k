@@ -47,9 +47,11 @@ func (g *workerPoolGateway) GenerateContent(
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -60,6 +62,7 @@ func (g *workerPoolGateway) GenerateContent(
 			<-g.semaphore
 		}()
 	case <-ctx.Done():
+		// TODO proper error
 		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 

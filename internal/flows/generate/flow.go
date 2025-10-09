@@ -94,15 +94,19 @@ func NewFlowFactory(
 	if taskConfigProvider == nil {
 		return nil, ErrTaskConfigProviderIsNil
 	}
+
 	if userPromptProvider == nil {
 		return nil, ErrUserPromptProviderIsNil
 	}
+
 	if systemPromptProvider == nil {
 		return nil, ErrSystemPromptProviderIsNil
 	}
+
 	if contentGenerationActivityFactory == nil {
 		return nil, ErrContentGenerationActivityFactoryIsNil
 	}
+
 	if outputWriter == nil {
 		return nil, ErrOutputWriterIsNil
 	}
@@ -131,6 +135,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		task, err := f.taskConfigProvider.Get()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get task config: %w", err)
 		}
 
@@ -138,11 +143,13 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		userPrompt, err := f.userPromptProvider.GetUserPrompt()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get user prompt: %w", err)
 		}
 
 		systemPrompt, err := f.systemPromptProvider.GetSystemPrompt()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to get system prompt: %w", err)
 		}
 
@@ -164,6 +171,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		invokeOutput, err := future.Get(ctx)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
 		}
 
@@ -172,6 +180,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		time.Sleep(300 * time.Millisecond)
 
 		if err := f.outputWriter.PrintLine(invokeOutput.Content); err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to print generated content: %w", err)
 		}
 

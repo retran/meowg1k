@@ -98,6 +98,8 @@ func (s *Service) Printf(format string, args ...any) error {
 	}
 
 	_, err := fmt.Fprintf(&s.buffer, format, args...)
+
+	// TODO proper error
 	return err
 }
 
@@ -116,5 +118,7 @@ func (s *Service) Flush() error {
 	s.buffer.Reset()
 
 	_, err := fmt.Fprint(s.destination, content)
+
+	// TODO proper error
 	return err
 }

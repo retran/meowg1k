@@ -48,6 +48,7 @@ var rootCmd = &cobra.Command{
 
 		_, err := app.NewAppContainer(cmd)
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to initialize app: %w", err)
 		}
 
@@ -64,11 +65,13 @@ var rootCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 		if ctx == nil {
+			// TODO proper error
 			return nil
 		}
 
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
+			// TODO proper error
 			return nil
 		}
 

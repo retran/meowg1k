@@ -79,6 +79,7 @@ func resolveTaskConfiguration(
 
 	task, exists := cfg.Generate.Tasks[taskName]
 	if !exists {
+		// TODO proper error
 		return "", "", "", fmt.Errorf("%w: %s", ErrTaskNotFoundInConfig, taskName)
 	}
 
@@ -151,9 +152,11 @@ func NewService(
 	if taskParametersReader == nil {
 		return nil, ErrTaskParametersReaderIsNil
 	}
+
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if profileResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
@@ -162,6 +165,7 @@ func NewService(
 
 	cfg, err := configReader.GetConfig()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 	if cfg == nil {
@@ -170,6 +174,7 @@ func NewService(
 
 	taskName, err := taskParametersReader.GetTaskName()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get task name: %w", err)
 	}
 
@@ -177,21 +182,25 @@ func NewService(
 
 	cmdUserPrompt, err := taskParametersReader.GetUserPrompt()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
 
 	profileName, systemPrompt, userPrompt, err := resolveTaskConfiguration(taskName, cmdUserPrompt, cfg)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	err = validateConfiguration(taskName, profileName, userPrompt)
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	resolvedProfile, err := profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 	}
 
@@ -210,8 +219,10 @@ func (s *Service) Get() (*Configuration, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
+
 	if s.cachedConfig == nil {
 		return nil, ErrNoConfigurationAvailable
 	}
+
 	return s.cachedConfig, nil
 }

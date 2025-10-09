@@ -112,7 +112,7 @@ func TestRunFlow(t *testing.T) {
 		return nil
 	}
 
-	err := exec.RunFlow(ctx, "test", flow, DefaultRetryPolicy())
+	err := exec.RunFlow(ctx, "test", flow)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -126,7 +126,7 @@ func TestRunFlowWithError(t *testing.T) {
 		return errTest
 	}
 
-	err := exec.RunFlow(ctx, "test", flow, DefaultRetryPolicy())
+	err := exec.RunFlow(ctx, "test", flow)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -471,7 +471,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 
 	// Execute the flow
 	ctx := context.Background()
-	err := executor.RunFlow(ctx, "test-flow", testFlow, DefaultRetryPolicy())
+	err := executor.RunFlow(ctx, "test-flow", testFlow)
 	if err != nil {
 		t.Fatalf("Expected no error from flow, got %v", err)
 	}

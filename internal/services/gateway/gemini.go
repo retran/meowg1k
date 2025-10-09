@@ -54,6 +54,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 		Backend: genai.BackendGeminiAPI,
 	})
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("%w: %w", ErrFailedToCreateClient, err)
 	}
 
@@ -70,9 +71,11 @@ func (g *geminiGateway) GenerateContent(
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -90,16 +93,19 @@ func (g *geminiGateway) GenerateContent(
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("%w: %w", ErrFailedToFetchResponse, err)
 	}
 
 	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
 		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
+		// TODO proper error
 		return "", fmt.Errorf("%w: %s", ErrGenerationStopped, result.Candidates[0].FinishReason)
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
+			// TODO proper error
 			return "", fmt.Errorf("%w: %s", ErrRequestBlocked, result.PromptFeedback.BlockReason)
 		}
 
@@ -117,9 +123,11 @@ func (g *geminiGateway) ComputeEmbeddings(
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
+
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
+
 	if request == nil {
 		return nil, ErrRequestIsNil
 	}
@@ -136,6 +144,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 	if request.Dimensions() > 0 {
 		dimensions := request.Dimensions()
 		if dimensions > math.MaxInt32 {
+			// TODO proper error
 			return nil, fmt.Errorf("%w: %d", ErrDimensionsOutOfRange, dimensions)
 		}
 
@@ -149,6 +158,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 		config,
 	)
 	if err != nil {
+		// TODO proper error
 		return []Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
 	}
 

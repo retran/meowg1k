@@ -17,6 +17,7 @@ limitations under the License.
 package ratelimit
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -26,227 +27,183 @@ import (
 )
 
 var (
-	// ErrDatabaseIsNil indicates that the database connection is nil.
-	ErrDatabaseIsNil = errors.New("database connection is nil")
-	// ErrUpdateFunctionIsNil indicates that the update function is nil.
-	ErrUpdateFunctionIsNil = errors.New("update function is nil")
+	ErrNotEnoughTokens = errors.New("not enough tokens in one of the buckets")
+	ErrDatabaseIsNil   = errors.New("database connection is nil")
+	ErrBucketNotFound  = errors.New("bucket not found")
 )
 
-// BucketState represents the persisted state of a rate limit bucket.
-type BucketState struct {
-	ID         string
-	Tokens     int
-	LastRefill time.Time
+// BucketConfig описывает параметры для пополнения бакета.
+type BucketConfig struct {
+	ID          string
+	Capacity    int
+	RefillRate  int
+	RefillEvery time.Duration
 }
 
-// Repository defines the interface for persisting rate limit bucket state.
+// AcquisitionRequest описывает, сколько токенов нужно взять из одного бакета.
+type AcquisitionRequest struct {
+	ID    string
+	Count int
+}
+
+// Repository определяет интерфейс для атомарной работы с бакетами.
 type Repository interface {
-	// GetBucketState retrieves the current state of a bucket by ID.
-	// Returns sql.ErrNoRows if the bucket doesn't exist.
-	GetBucketState(id string) (*BucketState, error)
+	// AcquireTokens атомарно списывает токены из нескольких бакетов.
+	// Если хотя бы в одном бакете не хватает токенов, вся операция откатывается.
+	AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error
 
-	// SaveBucketState persists or updates the state of a bucket.
-	SaveBucketState(state *BucketState) error
+	// InitializeBuckets создает и инициализирует бакеты, если их нет.
+	InitializeBuckets(ctx context.Context, configs []BucketConfig) error
 
-	// UpdateBucketStateAtomic performs an atomic read-modify-write operation on bucket state.
-	// The updateFn receives the current state and should return the modified state.
-	// If updateFn returns an error, the transaction is rolled back.
-	UpdateBucketStateAtomic(id string, updateFn func(*BucketState) (*BucketState, error)) error
-
-	// InitializeBucket creates a new bucket with initial capacity.
-	InitializeBucket(id string, initialTokens int) error
-
-	// DeleteBucket removes a bucket's state from the database.
-	DeleteBucket(id string) error
+	// ResetBuckets сбрасывает токены до максимальной емкости.
+	ResetBuckets(ctx context.Context, configs []BucketConfig) error
 }
 
 type repositoryImpl struct {
 	db *sql.DB
 }
 
-// NewRepository creates a new repository instance.
 func NewRepository(db *sql.DB) Repository {
-	return &repositoryImpl{
-		db: db,
-	}
+	return &repositoryImpl{db: db}
 }
 
-// GetBucketState retrieves the current state of a bucket by ID.
-func (r *repositoryImpl) GetBucketState(id string) (*BucketState, error) {
-	if r == nil {
-		return nil, ErrRepositoryIsNil
-	}
-	if r.db == nil {
-		return nil, ErrDatabaseIsNil
-	}
-	if id == "" {
-		return nil, ErrBucketIDIsEmpty
+// refill — это внутренняя функция-помощник для расчета пополнения.
+func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery time.Duration) (int, time.Time) {
+	now := time.Now()
+	elapsed := now.Sub(lastRefill)
+	if elapsed < refillEvery {
+		return tokens, lastRefill
 	}
 
-	var state BucketState
-	var lastRefillNano int64
-
-	err := r.db.QueryRow(
-		"SELECT id, tokens, last_refill FROM rate_limit_buckets WHERE id = ?",
-		id,
-	).Scan(&state.ID, &state.Tokens, &lastRefillNano)
-	if err != nil {
-		return nil, err
+	intervals := int(elapsed / refillEvery)
+	if intervals == 0 {
+		return tokens, lastRefill
 	}
 
-	state.LastRefill = time.Unix(0, lastRefillNano)
-	return &state, nil
+	tokens += intervals * refillRate
+	if tokens > capacity {
+		tokens = capacity
+	}
+
+	newLastRefill := lastRefill.Add(time.Duration(intervals) * refillEvery)
+	return tokens, newLastRefill
 }
 
-// SaveBucketState persists or updates the state of a bucket.
-func (r *repositoryImpl) SaveBucketState(state *BucketState) error {
-	if r == nil {
-		return ErrRepositoryIsNil
-	}
-	if r.db == nil {
-		return ErrDatabaseIsNil
-	}
-	if state == nil {
-		return ErrBucketStateIsNil
-	}
-	if state.ID == "" {
-		return ErrBucketIDIsEmpty
-	}
-
-	lastRefillNano := state.LastRefill.UnixNano()
-
-	_, err := r.db.Exec(`
-		INSERT INTO rate_limit_buckets (id, tokens, last_refill)
-		VALUES (?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			tokens = excluded.tokens,
-			last_refill = excluded.last_refill
-	`, state.ID, state.Tokens, lastRefillNano)
-	if err != nil {
-		return fmt.Errorf("failed to save bucket state: %w", err)
-	}
-
-	return nil
-}
-
-// UpdateBucketStateAtomic performs an atomic read-modify-write operation on bucket state.
-func (r *repositoryImpl) UpdateBucketStateAtomic(id string, updateFn func(*BucketState) (*BucketState, error)) error {
-	if r == nil {
-		return ErrRepositoryIsNil
-	}
-	if r.db == nil {
-		return ErrDatabaseIsNil
-	}
-	if id == "" {
-		return ErrBucketIDIsEmpty
-	}
-	if updateFn == nil {
-		return ErrUpdateFunctionIsNil
-	}
-
-	tx, err := r.db.Begin()
+// AcquireTokens — сердце нового лимитера. Все в одной транзакции.
+func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be no-op if transaction is committed
+	defer tx.Rollback() // Безопасный откат, если коммит не удался
 
-	// Read current state within transaction
-	// SQLite uses database-level locking, so this read within a transaction
-	// will block other writers until we commit, ensuring atomicity
-	var tokens int
-	var lastRefillNano int64
-	err = tx.QueryRow(`
-		SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?
-	`, id).Scan(&tokens, &lastRefillNano)
-
-	if err == sql.ErrNoRows {
-		// Bucket doesn't exist yet
-		return fmt.Errorf("bucket %s not found", id)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to read bucket state: %w", err)
+	configMap := make(map[string]BucketConfig)
+	for _, config := range configs {
+		configMap[config.ID] = config
 	}
 
-	state := &BucketState{
-		ID:         id,
-		Tokens:     tokens,
-		LastRefill: time.Unix(0, lastRefillNano),
+	type bucketState struct {
+		id        string
+		newTokens int
+		newRefill time.Time
 	}
+	var statesToUpdate []bucketState
 
-	// Apply the update function
-	newState, err := updateFn(state)
-	if err != nil {
-		return fmt.Errorf("update function failed: %w", err)
-	}
+	// 1. Фаза проверки (Read Phase)
+	for _, req := range requests {
+		if req.Count <= 0 {
+			continue // Пропускаем запросы на 0 токенов
+		}
 
-	// If newState is nil, skip the update (optimization for read-only operations)
-	if newState != nil {
-		// Write updated state within same transaction
-		newLastRefillNano := newState.LastRefill.UnixNano()
-		_, err = tx.Exec(`
-			UPDATE rate_limit_buckets
-			SET tokens = ?, last_refill = ?
-			WHERE id = ?
-		`, newState.Tokens, newLastRefillNano, id)
+		config, ok := configMap[req.ID]
+		if !ok {
+			return fmt.Errorf("config for bucket %s not found", req.ID)
+		}
+
+		var currentTokens int
+		var lastRefillNano int64
+		err := tx.QueryRowContext(ctx, "SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?", req.ID).Scan(&currentTokens, &lastRefillNano)
 		if err != nil {
-			return fmt.Errorf("failed to update bucket state: %w", err)
+			if errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("bucket %s not initialized: %w", req.ID, ErrBucketNotFound)
+			}
+			return fmt.Errorf("failed to read bucket %s: %w", req.ID, err)
+		}
+
+		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, time.Unix(0, lastRefillNano), config.RefillEvery)
+
+		if refilledTokens < req.Count {
+			return ErrNotEnoughTokens // Немедленный выход без изменений
+		}
+
+		statesToUpdate = append(statesToUpdate, bucketState{
+			id:        req.ID,
+			newTokens: refilledTokens - req.Count,
+			newRefill: newLastRefill,
+		})
+	}
+
+	// 2. Фаза записи (Write Phase)
+	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
+	if err != nil {
+		return fmt.Errorf("failed to prepare update statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, state := range statesToUpdate {
+		_, err := stmt.ExecContext(ctx, state.newTokens, state.newRefill.UnixNano(), state.id)
+		if err != nil {
+			return fmt.Errorf("failed to update bucket %s: %w", state.id, err)
 		}
 	}
 
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
+	// 3. Коммит
+	return tx.Commit()
 }
 
-// InitializeBucket creates a new bucket with initial capacity.
-func (r *repositoryImpl) InitializeBucket(id string, initialTokens int) error {
-	if r == nil {
-		return ErrRepositoryIsNil
-	}
-	if r.db == nil {
-		return ErrDatabaseIsNil
-	}
-	if id == "" {
-		return ErrBucketIDIsEmpty
-	}
-	if initialTokens < 0 {
-		return ErrInvalidCapacity
-	}
-
-	lastRefillNano := time.Now().UnixNano()
-
-	_, err := r.db.Exec(
-		"INSERT OR IGNORE INTO rate_limit_buckets (id, tokens, last_refill) VALUES (?, ?, ?)",
-		id, initialTokens, lastRefillNano,
-	)
+func (r *repositoryImpl) InitializeBuckets(ctx context.Context, configs []BucketConfig) error {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to initialize bucket: %w", err)
+		return fmt.Errorf("failed to begin transaction for init: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO rate_limit_buckets (id, tokens, last_refill) VALUES (?, ?, ?)")
+	if err != nil {
+		return fmt.Errorf("failed to prepare insert statement for init: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, config := range configs {
+		_, err := stmt.ExecContext(ctx, config.ID, config.Capacity, time.Now().UnixNano())
+		if err != nil {
+			return fmt.Errorf("failed to initialize bucket %s: %w", config.ID, err)
+		}
 	}
 
-	return nil
+	return tx.Commit()
 }
 
-// DeleteBucket removes a bucket's state from the database.
-func (r *repositoryImpl) DeleteBucket(id string) error {
-	if r == nil {
-		return ErrRepositoryIsNil
-	}
-	if r.db == nil {
-		return ErrDatabaseIsNil
-	}
-	if id == "" {
-		return ErrBucketIDIsEmpty
-	}
-
-	_, err := r.db.Exec("DELETE FROM rate_limit_buckets WHERE id = ?", id)
+func (r *repositoryImpl) ResetBuckets(ctx context.Context, configs []BucketConfig) error {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed to delete bucket: %w", err)
+		return fmt.Errorf("failed to begin transaction for reset: %w", err)
 	}
+	defer tx.Rollback()
 
-	return nil
+	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
+	if err != nil {
+		return fmt.Errorf("failed to prepare update statement for reset: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, config := range configs {
+		_, err := stmt.ExecContext(ctx, config.Capacity, time.Now().UnixNano(), config.ID)
+		if err != nil {
+			return fmt.Errorf("failed to reset bucket %s: %w", config.ID, err)
+		}
+	}
+	return tx.Commit()
 }
 
 var Migrations = []migrations.Migration{
@@ -254,12 +211,12 @@ var Migrations = []migrations.Migration{
 		Version: 1,
 		Up: func(tx *sql.Tx) error {
 			_, err := tx.Exec(`
-					CREATE TABLE IF NOT EXISTS rate_limit_buckets (
-						id TEXT PRIMARY KEY,
-						tokens INTEGER NOT NULL,
-						last_refill INTEGER NOT NULL
-					)
-				`)
+				CREATE TABLE IF NOT EXISTS rate_limit_buckets (
+					id TEXT PRIMARY KEY,
+					tokens INTEGER NOT NULL,
+					last_refill INTEGER NOT NULL
+				)
+			`)
 			if err != nil {
 				return fmt.Errorf("failed to create rate_limit_buckets table: %w", err)
 			}

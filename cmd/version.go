@@ -29,8 +29,10 @@ var versionCmd = &cobra.Command{
 	Short: "Show version info",
 	Run: func(cmd *cobra.Command, args []string) {
 		if cmd == nil {
+			// TODO proper error
 			return
 		}
+
 		fmt.Printf("meow version %s\n", version.Version)
 		fmt.Printf("Build Date: %s\n", version.BuildDate)
 		fmt.Printf("Git Commit: %s\n", version.GitCommit)

@@ -44,17 +44,18 @@ func TestNoOpLimiter_Wait(t *testing.T) {
 
 func TestNoOpLimiter_TryAcquire(t *testing.T) {
 	limiter := NewNoOpLimiter()
+	ctx := context.Background()
 
 	// Should always return true
-	if !limiter.TryAcquire(0) {
+	if !limiter.TryAcquire(ctx, 0) {
 		t.Error("TryAcquire(0) = false, want true")
 	}
 
-	if !limiter.TryAcquire(100) {
+	if !limiter.TryAcquire(ctx, 100) {
 		t.Error("TryAcquire(100) = false, want true")
 	}
 
-	if !limiter.TryAcquire(1000000) {
+	if !limiter.TryAcquire(ctx, 1000000) {
 		t.Error("TryAcquire(1000000) = false, want true")
 	}
 }

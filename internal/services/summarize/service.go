@@ -66,6 +66,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 	if configReader == nil {
 		return nil, ErrConfigReaderIsNil
 	}
+
 	if profileResolver == nil {
 		return nil, ErrProfileResolverIsNil
 	}
@@ -84,10 +85,12 @@ func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizatio
 
 	currentConfig, err := s.configReader.GetConfig()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
 	if currentConfig.Summarize == nil {
+		// TODO proper error
 		return nil, nil
 	}
 
@@ -138,6 +141,7 @@ func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizatio
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 

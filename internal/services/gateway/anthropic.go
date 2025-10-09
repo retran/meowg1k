@@ -63,9 +63,11 @@ func (g *anthropicGateway) GenerateContent(
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}
+
 	if g == nil {
 		return "", ErrGatewayIsNil
 	}
+
 	if request == nil {
 		return "", ErrRequestIsNil
 	}
@@ -93,6 +95,7 @@ func (g *anthropicGateway) GenerateContent(
 
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
+		// TODO proper error
 		return "", fmt.Errorf("failed to generate content with Anthropic: %w", err)
 	}
 

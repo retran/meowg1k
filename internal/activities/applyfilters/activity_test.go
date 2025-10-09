@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -28,9 +27,6 @@ import (
 type mockFilterService struct {
 	ignoredFiles map[string]bool
 }
-
-// Compile-time check that mockFilterService implements filter.Service
-var _ filter.Service = (*mockFilterService)(nil)
 
 func (m *mockFilterService) IsIgnoredFile(path string) bool {
 	return m.ignoredFiles[path]

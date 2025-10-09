@@ -105,6 +105,7 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	if f == nil {
 		return zero, ErrFutureIsNil
 	}
+
 	if ctx == nil {
 		return zero, ErrContextIsNil
 	}
@@ -131,6 +132,7 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 // IsDone returns true if the future is completed
 func (f *Future[T]) IsDone() bool {
 	if f == nil {
+		// TODO proper error
 		return false
 	}
 
@@ -173,19 +175,19 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 	}
 
 	results := make([]T, len(futures))
-	errors := make([]error, len(futures))
+	errs := make([]error, len(futures))
 
 	for i, future := range futures {
 		if future == nil {
-			errors[i] = ErrFutureIsNil
+			errs[i] = ErrFutureIsNil
 			continue
 		}
 		result, err := future.Get(ctx)
 		results[i] = result
-		errors[i] = err
+		errs[i] = err
 	}
 
-	return results, errors
+	return results, errs
 }
 
 // WaitAny waits for any future to complete and returns its result and index
@@ -194,6 +196,7 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 	if ctx == nil {
 		return value, -1, ErrContextIsNil
 	}
+
 	if len(futures) == 0 {
 		return value, -1, ErrNoFuturesProvided
 	}

@@ -32,7 +32,7 @@ import (
 var (
 	ErrSpecifiedConfigFileNotFound = errors.New("specified config file not found")
 	ErrNoConfigFoundInStdLocations = errors.New("no configuration file found in standard locations")
-	ErrConfigPathResolverIsNil     = errors.New("config path resolver is nil")
+	ErrFilePathResolverIsNil       = errors.New("config path resolver is nil")
 	ErrServiceIsNil                = errors.New("service is nil")
 )
 
@@ -230,8 +230,8 @@ type CommandConfig struct {
 	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 }
 
-// ConfigFilePathResolver resolves the configuration file path.
-type ConfigFilePathResolver interface {
+// FilePathResolver resolves the configuration file path.
+type FilePathResolver interface {
 	GetConfigPath() (string, error)
 }
 
@@ -241,16 +241,17 @@ type Service struct {
 }
 
 // NewService creates a new configuration service and loads configuration at creation time.
-func NewService(configPathResolver ConfigFilePathResolver) (*Service, error) {
-	if configPathResolver == nil {
-		return nil, ErrConfigPathResolverIsNil
+func NewService(filePathResolver FilePathResolver) (*Service, error) {
+	if filePathResolver == nil {
+		return nil, ErrFilePathResolverIsNil
 	}
 
 	service := &Service{}
 	v := viper.New()
 
-	configPath, err := configPathResolver.GetConfigPath()
+	configPath, err := filePathResolver.GetConfigPath()
 	if err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to get config path from command: %w", err)
 	}
 
@@ -261,11 +262,13 @@ func NewService(configPathResolver ConfigFilePathResolver) (*Service, error) {
 	}
 
 	if err != nil {
+		// TODO proper error
 		return nil, err
 	}
 
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
+		// TODO proper error
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
@@ -281,9 +284,11 @@ func loadSpecificConfigFile(v *viper.Viper, configPath string) error {
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if errors.As(err, &configFileNotFoundError) {
+			// TODO proper error
 			return fmt.Errorf("%w: %s", ErrSpecifiedConfigFileNotFound, configPath)
 		}
 
+		// TODO proper error
 		return fmt.Errorf("failed to read config file: %w", err)
 	}
 
@@ -301,6 +306,7 @@ func loadDefaultConfigFiles(v *viper.Viper) error {
 	for _, path := range configPaths {
 		found, err := tryLoadConfigFromPath(v, path, !foundAny)
 		if err != nil {
+			// TODO proper error
 			return err
 		}
 
@@ -324,6 +330,7 @@ func tryLoadConfigFromPath(v *viper.Viper, path string, primary bool) (bool, err
 			return false, nil
 		}
 
+		// TODO proper error
 		return false, fmt.Errorf("failed to access config file %s: %w", configFile, err)
 	}
 
@@ -331,6 +338,7 @@ func tryLoadConfigFromPath(v *viper.Viper, path string, primary bool) (bool, err
 		v.AddConfigPath(path)
 
 		if err := v.ReadInConfig(); err != nil {
+			// TODO proper error
 			return false, fmt.Errorf("failed to read config from %s: %w", configFile, err)
 		}
 
@@ -340,6 +348,7 @@ func tryLoadConfigFromPath(v *viper.Viper, path string, primary bool) (bool, err
 	v.SetConfigFile(configFile)
 
 	if err := v.MergeInConfig(); err != nil {
+		// TODO proper error
 		return false, fmt.Errorf("failed to merge config from %s: %w", configFile, err)
 	}
 

@@ -42,13 +42,16 @@ var generateCmd = &cobra.Command{
 
 		flow, err := appContainer.CreateGenerateFlow()
 		if err != nil {
+			// TODO proper error
 			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
 		runner, err := app.NewFlowRunner(appContainer)
 		if err != nil {
+			// TODO proper error
 			return err
 		}
+
 		return runner.RunFlow(ctx, "GenerateContent", flow)
 	},
 }

@@ -59,6 +59,7 @@ func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) (*Factory, erro
 	if fileDiffActivityFactory == nil {
 		return nil, ErrFileDiffActivityFactoryIsNil
 	}
+
 	return &Factory{
 		fileDiffActivityFactory: fileDiffActivityFactory,
 	}, nil
@@ -68,8 +69,10 @@ func NewFactory(fileDiffActivityFactory FileDiffActivityFactory) (*Factory, erro
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
@@ -95,6 +98,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
 		for _, err := range errs {
 			if err != nil {
+				// TODO proper error
 				return nil, fmt.Errorf("failed to read staged changes: %w", err)
 			}
 		}

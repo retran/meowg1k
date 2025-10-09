@@ -56,6 +56,7 @@ func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
 	if branchFileListReader == nil {
 		return nil, ErrBranchFileListReaderIsNil
 	}
+
 	return &Factory{
 		branchFileListReader: branchFileListReader,
 	}, nil
@@ -65,13 +66,16 @@ func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
+			// TODO proper error
 			return nil, errors.New("factory is nil")
 		}
+
 		if input == nil {
 			return nil, executor.ErrInputCannotBeNil
 		}
 
 		if input.TargetBranch == "" {
+			// TODO proper error
 			return nil, fmt.Errorf("target branch cannot be empty")
 		}
 
@@ -79,6 +83,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		files, err := f.branchFileListReader.GetChangedFilesInBranch(input.TargetBranch)
 		if err != nil {
+			// TODO proper error
 			return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 		}
 
