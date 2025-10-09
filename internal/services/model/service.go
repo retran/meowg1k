@@ -23,9 +23,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/llm"
-	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/model"
+	"github.com/retran/meowg1k/internal/core/provider"
 )
 
 // Model service errors
@@ -41,30 +41,6 @@ var (
 	ErrServiceIsNil             = errors.New("model service is nil")
 )
 
-// Model defines an enumeration for configured model instance names.
-type Model string
-
-// RateLimitConfig contains rate limiting configuration for a model instance.
-type RateLimitConfig struct {
-	RequestsPerMinute int
-	TokensPerMinute   int
-	RequestsPerDay    int
-}
-
-// ResolvedModel represents a model instance with all values resolved.
-type ResolvedModel struct {
-	ID              string            // Model instance ID from config
-	Provider        provider.Provider // Resolved provider
-	Model           string            // Model name
-	MaxInputTokens  int               // Maximum input tokens
-	MaxOutputTokens int               // Maximum output tokens
-	BaseURL         string            // API base URL
-	APIKey          string            // Resolved API key (actual value)
-	APIKeyEnv       string            // Environment variable name for API key
-	TokenizerType   llm.TokenizerType // Tokenizer type
-	RateLimit       RateLimitConfig   // Rate limiting config
-}
-
 // ConfigReader reads the application configuration.
 type ConfigReader interface {
 	GetConfig() (*config.Config, error)
@@ -79,7 +55,7 @@ type ProviderDefinitionRegistry interface {
 type Service struct {
 	providerRegistry ProviderDefinitionRegistry
 	configReader     ConfigReader
-	resolvedModels   map[Model]*ResolvedModel
+	resolvedModels   map[model.Model]*model.ResolvedModel
 	mu               sync.RWMutex
 }
 
@@ -96,14 +72,14 @@ func NewService(configReader ConfigReader, providerRegistry ProviderDefinitionRe
 	service := &Service{
 		providerRegistry: providerRegistry,
 		configReader:     configReader,
-		resolvedModels:   make(map[Model]*ResolvedModel),
+		resolvedModels:   make(map[model.Model]*model.ResolvedModel),
 	}
 
 	return service, nil
 }
 
 // Get retrieves a model using cached data from initialization.
-func (s *Service) Get(model Model) (*ResolvedModel, error) {
+func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
@@ -140,7 +116,7 @@ func (s *Service) Get(model Model) (*ResolvedModel, error) {
 }
 
 // GetInstanceKey returns a unique key for rate limiting based on the model instance characteristics.
-func (s *Service) GetInstanceKey(resolved *ResolvedModel) (string, error) {
+func (s *Service) GetInstanceKey(resolved *model.ResolvedModel) (string, error) {
 	if resolved == nil {
 		return "", ErrResolvedModelCannotBeNil
 	}
@@ -158,27 +134,27 @@ func (s *Service) GetInstanceKey(resolved *ResolvedModel) (string, error) {
 
 // resolveModelInternal performs the actual model resolution logic.
 func (s *Service) resolveModelInternal(
-	model Model,
+	modelName model.Model,
 	cfg *config.Config,
-) (*ResolvedModel, error) {
+) (*model.ResolvedModel, error) {
 	if cfg.Models == nil {
 		return nil, ErrNoModelsDefined
 	}
 
-	modelDef, exists := cfg.Models[string(model)]
+	modelDef, exists := cfg.Models[string(modelName)]
 	if !exists {
 		// TODO proper error
-		return nil, fmt.Errorf("%w: %s", ErrModelNotFound, model)
+		return nil, fmt.Errorf("%w: %s", ErrModelNotFound, modelName)
 	}
 
 	providerDef, err := s.providerRegistry.Get(provider.Provider(modelDef.Provider))
 	if err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("unknown provider '%s' in model '%s': %w", modelDef.Provider, model, err)
+		return nil, fmt.Errorf("unknown provider '%s' in modelName '%s': %w", modelDef.Provider, modelName, err)
 	}
 
-	resolved := &ResolvedModel{
-		ID:              string(model),
+	resolved := &model.ResolvedModel{
+		ID:              string(modelName),
 		Provider:        providerDef.Type,
 		Model:           modelDef.Model,
 		MaxInputTokens:  modelDef.MaxInputTokens,
@@ -191,7 +167,6 @@ func (s *Service) resolveModelInternal(
 	resolved.Model = defaultValue(resolved.Model, providerDef.DefaultModel)
 	resolved.MaxInputTokens = defaultValue(resolved.MaxInputTokens, providerDef.MaxInputTokens)
 	resolved.MaxOutputTokens = defaultValue(resolved.MaxOutputTokens, providerDef.MaxOutputTokens)
-	resolved.TokenizerType = defaultValue(resolved.TokenizerType, providerDef.TokenizerType)
 	resolved.BaseURL = defaultValue(resolved.BaseURL, providerDef.DefaultBaseURL)
 
 	// Resolve API key from environment
@@ -207,7 +182,7 @@ func (s *Service) resolveModelInternal(
 
 	// Set rate limits
 	if modelDef.RateLimit != nil {
-		resolved.RateLimit = RateLimitConfig{
+		resolved.RateLimit = model.RateLimitConfig{
 			RequestsPerMinute: modelDef.RateLimit.RequestsPerMinute,
 			TokensPerMinute:   modelDef.RateLimit.TokensPerMinute,
 			RequestsPerDay:    modelDef.RateLimit.RequestsPerDay,
@@ -216,14 +191,14 @@ func (s *Service) resolveModelInternal(
 
 	if err := s.validateResolvedModel(resolved); err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("model validation failed: %w", err)
+		return nil, fmt.Errorf("modelName validation failed: %w", err)
 	}
 
 	return resolved, nil
 }
 
 // validateResolvedModel validates a resolved model configuration.
-func (s *Service) validateResolvedModel(resolved *ResolvedModel) error {
+func (s *Service) validateResolvedModel(resolved *model.ResolvedModel) error {
 	if resolved == nil {
 		return ErrResolvedModelCannotBeNil
 	}

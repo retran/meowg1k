@@ -14,25 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package registry
+package model
 
 import (
 	"reflect"
 	"slices"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/llm"
+	"github.com/retran/meowg1k/internal/core/model"
 )
 
 func TestNewService(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 	if service == nil {
 		t.Fatal("NewService() returned nil")
 	}
 }
 
 func TestGetModelInfo(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test known model
 	info := service.GetModelInfo("gpt-4o")
@@ -42,16 +42,16 @@ func TestGetModelInfo(t *testing.T) {
 	if info.MaxContextTokens != 128000 {
 		t.Errorf("Expected MaxContextTokens 128000, got %d", info.MaxContextTokens)
 	}
-	if info.TokenizerType != llm.TokenizerCL100K {
+	if info.TokenizerType != model.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K, got %s", info.TokenizerType)
 	}
 
 	// Test unknown model
 	unknownInfo := service.GetModelInfo("unknown-model")
-	expected := llm.ModelInfo{
+	expected := model.ModelInfo{
 		Provider:         "unknown",
 		MaxContextTokens: 8192,
-		TokenizerType:    llm.TokenizerUnknown,
+		TokenizerType:    model.TokenizerUnknown,
 		Description:      "Unknown model",
 	}
 	if !reflect.DeepEqual(unknownInfo, expected) {
@@ -60,7 +60,7 @@ func TestGetModelInfo(t *testing.T) {
 }
 
 func TestGetMaxContextTokens(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test known model
 	tokens := service.GetMaxContextTokens("claude-sonnet-4")
@@ -76,35 +76,35 @@ func TestGetMaxContextTokens(t *testing.T) {
 }
 
 func TestGetTokenizerType(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test CL100K tokenizer
 	tokenizerType := service.GetTokenizerType("gpt-4o")
-	if tokenizerType != llm.TokenizerCL100K {
+	if tokenizerType != model.TokenizerCL100K {
 		t.Errorf("Expected TokenizerCL100K for gpt-4o, got %s", tokenizerType)
 	}
 
 	// Test Gemini tokenizer
 	tokenizerType = service.GetTokenizerType("gemini-2.5-pro")
-	if tokenizerType != llm.TokenizerGemini {
+	if tokenizerType != model.TokenizerGemini {
 		t.Errorf("Expected TokenizerGemini for gemini-2.5-pro, got %s", tokenizerType)
 	}
 
 	// Test Llama tokenizer
 	tokenizerType = service.GetTokenizerType("meta-llama/llama-3.3-70b-instruct")
-	if tokenizerType != llm.TokenizerLlama {
+	if tokenizerType != model.TokenizerLlama {
 		t.Errorf("Expected TokenizerLlama for llama model, got %s", tokenizerType)
 	}
 
 	// Test unknown model
 	tokenizerType = service.GetTokenizerType("unknown-model")
-	if tokenizerType != llm.TokenizerUnknown {
+	if tokenizerType != model.TokenizerUnknown {
 		t.Errorf("Expected TokenizerUnknown for unknown model, got %s", tokenizerType)
 	}
 }
 
 func TestGetDefaultEmbedDimension(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test embedding model
 	dimension := service.GetDefaultEmbedDimension("text-embedding-3-large")
@@ -126,7 +126,7 @@ func TestGetDefaultEmbedDimension(t *testing.T) {
 }
 
 func TestGetProvider(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test OpenAI model
 	provider := service.GetProvider("gpt-4o")
@@ -154,7 +154,7 @@ func TestGetProvider(t *testing.T) {
 }
 
 func TestGetMaxOutputTokens(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	// Test model with specific max output tokens
 	tokens := service.GetMaxOutputTokens("gpt-4o")
@@ -176,7 +176,7 @@ func TestGetMaxOutputTokens(t *testing.T) {
 }
 
 func TestListKnownModels(t *testing.T) {
-	service := NewService()
+	service := NewRegistry()
 
 	models := service.ListKnownModels()
 

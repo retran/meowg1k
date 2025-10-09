@@ -22,7 +22,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/llm/llama"
+	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/pkg/llama"
 )
 
 var ErrBaseURLRequired = errors.New("base URL is required")
@@ -34,7 +35,7 @@ var _ GenerationGateway = (*llamaGateway)(nil)
 
 // llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
 type llamaGateway struct {
-	client *llama.Service
+	client *llama.Client
 }
 
 const (
@@ -51,7 +52,7 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 		return nil, ErrBaseURLRequired
 	}
 
-	client, err := llama.NewService(baseURL, apiKey)
+	client, err := llama.NewClient(baseURL, apiKey)
 	if err != nil {
 		// TODO proper error
 		return nil, fmt.Errorf("failed to create llama client: %w", err)
@@ -63,7 +64,7 @@ func newLlamaGateway(baseURL, apiKey string) (GenerationGateway, error) {
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *llamaGateway) GenerateContent(ctx context.Context, request *GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
 	if ctx == nil {
 		return "", ErrContextIsNil
 	}

@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package prconfig
+package pullRequest
 
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/core/config"
+	coreProfile "github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/services/profile"
 )
 
@@ -34,11 +35,11 @@ func (m *mockConfigReader) GetConfig() (*config.Config, error) {
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
 type mockProfileResolver struct {
-	Profile *profile.ResolvedProfile
+	Profile *coreProfile.ResolvedProfile
 	Err     error
 }
 
-func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(p coreProfile.Profile) (*coreProfile.ResolvedProfile, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -59,9 +60,8 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetPRConfig(t *testing.T) {
-	resolvedProfile := &profile.ResolvedProfile{
-		Provider: "openai",
-		Model:    "gpt-4",
+	resolvedProfile := &coreProfile.ResolvedProfile{
+		Model: "gpt-4",
 	}
 
 	configSvc := &mockConfigReader{
@@ -96,9 +96,8 @@ func TestGetPRConfig(t *testing.T) {
 }
 
 func TestGetPRConfigDefault(t *testing.T) {
-	resolvedProfile := &profile.ResolvedProfile{
-		Provider: "openai",
-		Model:    "gpt-4",
+	resolvedProfile := &coreProfile.ResolvedProfile{
+		Model: "gpt-4",
 	}
 
 	configSvc := &mockConfigReader{

@@ -23,10 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/llm"
-	"github.com/retran/meowg1k/internal/services/model"
-	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/model"
+	"github.com/retran/meowg1k/internal/core/profile"
 )
 
 // Profile service errors
@@ -40,33 +39,6 @@ var (
 	ErrProfileResolverIsNil       = errors.New("profile resolver is nil")
 	ErrServiceIsNil               = errors.New("service is nil")
 )
-
-// Profile defines an enumeration for configured profile names.
-type Profile string
-
-// ResolvedProfile represents a profile with all values resolved from both model and profile config.
-type ResolvedProfile struct {
-	// Profile information
-	Name string
-
-	// Model instance information (from model config)
-	ModelID         string                // Model instance ID
-	Provider        provider.Provider     // Provider type
-	Model           string                // Model name
-	MaxInputTokens  int                   // Maximum input tokens
-	MaxOutputTokens int                   // Maximum output tokens (can be overridden by profile)
-	BaseURL         string                // API base URL
-	APIKey          string                // Resolved API key (actual value)
-	APIKeyEnv       string                // Environment variable name for API key
-	TokenizerType   llm.TokenizerType     // Tokenizer type
-	RateLimit       model.RateLimitConfig // Rate limiting config
-
-	// Request-specific parameters (from profile config)
-	Timeout     time.Duration // Request timeout
-	Temperature *float64      // Temperature parameter (optional)
-	TopP        *float64      // TopP parameter (optional)
-	TopK        *int          // TopK parameter (optional)
-}
 
 // ConfigReader reads the application configuration.
 type ConfigReader interface {
@@ -82,7 +54,7 @@ type ModelResolver interface {
 type Service struct {
 	modelResolver    ModelResolver
 	configReader     ConfigReader
-	resolvedProfiles map[Profile]*ResolvedProfile
+	resolvedProfiles map[profile.Profile]*profile.ResolvedProfile
 	mu               sync.RWMutex
 }
 
@@ -99,13 +71,13 @@ func NewService(configReader ConfigReader, modelResolver ModelResolver) (*Servic
 	service := &Service{
 		modelResolver:    modelResolver,
 		configReader:     configReader,
-		resolvedProfiles: make(map[Profile]*ResolvedProfile),
+		resolvedProfiles: make(map[profile.Profile]*profile.ResolvedProfile),
 	}
 	return service, nil
 }
 
 // Get retrieves a profile using cached data from initialization.
-func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
+func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
@@ -143,14 +115,14 @@ func (s *Service) Get(profile Profile) (*ResolvedProfile, error) {
 
 // resolveProfileInternal performs the actual profile resolution logic.
 func (s *Service) resolveProfileInternal(
-	profile Profile,
+	profileName profile.Profile,
 	cfg *config.Config,
-) (*ResolvedProfile, error) {
+) (*profile.ResolvedProfile, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
 
-	if profile == "" {
+	if profileName == "" {
 		return nil, ErrProfileNotFound
 	}
 
@@ -162,25 +134,25 @@ func (s *Service) resolveProfileInternal(
 		return nil, ErrNoProfilesDefined
 	}
 
-	profileDef, exists := cfg.Profiles[string(profile)]
+	profileDef, exists := cfg.Profiles[string(profileName)]
 	if !exists {
 		// TODO proper error
-		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profile)
+		return nil, fmt.Errorf("%w: %s", ErrProfileNotFound, profileName)
 	}
 
 	if profileDef.Model == "" {
 		// TODO proper error
-		return nil, fmt.Errorf("%w: profile '%s'", ErrModelReferenceRequired, profile)
+		return nil, fmt.Errorf("%w: profileName '%s'", ErrModelReferenceRequired, profileName)
 	}
 
 	resolvedModel, err := s.modelResolver.Get(model.Model(profileDef.Model))
 	if err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("failed to resolve model '%s' for profile '%s': %w", profileDef.Model, profile, err)
+		return nil, fmt.Errorf("failed to resolve model '%s' for profileName '%s': %w", profileDef.Model, profileName, err)
 	}
 
-	resolved := &ResolvedProfile{
-		Name:            string(profile),
+	resolved := &profile.ResolvedProfile{
+		Name:            string(profileName),
 		ModelID:         resolvedModel.ID,
 		Provider:        resolvedModel.Provider,
 		Model:           resolvedModel.Model,
@@ -207,14 +179,14 @@ func (s *Service) resolveProfileInternal(
 
 	if err := s.validateResolvedProfile(resolved); err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("profile validation failed: %w", err)
+		return nil, fmt.Errorf("profileName validation failed: %w", err)
 	}
 
 	return resolved, nil
 }
 
 // validateResolvedProfile validates a resolved profile configuration.
-func (s *Service) validateResolvedProfile(resolved *ResolvedProfile) error {
+func (s *Service) validateResolvedProfile(resolved *profile.ResolvedProfile) error {
 	if s == nil {
 		return ErrServiceIsNil
 	}

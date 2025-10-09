@@ -19,6 +19,8 @@ package gateway
 import (
 	"context"
 	"fmt"
+
+	"github.com/retran/meowg1k/internal/core/gateway"
 )
 
 // workerPoolGateway wraps a GenerationGateway with a worker pool to limit concurrency.
@@ -42,7 +44,7 @@ func newWorkerPoolGateway(gateway GenerationGateway, maxConcurrency int) Generat
 // GenerateContent implements GenerationGateway with worker pool concurrency control.
 func (g *workerPoolGateway) GenerateContent(
 	ctx context.Context,
-	request *GenerateContentRequest,
+	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
 		return "", ErrGatewayIsNil

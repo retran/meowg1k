@@ -22,8 +22,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/task"
 )
 
 // Task service errors
@@ -38,14 +39,6 @@ var (
 	ErrProfileResolverIsNil            = errors.New("profile resolver is nil")
 	ErrServiceIsNil                    = errors.New("service is nil")
 )
-
-// Configuration represents a resolved task configuration.
-type Configuration struct {
-	Name         string
-	Profile      *profile.ResolvedProfile
-	SystemPrompt string
-	UserPrompt   string
-}
 
 // TaskParametersReader reads task parameters from command line.
 type TaskParametersReader interface {
@@ -65,7 +58,7 @@ type ProfileResolver interface {
 
 // Service resolves and caches task configurations.
 type Service struct {
-	cachedConfig *Configuration
+	resolvedConfig *task.ResolvedConfig
 }
 
 // resolveTaskConfiguration resolves task configuration from the config and command-line inputs.
@@ -204,7 +197,7 @@ func NewService(
 		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
 	}
 
-	service.cachedConfig = &Configuration{
+	service.resolvedConfig = &task.ResolvedConfig{
 		Name:         taskName,
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
@@ -215,14 +208,14 @@ func NewService(
 }
 
 // Get returns the cached task configuration.
-func (s *Service) Get() (*Configuration, error) {
+func (s *Service) Get() (*task.ResolvedConfig, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
 
-	if s.cachedConfig == nil {
+	if s.resolvedConfig == nil {
 		return nil, ErrNoConfigurationAvailable
 	}
 
-	return s.cachedConfig, nil
+	return s.resolvedConfig, nil
 }

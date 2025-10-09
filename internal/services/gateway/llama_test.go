@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
 )
 
 func TestNewLlamaGateway(t *testing.T) {
@@ -103,7 +105,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Generate content with valid request", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"llama2",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -124,7 +126,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"codellama",
 			"You are an expert Go programmer. Write clean, efficient, and well-commented code.",
 			"Write a function to calculate the greatest common divisor",
@@ -138,7 +140,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content without system prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"llama2",
 			"", // empty system prompt
 			"Explain the concept of recursion in programming",
@@ -163,7 +165,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 
 		for _, model := range models {
 			t.Run("Model_"+model, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					model,
 					"You are a helpful assistant",
 					"Generate a short response",
@@ -183,7 +185,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 
 		for _, limit := range tokenLimits {
 			t.Run(fmt.Sprintf("Tokens_%d", limit), func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					"You are a helpful assistant",
 					"Generate appropriate content",
@@ -199,7 +201,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with canceled context", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"llama2",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -256,7 +258,7 @@ func TestLlamaGateway_ContentTypes(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					tc.model,
 					tc.systemPrompt,
 					tc.userPrompt,
@@ -296,7 +298,7 @@ func TestLlamaGateway_ContentTypes(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					tc.systemPrompt,
 					tc.userPrompt,
@@ -336,7 +338,7 @@ func TestLlamaGateway_ContentTypes(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					tc.systemPrompt,
 					tc.userPrompt,
@@ -364,7 +366,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 	t.Run("Very long prompts", func(t *testing.T) {
 		longPrompt := strings.Repeat("This is a very long prompt that tests the limits of input handling. ", 100)
 
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"llama2",
 			"You are a helpful assistant",
 			longPrompt,
@@ -388,7 +390,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 
 		for i, prompt := range specialPrompts {
 			t.Run(fmt.Sprintf("SpecialChars_%d", i), func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					"You are a helpful assistant",
 					prompt,
@@ -418,7 +420,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					tc.systemPrompt,
 					tc.userPrompt,
@@ -438,7 +440,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 
 		for _, limit := range extremeLimits {
 			t.Run(fmt.Sprintf("Limit_%d", limit), func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"llama2",
 					"You are a helpful assistant",
 					"Generate appropriate content for this token limit",
@@ -467,7 +469,7 @@ func TestLlamaGateway_InterfaceCompliance(t *testing.T) {
 
 	// Test basic interface methods
 	ctx := context.Background()
-	request := NewGenerateContentRequest(
+	request := coreGateway.NewGenerateContentRequest(
 		"llama2",
 		"Test system prompt",
 		"Test user prompt",

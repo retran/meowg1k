@@ -23,6 +23,8 @@ import (
 	"math"
 
 	"google.golang.org/genai"
+
+	"github.com/retran/meowg1k/internal/core/gateway"
 )
 
 var (
@@ -43,7 +45,7 @@ var (
 // geminiGateway is a unified client for the Google Gemini API,
 // implementing both GenerationGateway and EmbeddingGateway.
 type geminiGateway struct {
-	ComputeDistanceMixin
+	gateway.ComputeDistanceMixin
 	client *genai.Client
 }
 
@@ -66,7 +68,7 @@ func newGeminiGateway(ctx context.Context, apiKey string) (Gateway, error) {
 // GenerateContent sends a content generation request to the Google Gemini API.
 func (g *geminiGateway) GenerateContent(
 	ctx context.Context,
-	request *GenerateContentRequest,
+	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
 		return "", ErrContextIsNil
@@ -118,8 +120,8 @@ func (g *geminiGateway) GenerateContent(
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
 func (g *geminiGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *ComputeEmbeddingsRequest,
-) ([]Embedding, error) {
+	request *gateway.ComputeEmbeddingsRequest,
+) ([]gateway.Embedding, error) {
 	if ctx == nil {
 		return nil, ErrContextIsNil
 	}
@@ -159,10 +161,10 @@ func (g *geminiGateway) ComputeEmbeddings(
 	)
 	if err != nil {
 		// TODO proper error
-		return []Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
+		return []gateway.Embedding{}, fmt.Errorf("%w: %w", ErrFailedToComputeEmbedding, err)
 	}
 
-	embeddings := make([]Embedding, 0, len(response.Embeddings))
+	embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
 
 	for _, value := range response.Embeddings {
 		values := make([]float64, len(value.Values))
@@ -170,7 +172,7 @@ func (g *geminiGateway) ComputeEmbeddings(
 			values[i] = float64(v)
 		}
 
-		embeddings = append(embeddings, Embedding(values))
+		embeddings = append(embeddings, values)
 	}
 
 	return embeddings, nil

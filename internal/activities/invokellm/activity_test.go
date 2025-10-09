@@ -21,8 +21,9 @@ import (
 	"errors"
 	"testing"
 
+	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -32,7 +33,7 @@ type mockGenerationGateway struct {
 	Err     error
 }
 
-func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *coreGateway.GenerateContentRequest) (string, error) {
 	if m.Err != nil {
 		return "", m.Err
 	}

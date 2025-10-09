@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 

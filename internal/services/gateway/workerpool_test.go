@@ -22,6 +22,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
 )
 
 func TestNewWorkerPoolGateway(t *testing.T) {
@@ -67,7 +69,7 @@ func TestWorkerPoolGateway_GenerateContent(t *testing.T) {
 	}
 
 	gateway := newWorkerPoolGateway(mockGateway, 2)
-	request := NewGenerateContentRequest("test-model", "System", "User", 1000)
+	request := coreGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 
 	ctx := context.Background()
 	response, err := gateway.GenerateContent(ctx, request)
@@ -133,7 +135,7 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 	}
 
 	// Implement GenerateContent
-	generateFunc := func(ctx context.Context, request *GenerateContentRequest) (string, error) {
+	generateFunc := func(ctx context.Context, request *coreGateway.GenerateContentRequest) (string, error) {
 		select {
 		case customGateway.semaphore <- struct{}{}:
 			defer func() {
@@ -154,7 +156,7 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			request := NewGenerateContentRequest("test-model", "System", "User", 1000)
+			request := coreGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 			_, err := generateFunc(ctx, request)
 			if err != nil {
 				t.Errorf("GenerateContent() unexpected error = %v", err)
@@ -177,7 +179,7 @@ type blockingMockGateway struct {
 	blockChan chan struct{}
 }
 
-func (b *blockingMockGateway) GenerateContent(ctx context.Context, req *GenerateContentRequest) (string, error) {
+func (b *blockingMockGateway) GenerateContent(ctx context.Context, req *coreGateway.GenerateContentRequest) (string, error) {
 	select {
 	case <-b.blockChan:
 		return "completed", nil
@@ -195,7 +197,7 @@ func TestWorkerPoolGateway_ContextCancellation(t *testing.T) {
 
 	// Create worker pool with 1 slot
 	gateway := newWorkerPoolGateway(blockingGateway, 1)
-	request := NewGenerateContentRequest("test-model", "System", "User", 1000)
+	request := coreGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 
 	// Start first request to occupy the worker slot
 	go func() {
@@ -242,7 +244,7 @@ func TestWorkerPoolGateway_MultipleRequests(t *testing.T) {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			request := NewGenerateContentRequest("test-model", "System", "User", 1000)
+			request := coreGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 			response, err := gateway.GenerateContent(ctx, request)
 			errors[idx] = err
 			responses[idx] = response

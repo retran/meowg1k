@@ -15,14 +15,15 @@ limitations under the License.
 */
 
 // Package commitconfig provides services for commit command configuration resolution.
-package commitconfig
+package commit
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/core/commit"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/profile"
 )
 
 var (
@@ -42,12 +43,6 @@ type ConfigReader interface {
 // ProfileResolver resolves profile configurations.
 type ProfileResolver interface {
 	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
-}
-
-// ResolvedCommitConfig represents the resolved configuration for generating a commit message.
-type ResolvedCommitConfig struct {
-	Profile      *profile.ResolvedProfile
-	SystemPrompt string
 }
 
 // Service resolves commit configuration from application config and profiles.
@@ -73,7 +68,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 }
 
 // GetCommitConfig resolves the commit configuration.
-func (s *Service) GetCommitConfig() (*ResolvedCommitConfig, error) {
+func (s *Service) GetCommitConfig() (*commit.ResolvedConfig, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
@@ -110,7 +105,7 @@ func (s *Service) GetCommitConfig() (*ResolvedCommitConfig, error) {
 		return nil, errors.New("system prompt is required")
 	}
 
-	return &ResolvedCommitConfig{
+	return &commit.ResolvedConfig{
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 	}, nil

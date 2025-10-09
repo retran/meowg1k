@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
 )
 
 func TestNewGeminiGateway(t *testing.T) {
@@ -77,7 +79,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 	}
 
 	t.Run("Generate content with valid request", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -98,7 +100,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-pro",
 			"You are a code assistant specializing in Go programming. Always provide working, well-commented code.",
 			"Write a function to calculate fibonacci numbers",
@@ -112,7 +114,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content without system prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"", // empty system prompt
 			"Explain quantum computing in simple terms",
@@ -134,7 +136,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 
 		for _, model := range models {
 			t.Run("Model_"+model, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					model,
 					"You are a helpful assistant",
 					"Generate a short poem",
@@ -150,7 +152,7 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with canceled context", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -181,10 +183,10 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 
 	t.Run("Compute embeddings with valid request", func(t *testing.T) {
 		chunks := []string{"Hello world", "How are you?"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			768,
 		)
 
@@ -200,18 +202,18 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 	t.Run("Compute embeddings with different task types", func(t *testing.T) {
 		testCases := []struct {
 			name     string
-			taskType TaskType
+			taskType coreGateway.TaskType
 		}{
-			{"Retrieval Document", RetrievalDocument},
-			{"Retrieval Query", RetrievalQuery},
-			{"Classification", Classification},
-			{"Clustering", Clustering},
+			{"Retrieval Document", coreGateway.RetrievalDocument},
+			{"Retrieval Query", coreGateway.RetrievalQuery},
+			{"Classification", coreGateway.Classification},
+			{"Clustering", coreGateway.Clustering},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				chunks := []string{"Test chunk for " + tc.name}
-				request := NewComputeEmbeddingsRequest(
+				request := coreGateway.NewComputeEmbeddingsRequest(
 					"text-embedding-004",
 					chunks,
 					tc.taskType,
@@ -231,10 +233,10 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 			largeChunks[i] = strings.Repeat("This is a test chunk for embeddings ", 20)
 		}
 
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			largeChunks,
-			RetrievalDocument,
+			coreGateway.RetrievalDocument,
 			768,
 		)
 
@@ -246,10 +248,10 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 
 	t.Run("Compute embeddings with canceled context", func(t *testing.T) {
 		chunks := []string{"Test chunk"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			768,
 		)
 
@@ -281,8 +283,8 @@ func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
 	t.Log("GeminiGateway correctly implements GenerationGateway, EmbeddingsGateway, and Gateway interfaces")
 
 	// Test that it has the ComputeDistance method from mixin
-	embedding1 := Embedding{0.1, 0.2, 0.3}
-	embedding2 := Embedding{0.4, 0.5, 0.6}
+	embedding1 := coreGateway.Embedding{0.1, 0.2, 0.3}
+	embedding2 := coreGateway.Embedding{0.4, 0.5, 0.6}
 
 	distance, err := gateway.ComputeDistance(embedding1, embedding2)
 	if err != nil {
@@ -333,7 +335,7 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					"gemini-1.5-flash",
 					tc.systemPrompt,
 					tc.userPrompt,
@@ -352,7 +354,7 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 		testCases := []struct {
 			name     string
 			chunks   []string
-			taskType TaskType
+			taskType coreGateway.TaskType
 		}{
 			{
 				name: "Code snippets",
@@ -361,7 +363,7 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 					"def hello_world(): print(\"Hello, World!\")",
 					"console.log('Hello, World!');",
 				},
-				taskType: CodeRetrievalQuery,
+				taskType: coreGateway.CodeRetrievalQuery,
 			},
 			{
 				name: "Scientific text",
@@ -370,7 +372,7 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 					"E=mc² describes mass-energy equivalence",
 					"DNA consists of four nucleotide bases: A, T, G, C",
 				},
-				taskType: Classification,
+				taskType: coreGateway.Classification,
 			},
 			{
 				name: "Legal documents",
@@ -379,13 +381,13 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 					"Whereas the aforementioned conditions are met",
 					"This agreement shall be binding upon all parties",
 				},
-				taskType: Clustering,
+				taskType: coreGateway.Clustering,
 			},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewComputeEmbeddingsRequest(
+				request := coreGateway.NewComputeEmbeddingsRequest(
 					"text-embedding-004",
 					tc.chunks,
 					tc.taskType,
@@ -423,7 +425,7 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := NewGenerateContentRequest(
+				request := coreGateway.NewGenerateContentRequest(
 					tc.model,
 					"You are a helpful assistant",
 					"Generate appropriate content",
@@ -457,10 +459,10 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 					chunks[i] = fmt.Sprintf("Test chunk number %d", i+1)
 				}
 
-				request := NewComputeEmbeddingsRequestWithDimensions(
+				request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 					"text-embedding-004",
 					chunks,
-					RetrievalQuery,
+					coreGateway.RetrievalQuery,
 					tc.dimensions,
 				)
 
@@ -486,10 +488,10 @@ func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
 	t.Run("Dimensions overflow check", func(t *testing.T) {
 		chunks := []string{"test"}
 		// Create a request with dimensions that would exceed int32 max
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			int(^uint32(0)>>1)+1, // This exceeds int32 max
 		)
 
@@ -503,10 +505,10 @@ func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
 
 	t.Run("Zero dimensions", func(t *testing.T) {
 		chunks := []string{"test"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			0, // Zero dimensions should not set the config
 		)
 
@@ -519,10 +521,10 @@ func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
 
 	t.Run("Negative dimensions", func(t *testing.T) {
 		chunks := []string{"test"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			-1, // Negative dimensions should not trigger overflow path
 		)
 
@@ -545,7 +547,7 @@ func TestGeminiGateway_GenerateContent_EdgeCases(t *testing.T) {
 	}
 
 	t.Run("Empty system prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"", // Empty system prompt
 			"Hello, how are you?",
@@ -559,7 +561,7 @@ func TestGeminiGateway_GenerateContent_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Empty user prompt", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"You are a helpful assistant",
 			"", // Empty user prompt
@@ -573,7 +575,7 @@ func TestGeminiGateway_GenerateContent_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("Both prompts empty", func(t *testing.T) {
-		request := NewGenerateContentRequest(
+		request := coreGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"", // Empty system prompt
 			"", // Empty user prompt

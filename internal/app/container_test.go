@@ -32,12 +32,13 @@ import (
 
 	"github.com/spf13/cobra"
 
+	coreOutput "github.com/retran/meowg1k/internal/core/output"
 	"github.com/retran/meowg1k/internal/db"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/output"
-	"github.com/retran/meowg1k/internal/services/shutdown"
 	"github.com/retran/meowg1k/pkg/ratelimit"
+	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
 // testMockDBHost is a simple mock implementation for testing nil validation
@@ -89,7 +90,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error)
 		return nil, err
 	}
 
-	outputService := output.NewService(output.Stdout)
+	outputService := output.NewService(coreOutput.Stdout)
 	if err := shutdownService.Register(func(ctx context.Context) error {
 		return outputService.Flush()
 	}); err != nil {

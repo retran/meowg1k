@@ -43,13 +43,13 @@ func TestNewService(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Service creation with empty API key",
+			name:        "Client creation with empty API key",
 			baseURL:     "http://localhost:8080",
 			apiKey:      "",
 			expectError: false, // API key is optional for llama
 		},
 		{
-			name:        "Service creation with empty base URL",
+			name:        "Client creation with empty base URL",
 			baseURL:     "",
 			apiKey:      "test-key",
 			expectError: true,
@@ -59,7 +59,7 @@ func TestNewService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewService(tt.baseURL, tt.apiKey)
+			service, err := NewClient(tt.baseURL, tt.apiKey)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -149,7 +149,7 @@ func TestServiceImpl_Complete(t *testing.T) {
 			defer server.Close()
 
 			// Create service with test server URL
-			service, err := NewService(server.URL, "test-api-key")
+			service, err := NewClient(server.URL, "test-api-key")
 			require.NoError(t, err)
 
 			// Call Complete method
@@ -190,7 +190,7 @@ func TestServiceImpl_CompleteWithAuthHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewService(server.URL, "test-api-key")
+	service, err := NewClient(server.URL, "test-api-key")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -217,7 +217,7 @@ func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewService(server.URL, "")
+	service, err := NewClient(server.URL, "")
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -241,7 +241,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewService(server.URL, "test-key")
+	service, err := NewClient(server.URL, "test-key")
 	require.NoError(t, err)
 
 	// Create a context that will be canceled
@@ -389,13 +389,13 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var service *Service
+			var service *Client
 			var err error
 
 			if tt.name == "HTTP request creation with invalid URL characters" {
 				// Test with service that has invalid URL
-				service, err = NewService("ht tp://invalid url with spaces", "key")
-				require.NoError(t, err) // Service creation succeeds
+				service, err = NewClient("ht tp://invalid url with spaces", "key")
+				require.NoError(t, err) // Client creation succeeds
 
 				ctx := context.Background()
 				_, err = service.Complete(ctx, tt.request)
@@ -405,9 +405,9 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				server := tt.setupServer()
 				if server != nil {
 					defer server.Close()
-					service, err = NewService(server.URL, "test-key")
+					service, err = NewClient(server.URL, "test-key")
 				} else {
-					service, err = NewService("http://localhost:8080", "test-key")
+					service, err = NewClient("http://localhost:8080", "test-key")
 				}
 				require.NoError(t, err)
 

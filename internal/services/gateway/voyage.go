@@ -20,27 +20,28 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/llm/voyage"
+	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/pkg/voyage"
 )
 
 var _ EmbeddingsGateway = (*voyageGateway)(nil)
 
 // voyageGateway is a unified client for the Voyage AI API, implementing EmbeddingGateway.
 type voyageGateway struct {
-	ComputeDistanceMixin
-	client *voyage.Service
+	gateway.ComputeDistanceMixin
+	client *voyage.Client
 }
 
 // NewVoyageGateway creates and initializes a new VoyageGateway.
 func newVoyageGateway(apiKey string) (EmbeddingsGateway, error) {
-	client, err := voyage.NewService("", apiKey, 0)
+	client, err := voyage.NewClient("", apiKey, 0)
 	if err != nil {
 		// TODO proper error
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}
 
 	return &voyageGateway{
-		ComputeDistanceMixin: ComputeDistanceMixin{},
+		ComputeDistanceMixin: gateway.ComputeDistanceMixin{},
 		client:               client,
 	}, nil
 }
@@ -50,23 +51,23 @@ const (
 )
 
 // mapTaskTypeToInputType maps our generic gateway.TaskType to Voyage AI's input_type parameter.
-func mapTaskTypeToInputType(taskType TaskType) string {
+func mapTaskTypeToInputType(taskType gateway.TaskType) string {
 	switch taskType {
-	case RetrievalDocument:
+	case gateway.RetrievalDocument:
 		return "document"
-	case RetrievalQuery:
+	case gateway.RetrievalQuery:
 		return DefaultTaskType
-	case CodeRetrievalQuery:
+	case gateway.CodeRetrievalQuery:
 		return DefaultTaskType
-	case Classification:
+	case gateway.Classification:
 		return "classification"
-	case Clustering:
+	case gateway.Clustering:
 		return "clustering"
-	case SemanticSimilarity:
+	case gateway.SemanticSimilarity:
 		return DefaultTaskType
-	case QuestionAnswering:
+	case gateway.QuestionAnswering:
 		return DefaultTaskType
-	case FactVerification:
+	case gateway.FactVerification:
 		return DefaultTaskType
 	default:
 		return DefaultTaskType // default to query for unknown task types
@@ -76,8 +77,8 @@ func mapTaskTypeToInputType(taskType TaskType) string {
 // ComputeEmbeddings sends a request to the Voyage AI API to compute embeddings for the given text chunks.
 func (g *voyageGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *ComputeEmbeddingsRequest,
-) ([]Embedding, error) {
+	request *gateway.ComputeEmbeddingsRequest,
+) ([]gateway.Embedding, error) {
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
@@ -107,12 +108,12 @@ func (g *voyageGateway) ComputeEmbeddings(
 	response, err := g.client.CreateEmbeddings(ctx, req)
 	if err != nil {
 		// TODO proper error
-		return []Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding with Voyage AI: %w", err)
 	}
 
-	embeddings := make([]Embedding, 0, len(response.Data))
+	embeddings := make([]gateway.Embedding, 0, len(response.Data))
 	for _, data := range response.Data {
-		embeddings = append(embeddings, Embedding(data.Embedding))
+		embeddings = append(embeddings, data.Embedding)
 	}
 
 	return embeddings, nil

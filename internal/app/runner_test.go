@@ -24,6 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	coreOutput "github.com/retran/meowg1k/internal/core/output"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/output"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -77,7 +78,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 			container := &Container{
 				Logger:         slog.Default(),
 				CommandService: commandService,
-				OutputService:  output.NewService(output.Stdout),
+				OutputService:  output.NewService(coreOutput.Stdout),
 			}
 
 			runner, err := NewFlowRunner(container)
@@ -203,7 +204,7 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 	}
 
 	// Create an output service for testing
-	mockOutput := output.NewService(output.Discard)
+	mockOutput := output.NewService(coreOutput.Discard)
 
 	container := &Container{
 		Logger:         slog.Default(),
@@ -241,7 +242,7 @@ func TestFlowRunner_RunFlowWithGetSilentFlagError(t *testing.T) {
 	container := &Container{
 		Logger:         slog.Default(),
 		CommandService: commandService,
-		OutputService:  output.NewService(output.Stdout),
+		OutputService:  output.NewService(coreOutput.Stdout),
 	}
 
 	runner, err := NewFlowRunner(container)

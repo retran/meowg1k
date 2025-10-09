@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/internal/core/task"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -51,7 +51,7 @@ var (
 
 // TaskConfigProvider provides resolved task configuration.
 type TaskConfigProvider interface {
-	Get() (*task.Configuration, error)
+	Get() (*task.ResolvedConfig, error)
 }
 
 // UserPromptProvider provides the user prompt for content generation.

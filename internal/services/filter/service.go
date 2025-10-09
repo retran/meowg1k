@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/core/config"
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
 

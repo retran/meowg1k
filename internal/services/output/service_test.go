@@ -19,24 +19,26 @@ package output
 import (
 	"bytes"
 	"testing"
+
+	"github.com/retran/meowg1k/internal/core/output"
 )
 
 func TestNewServiceStdout(t *testing.T) {
-	service := NewService(Stdout)
+	service := NewService(output.Stdout)
 	if service == nil {
 		t.Error("NewService returned nil")
 	}
 }
 
 func TestNewServiceStderr(t *testing.T) {
-	service := NewService(Stderr)
+	service := NewService(output.Stderr)
 	if service == nil {
 		t.Error("NewService returned nil")
 	}
 }
 
 func TestNewServiceDiscard(t *testing.T) {
-	service := NewService(Discard)
+	service := NewService(output.Discard)
 	if service == nil {
 		t.Error("NewService returned nil")
 	}

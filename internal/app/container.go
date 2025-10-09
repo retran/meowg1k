@@ -33,13 +33,15 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/spf13/cobra"
 
+	coreOutput "github.com/retran/meowg1k/internal/core/output"
+	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/internal/db"
 	"github.com/retran/meowg1k/internal/services/command"
 	"github.com/retran/meowg1k/internal/services/config"
 	"github.com/retran/meowg1k/internal/services/dbpath"
 	"github.com/retran/meowg1k/internal/services/output"
-	"github.com/retran/meowg1k/internal/services/shutdown"
 	"github.com/retran/meowg1k/pkg/ratelimit"
+	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
 var (
@@ -66,7 +68,7 @@ type Container struct {
 	ConfigService *config.Service
 
 	// OutputService handles application output to stdout/stderr.
-	OutputService output.Writer
+	OutputService ports.Writer
 
 	// dbHost provides access to database connections (lazy initialized)
 	dbHost db.Host
@@ -187,7 +189,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, err
 	}
 
-	outputService := output.NewService(output.Stdout)
+	outputService := output.NewService(coreOutput.Stdout)
 	err = shutdownService.Register(func(ctx context.Context) error {
 		return outputService.Flush()
 	})

@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/summarize"
+	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -57,7 +57,7 @@ type ContentGenerationActivityFactory interface {
 
 // FileSummarizationConfigProvider provides summarization configuration for files.
 type FileSummarizationConfigProvider interface {
-	GetSummarizationConfig(filename string) (*summarize.ResolvedSummarizationConfig, error)
+	GetSummarizationConfig(filename string) (*summarize.ResolvedConfig, error)
 }
 
 // Factory creates instances of the SummarizeFileChanges activity with injected dependencies.

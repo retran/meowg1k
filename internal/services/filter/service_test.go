@@ -19,7 +19,7 @@ package filter
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/core/config"
 )
 
 // mockConfigProvider is a local mock implementation of ConfigProvider for testing.

@@ -21,8 +21,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/pkg/gitignore"
 )
 
@@ -34,16 +35,6 @@ var (
 	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
 	ErrProfileResolverIsNil = errors.New("profile resolver is nil")
 )
-
-// ResolvedSummarizationConfig holds the resolved summarization configuration for a specific file.
-type ResolvedSummarizationConfig struct {
-	Profile             *profile.ResolvedProfile
-	Strategy            *config.Strategy
-	SystemPrompt        string
-	Skip                bool
-	IncludeOriginalFile bool
-	IncludeChangedFile  bool
-}
 
 // ConfigReader reads the application configuration.
 type ConfigReader interface {
@@ -78,7 +69,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 }
 
 // GetSummarizationConfig resolves the summarization configuration for a given file.
-func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizationConfig, error) {
+func (s *Service) GetSummarizationConfig(filename string) (*summarize.ResolvedConfig, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
@@ -106,7 +97,7 @@ func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizatio
 	}
 
 	if matchingRule != nil && matchingRule.Skip {
-		return &ResolvedSummarizationConfig{
+		return &summarize.ResolvedConfig{
 			Skip: true,
 		}, nil
 	}
@@ -153,7 +144,7 @@ func (s *Service) GetSummarizationConfig(filename string) (*ResolvedSummarizatio
 		}
 	}
 
-	return &ResolvedSummarizationConfig{
+	return &summarize.ResolvedConfig{
 		Profile:             resolvedProfile,
 		Strategy:            strategy,
 		SystemPrompt:        systemPrompt,

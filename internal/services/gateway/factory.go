@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/provider"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 

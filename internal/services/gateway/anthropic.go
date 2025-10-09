@@ -23,6 +23,8 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+
+	"github.com/retran/meowg1k/internal/core/gateway"
 )
 
 var (
@@ -58,7 +60,7 @@ func newAnthropicGateway(apiKey string) (GenerationGateway, error) {
 // GenerateContent generates content using Anthropic's API.
 func (g *anthropicGateway) GenerateContent(
 	ctx context.Context,
-	request *GenerateContentRequest,
+	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
 		return "", ErrContextIsNil

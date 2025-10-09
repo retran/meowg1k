@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/retran/meowg1k/internal/services/llm"
+	"github.com/retran/meowg1k/internal/core/provider"
 )
 
 func TestNewService(t *testing.T) {
@@ -34,14 +34,14 @@ func TestGetValidProviders(t *testing.T) {
 	service := NewService()
 
 	// Test all valid providers
-	validProviders := []Provider{
-		Gemini,
-		OpenAI,
-		Anthropic,
-		Llama,
-		OpenRouter,
-		Voyage,
-		OpenAICompatible,
+	validProviders := []provider.Provider{
+		provider.Gemini,
+		provider.OpenAI,
+		provider.Anthropic,
+		provider.Llama,
+		provider.OpenRouter,
+		provider.Voyage,
+		provider.OpenAICompatible,
 	}
 
 	for _, providerType := range validProviders {
@@ -64,11 +64,6 @@ func TestGetValidProviders(t *testing.T) {
 			if provider.DefaultTimeout <= 0 {
 				t.Errorf("Provider %s should have positive timeout", providerType)
 			}
-
-			// Check tokenizer type is set
-			if provider.TokenizerType == "" {
-				t.Errorf("Provider %s should have a tokenizer type", providerType)
-			}
 		})
 	}
 }
@@ -77,7 +72,7 @@ func TestGetInvalidProvider(t *testing.T) {
 	service := NewService()
 
 	// Test with invalid provider
-	invalidProvider := Provider("invalid-provider")
+	invalidProvider := provider.Provider("invalid-provider")
 	_, err := service.Get(invalidProvider)
 	if err == nil {
 		t.Error("Expected error for invalid provider")
@@ -91,47 +86,43 @@ func TestGetInvalidProvider(t *testing.T) {
 
 func TestGeminiProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(Gemini)
+	p, err := service.Get(provider.Gemini)
 	if err != nil {
 		t.Fatalf("Failed to get Gemini provider: %v", err)
 	}
 
-	if provider.Name != "Google Gemini" {
-		t.Errorf("Expected name 'Google Gemini', got '%s'", provider.Name)
+	if p.Name != "Google Gemini" {
+		t.Errorf("Expected name 'Google Gemini', got '%s'", p.Name)
 	}
 
-	if provider.DefaultModel != "gemini-2.5-flash" {
-		t.Errorf("Expected default model 'gemini-2.5-flash', got '%s'", provider.DefaultModel)
+	if p.DefaultModel != "gemini-2.5-flash" {
+		t.Errorf("Expected default model 'gemini-2.5-flash', got '%s'", p.DefaultModel)
 	}
 
-	if provider.DefaultEnvVar != "MEOW_GEMINI_API_KEY" {
-		t.Errorf("Expected env var 'MEOW_GEMINI_API_KEY', got '%s'", provider.DefaultEnvVar)
+	if p.DefaultEnvVar != "MEOW_GEMINI_API_KEY" {
+		t.Errorf("Expected env var 'MEOW_GEMINI_API_KEY', got '%s'", p.DefaultEnvVar)
 	}
 
-	if !provider.RequiresAPIKey {
+	if !p.RequiresAPIKey {
 		t.Error("Gemini should require API key")
 	}
 
-	if provider.RequiresBaseURL {
+	if p.RequiresBaseURL {
 		t.Error("Gemini should not require base URL")
 	}
 
-	if provider.TokenizerType != llm.TokenizerGemini {
-		t.Errorf("Expected tokenizer type %s, got %s", llm.TokenizerGemini, provider.TokenizerType)
+	if p.MaxInputTokens != 1000000 {
+		t.Errorf("Expected max input tokens 1000000, got %d", p.MaxInputTokens)
 	}
 
-	if provider.MaxInputTokens != 1000000 {
-		t.Errorf("Expected max input tokens 1000000, got %d", provider.MaxInputTokens)
-	}
-
-	if provider.DefaultTimeout != 5*time.Minute {
-		t.Errorf("Expected timeout 5m, got %v", provider.DefaultTimeout)
+	if p.DefaultTimeout != 5*time.Minute {
+		t.Errorf("Expected timeout 5m, got %v", p.DefaultTimeout)
 	}
 }
 
 func TestOpenAIProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(OpenAI)
+	provider, err := service.Get(provider.OpenAI)
 	if err != nil {
 		t.Fatalf("Failed to get OpenAI provider: %v", err)
 	}
@@ -159,7 +150,7 @@ func TestOpenAIProviderConfiguration(t *testing.T) {
 
 func TestAnthropicProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(Anthropic)
+	provider, err := service.Get(provider.Anthropic)
 	if err != nil {
 		t.Fatalf("Failed to get Anthropic provider: %v", err)
 	}
@@ -179,7 +170,7 @@ func TestAnthropicProviderConfiguration(t *testing.T) {
 
 func TestLlamaProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(Llama)
+	provider, err := service.Get(provider.Llama)
 	if err != nil {
 		t.Fatalf("Failed to get Llama provider: %v", err)
 	}
@@ -207,7 +198,7 @@ func TestLlamaProviderConfiguration(t *testing.T) {
 
 func TestVoyageProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(Voyage)
+	provider, err := service.Get(provider.Voyage)
 	if err != nil {
 		t.Fatalf("Failed to get Voyage provider: %v", err)
 	}
@@ -227,7 +218,7 @@ func TestVoyageProviderConfiguration(t *testing.T) {
 
 func TestOpenAICompatibleProviderConfiguration(t *testing.T) {
 	service := NewService()
-	provider, err := service.Get(OpenAICompatible)
+	provider, err := service.Get(provider.OpenAICompatible)
 	if err != nil {
 		t.Fatalf("Failed to get OpenAI Compatible provider: %v", err)
 	}

@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package commitconfig
+package commit
 
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/config"
+	"github.com/retran/meowg1k/internal/core/config"
+	coreProfile "github.com/retran/meowg1k/internal/core/profile"
 	"github.com/retran/meowg1k/internal/services/profile"
 )
 
@@ -34,11 +35,11 @@ func (m *mockConfigReader) GetConfig() (*config.Config, error) {
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
 type mockProfileResolver struct {
-	Profile *profile.ResolvedProfile
+	Profile *coreProfile.ResolvedProfile
 	Err     error
 }
 
-func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(p coreProfile.Profile) (*coreProfile.ResolvedProfile, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -58,7 +59,7 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetCommitConfig(t *testing.T) {
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedProfile := &coreProfile.ResolvedProfile{
 		Provider: "openai",
 		Model:    "gpt-4",
 	}
@@ -95,7 +96,7 @@ func TestGetCommitConfig(t *testing.T) {
 }
 
 func TestGetCommitConfigDefault(t *testing.T) {
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedProfile := &coreProfile.ResolvedProfile{
 		Provider: "openai",
 		Model:    "gpt-4",
 	}

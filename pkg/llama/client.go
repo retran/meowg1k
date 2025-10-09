@@ -124,20 +124,20 @@ type TokenProb struct {
 	TopLogprobs []TokenProb `json:"top_logprobs,omitempty"`
 }
 
-// Service provides methods to interact with LLM completion API
-type Service struct {
+// Client provides methods to interact with LLM completion API
+type Client struct {
 	baseURL    string
 	apiKey     string
 	httpClient *http.Client
 }
 
-// NewService creates a new client for interacting with the LLM completion endpoint.
-func NewService(baseURL, apiKey string) (*Service, error) {
+// NewClient creates a new client for interacting with the LLM completion endpoint.
+func NewClient(baseURL, apiKey string) (*Client, error) {
 	if baseURL == "" {
 		return nil, ErrBaseURLRequired
 	}
 
-	return &Service{
+	return &Client{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 		httpClient: &http.Client{Timeout: 10 * time.Minute},
@@ -145,7 +145,7 @@ func NewService(baseURL, apiKey string) (*Service, error) {
 }
 
 // Complete generates a completion based on the provided request.
-func (c *Service) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
+func (c *Client) Complete(ctx context.Context, req *CompletionRequest) (*CompletionResponse, error) {
 	if c == nil {
 		// TODO proper error
 		return nil, errors.New("service is nil")

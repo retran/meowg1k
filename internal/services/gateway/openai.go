@@ -23,6 +23,8 @@ import (
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+
+	"github.com/retran/meowg1k/internal/core/gateway"
 )
 
 var (
@@ -33,7 +35,7 @@ var (
 var ErrNoChoices = errors.New("failed to generate content: no choices returned from OpenAI-compatible API")
 
 type openaiGateway struct {
-	ComputeDistanceMixin
+	gateway.ComputeDistanceMixin
 	client *openai.Client
 }
 
@@ -55,7 +57,7 @@ func newOpenAIGateway(baseURL, apiKey string) Gateway {
 // GenerateContent sends a content generation request to the OpenAI-compatible API.
 func (g *openaiGateway) GenerateContent(
 	ctx context.Context,
-	request *GenerateContentRequest,
+	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
 		return "", ErrGatewayIsNil
@@ -92,8 +94,8 @@ func (g *openaiGateway) GenerateContent(
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.
 func (g *openaiGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *ComputeEmbeddingsRequest,
-) ([]Embedding, error) {
+	request *gateway.ComputeEmbeddingsRequest,
+) ([]gateway.Embedding, error) {
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
@@ -120,12 +122,12 @@ func (g *openaiGateway) ComputeEmbeddings(
 	response, err := g.client.Embeddings.New(ctx, params)
 	if err != nil {
 		// TODO proper error
-		return []Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
+		return []gateway.Embedding{}, fmt.Errorf("failed to compute embedding: %w", err)
 	}
 
-	embeddings := make([]Embedding, 0, len(response.Data))
+	embeddings := make([]gateway.Embedding, 0, len(response.Data))
 	for i := range response.Data {
-		embeddings = append(embeddings, Embedding(response.Data[i].Embedding))
+		embeddings = append(embeddings, response.Data[i].Embedding)
 	}
 
 	return embeddings, nil

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package pr provides a flow to compose a Pull Request description based on branch changes.
+// Package pullRequest provides a flow to compose a Pull Request description based on branch changes.
 package pr
 
 import (
@@ -27,8 +27,8 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/prconfig"
+	"github.com/retran/meowg1k/internal/core/git"
+	"github.com/retran/meowg1k/internal/core/pullRequest"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -59,7 +59,7 @@ var (
 
 // PRConfigProvider provides pull request configuration.
 type PRConfigProvider interface {
-	GetPRConfig() (*prconfig.ResolvedPRConfig, error)
+	GetPRConfig() (*pullRequest.ResolvedConfig, error)
 }
 
 // CommandParametersReader reads command-line parameters and flags.
@@ -251,7 +251,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose PR description
-		prConfig, err := f.prConfigProvider.GetPRConfig()
+		cfg, err := f.prConfigProvider.GetPRConfig()
 		if err != nil {
 			// TODO proper error
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
@@ -281,8 +281,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			"ComposePR",
 			composePR,
 			&composepr.Input{
-				Profile:      prConfig.Profile,
-				SystemPrompt: prConfig.SystemPrompt,
+				Profile:      cfg.Profile,
+				SystemPrompt: cfg.SystemPrompt,
 				Summaries:    summarizeAllOutput.Summaries,
 				Intent:       intent,
 			},

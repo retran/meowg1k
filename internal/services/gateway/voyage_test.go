@@ -24,6 +24,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
 )
 
 func TestNewVoyageGateway(t *testing.T) {
@@ -54,17 +56,17 @@ func TestNewVoyageGateway(t *testing.T) {
 
 func TestMapTaskTypeToInputType(t *testing.T) {
 	testCases := []struct {
-		taskType     TaskType
+		taskType     coreGateway.TaskType
 		expectedType string
 	}{
-		{RetrievalDocument, "document"},
-		{RetrievalQuery, "query"},
-		{CodeRetrievalQuery, "query"},
-		{Classification, "classification"},
-		{Clustering, "clustering"},
-		{SemanticSimilarity, "query"},
-		{QuestionAnswering, "query"},
-		{FactVerification, "query"},
+		{coreGateway.RetrievalDocument, "document"},
+		{coreGateway.RetrievalQuery, "query"},
+		{coreGateway.CodeRetrievalQuery, "query"},
+		{coreGateway.Classification, "classification"},
+		{coreGateway.Clustering, "clustering"},
+		{coreGateway.SemanticSimilarity, "query"},
+		{coreGateway.QuestionAnswering, "query"},
+		{coreGateway.FactVerification, "query"},
 	}
 
 	for _, tc := range testCases {
@@ -77,7 +79,7 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 	}
 
 	t.Run("Unknown task type", func(t *testing.T) {
-		unknownType := TaskType("unknown")
+		unknownType := coreGateway.TaskType("unknown")
 		result := mapTaskTypeToInputType(unknownType)
 		if result != "query" {
 			t.Errorf("Expected 'query' for unknown task type, got %s", result)
@@ -85,7 +87,7 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 	})
 
 	t.Run("Empty task type", func(t *testing.T) {
-		emptyType := TaskType("")
+		emptyType := coreGateway.TaskType("")
 		result := mapTaskTypeToInputType(emptyType)
 		if result != "query" {
 			t.Errorf("Expected 'query' for empty task type, got %s", result)
@@ -157,10 +159,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		chunks := []string{"Hello world", "How are you?"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			256,
 		)
 
@@ -186,22 +188,22 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 
 		testCases := []struct {
 			name     string
-			taskType TaskType
+			taskType coreGateway.TaskType
 		}{
-			{"Retrieval Document", RetrievalDocument},
-			{"Retrieval Query", RetrievalQuery},
-			{"Code Retrieval Query", CodeRetrievalQuery},
-			{"Classification", Classification},
-			{"Clustering", Clustering},
-			{"Semantic Similarity", SemanticSimilarity},
-			{"Question Answering", QuestionAnswering},
-			{"Fact Verification", FactVerification},
+			{"Retrieval Document", coreGateway.RetrievalDocument},
+			{"Retrieval Query", coreGateway.RetrievalQuery},
+			{"Code Retrieval Query", coreGateway.CodeRetrievalQuery},
+			{"Classification", coreGateway.Classification},
+			{"Clustering", coreGateway.Clustering},
+			{"Semantic Similarity", coreGateway.SemanticSimilarity},
+			{"Question Answering", coreGateway.QuestionAnswering},
+			{"Fact Verification", coreGateway.FactVerification},
 		}
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				chunks := []string{"Test chunk for " + tc.name}
-				request := NewComputeEmbeddingsRequest(
+				request := coreGateway.NewComputeEmbeddingsRequest(
 					"voyage-large-2",
 					chunks,
 					tc.taskType,
@@ -231,10 +233,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 			largeChunks[i] = strings.Repeat("This is a test chunk ", 50) // ~1000 characters each
 		}
 
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			largeChunks,
-			RetrievalDocument,
+			coreGateway.RetrievalDocument,
 			256,
 		)
 
@@ -254,10 +256,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		emptyChunks := []string{}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			emptyChunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			256,
 		)
 
@@ -277,10 +279,10 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		}
 
 		chunks := []string{"Test chunk"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			256,
 		)
 
@@ -308,8 +310,8 @@ func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
 
 	// Test that it has the ComputeDistance method from mixin
 	// Create dummy embeddings for distance computation
-	embedding1 := Embedding{0.1, 0.2, 0.3}
-	embedding2 := Embedding{0.4, 0.5, 0.6}
+	embedding1 := coreGateway.Embedding{0.1, 0.2, 0.3}
+	embedding2 := coreGateway.Embedding{0.4, 0.5, 0.6}
 
 	distance, err := gateway.ComputeDistance(embedding1, embedding2)
 	if err != nil {
@@ -333,10 +335,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		for _, dim := range testCases {
 			t.Run(fmt.Sprintf("Dimension_%d", dim), func(t *testing.T) {
 				chunks := []string{"Test chunk"}
-				request := NewComputeEmbeddingsRequestWithDimensions(
+				request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 					"voyage-large-2",
 					chunks,
-					RetrievalQuery,
+					coreGateway.RetrievalQuery,
 					dim,
 				)
 
@@ -353,10 +355,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 
 	t.Run("Single character chunks", func(t *testing.T) {
 		chunks := []string{"a", "b", "c", "d", "e"}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			256,
 		)
 
@@ -376,10 +378,10 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 			"Newlines\nand\ttabs",
 			"\"Quotes\" and 'apostrophes'",
 		}
-		request := NewComputeEmbeddingsRequestWithDimensions(
+		request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"voyage-large-2",
 			chunks,
-			RetrievalQuery,
+			coreGateway.RetrievalQuery,
 			256,
 		)
 

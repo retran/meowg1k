@@ -23,9 +23,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/provider"
+	"github.com/retran/meowg1k/internal/core/task"
 )
 
 // Mock implementations for testing
@@ -360,11 +361,10 @@ func TestNewServiceErrorCases(t *testing.T) {
 func TestConfigurationFields(t *testing.T) {
 	// Test Configuration struct fields
 	profile := &profile.ResolvedProfile{
-		Provider: provider.OpenAI,
-		Model:    "gpt-4",
+		Model: "gpt-4",
 	}
 
-	config := &Configuration{
+	config := &task.ResolvedConfig{
 		Name:         "test-task",
 		Profile:      profile,
 		SystemPrompt: "Test system",

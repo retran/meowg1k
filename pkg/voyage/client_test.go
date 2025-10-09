@@ -45,18 +45,18 @@ func TestNewService(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Service creation with default base URL",
+			name:        "Client creation with default base URL",
 			apiKey:      "test-api-key",
 			expectError: false,
 		},
 		{
-			name:        "Service creation with default timeout",
+			name:        "Client creation with default timeout",
 			apiKey:      "test-api-key",
 			baseURL:     "https://custom.api.com",
 			expectError: false,
 		},
 		{
-			name:        "Service creation without API key",
+			name:        "Client creation without API key",
 			baseURL:     "https://api.voyageai.com/v1",
 			expectError: true,
 			errorMsg:    "voyage API key is required",
@@ -65,7 +65,7 @@ func TestNewService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewService(tt.baseURL, tt.apiKey, tt.timeout)
+			service, err := NewClient(tt.baseURL, tt.apiKey, tt.timeout)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -237,7 +237,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			defer server.Close()
 
 			// Create service with test server URL
-			service, err := NewService(
+			service, err := NewClient(
 				server.URL,
 				"test-api-key",
 				5*time.Second,
@@ -282,7 +282,7 @@ func TestServiceImpl_CreateEmbeddingsWithContext(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewService(
+	service, err := NewClient(
 		server.URL,
 		"test-api-key",
 		5*time.Second,

@@ -19,8 +19,8 @@ package prompt
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/task"
 )
 
 // mockStandardInputReader is a mock implementation of StandardInputReader for testing.
@@ -34,16 +34,16 @@ func (m *mockStandardInputReader) GetStdIn() (string, error) {
 
 // mockTaskConfigurationProvider is a mock implementation of TaskConfigurationProvider for testing.
 type mockTaskConfigurationProvider struct {
-	config *task.Configuration
+	config *task.ResolvedConfig
 }
 
-func (m *mockTaskConfigurationProvider) Get() (*task.Configuration, error) {
+func (m *mockTaskConfigurationProvider) Get() (*task.ResolvedConfig, error) {
 	return m.config, nil
 }
 
 func TestNewGeneratePromptService(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			Name:         "test-task",
 			Profile:      &profile.ResolvedProfile{},
 			SystemPrompt: "Test system prompt",
@@ -68,7 +68,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 func TestGetSystemPrompt(t *testing.T) {
 	expectedSystemPrompt := "Test system prompt"
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			SystemPrompt: expectedSystemPrompt,
 			UserPrompt:   "Test user prompt",
 		},
@@ -95,7 +95,7 @@ func TestGetSystemPrompt(t *testing.T) {
 
 func TestGetUserPrompt(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
@@ -123,7 +123,7 @@ func TestGetUserPrompt(t *testing.T) {
 
 func TestBuildUserPromptWithStdin(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},
@@ -151,7 +151,7 @@ func TestBuildUserPromptWithStdin(t *testing.T) {
 
 func TestBuildUserPromptStdinOnly(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},
@@ -179,7 +179,7 @@ func TestBuildUserPromptStdinOnly(t *testing.T) {
 
 func TestBuildUserPromptEmpty(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
-		config: &task.Configuration{
+		config: &task.ResolvedConfig{
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "", // Empty user prompt
 		},

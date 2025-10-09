@@ -22,8 +22,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/core/gateway"
+	"github.com/retran/meowg1k/internal/core/profile"
+	gatewayService "github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -45,7 +46,7 @@ type Output struct {
 
 // GenerationGatewayFactory creates generation gateways for LLM providers.
 type GenerationGatewayFactory interface {
-	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gateway.GenerationGateway, error)
+	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (gatewayService.GenerationGateway, error)
 }
 
 // Factory creates instances of the InvokeLLM activity with injected dependencies.

@@ -29,8 +29,8 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/services/commitconfig"
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/core/commit"
+	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -65,7 +65,7 @@ var (
 
 // CommitConfigProvider provides commit message configuration.
 type CommitConfigProvider interface {
-	GetCommitConfig() (*commitconfig.ResolvedCommitConfig, error)
+	GetCommitConfig() (*commit.ResolvedConfig, error)
 }
 
 // CommandParametersReader reads command-line parameters and flags.
@@ -315,7 +315,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose commit message
-		commitConfig, err := f.commitConfigProvider.GetCommitConfig()
+		cfg, err := f.commitConfigProvider.GetCommitConfig()
 		if err != nil {
 			// TODO proper error
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
@@ -345,8 +345,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			"ComposeCommit",
 			composeCommit,
 			&composecommit.Input{
-				Profile:      commitConfig.Profile,
-				SystemPrompt: commitConfig.SystemPrompt,
+				Profile:      cfg.Profile,
+				SystemPrompt: cfg.SystemPrompt,
 				Summaries:    summarizeAllOutput.Summaries,
 				Intent:       intent,
 			},

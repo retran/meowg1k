@@ -20,7 +20,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/internal/core/task"
 )
 
 var (
@@ -39,7 +39,7 @@ type StandardInputReader interface {
 
 // TaskConfigurationProvider provides task configuration.
 type TaskConfigurationProvider interface {
-	Get() (*task.Configuration, error)
+	Get() (*task.ResolvedConfig, error)
 }
 
 // GeneratePromptService constructs prompts for the generate command.

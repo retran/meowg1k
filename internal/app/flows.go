@@ -32,18 +32,18 @@ import (
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/flows/commit"
+	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
 	"github.com/retran/meowg1k/internal/flows/pr"
-	"github.com/retran/meowg1k/internal/services/commitconfig"
+	commitService "github.com/retran/meowg1k/internal/services/commit"
 	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/internal/services/gateway"
 	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/internal/services/model"
-	"github.com/retran/meowg1k/internal/services/prconfig"
 	"github.com/retran/meowg1k/internal/services/profile"
 	"github.com/retran/meowg1k/internal/services/prompt"
 	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/services/pullRequest"
 	"github.com/retran/meowg1k/internal/services/summarize"
 	"github.com/retran/meowg1k/internal/services/task"
 	"github.com/retran/meowg1k/internal/services/workspace"
@@ -85,7 +85,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	commitConfigService, err := commitconfig.NewService(c.ConfigService, profileService)
+	commitConfigService, err := commitService.NewService(c.ConfigService, profileService)
 	if err != nil {
 		// TODO proper error
 		return nil, err
@@ -161,7 +161,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
 	}
 
-	flowFactory, err := commit.NewFactory(
+	flowFactory, err := commitFlow.NewFactory(
 		listStagedActivityFactory,
 		listBranchFilesActivityFactory,
 		applyFiltersActivityFactory,
@@ -273,7 +273,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	prConfigService, err := prconfig.NewService(c.ConfigService, profileService)
+	prConfigService, err := pullRequest.NewService(c.ConfigService, profileService)
 	if err != nil {
 		// TODO proper error
 		return nil, err
@@ -327,7 +327,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	composePRFactory, err := composepr.NewFactory(invokeLLMFactory)
 	if err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("failed to create compose pr factory: %w", err)
+		return nil, fmt.Errorf("failed to create compose pullRequest factory: %w", err)
 	}
 
 	flowFactory, err := pr.NewFactory(
@@ -342,7 +342,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 	)
 	if err != nil {
 		// TODO proper error
-		return nil, fmt.Errorf("failed to create pr flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create pullRequest flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil

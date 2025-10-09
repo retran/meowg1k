@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/core/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 

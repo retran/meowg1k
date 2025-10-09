@@ -22,18 +22,12 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/retran/meowg1k/internal/core/output"
 )
 
 // ErrServiceIsNil indicates that the service is nil.
 var ErrServiceIsNil = fmt.Errorf("service is nil")
-
-// Writer defines the interface for output operations.
-type Writer interface {
-	Print(content string) error
-	PrintLine(content string) error
-	Printf(format string, args ...any) error
-	Flush() error
-}
 
 // Service is the concrete implementation of the Writer interface.
 type Service struct {
@@ -41,25 +35,13 @@ type Service struct {
 	buffer      strings.Builder
 }
 
-// Destination represents where the output should be sent.
-type Destination string
-
-const (
-	// Stdout sends output to standard output.
-	Stdout Destination = "stdout"
-	// Stderr sends output to standard error.
-	Stderr Destination = "stderr"
-	// Discard discards all output.
-	Discard Destination = "discard"
-)
-
 // NewService creates a new instance of the buffered output service.
-func NewService(destination Destination) *Service {
+func NewService(destination output.Destination) *Service {
 	var destWriter io.Writer
 	switch destination {
-	case Stdout:
+	case output.Stdout:
 		destWriter = os.Stdout
-	case Stderr:
+	case output.Stderr:
 		destWriter = os.Stderr
 	default:
 		destWriter = io.Discard

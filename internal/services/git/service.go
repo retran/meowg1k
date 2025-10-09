@@ -32,14 +32,6 @@ var (
 	ErrWorkspaceDirProviderIsNil = errors.New("workspace dir provider is nil")
 )
 
-// FileChange defines the output structure for the FetchFileDiff activity.
-type FileChange struct {
-	Filename            string
-	Change              string
-	OriginalFileContent string
-	ChangedFileContent  string
-}
-
 type WorkspaceDirProvider interface {
 	GetWorkspaceDir() (string, error)
 }

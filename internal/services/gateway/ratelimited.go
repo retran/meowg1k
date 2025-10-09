@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 
+	"github.com/retran/meowg1k/internal/core/gateway"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
@@ -39,7 +40,7 @@ func newRateLimitedGenerationGateway(gateway GenerationGateway, limiter ratelimi
 // GenerateContent implements GenerationGateway with rate limiting.
 func (g *rateLimitedGenerationGateway) GenerateContent(
 	ctx context.Context,
-	request *GenerateContentRequest,
+	request *gateway.GenerateContentRequest,
 ) (string, error) {
 	if g == nil {
 		return "", ErrGatewayIsNil
@@ -86,8 +87,8 @@ func newRateLimitedEmbeddingsGateway(gateway EmbeddingsGateway, limiter ratelimi
 // ComputeEmbeddings implements EmbeddingsGateway with rate limiting.
 func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	ctx context.Context,
-	request *ComputeEmbeddingsRequest,
-) ([]Embedding, error) {
+	request *gateway.ComputeEmbeddingsRequest,
+) ([]gateway.Embedding, error) {
 	if g == nil {
 		return nil, ErrGatewayIsNil
 	}
@@ -115,7 +116,7 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 }
 
 // ComputeDistance implements EmbeddingsGateway by delegating to the wrapped gateway.
-func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second Embedding) (float64, error) {
+func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second gateway.Embedding) (float64, error) {
 	if g == nil {
 		return 0, ErrGatewayIsNil
 	}

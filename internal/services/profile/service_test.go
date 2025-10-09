@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/llm"
-	"github.com/retran/meowg1k/internal/services/model"
-	"github.com/retran/meowg1k/internal/services/provider"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/model"
+	coreProfile "github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/provider"
 )
 
 // Mock implementations for testing
@@ -99,7 +99,7 @@ func TestGetProfileSuccess(t *testing.T) {
 		BaseURL:         "https://api.openai.com/v1",
 		APIKey:          "test-key",
 		APIKeyEnv:       "OPENAI_API_KEY",
-		TokenizerType:   llm.TokenizerCL100K,
+		TokenizerType:   model.TokenizerCL100K,
 		RateLimit: model.RateLimitConfig{
 			RequestsPerMinute: 10,
 			TokensPerMinute:   100000,
@@ -120,7 +120,7 @@ func TestGetProfileSuccess(t *testing.T) {
 	}
 
 	// Test getting a profile
-	profile, err := service.Get(Profile("test-profile"))
+	profile, err := service.Get(coreProfile.Profile("test-profile"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -160,7 +160,7 @@ func TestGetProfileNotFound(t *testing.T) {
 	}
 
 	// Test getting a non-existent profile
-	_, err = service.Get(Profile("non-existent"))
+	_, err = service.Get(coreProfile.Profile("non-existent"))
 	if err == nil {
 		t.Error("Expected error for non-existent profile")
 	}
@@ -180,7 +180,7 @@ func TestGetProfileNoProfilesConfigured(t *testing.T) {
 	}
 
 	// Test getting a profile when no profiles are configured
-	_, err = service.Get(Profile("test"))
+	_, err = service.Get(coreProfile.Profile("test"))
 	if err == nil {
 		t.Error("Expected error when no profiles are configured")
 	}
@@ -204,7 +204,7 @@ func TestGetProfileModelNotFound(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	_, err = service.Get(Profile("test"))
+	_, err = service.Get(coreProfile.Profile("test"))
 	if err == nil {
 		t.Error("Expected error for non-existent model")
 	}
@@ -228,7 +228,7 @@ func TestGetProfileEmptyModelReference(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	_, err = service.Get(Profile("test"))
+	_, err = service.Get(coreProfile.Profile("test"))
 	if err == nil {
 		t.Error("Expected error for empty model reference")
 	}
@@ -276,7 +276,7 @@ func TestGetProfileWithMaxTokensOverride(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	profile, err := service.Get(Profile("test"))
+	profile, err := service.Get(coreProfile.Profile("test"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -325,7 +325,7 @@ func TestGetProfileWithTemperature(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	profile, err := service.Get(Profile("test"))
+	profile, err := service.Get(coreProfile.Profile("test"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -347,7 +347,7 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	validProfile := &ResolvedProfile{
+	validProfile := &coreProfile.ResolvedProfile{
 		ModelID:         "gpt4",
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
@@ -372,7 +372,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 
 	testCases := []struct {
 		name    string
-		profile *ResolvedProfile
+		profile *coreProfile.ResolvedProfile
 	}{
 		{
 			name:    "nil profile",
@@ -380,14 +380,14 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 		},
 		{
 			name: "too short timeout",
-			profile: &ResolvedProfile{
+			profile: &coreProfile.ResolvedProfile{
 				Model:   "gpt-4",
 				Timeout: 500 * time.Millisecond,
 			},
 		},
 		{
 			name: "too many output tokens",
-			profile: &ResolvedProfile{
+			profile: &coreProfile.ResolvedProfile{
 				Model:           "gpt-4",
 				MaxOutputTokens: 300000,
 				Timeout:         5 * time.Minute,
@@ -395,7 +395,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 		},
 		{
 			name: "too many input tokens",
-			profile: &ResolvedProfile{
+			profile: &coreProfile.ResolvedProfile{
 				Model:          "gpt-4",
 				MaxInputTokens: 3000000,
 				Timeout:        5 * time.Minute,
@@ -403,7 +403,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 		},
 		{
 			name: "empty model",
-			profile: &ResolvedProfile{
+			profile: &coreProfile.ResolvedProfile{
 				Model:   "",
 				Timeout: 5 * time.Minute,
 			},
@@ -445,7 +445,7 @@ func TestCaching(t *testing.T) {
 		BaseURL:         "https://api.openai.com/v1",
 		APIKey:          "test-key",
 		APIKeyEnv:       "OPENAI_API_KEY",
-		TokenizerType:   llm.TokenizerCL100K,
+		TokenizerType:   model.TokenizerCL100K,
 	}
 
 	configReader := &mockConfigReader{config: config}
@@ -461,13 +461,13 @@ func TestCaching(t *testing.T) {
 	}
 
 	// First call - should resolve and cache
-	profile1, err := service.Get(Profile("cached-profile"))
+	profile1, err := service.Get(coreProfile.Profile("cached-profile"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Second call - should return cached result
-	profile2, err := service.Get(Profile("cached-profile"))
+	profile2, err := service.Get(coreProfile.Profile("cached-profile"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}

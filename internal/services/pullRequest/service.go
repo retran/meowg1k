@@ -14,14 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package prconfig provides services for PR command configuration resolution.
-package prconfig
+// Package pullRequest provides services for PR command configuration resolution.
+package pullRequest
 
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/core/config"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/pullRequest"
 )
 
 var (
@@ -32,12 +33,6 @@ var (
 	// ErrProfileResolverIsNil indicates that the profile resolver is nil.
 	ErrProfileResolverIsNil = fmt.Errorf("profile resolver is nil")
 )
-
-// ResolvedPRConfig represents the resolved configuration for generating a PR description.
-type ResolvedPRConfig struct {
-	Profile      *profile.ResolvedProfile
-	SystemPrompt string
-}
 
 // ConfigReader reads the application configuration.
 type ConfigReader interface {
@@ -72,7 +67,7 @@ func NewService(configReader ConfigReader, profileResolver ProfileResolver) (*Se
 }
 
 // GetPRConfig resolves the PR configuration.
-func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
+func (s *Service) GetPRConfig() (*pullRequest.ResolvedConfig, error) {
 	if s == nil {
 		return nil, ErrServiceIsNil
 	}
@@ -102,7 +97,7 @@ func (s *Service) GetPRConfig() (*ResolvedPRConfig, error) {
 		return nil, fmt.Errorf("failed to get system prompt")
 	}
 
-	return &ResolvedPRConfig{
+	return &pullRequest.ResolvedConfig{
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 	}, nil
