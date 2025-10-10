@@ -20,7 +20,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -29,19 +28,29 @@ type mockFilterService struct {
 	ignoredFiles map[string]bool
 }
 
-// Compile-time check that mockFilterService implements filter.Service
-var _ filter.Service = (*mockFilterService)(nil)
-
 func (m *mockFilterService) IsIgnoredFile(path string) bool {
 	return m.ignoredFiles[path]
 }
 
 func TestNewFactory(t *testing.T) {
 	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
+	}
+}
+
+func TestNewFactoryWithNilChecker(t *testing.T) {
+	factory, err := NewFactory(nil)
+	if err == nil {
+		t.Error("Expected error when fileIgnoreChecker is nil")
+	}
+	if factory != nil {
+		t.Error("Factory should be nil when error is returned")
 	}
 }
 
@@ -52,7 +61,10 @@ func TestNewActivity(t *testing.T) {
 			"*.tmp":       false, // mock doesn't handle patterns, just exact matches
 		},
 	}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	if activity == nil {
@@ -67,7 +79,10 @@ func TestActivityExecute(t *testing.T) {
 			"keep.txt":    false,
 		},
 	}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	input := &Input{
@@ -82,49 +97,105 @@ func TestActivityExecute(t *testing.T) {
 		t.Errorf("Activity execution failed: %v", err)
 	}
 
-	out, ok := output.(*Output)
-	if !ok {
-		t.Errorf("Expected output to be *Output, got %T", output)
-	}
-
 	expected := []string{"file1.txt", "file2.go", "keep.txt"}
-	if len(out.Files) != len(expected) {
-		t.Errorf("Expected %d files, got %d", len(expected), len(out.Files))
+	if len(output.Files) != len(expected) {
+		t.Errorf("Expected %d files, got %d", len(expected), len(output.Files))
 	}
 
 	for i, file := range expected {
-		if i >= len(out.Files) || out.Files[i] != file {
-			t.Errorf("Expected file %s at position %d, got %v", file, i, out.Files)
+		if i >= len(output.Files) || output.Files[i] != file {
+			t.Errorf("Expected file %s at position %d, got %v", file, i, output.Files)
 		}
 	}
 }
 
 func TestActivityExecuteNilInput(t *testing.T) {
 	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, execCtx, nil)
-	if err != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
+	_, activityErr := activity(ctx, execCtx, nil)
+	if activityErr == nil {
+		t.Error("Expected error for nil input, got nil")
 	}
 }
 
-func TestActivityExecuteInvalidInput(t *testing.T) {
+func TestActivityExecute_EmptyInput(t *testing.T) {
 	filterSvc := &mockFilterService{}
-	factory := NewFactory(filterSvc)
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
 	activity := factory.NewActivity()
 
-	input := "invalid input"
-
+	input := &Input{Files: []string{}}
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, execCtx, input)
-	if err == nil {
-		t.Error("Expected error for invalid input type")
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 0 {
+		t.Errorf("expected 0 files, got %d", len(output.Files))
+	}
+}
+
+func TestActivityExecute_AllFilesIgnored(t *testing.T) {
+	filterSvc := &mockFilterService{
+		ignoredFiles: map[string]bool{
+			"file1.txt": true,
+			"file2.txt": true,
+			"file3.txt": true,
+		},
+	}
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{Files: []string{"file1.txt", "file2.txt", "file3.txt"}}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 0 {
+		t.Errorf("expected 0 files (all ignored), got %d", len(output.Files))
+	}
+}
+
+func TestActivityExecute_NoFilesIgnored(t *testing.T) {
+	filterSvc := &mockFilterService{
+		ignoredFiles: map[string]bool{},
+	}
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{Files: []string{"file1.txt", "file2.txt", "file3.txt"}}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 3 {
+		t.Errorf("expected 3 files (none ignored), got %d", len(output.Files))
 	}
 }

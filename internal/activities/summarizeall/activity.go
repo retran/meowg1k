@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
@@ -39,42 +39,53 @@ type Output struct {
 
 // Factory creates instances of the SummarizeAll activity with injected dependencies.
 type Factory struct {
-	summarizeFileFactory *summarizefile.Factory
+	fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]
 }
 
-// NewFactory creates a new SummarizeAll activity factory with injected services.
-func NewFactory(
-	summarizeFileFactory *summarizefile.Factory,
-) *Factory {
-	return &Factory{
-		summarizeFileFactory: summarizeFileFactory,
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
+func NewFactory(fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]) (*Factory, error) {
+	if fileSummarizationActivityFactory == nil {
+		return nil, fmt.Errorf("file summarization activity factory cannot be nil")
 	}
+
+	return &Factory{
+		fileSummarizationActivityFactory: fileSummarizationActivityFactory,
+	}, nil
 }
 
 // NewActivity creates and returns the SummarizeAll activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("summarize all factory is nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", len(input.Changes)))
 
-		summarizeFutures := make([]*future.Future[any], 0, len(input.Changes))
+		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
 		for _, change := range input.Changes {
-			summarizeFile := f.summarizeFileFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, change.Filename, summarizeFile, &summarizefile.Input{
-				Filename:            change.Filename,
-				Change:              change.Change,
-				OriginalFileContent: change.OriginalFileContent,
-				StagedFileContent:   change.ChangedFileContent,
-			})
-			summarizeFutures = append(summarizeFutures, future)
+			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
+			fut := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				change.Filename,
+				summarizeFile,
+				&summarizefile.Input{
+					Filename:            change.Filename,
+					Change:              change.Change,
+					OriginalFileContent: change.OriginalFileContent,
+					StagedFileContent:   change.ChangedFileContent,
+				},
+			)
+			summarizeFutures = append(summarizeFutures, fut)
 		}
 
 		summaryResults, errs := future.WaitAll(ctx, summarizeFutures...)
@@ -85,12 +96,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		summaries := make([]*summarizefile.Output, 0, len(summaryResults))
-		for _, result := range summaryResults {
-			summary, ok := result.(*summarizefile.Output)
-			if ok {
-				summaries = append(summaries, summary)
-			}
-		}
+		summaries = append(summaries, summaryResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Summarized %d files", len(summaries)))
 

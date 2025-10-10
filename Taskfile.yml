@@ -13,10 +13,6 @@ vars:
   COVERAGE_THRESHOLD: 75.0
 
 tasks:
-  default:
-    cmds:
-      - task: --list
-
   setup:
     desc: Setup development environment by downloading Go modules
     cmds:
@@ -65,12 +61,10 @@ tasks:
       - go vet ./...
 
   test:
-    desc: Run tests with coverage reporting (excludes testutil packages)
+    desc: Run tests with coverage reporting
     cmds:
       - echo "[INFO] Running tests with coverage..."
-      - |
-        COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
-        go test -v -race -coverpkg="$COVERPKGS" -coverprofile=coverage.out -covermode=atomic ./...
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -html=coverage.out -o coverage.html
       - task: coverage-check
 
@@ -118,14 +112,6 @@ tasks:
       - echo "[INFO] Cleaning build artifacts..."
       - rm -rf bin coverage.out coverage.html dist
 
-  info:
-    desc: Show project and Go environment information
-    cmds:
-      - echo "Project: {{.PROJECT_NAME}}"
-      - echo "Version: {{.VERSION}}"
-      - go version
-
-  # --- Git Hooks ---
   git:pre-commit:
     desc: Run pre-commit checks (vet, test, lint, man, completions)
     cmds:
@@ -185,7 +171,7 @@ tasks:
   # --- Release ---
   release:
     desc: Create a new release using GoReleaser (requires GITHUB_TOKEN)
-    deps: [completion:generate, man:check]
+    deps: ["completion:generate", "man:check"]
     cmds:
       - echo "[INFO] Starting GoReleaser..."
       - goreleaser release --clean
@@ -193,7 +179,7 @@ tasks:
 
   release:snapshot:
     desc: Build snapshot artifacts locally without publishing
-    deps: [completion:generate, man:check]
+    deps: ["completion:generate", "man:check"]
     cmds:
       - echo "[INFO] Building release snapshot..."
       - goreleaser release --snapshot --clean
