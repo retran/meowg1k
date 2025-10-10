@@ -107,3 +107,96 @@ func TestActivitySuccess(t *testing.T) {
 		t.Errorf("Expected commit message 'test commit message', got %s", output.CommitMessage)
 	}
 }
+
+func TestNewFactory_NilContentGenerationFactory(t *testing.T) {
+	_, err := NewFactory(nil)
+	if err == nil {
+		t.Fatal("expected error for nil content generation factory, got nil")
+	}
+	expectedMsg := "content generation activity factory cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries:    []*summarizefile.Output{},
+	}
+
+	_, err := activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "compose commit factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestActivity_SkippedSummaries(t *testing.T) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+		return &invokellm.Output{Content: "commit message"}, nil
+	}
+
+	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
+	factory, _ := NewFactory(mockFactory)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	mockExec := executor.NewExecutor()
+	execCtx := executor.NewContext("test", nil, mockExec)
+
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries: []*summarizefile.Output{
+			{Filename: "file1.go", Summary: "summary", Skipped: false},
+			{Filename: "file2.go", Skipped: true},
+		},
+	}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.CommitMessage != "commit message" {
+		t.Errorf("expected commit message, got %q", output.CommitMessage)
+	}
+}
+
+func TestActivity_EmptySummaries(t *testing.T) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+		return &invokellm.Output{Content: "empty commit"}, nil
+	}
+
+	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
+	factory, _ := NewFactory(mockFactory)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	mockExec := executor.NewExecutor()
+	execCtx := executor.NewContext("test", nil, mockExec)
+
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries:    []*summarizefile.Output{},
+		Intent:       "",
+	}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.CommitMessage != "empty commit" {
+		t.Errorf("expected commit message, got %q", output.CommitMessage)
+	}
+}

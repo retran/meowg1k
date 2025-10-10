@@ -239,3 +239,44 @@ func TestOpenAICompatibleProviderConfiguration(t *testing.T) {
 		t.Error("OpenAI Compatible should not require API key by default")
 	}
 }
+
+func TestGetWithNilService(t *testing.T) {
+	var service *Service
+	_, err := service.Get(provider2.OpenAI)
+	if err == nil {
+		t.Error("Expected error when service is nil")
+	}
+
+	expectedErrorMsg := "provider service is nil"
+	if err.Error() != expectedErrorMsg {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, err.Error())
+	}
+}
+
+func TestOpenRouterProviderConfiguration(t *testing.T) {
+	service := NewService()
+	provider, err := service.Get(provider2.OpenRouter)
+	if err != nil {
+		t.Fatalf("Failed to get OpenRouter provider: %v", err)
+	}
+
+	if provider.Name != "OpenRouter" {
+		t.Errorf("Expected name 'OpenRouter', got '%s'", provider.Name)
+	}
+
+	if provider.DefaultModel != "anthropic/claude-3.5-haiku" {
+		t.Errorf("Expected default model 'anthropic/claude-3.5-haiku', got '%s'", provider.DefaultModel)
+	}
+
+	if provider.DefaultBaseURL != "https://openrouter.ai/api/v1" {
+		t.Errorf("Expected base URL 'https://openrouter.ai/api/v1', got '%s'", provider.DefaultBaseURL)
+	}
+
+	if !provider.RequiresAPIKey {
+		t.Error("OpenRouter should require API key")
+	}
+
+	if provider.RequiresBaseURL {
+		t.Error("OpenRouter should not require base URL (has default)")
+	}
+}

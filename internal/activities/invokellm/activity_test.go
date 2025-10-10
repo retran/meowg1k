@@ -182,3 +182,36 @@ func TestInvokeLLMActivity_GenerationError(t *testing.T) {
 		t.Error("Expected error from generation")
 	}
 }
+
+func TestNewFactory_NilGatewayFactory(t *testing.T) {
+	_, err := NewFactory(nil)
+	if err == nil {
+		t.Fatal("expected error for nil gateway factory, got nil")
+	}
+	expectedMsg := "gateway factory cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	executorCtx := executor.NewContext("test", nil, nil)
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{Provider: "test", Model: "test-model"},
+		SystemPrompt: "system",
+		UserPrompt:   "user",
+	}
+
+	_, err := activity(ctx, executorCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "invoke LLM factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}

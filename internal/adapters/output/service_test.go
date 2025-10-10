@@ -137,3 +137,51 @@ func TestFlushMultipleTimes(t *testing.T) {
 		t.Errorf("Expected 'firstsecond', got '%s'", buf.String())
 	}
 }
+
+func TestPrint_NilService(t *testing.T) {
+	var service *Service
+	err := service.Print("test")
+	if err == nil {
+		t.Fatal("expected error for nil service, got nil")
+	}
+	expectedMsg := "output service is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestPrintLine_NilService(t *testing.T) {
+	var service *Service
+	err := service.PrintLine("test")
+	if err == nil {
+		t.Fatal("expected error for nil service, got nil")
+	}
+	expectedMsg := "output service is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestPrintf_NilService(t *testing.T) {
+	var service *Service
+	err := service.Printf("test %d", 42)
+	if err == nil {
+		t.Fatal("expected error for nil service, got nil")
+	}
+	expectedMsg := "output service is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestFlush_NilService(t *testing.T) {
+	var service *Service
+	err := service.Flush()
+	if err == nil {
+		t.Fatal("expected error for nil service, got nil")
+	}
+	expectedMsg := "output service is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}

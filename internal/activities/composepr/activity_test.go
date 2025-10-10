@@ -121,3 +121,85 @@ func TestActivitySuccess(t *testing.T) {
 		t.Errorf("Expected PR description 'test PR description', got %s", output.PRDescription)
 	}
 }
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries:    []*summarizefile.Output{},
+	}
+
+	_, err := activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "compose PR factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestActivity_SkippedSummaries(t *testing.T) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+		return &invokellm.Output{Content: "PR description"}, nil
+	}
+
+	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
+	factory, _ := NewFactory(mockFactory)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	mockExec := executor.NewExecutor()
+	execCtx := executor.NewContext("test", nil, mockExec)
+
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries: []*summarizefile.Output{
+			{Filename: "file1.go", Summary: "summary", Skipped: false},
+			{Filename: "file2.go", Skipped: true},
+		},
+	}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.PRDescription != "PR description" {
+		t.Errorf("expected PR description, got %q", output.PRDescription)
+	}
+}
+
+func TestActivity_EmptySummaries(t *testing.T) {
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+		return &invokellm.Output{Content: "empty PR"}, nil
+	}
+
+	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
+	factory, _ := NewFactory(mockFactory)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	mockExec := executor.NewExecutor()
+	execCtx := executor.NewContext("test", nil, mockExec)
+
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{},
+		SystemPrompt: "test",
+		Summaries:    []*summarizefile.Output{},
+		Intent:       "",
+	}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if output.PRDescription != "empty PR" {
+		t.Errorf("expected PR description, got %q", output.PRDescription)
+	}
+}

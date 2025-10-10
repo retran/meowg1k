@@ -17,6 +17,7 @@ limitations under the License.
 package filter
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/config"
@@ -110,4 +111,94 @@ func TestIsIgnoredFileNoPatterns(t *testing.T) {
 	if service.IsIgnoredFile("anyfile.txt") {
 		t.Error("Expected no files to be ignored when no patterns")
 	}
+}
+
+func TestNewServiceWithNilConfigResolver(t *testing.T) {
+	service, err := NewService(nil)
+	if err == nil {
+		t.Error("Expected error when config resolver is nil")
+	}
+	if service != nil {
+		t.Error("Expected nil service when config resolver is nil")
+	}
+
+	expectedErrorMsg := "config resolver is nil"
+	if err.Error() != expectedErrorMsg {
+		t.Errorf("Expected error message '%s', got '%s'", expectedErrorMsg, err.Error())
+	}
+}
+
+func TestNewServiceWithConfigError(t *testing.T) {
+	cfg := &config.Config{
+		Filter: &config.FilterConfig{
+			Ignore: []string{"*.log"},
+		},
+	}
+	configResolver := &mockConfigResolverWithError{cfg: cfg}
+
+	service, err := NewService(configResolver)
+	if err == nil {
+		t.Error("Expected error when config resolver returns error")
+	}
+	if service != nil {
+		t.Error("Expected nil service when config resolver returns error")
+	}
+}
+
+func TestIsIgnoredFileWithNilService(t *testing.T) {
+	var service *Service
+	result := service.IsIgnoredFile("anyfile.txt")
+	if result {
+		t.Error("Expected false when service is nil")
+	}
+}
+
+func TestIsIgnoredFileWithComplexPatterns(t *testing.T) {
+	cfg := &config.Config{
+		Filter: &config.FilterConfig{
+			Ignore: []string{
+				"*.log",
+				"*.tmp",
+				"node_modules/**",
+				"build/**",
+				"*.test.js",
+				"**/temp/**",
+			},
+		},
+	}
+	configResolver := &mockConfigResolver{cfg: cfg}
+
+	service, err := NewService(configResolver)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	tests := []struct {
+		file     string
+		expected bool
+	}{
+		{"app.log", true},
+		{"data.tmp", true},
+		{"src/app.js", false},
+		{"node_modules/package/index.js", true},
+		{"build/output.js", true},
+		{"src/component.test.js", true},
+		{"src/temp/file.txt", true},
+		{"regular/path/file.go", false},
+	}
+
+	for _, tt := range tests {
+		result := service.IsIgnoredFile(tt.file)
+		if result != tt.expected {
+			t.Errorf("IsIgnoredFile(%s) = %v, expected %v", tt.file, result, tt.expected)
+		}
+	}
+}
+
+type mockConfigResolverWithError struct {
+	cfg *config.Config
+}
+
+func (m *mockConfigResolverWithError) Get() (*config.Config, error) {
+	return nil, fmt.Errorf("config error")
 }

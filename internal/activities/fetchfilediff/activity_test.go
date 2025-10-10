@@ -18,6 +18,7 @@ package fetchfilediff
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/pkg/executor"
@@ -117,5 +118,117 @@ func TestActivitySuccess(t *testing.T) {
 
 	if output.Change != "diff content" {
 		t.Errorf("Expected change 'diff content', got '%s'", output.Change)
+	}
+}
+
+func TestNewFactory_NilStagedChangesReader(t *testing.T) {
+	_, err := NewFactory(nil)
+	if err == nil {
+		t.Fatal("expected error for nil staged changes reader, got nil")
+	}
+	expectedMsg := "staged changes reader cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "test.go"}
+
+	_, err := activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "fetch file diff factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestActivity_ReadStagedChangesError(t *testing.T) {
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("git error")
+		},
+	}
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "test.go"}
+
+	_, err := activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error when ReadStagedChanges fails, got nil")
+	}
+}
+
+func TestActivity_NewFileScenario(t *testing.T) {
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "diff for new file", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("does not exist in 'HEAD'")
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "new file content", nil
+		},
+	}
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "newfile.go"}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if output.OriginalFileContent != "" {
+		t.Errorf("expected empty original content for new file, got %q", output.OriginalFileContent)
+	}
+	if output.ChangedFileContent != "new file content" {
+		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
+	}
+}
+
+func TestActivity_DeletedFileScenario(t *testing.T) {
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "diff for deleted file", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			return "original content", nil
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("does not exist")
+		},
+	}
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "deleted.go"}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if output.ChangedFileContent != "" {
+		t.Errorf("expected empty staged content for deleted file, got %q", output.ChangedFileContent)
+	}
+	if output.OriginalFileContent != "original content" {
+		t.Errorf("expected original content, got %q", output.OriginalFileContent)
 	}
 }

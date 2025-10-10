@@ -18,6 +18,7 @@ package liststaged
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/pkg/executor"
@@ -109,5 +110,82 @@ func TestActivityExecuteNilInput(t *testing.T) {
 	_, err = activity(ctx, execCtx, nil)
 	if err == nil {
 		t.Error("Expected error for nil input, got nil")
+	}
+}
+
+func TestNewFactory_NilStagedFileListReader(t *testing.T) {
+	_, err := NewFactory(nil)
+	if err == nil {
+		t.Fatal("expected error for nil staged file list reader, got nil")
+	}
+	expectedMsg := "staged file list reader cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{}
+
+	_, err := activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "list staged factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestActivityExecute_ReadStagedFilesError(t *testing.T) {
+	gitSvc := &mockStagedFileListReader{
+		ReadStagedFilesFunc: func() ([]string, error) {
+			return nil, fmt.Errorf("git error")
+		},
+	}
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	_, err = activity(ctx, execCtx, input)
+	if err == nil {
+		t.Fatal("expected error when ReadStagedFiles fails, got nil")
+	}
+}
+
+func TestActivityExecute_EmptyFileList(t *testing.T) {
+	gitSvc := &mockStagedFileListReader{
+		ReadStagedFilesFunc: func() ([]string, error) {
+			return []string{}, nil
+		},
+	}
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 0 {
+		t.Errorf("expected 0 files, got %d", len(output.Files))
 	}
 }

@@ -61,12 +61,10 @@ tasks:
       - go vet ./...
 
   test:
-    desc: Run tests with coverage reporting (excludes testutil packages)
+    desc: Run tests with coverage reporting
     cmds:
       - echo "[INFO] Running tests with coverage..."
-      - |
-        COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
-        go test -v -race -coverpkg="$COVERPKGS" -coverprofile=coverage.out -covermode=atomic ./...
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - go tool cover -html=coverage.out -o coverage.html
       - task: coverage-check
 

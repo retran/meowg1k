@@ -17,6 +17,7 @@ limitations under the License.
 package prompt
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -203,4 +204,77 @@ func TestBuildUserPromptEmpty(t *testing.T) {
 	if userPrompt != expected {
 		t.Errorf("Expected empty user prompt, got '%s'", userPrompt)
 	}
+}
+
+func TestNewGeneratePromptServiceWithNilCommandParametersReader(t *testing.T) {
+	mockTask := &mockTaskConfigurationProvider{
+		config: &task.ResolvedConfig{
+			SystemPrompt: "Test",
+		},
+	}
+
+	service, err := NewGeneratePromptService(nil, mockTask)
+	if err == nil {
+		t.Error("Expected error when command parameters reader is nil")
+	}
+	if service != nil {
+		t.Error("Expected nil service when command parameters reader is nil")
+	}
+}
+
+func TestNewGeneratePromptServiceWithNilTaskConfigProvider(t *testing.T) {
+	mockCommand := &mockStandardInputReader{
+		StdIn: "test",
+	}
+
+	service, err := NewGeneratePromptService(mockCommand, nil)
+	if err == nil {
+		t.Error("Expected error when task config provider is nil")
+	}
+	if service != nil {
+		t.Error("Expected nil service when task config provider is nil")
+	}
+}
+
+func TestNewGeneratePromptServiceWithTaskConfigError(t *testing.T) {
+	mockTask := &mockTaskConfigProviderWithError{}
+	mockCommand := &mockStandardInputReader{}
+
+	service, err := NewGeneratePromptService(mockCommand, mockTask)
+	if err == nil {
+		t.Error("Expected error when task config provider returns error during service creation")
+	}
+	if service != nil {
+		t.Error("Expected nil service when task config provider returns error")
+	}
+}
+
+func TestNewGeneratePromptServiceWithStdinError(t *testing.T) {
+	mockTask := &mockTaskConfigurationProvider{
+		config: &task.ResolvedConfig{
+			SystemPrompt: "Test",
+			UserPrompt:   "Test",
+		},
+	}
+	mockCommand := &mockStandardInputReaderWithError{}
+
+	service, err := NewGeneratePromptService(mockCommand, mockTask)
+	if err == nil {
+		t.Error("Expected error when stdin reader returns error during service creation")
+	}
+	if service != nil {
+		t.Error("Expected nil service when stdin reader returns error")
+	}
+}
+
+type mockTaskConfigProviderWithError struct{}
+
+func (m *mockTaskConfigProviderWithError) Get() (*task.ResolvedConfig, error) {
+	return nil, fmt.Errorf("task config error")
+}
+
+type mockStandardInputReaderWithError struct{}
+
+func (m *mockStandardInputReaderWithError) GetStdIn() (string, error) {
+	return "", fmt.Errorf("stdin error")
 }

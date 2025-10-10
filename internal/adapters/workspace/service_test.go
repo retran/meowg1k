@@ -123,3 +123,15 @@ func TestGetWorkspaceDirAfterChangeDir(t *testing.T) {
 		t.Error("Get should return different directories after changing working directory")
 	}
 }
+
+func TestGet_NilService(t *testing.T) {
+	var service *Service
+	_, err := service.Get()
+	if err == nil {
+		t.Fatal("expected error for nil service, got nil")
+	}
+	expectedMsg := "workspace service is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}

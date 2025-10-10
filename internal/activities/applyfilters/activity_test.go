@@ -125,3 +125,77 @@ func TestActivityExecuteNilInput(t *testing.T) {
 		t.Error("Expected error for nil input, got nil")
 	}
 }
+
+func TestActivityExecute_EmptyInput(t *testing.T) {
+	filterSvc := &mockFilterService{}
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{Files: []string{}}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 0 {
+		t.Errorf("expected 0 files, got %d", len(output.Files))
+	}
+}
+
+func TestActivityExecute_AllFilesIgnored(t *testing.T) {
+	filterSvc := &mockFilterService{
+		ignoredFiles: map[string]bool{
+			"file1.txt": true,
+			"file2.txt": true,
+			"file3.txt": true,
+		},
+	}
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{Files: []string{"file1.txt", "file2.txt", "file3.txt"}}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 0 {
+		t.Errorf("expected 0 files (all ignored), got %d", len(output.Files))
+	}
+}
+
+func TestActivityExecute_NoFilesIgnored(t *testing.T) {
+	filterSvc := &mockFilterService{
+		ignoredFiles: map[string]bool{},
+	}
+	factory, err := NewFactory(filterSvc)
+	if err != nil {
+		t.Fatalf("NewFactory returned error: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	input := &Input{Files: []string{"file1.txt", "file2.txt", "file3.txt"}}
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(output.Files) != 3 {
+		t.Errorf("expected 3 files (none ignored), got %d", len(output.Files))
+	}
+}
