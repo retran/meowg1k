@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	coreProfile "github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/profile"
 )
 
 // mockConfigResolver is a mock implementation of ConfigReader for testing.
@@ -35,11 +35,11 @@ func (m *mockConfigResolver) Get() (*config.Config, error) {
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
 type mockProfileResolver struct {
-	Profile *coreProfile.ResolvedProfile
+	Profile *profile.ResolvedProfile
 	Err     error
 }
 
-func (m *mockProfileResolver) Get(p coreProfile.Profile) (*coreProfile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -60,7 +60,7 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetPRConfig(t *testing.T) {
-	resolvedProfile := &coreProfile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		Model: "gpt-4",
 	}
 
@@ -96,7 +96,7 @@ func TestGetPRConfig(t *testing.T) {
 }
 
 func TestGetPRConfigDefault(t *testing.T) {
-	resolvedProfile := &coreProfile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		Model: "gpt-4",
 	}
 

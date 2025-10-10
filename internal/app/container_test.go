@@ -34,7 +34,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/output"
-	coreOutput "github.com/retran/meowg1k/internal/domain/output"
+	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
@@ -89,7 +89,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	outputService := output.NewService(coreOutput.Stdout)
+	outputService := output.NewService(domainOutput.Stdout)
 	if err := shutdownService.Register(func(ctx context.Context) error {
 		return outputService.Flush()
 	}); err != nil {

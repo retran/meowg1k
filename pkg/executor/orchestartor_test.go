@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/adapters/output"
-	coreOutput "github.com/retran/meowg1k/internal/domain/output"
+	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 )
 
 func mockFlow(err error) Flow {
@@ -60,7 +60,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runner, err := NewOrchestrator(output.NewService(coreOutput.Stdout))
+			runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout))
 			if err != nil {
 				t.Fatalf("NewFlowRunner() returned error: %v", err)
 			}
@@ -77,7 +77,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 // mockOutputService is a mock implementation of output.Service for testing
 func TestNewFlowRunner(t *testing.T) {
-	runner, err := NewOrchestrator(output.NewService(coreOutput.Stdout))
+	runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout))
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 
 func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 	// Create an output service for testing
-	mockOutput := output.NewService(coreOutput.Discard)
+	mockOutput := output.NewService(domainOutput.Discard)
 
 	runner, err := NewOrchestrator(mockOutput)
 	if err != nil {

@@ -26,7 +26,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 
-	coreGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
@@ -55,7 +55,7 @@ type mockGenerationGateway struct {
 
 func (m *mockGenerationGateway) GenerateContent(
 	ctx context.Context,
-	request *coreGateway.GenerateContentRequest,
+	request *domainGateway.GenerateContentRequest,
 ) (string, error) {
 	if ctx == nil {
 		return "", fmt.Errorf("context cannot be nil")
@@ -138,7 +138,7 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 			}
 			gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
-			request := coreGateway.NewGenerateContentRequest("test-model", tt.systemPrompt, tt.userPrompt, 1000)
+			request := domainGateway.NewGenerateContentRequest("test-model", tt.systemPrompt, tt.userPrompt, 1000)
 
 			ctx := context.Background()
 			response, err := gateway.GenerateContent(ctx, request)
@@ -174,7 +174,7 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
-	request := coreGateway.NewGenerateContentRequest("test-model", "System prompt", "User prompt", 1000)
+	request := domainGateway.NewGenerateContentRequest("test-model", "System prompt", "User prompt", 1000)
 
 	ctx := context.Background()
 	response, err := gateway.GenerateContent(ctx, request)
@@ -207,7 +207,7 @@ func TestRateLimitedGenerationGateway_ContextCancellation(t *testing.T) {
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
 	// First request should succeed
-	request := coreGateway.NewGenerateContentRequest("test-model", "System", "User prompt", 1000)
+	request := domainGateway.NewGenerateContentRequest("test-model", "System", "User prompt", 1000)
 	_, err = gateway.GenerateContent(context.Background(), request)
 	if err != nil {
 		t.Fatalf("First request failed: %v", err)
@@ -278,7 +278,7 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 	}
 	gateway := newRateLimitedGenerationGateway(mockGateway, limiter)
 
-	request := coreGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
+	request := domainGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	coreGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 )
 
@@ -131,7 +131,7 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create test request
-	request := coreGateway.NewGenerateContentRequest(
+	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
 		"You are a helpful assistant.",
 		"Hello, how are you?",
@@ -169,7 +169,7 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
-	request := coreGateway.NewGenerateContentRequest(
+	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
 		"You are a helpful assistant.",
 		"Hello, how are you?",
@@ -201,10 +201,10 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
 
 	// Create embeddings request
-	request := coreGateway.NewComputeEmbeddingsRequest(
+	request := domainGateway.NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
 		[]string{"Hello world", "This is a test"},
-		coreGateway.RetrievalQuery,
+		domainGateway.RetrievalQuery,
 	)
 
 	// Test successful embeddings computation
@@ -245,10 +245,10 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 
 	gateway := newOpenAIGateway(errorServer.URL, "test-api-key")
 
-	request := coreGateway.NewComputeEmbeddingsRequest(
+	request := domainGateway.NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
 		[]string{"Hello world"},
-		coreGateway.RetrievalQuery,
+		domainGateway.RetrievalQuery,
 	)
 
 	ctx := context.Background()
@@ -281,7 +281,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 
 	gateway := newOpenAIGateway(emptyServer.URL, "test-api-key")
 
-	request := coreGateway.NewGenerateContentRequest(
+	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
 		"System prompt",
 		"User prompt",
@@ -311,7 +311,7 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 
 	gateway := newOpenAIGateway(slowServer.URL, "test-api-key")
 
-	request := coreGateway.NewGenerateContentRequest(
+	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
 		"System prompt",
 		"User prompt",
@@ -337,10 +337,10 @@ func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
 	gateway := newOpenAIGateway(mockServer.URL, "test-api-key")
 
 	// Create embeddings request with dimensions
-	request := coreGateway.NewComputeEmbeddingsRequestWithDimensions(
+	request := domainGateway.NewComputeEmbeddingsRequestWithDimensions(
 		"text-embedding-ada-002",
 		[]string{"Hello world"},
-		coreGateway.RetrievalQuery,
+		domainGateway.RetrievalQuery,
 		512, // This should trigger the dimensions parameter setting
 	)
 

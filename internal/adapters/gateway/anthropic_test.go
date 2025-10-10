@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 
-	coreGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
 func TestNewAnthropicGateway(t *testing.T) {
@@ -112,7 +112,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
 
-		request := coreGateway.NewGenerateContentRequest(
+		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -141,7 +141,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
 
-		request := coreGateway.NewGenerateContentRequest(
+		request := domainGateway.NewGenerateContentRequest(
 			"", // empty model
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -165,7 +165,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
 
-		request := coreGateway.NewGenerateContentRequest(
+		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a code assistant specializing in Go",
 			"Write a hello world program",
@@ -199,7 +199,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
-				request := coreGateway.NewGenerateContentRequest(
+				request := domainGateway.NewGenerateContentRequest(
 					"claude-3-haiku-20240307",
 					"You are a helpful assistant",
 					"Generate some text",
@@ -224,7 +224,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
 
-		request := coreGateway.NewGenerateContentRequest(
+		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a helpful assistant",
 			"Hello, how are you?",
@@ -312,7 +312,7 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			request := coreGateway.NewGenerateContentRequest(
+			request := domainGateway.NewGenerateContentRequest(
 				tc.model,
 				tc.systemPrompt,
 				tc.userPrompt,

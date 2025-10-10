@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	coreGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
 func TestNewGenerateContentRequest(t *testing.T) {
@@ -15,7 +15,7 @@ func TestNewGenerateContentRequest(t *testing.T) {
 	userPrompt := "Hello, world!"
 	maxTokens := 100
 
-	req := coreGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
 
 	assert.NotNil(t, req)
 	assert.Equal(t, model, req.Model())
@@ -25,7 +25,7 @@ func TestNewGenerateContentRequest(t *testing.T) {
 }
 
 func TestGenerateContentRequestGetters(t *testing.T) {
-	req := coreGateway.NewGenerateContentRequest("claude-3", "System instructions", "User question", 500)
+	req := domainGateway.NewGenerateContentRequest("claude-3", "System instructions", "User question", 500)
 
 	assert.Equal(t, "claude-3", req.Model())
 	assert.Equal(t, "System instructions", req.SystemPrompt())
@@ -36,9 +36,9 @@ func TestGenerateContentRequestGetters(t *testing.T) {
 func TestNewComputeEmbeddingsRequest(t *testing.T) {
 	model := "text-embedding-ada-002"
 	chunks := []string{"hello", "world", "test"}
-	taskType := coreGateway.SemanticSimilarity
+	taskType := domainGateway.SemanticSimilarity
 
-	req := coreGateway.NewComputeEmbeddingsRequest(model, chunks, taskType)
+	req := domainGateway.NewComputeEmbeddingsRequest(model, chunks, taskType)
 
 	assert.NotNil(t, req)
 	assert.Equal(t, model, req.Model())
@@ -51,10 +51,10 @@ func TestNewComputeEmbeddingsRequest(t *testing.T) {
 func TestNewComputeEmbeddingsRequestWithDimensions(t *testing.T) {
 	model := "text-embedding-ada-002"
 	chunks := []string{"hello", "world"}
-	taskType := coreGateway.Classification
+	taskType := domainGateway.Classification
 	dimensions := 512
 
-	req := coreGateway.NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+	req := domainGateway.NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
 
 	assert.NotNil(t, req)
 	assert.Equal(t, model, req.Model())
@@ -64,85 +64,85 @@ func TestNewComputeEmbeddingsRequestWithDimensions(t *testing.T) {
 }
 
 func TestComputeEmbeddingsRequestGetters(t *testing.T) {
-	req := coreGateway.NewComputeEmbeddingsRequestWithDimensions("voyage-large-2", []string{"text1", "text2"}, coreGateway.RetrievalDocument, 1024)
+	req := domainGateway.NewComputeEmbeddingsRequestWithDimensions("voyage-large-2", []string{"text1", "text2"}, domainGateway.RetrievalDocument, 1024)
 
 	assert.Equal(t, "voyage-large-2", req.Model())
 	assert.Equal(t, []string{"text1", "text2"}, req.Chunks())
-	assert.Equal(t, coreGateway.RetrievalDocument, req.TaskType())
+	assert.Equal(t, domainGateway.RetrievalDocument, req.TaskType())
 	assert.Equal(t, 1024, req.Dimensions())
 }
 
 func TestComputeDistanceMixin(t *testing.T) {
-	mixin := &coreGateway.ComputeDistanceMixin{}
+	mixin := &domainGateway.ComputeDistanceMixin{}
 
 	tests := []struct {
 		name        string
-		a           coreGateway.Embedding
-		b           coreGateway.Embedding
+		a           domainGateway.Embedding
+		b           domainGateway.Embedding
 		expected    float64
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name:        "Identical vectors",
-			a:           coreGateway.Embedding{1.0, 2.0, 3.0},
-			b:           coreGateway.Embedding{1.0, 2.0, 3.0},
+			a:           domainGateway.Embedding{1.0, 2.0, 3.0},
+			b:           domainGateway.Embedding{1.0, 2.0, 3.0},
 			expected:    1.0,
 			expectError: false,
 		},
 		{
 			name:        "Orthogonal vectors",
-			a:           coreGateway.Embedding{1.0, 0.0},
-			b:           coreGateway.Embedding{0.0, 1.0},
+			a:           domainGateway.Embedding{1.0, 0.0},
+			b:           domainGateway.Embedding{0.0, 1.0},
 			expected:    0.0,
 			expectError: false,
 		},
 		{
 			name:        "Opposite vectors",
-			a:           coreGateway.Embedding{1.0, 0.0},
-			b:           coreGateway.Embedding{-1.0, 0.0},
+			a:           domainGateway.Embedding{1.0, 0.0},
+			b:           domainGateway.Embedding{-1.0, 0.0},
 			expected:    -1.0,
 			expectError: false,
 		},
 		{
 			name:        "Different length vectors",
-			a:           coreGateway.Embedding{1.0, 2.0},
-			b:           coreGateway.Embedding{1.0, 2.0, 3.0},
+			a:           domainGateway.Embedding{1.0, 2.0},
+			b:           domainGateway.Embedding{1.0, 2.0, 3.0},
 			expectError: true,
 			errorMsg:    "vectors must have the same length",
 		},
 		{
 			name:        "Empty vectors",
-			a:           coreGateway.Embedding{},
-			b:           coreGateway.Embedding{},
+			a:           domainGateway.Embedding{},
+			b:           domainGateway.Embedding{},
 			expectError: true,
 			errorMsg:    "vectors must not be empty",
 		},
 		{
 			name:        "Zero magnitude vector a",
-			a:           coreGateway.Embedding{0.0, 0.0},
-			b:           coreGateway.Embedding{1.0, 0.0},
+			a:           domainGateway.Embedding{0.0, 0.0},
+			b:           domainGateway.Embedding{1.0, 0.0},
 			expected:    0.0,
 			expectError: false,
 		},
 		{
 			name:        "Zero magnitude vector b",
-			a:           coreGateway.Embedding{1.0, 0.0},
-			b:           coreGateway.Embedding{0.0, 0.0},
+			a:           domainGateway.Embedding{1.0, 0.0},
+			b:           domainGateway.Embedding{0.0, 0.0},
 			expected:    0.0,
 			expectError: false,
 		},
 		{
 			name:        "Regular similarity calculation",
-			a:           coreGateway.Embedding{1.0, 2.0, 3.0},
-			b:           coreGateway.Embedding{2.0, 4.0, 6.0},
+			a:           domainGateway.Embedding{1.0, 2.0, 3.0},
+			b:           domainGateway.Embedding{2.0, 4.0, 6.0},
 			expected:    1.0, // These are parallel vectors
 			expectError: false,
 		},
 		{
 			name:        "Partial similarity",
-			a:           coreGateway.Embedding{1.0, 1.0},
-			b:           coreGateway.Embedding{1.0, 0.0},
+			a:           domainGateway.Embedding{1.0, 1.0},
+			b:           domainGateway.Embedding{1.0, 0.0},
 			expected:    0.7071067811865475, // cos(45°) ≈ 0.707
 			expectError: false,
 		},
@@ -167,15 +167,15 @@ func TestComputeDistanceMixin(t *testing.T) {
 
 func TestTaskTypeConstants(t *testing.T) {
 	// Test that all task type constants are properly defined
-	taskTypes := []coreGateway.TaskType{
-		coreGateway.SemanticSimilarity,
-		coreGateway.Classification,
-		coreGateway.Clustering,
-		coreGateway.RetrievalDocument,
-		coreGateway.RetrievalQuery,
-		coreGateway.CodeRetrievalQuery,
-		coreGateway.QuestionAnswering,
-		coreGateway.FactVerification,
+	taskTypes := []domainGateway.TaskType{
+		domainGateway.SemanticSimilarity,
+		domainGateway.Classification,
+		domainGateway.Clustering,
+		domainGateway.RetrievalDocument,
+		domainGateway.RetrievalQuery,
+		domainGateway.CodeRetrievalQuery,
+		domainGateway.QuestionAnswering,
+		domainGateway.FactVerification,
 	}
 
 	for _, taskType := range taskTypes {
@@ -183,14 +183,14 @@ func TestTaskTypeConstants(t *testing.T) {
 	}
 
 	// Test specific values
-	assert.Equal(t, "SEMANTIC_SIMILARITY", string(coreGateway.SemanticSimilarity))
-	assert.Equal(t, "CLASSIFICATION", string(coreGateway.Classification))
-	assert.Equal(t, "CLUSTERING", string(coreGateway.Clustering))
-	assert.Equal(t, "RETRIEVAL_DOCUMENT", string(coreGateway.RetrievalDocument))
-	assert.Equal(t, "RETRIEVAL_QUERY", string(coreGateway.RetrievalQuery))
-	assert.Equal(t, "CODE_RETRIEVAL_QUERY", string(coreGateway.CodeRetrievalQuery))
-	assert.Equal(t, "QUESTION_ANSWERING", string(coreGateway.QuestionAnswering))
-	assert.Equal(t, "FACT_VERIFICATION", string(coreGateway.FactVerification))
+	assert.Equal(t, "SEMANTIC_SIMILARITY", string(domainGateway.SemanticSimilarity))
+	assert.Equal(t, "CLASSIFICATION", string(domainGateway.Classification))
+	assert.Equal(t, "CLUSTERING", string(domainGateway.Clustering))
+	assert.Equal(t, "RETRIEVAL_DOCUMENT", string(domainGateway.RetrievalDocument))
+	assert.Equal(t, "RETRIEVAL_QUERY", string(domainGateway.RetrievalQuery))
+	assert.Equal(t, "CODE_RETRIEVAL_QUERY", string(domainGateway.CodeRetrievalQuery))
+	assert.Equal(t, "QUESTION_ANSWERING", string(domainGateway.QuestionAnswering))
+	assert.Equal(t, "FACT_VERIFICATION", string(domainGateway.FactVerification))
 }
 
 func TestNewGenerateContentRequestGetters(t *testing.T) {
@@ -199,7 +199,7 @@ func TestNewGenerateContentRequestGetters(t *testing.T) {
 	userPrompt := "Hello, world!"
 	maxTokens := 100
 
-	req := coreGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
 
 	// Test all getter methods
 	assert.Equal(t, model, req.Model())
@@ -211,9 +211,9 @@ func TestNewGenerateContentRequestGetters(t *testing.T) {
 func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {
 	model := "text-embedding-ada-002"
 	chunks := []string{"hello", "world", "test"}
-	taskType := coreGateway.SemanticSimilarity
+	taskType := domainGateway.SemanticSimilarity
 
-	req := coreGateway.NewComputeEmbeddingsRequest(model, chunks, taskType)
+	req := domainGateway.NewComputeEmbeddingsRequest(model, chunks, taskType)
 
 	// Test all getter methods
 	assert.Equal(t, model, req.Model())
@@ -225,10 +225,10 @@ func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {
 func TestNewComputeEmbeddingsRequestWithDimensionsGetters(t *testing.T) {
 	model := "text-embedding-ada-002"
 	chunks := []string{"hello", "world"}
-	taskType := coreGateway.Classification
+	taskType := domainGateway.Classification
 	dimensions := 512
 
-	req := coreGateway.NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+	req := domainGateway.NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
 
 	// Test all getter methods
 	assert.Equal(t, model, req.Model())
@@ -238,11 +238,11 @@ func TestNewComputeEmbeddingsRequestWithDimensionsGetters(t *testing.T) {
 }
 
 func TestComputeDistance(t *testing.T) {
-	mixin := &coreGateway.ComputeDistanceMixin{}
+	mixin := &domainGateway.ComputeDistanceMixin{}
 
-	embedding1 := coreGateway.Embedding{1.0, 0.0, 0.0}
-	embedding2 := coreGateway.Embedding{0.0, 1.0, 0.0}
-	embedding3 := coreGateway.Embedding{1.0, 0.0, 0.0}
+	embedding1 := domainGateway.Embedding{1.0, 0.0, 0.0}
+	embedding2 := domainGateway.Embedding{0.0, 1.0, 0.0}
+	embedding3 := domainGateway.Embedding{1.0, 0.0, 0.0}
 
 	// Test distance between different vectors
 	distance12, err := mixin.ComputeDistance(embedding1, embedding2)
@@ -255,15 +255,15 @@ func TestComputeDistance(t *testing.T) {
 	assert.InDelta(t, 1.0, distance13, 0.001) // Should be 1 for identical vectors
 
 	// Test empty vectors
-	empty1 := coreGateway.Embedding{}
-	empty2 := coreGateway.Embedding{}
+	empty1 := domainGateway.Embedding{}
+	empty2 := domainGateway.Embedding{}
 	_, err = mixin.ComputeDistance(empty1, empty2)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vectors must not be empty")
 
 	// Test vectors of different lengths
-	short := coreGateway.Embedding{1.0}
-	long := coreGateway.Embedding{1.0, 0.0, 0.0}
+	short := domainGateway.Embedding{1.0}
+	long := domainGateway.Embedding{1.0, 0.0, 0.0}
 	_, err = mixin.ComputeDistance(short, long)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vectors must have the same length")

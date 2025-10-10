@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	coreProfile "github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/profile"
 )
 
 // Mock implementations for testing
@@ -37,11 +37,11 @@ func (m *mockConfigResolver) Get() (*config.Config, error) {
 
 // mockProfileResolver is a mock implementation of ProfileResolver for testing.
 type mockProfileResolver struct {
-	profiles map[coreProfile.Profile]*coreProfile.ResolvedProfile
+	profiles map[profile.Profile]*profile.ResolvedProfile
 	err      error
 }
 
-func (m *mockProfileResolver) Get(p coreProfile.Profile) (*coreProfile.ResolvedProfile, error) {
+func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -127,7 +127,7 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 		},
 	}
 	profileSvc := &mockProfileResolver{
-		profiles: map[coreProfile.Profile]*coreProfile.ResolvedProfile{
+		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"default": {
 				Name:  "default",
 				Model: "gpt-4",
@@ -192,7 +192,7 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 		},
 	}
 	profileSvc := &mockProfileResolver{
-		profiles: map[coreProfile.Profile]*coreProfile.ResolvedProfile{
+		profiles: map[profile.Profile]*profile.ResolvedProfile{
 			"golang": {
 				Name:  "golang",
 				Model: "claude-3",

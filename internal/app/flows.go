@@ -35,18 +35,18 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/adapters/git"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
-	commitService "github.com/retran/meowg1k/internal/core/commit"
+	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/filter"
 	"github.com/retran/meowg1k/internal/core/model"
 	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/prompt"
 	"github.com/retran/meowg1k/internal/core/provider"
 	"github.com/retran/meowg1k/internal/core/pullrequest"
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/internal/core/task"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
-	"github.com/retran/meowg1k/internal/flows/pr"
-	"github.com/retran/meowg1k/internal/prompt"
+	"github.com/retran/meowg1k/internal/flows/pullrequest"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -80,7 +80,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
 
-	commitConfigService, err := commitService.NewService(c.ConfigService, profileService)
+	commitConfigService, err := commit.NewService(c.ConfigService, profileService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
@@ -95,7 +95,6 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
-	// Activities for regular staged commit mode
 	listStagedActivityFactory, err := liststaged.NewFactory(gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list staged activity factory: %w", err)
@@ -111,7 +110,6 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create fetch all diffs factory: %w", err)
 	}
 
-	// Activities for squash/branch diff mode
 	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
@@ -126,7 +124,6 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
-	// Common activities
 	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
@@ -221,7 +218,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	return flowFactory.NewFlow(), nil
 }
 
-// CreatePullRequestFlow creates a complete PR flow with all dependencies.
+// CreatePullRequestFlow creates a complete pull request flow with all dependencies.
 func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService, err := git.NewService(workspaceService)
