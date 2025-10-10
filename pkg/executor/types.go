@@ -19,20 +19,8 @@ package executor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
-
-	"github.com/retran/meowg1k/pkg/future"
-)
-
-var (
-	// ErrInputCannotBeNil indicates that the input parameter is nil
-	ErrInputCannotBeNil = errors.New("input cannot be nil")
-	// ErrInvalidInputType indicates that the input type is not supported
-	ErrInvalidInputType = errors.New("invalid input type")
-	// ErrInvalidOutputType indicates that the output type is not supported
-	ErrInvalidOutputType = errors.New("invalid output type")
 )
 
 // Status represents the current status of an activity.
@@ -49,6 +37,26 @@ const (
 	StatusFailed Status = "failed"
 )
 
+// DefaultRetryPolicy returns a sensible default retry policy
+func DefaultRetryPolicy() *RetryPolicy {
+	return &RetryPolicy{
+		MaxAttempts:  3,
+		InitialDelay: 100 * time.Millisecond,
+		MaxDelay:     5 * time.Second,
+		Multiplier:   2.0,
+	}
+}
+
+// NoRetryPolicy returns a policy that doesn't retry
+func NoRetryPolicy() RetryPolicy {
+	return RetryPolicy{
+		MaxAttempts:  1,
+		InitialDelay: 0,
+		MaxDelay:     0,
+		Multiplier:   1.0,
+	}
+}
+
 // Feedback contains information about activity execution progress.
 type Feedback struct {
 	ActivityName string         `json:"activity_name"`
@@ -62,6 +70,10 @@ type Feedback struct {
 
 // String returns a string representation of the feedback.
 func (f *Feedback) String() string {
+	if f == nil {
+		return ""
+	}
+
 	if f.Error != nil {
 		if f.Progress > 0 {
 			return fmt.Sprintf(
@@ -95,6 +107,9 @@ type Context struct {
 
 // NewContext creates a new executor context.
 func NewContext(name string, feedbackFunc FeedbackHandler, executor Executor) *Context {
+	if feedbackFunc == nil {
+		feedbackFunc = NoOpFeedbackHandler
+	}
 	return &Context{
 		name:         name,
 		feedbackFunc: feedbackFunc,
@@ -104,16 +119,22 @@ func NewContext(name string, feedbackFunc FeedbackHandler, executor Executor) *C
 
 // Name returns the name of the activity.
 func (c *Context) Name() string {
+	if c == nil {
+		return ""
+	}
 	return c.name
 }
 
 // GetExecutor returns the executor associated with the context.
 func (c *Context) GetExecutor() Executor {
+	if c == nil {
+		return nil
+	}
 	return c.Executor
 }
 
 func (c *Context) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
-	if c.feedbackFunc == nil {
+	if c == nil || c.feedbackFunc == nil {
 		return
 	}
 
@@ -165,24 +186,42 @@ func (c *Context) SendRetry(attempt int, err error) {
 // Activity defines a function that can be executed by the executor.
 type Activity[T any, K any] func(ctx context.Context, activityCtx *Context, input T) (K, error)
 
-// ActivityFactory creates new instances of activities.
-type ActivityFactory interface {
-	NewActivity() Activity[any, any]
+// ActivityFactory creates new instances of activities with specific input and output types.
+type ActivityFactory[T any, K any] interface {
+	NewActivity() Activity[T, K]
 }
 
 // Flow defines a function that can be executed by the executor.
 type Flow func(ctx context.Context, flowCtx *Context) error
 
-// Executor defines the interface for executing flows and activities.
-type Executor interface {
-	RunActivity(
-		ctx context.Context,
-		parentCtx *Context,
-		name string,
-		activity Activity[any, any],
-		input any,
-	) *future.Future[any]
-	RunFlow(ctx context.Context, name string, flow Flow, retryPolicy *RetryPolicy) error
+// Execution represents the progress state of a single execution.
+type Execution struct {
+	Name       string
+	Status     Status
+	Message    string
+	Result     string
+	StartTime  time.Time
+	EndTime    *time.Time
+	Error      error
+	Metadata   map[string]any
+	ParentName string
+	Children   []string
+	Level      int
+}
+
+func (e *Execution) getDurationString() string {
+	if e.EndTime == nil {
+		return ""
+	}
+	duration := e.EndTime.Sub(e.StartTime)
+	switch {
+	case duration < time.Second:
+		return fmt.Sprintf("%dms", duration.Milliseconds())
+	case duration < time.Minute:
+		return fmt.Sprintf("%.1fs", duration.Seconds())
+	default:
+		return fmt.Sprintf("%.1fm", duration.Minutes())
+	}
 }
 
 // RetryPolicy defines the retry behavior for an operation.

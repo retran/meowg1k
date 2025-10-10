@@ -36,9 +36,9 @@ Generate commit messages based on staged changes or the difference between
 branches. Supports both regular commit mode (analyzing staged files) and
 squash commit mode (analyzing branch diffs). Alias: \fBc\fR.
 .TP
-.B pr
+.B pullrequest
 Generate Pull Request title and description based on the difference between
-your current branch and a base branch. Alias: \fBp\fR.
+your current branch and a base branch. Alias: \fBpr\fR.
 .TP
 .B version
 Show version information including build date and git commit hash.
@@ -134,18 +134,26 @@ Project config:
 .B ./.meowg1k/config.yaml
 (recommended for team-shared settings, commit to repository)
 .IP "3."
-Explicit config via \fB\-\-config\fR flag (highest priority, overrides all others)
+Explicit config via \fB\-\-config\fR flag
+.br
+(highest priority, overrides all others)
 .PP
 The configuration file has several top-level sections:
 .TP
 .B profiles
-Reusable provider configurations with model, timeout, rate limiting, and token caps.
+Reusable provider configurations with model, timeout, rate limiting,
+.br
+and token caps.
 .TP
 .B filter
-Gitignore-style patterns to exclude files from analysis (for security and noise reduction).
+Gitignore-style patterns to exclude files from analysis
+.br
+(for security and noise reduction).
 .TP
 .B summarize
-Map-phase configuration for commit and pr commands, with rule-based file-specific settings.
+Map-phase configuration for commit and pr commands, with
+.br
+rule-based file-specific settings.
 .TP
 .B generate
 Configuration for the generate command, including predefined tasks.
@@ -204,13 +212,13 @@ Generate squash commit message:
 Generate PR description:
 .PP
 .nf
-.B meow pr \-\-base main
+.B meow pullrequest \-\-base main
 .fi
 .PP
 With developer intent:
 .PP
 .nf
-.B meow pr \-b dev \-i "Add complete Stripe payment integration"
+.B meow pullrequest \-b dev \-i "Add complete Stripe payment integration"
 .fi
 
 .SS Project Configuration
@@ -288,7 +296,7 @@ cryptographically signed.
 .SH SEE ALSO
 .BR meow\-generate (1),
 .BR meow\-commit (1),
-.BR meow\-pr (1),
+.BR meow\-pullrequest (1),
 .BR meow\-version (1),
 .BR meow\-config (5),
 .BR meow\-security (7)

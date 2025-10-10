@@ -18,126 +18,162 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 )
 
-// Limiter provides multi-dimensional rate limiting.
-type Limiter struct {
-	rpm *Bucket // Requests per minute
-	tpm *Bucket // Tokens per minute (input)
-	rpd *Bucket // Requests per day
+// Limiter defines the interface for rate limiting.
+type Limiter interface {
+	Wait(ctx context.Context, tokenCount int) error
+	TryAcquire(ctx context.Context, tokenCount int) bool
 }
 
-// Config defines rate limiting configuration.
+// dbLimiter implements Limiter using a database-backed Repository.
+type dbLimiter struct {
+	repo    Repository
+	configs []BucketConfig
+}
+
+// Config defines the rate limiting configuration.
 type Config struct {
+	ID                string
 	RequestsPerMinute int
 	TokensPerMinute   int
 	RequestsPerDay    int
 }
 
-// Unlimited is a predefined configuration that disables all rate limits.
+// Unlimited is a predefined configuration that imposes no rate limits.
 var Unlimited = Config{
+	ID:                "unlimited",
 	RequestsPerMinute: 0,
 	TokensPerMinute:   0,
 	RequestsPerDay:    0,
 }
 
-// NewLimiter creates a new multi-dimensional rate limiter.
-func NewLimiter(config Config) *Limiter {
-	limiter := &Limiter{}
+// NewLimiter creates a new Limiter based on the provided configuration and repository.
+func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, error) {
+	if config.ID == "" {
+		return nil, fmt.Errorf("config ID is empty")
+	}
+	if repo == nil {
+		return nil, fmt.Errorf("repository is nil for config %q", config.ID)
+	}
 
+	var configs []BucketConfig
 	if config.RequestsPerMinute > 0 {
-		limiter.rpm = NewBucket(config.RequestsPerMinute, config.RequestsPerMinute, time.Minute)
+		configs = append(configs, BucketConfig{
+			ID:          config.ID + ":rpm",
+			Capacity:    config.RequestsPerMinute,
+			RefillRate:  config.RequestsPerMinute,
+			RefillEvery: time.Minute,
+		})
 	}
-
 	if config.TokensPerMinute > 0 {
-		limiter.tpm = NewBucket(config.TokensPerMinute, config.TokensPerMinute, time.Minute)
+		configs = append(configs, BucketConfig{
+			ID:          config.ID + ":tpm",
+			Capacity:    config.TokensPerMinute,
+			RefillRate:  config.TokensPerMinute,
+			RefillEvery: time.Minute,
+		})
 	}
-
 	if config.RequestsPerDay > 0 {
-		limiter.rpd = NewBucket(config.RequestsPerDay, config.RequestsPerDay, 24*time.Hour)
+		configs = append(configs, BucketConfig{
+			ID:          config.ID + ":rpd",
+			Capacity:    config.RequestsPerDay,
+			RefillRate:  config.RequestsPerDay,
+			RefillEvery: 24 * time.Hour,
+		})
 	}
 
-	return limiter
+	if len(configs) == 0 {
+		return NewNoOpLimiter(), nil
+	}
+
+	if err := repo.InitializeBuckets(ctx, configs); err != nil {
+		return nil, fmt.Errorf("failed to initialize rate limit buckets for config %q: %w", config.ID, err)
+	}
+
+	return &dbLimiter{
+		repo:    repo,
+		configs: configs,
+	}, nil
 }
 
-// Wait waits until the request with the specified token count can be processed.
-// Blocks until all limits allow the request or context is cancelled.
-func (l *Limiter) Wait(ctx context.Context, tokenCount int) error {
-	if l.rpm != nil {
-		if err := l.rpm.Take(ctx, 1); err != nil {
-			return err
-		}
+// TryAcquire attempts to acquire the specified number of tokens without blocking.
+func (l *dbLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
+	requests := l.buildRequests(tokenCount)
+	if len(requests) == 0 {
+		return true
 	}
 
-	if l.tpm != nil && tokenCount > 0 {
-		if err := l.tpm.Take(ctx, tokenCount); err != nil {
-			return err
-		}
+	err := l.repo.AcquireTokens(ctx, l.configs, requests)
+	return err == nil
+}
+
+func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
+	requests := l.buildRequests(tokenCount)
+	if len(requests) == 0 {
+		return nil
 	}
 
-	if l.rpd != nil {
-		if err := l.rpd.Take(ctx, 1); err != nil {
-			return err
+	const pollInterval = 100 * time.Millisecond
+
+	for {
+		err := l.repo.AcquireTokens(ctx, l.configs, requests)
+		if err == nil {
+			return nil
+		}
+
+		// Check if this is a "not enough tokens" error using type assertion
+		var notEnoughTokensErr *NotEnoughTokensError
+		if !errors.As(err, &notEnoughTokensErr) {
+			// If it's not a token shortage error, return it immediately with context
+			return fmt.Errorf("failed to acquire tokens from rate limiter: %w", err)
+		}
+
+		// Wait and retry for token shortage errors
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("rate limiter wait interrupted: %w", ctx.Err())
+		case <-time.After(pollInterval):
+			// Repeat the attempt
 		}
 	}
+}
 
+// buildRequests constructs the list of AcquisitionRequests based on the token count and configured buckets.
+func (l *dbLimiter) buildRequests(tokenCount int) []AcquisitionRequest {
+	var requests []AcquisitionRequest
+	for _, config := range l.configs {
+		switch {
+		case config.RefillEvery == time.Minute && config.ID[len(config.ID)-4:] == ":rpm":
+			requests = append(requests, AcquisitionRequest{ID: config.ID, Count: 1})
+		case config.RefillEvery == time.Minute && config.ID[len(config.ID)-4:] == ":tpm":
+			if tokenCount > 0 {
+				requests = append(requests, AcquisitionRequest{ID: config.ID, Count: tokenCount})
+			}
+		case config.RefillEvery == 24*time.Hour:
+			requests = append(requests, AcquisitionRequest{ID: config.ID, Count: 1})
+		}
+	}
+	return requests
+}
+
+// noOpLimiter is a limiter that does nothing.
+type noOpLimiter struct{}
+
+// NewNoOpLimiter creates a new no-op limiter instance.
+func NewNoOpLimiter() Limiter {
+	return &noOpLimiter{}
+}
+
+// Wait is a no-op implementation that always succeeds.
+func (n *noOpLimiter) Wait(ctx context.Context, tokenCount int) error {
 	return nil
 }
 
-// TryAcquire attempts to acquire resources for a request with the specified token count.
-// Returns true if successful, false if any limit would be exceeded.
-func (l *Limiter) TryAcquire(tokenCount int) bool {
-	if l.rpm != nil && !l.rpm.TryTake(0) {
-		return false
-	}
-
-	if l.tpm != nil && tokenCount > 0 && l.tpm.Available() < tokenCount {
-		return false
-	}
-
-	if l.rpd != nil && !l.rpd.TryTake(0) {
-		return false
-	}
-
-	if l.rpm != nil {
-		l.rpm.TryTake(1)
-	}
-
-	if l.tpm != nil && tokenCount > 0 {
-		l.tpm.TryTake(tokenCount)
-	}
-
-	if l.rpd != nil {
-		l.rpd.TryTake(1)
-	}
-
+// TryAcquire is a no-op implementation that always succeeds.
+func (n *noOpLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
 	return true
-}
-
-// Reset resets all rate limit buckets to full capacity.
-func (l *Limiter) Reset() {
-	if l.rpm != nil {
-		l.rpm.Reset()
-	}
-	if l.tpm != nil {
-		l.tpm.Reset()
-	}
-	if l.rpd != nil {
-		l.rpd.Reset()
-	}
-}
-
-// Stats returns current statistics for all dimensions.
-func (l *Limiter) Stats() (rpm, tpm, rpd int) {
-	if l.rpm != nil {
-		rpm = l.rpm.Available()
-	}
-	if l.tpm != nil {
-		tpm = l.tpm.Available()
-	}
-	if l.rpd != nil {
-		rpd = l.rpd.Available()
-	}
-	return rpm, tpm, rpd
 }

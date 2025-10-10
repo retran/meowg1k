@@ -21,76 +21,65 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/testutil"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 func TestNewFactory(t *testing.T) {
-	factory := NewFactory(nil)
+	mockFactory := (*summarizefile.Factory)(nil)
+	factory, err := NewFactory(mockFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	if factory == nil {
 		t.Error("NewFactory returned nil")
 	}
 }
 
-func TestActivityNilInput(t *testing.T) {
-	factory := NewFactory(nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, nil)
-	if err != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
-	}
-}
-
-func TestActivityInvalidInput(t *testing.T) {
-	factory := NewFactory(nil)
-	activity := factory.NewActivity()
-	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, nil)
-	_, err := activity(ctx, execCtx, "invalid")
+func TestNewFactoryNil(t *testing.T) {
+	factory, err := NewFactory(nil)
 	if err == nil {
-		t.Error("Expected error for invalid input type")
+		t.Error("Expected error when NewFactory called with nil")
+	}
+	if factory != nil {
+		t.Error("Expected nil factory when error returned")
 	}
 }
 
-type mockSummarizeFactory struct{}
-
-func (m *mockSummarizeFactory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, input any) (any, error) {
-		return &summarizefile.Output{
-			Filename: "test.go",
-			Summary:  "test summary",
-			Skipped:  false,
-		}, nil
+func TestActivityNilInput(t *testing.T) {
+	factory, err := NewFactory((*summarizefile.Factory)(nil))
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+	activity := factory.NewActivity()
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	_, err = activity(ctx, execCtx, nil)
+	if err == nil {
+		t.Error("Expected error for nil input, got nil")
 	}
 }
 
 func TestActivitySuccess(t *testing.T) {
-	mockFactory := &mockSummarizeFactory{}
-	factory := NewFactory((*summarizefile.Factory)(nil))
+	factory, err := NewFactory((*summarizefile.Factory)(nil))
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 	ctx := context.Background()
-	execCtx := executor.NewContext("test", nil, &testutil.MockExecutor{})
+	execCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Changes: []*git.FileChange{},
 	}
 
-	result, err := activity(ctx, execCtx, input)
+	output, err := activity(ctx, execCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Errorf("Expected *Output, got %T", result)
 	}
 
 	if output.Summaries == nil {
 		t.Error("Expected summaries to be non-nil")
 	}
-
-	_ = mockFactory
 }

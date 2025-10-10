@@ -1,0 +1,133 @@
+/*
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package summarize provides adapters for file summarization configuration and rule matching.
+package summarize
+
+import (
+	"fmt"
+
+	"github.com/retran/meowg1k/internal/domain/config"
+	"github.com/retran/meowg1k/internal/domain/profile"
+	summarize2 "github.com/retran/meowg1k/internal/domain/summarize"
+	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/gitignore"
+)
+
+// Service resolves file summarization configurations.
+type Service struct {
+	configResolver  ports.ConfigResolver
+	profileResolver ports.ProfileResolver
+}
+
+// NewService creates a new file summarization configuration service.
+func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+	if configResolver == nil {
+		return nil, fmt.Errorf("config resolver is nil")
+	}
+
+	if profileResolver == nil {
+		return nil, fmt.Errorf("profile resolver is nil")
+	}
+
+	return &Service{
+		configResolver:  configResolver,
+		profileResolver: profileResolver,
+	}, nil
+}
+
+// Get resolves the summarization configuration for a given file.
+func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
+	if s == nil {
+		return nil, fmt.Errorf("summarize service is nil")
+	}
+
+	currentConfig, err := s.configResolver.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application config: %w", err)
+	}
+
+	if currentConfig.Summarize == nil {
+		return nil, nil
+	}
+
+	var matchingRule *config.SummarizeRule
+	for _, rule := range currentConfig.Summarize.Rules {
+		if rule.Match != "" {
+			matcher := gitignore.NewMatcher([]string{rule.Match})
+			if matcher.Match(filename, false) {
+				matchingRule = rule
+				break
+			}
+		}
+	}
+
+	if matchingRule != nil && matchingRule.Skip {
+		return &summarize2.ResolvedConfig{
+			Skip: true,
+		}, nil
+	}
+
+	var profileName string
+	var strategy *config.Strategy
+	var systemPrompt string
+
+	if matchingRule != nil {
+		if matchingRule.Profile != "" {
+			profileName = matchingRule.Profile
+		}
+		if matchingRule.Strategy != nil {
+			strategy = matchingRule.Strategy
+		}
+		if matchingRule.SystemPrompt != "" {
+			systemPrompt = matchingRule.SystemPrompt
+		}
+	}
+
+	if currentConfig.Summarize.Default != nil {
+		if profileName == "" {
+			profileName = currentConfig.Summarize.Default.Profile
+		}
+		if strategy == nil {
+			strategy = currentConfig.Summarize.Default.Strategy
+		}
+		if systemPrompt == "" {
+			systemPrompt = currentConfig.Summarize.Default.SystemPrompt
+		}
+	}
+
+	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve profile: %w", err)
+	}
+
+	if strategy == nil {
+		strategy = &config.Strategy{
+			Type:                "plain",
+			IncludeOriginalFile: false,
+			IncludeChangedFile:  false,
+		}
+	}
+
+	return &summarize2.ResolvedConfig{
+		Profile:             resolvedProfile,
+		Strategy:            strategy,
+		SystemPrompt:        systemPrompt,
+		Skip:                false,
+		IncludeOriginalFile: strategy.IncludeOriginalFile,
+		IncludeChangedFile:  strategy.IncludeChangedFile,
+	}, nil
+}

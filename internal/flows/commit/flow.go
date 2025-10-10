@@ -28,40 +28,91 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/services/command"
-	"github.com/retran/meowg1k/internal/services/commitconfig"
-	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/output"
+	"github.com/retran/meowg1k/internal/domain/commit"
+	"github.com/retran/meowg1k/internal/domain/git"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the commit flow with injected dependencies.
-type Factory struct {
-	listStagedFactory          executor.ActivityFactory
-	listBranchFilesFactory     executor.ActivityFactory
-	applyFiltersFactory        executor.ActivityFactory
-	fetchAllDiffsFactory       executor.ActivityFactory
-	fetchAllBranchDiffsFactory executor.ActivityFactory
-	summarizeAllFactory        executor.ActivityFactory
-	composeCommitFactory       executor.ActivityFactory
-	commitConfigService        commitconfig.Service
-	commandService             command.Service
-	outputService              output.Service
+// CommitConfigProvider provides commit message configuration.
+type CommitConfigProvider interface {
+	Get() (*commit.ResolvedConfig, error)
 }
 
-// NewFactory creates a new commit flow factory with injected services.
+// CommandParametersReader reads command-line parameters and flags.
+type CommandParametersReader interface {
+	GetTargetBranchFlag() (string, error)
+	GetIntentFlag() (string, error)
+	GetStdIn() (string, error)
+}
+
+// Factory creates instances of the commit flow with injected dependencies.
+type Factory struct {
+	listStagedFactory          executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
+	listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
+	applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
+	fetchAllDiffsFactory       executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]
+	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
+	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+	composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+	commitConfigProvider       CommitConfigProvider
+	commandParametersReader    CommandParametersReader
+	outputWriter               ports.OutputWriter
+}
+
+// NewFactory creates a new commit flow factory with injected adapters.
 func NewFactory(
-	listStagedFactory executor.ActivityFactory,
-	listBranchFilesFactory executor.ActivityFactory,
-	applyFiltersFactory executor.ActivityFactory,
-	fetchAllDiffsFactory executor.ActivityFactory,
-	fetchAllBranchDiffsFactory executor.ActivityFactory,
-	summarizeAllFactory executor.ActivityFactory,
-	composeCommitFactory executor.ActivityFactory,
-	commitConfigService commitconfig.Service,
-	commandService command.Service,
-	outputService output.Service,
-) *Factory {
+	listStagedFactory executor.ActivityFactory[*liststaged.Input, *liststaged.Output],
+	listBranchFilesFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output],
+	applyFiltersFactory executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output],
+	fetchAllDiffsFactory executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output],
+	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
+	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
+	composeCommitFactory executor.ActivityFactory[*composecommit.Input, *composecommit.Output],
+	commitConfigProvider CommitConfigProvider,
+	commandParametersReader CommandParametersReader,
+	outputWriter ports.OutputWriter,
+) (*Factory, error) {
+	if listStagedFactory == nil {
+		return nil, fmt.Errorf("listStagedFactory is nil")
+	}
+
+	if listBranchFilesFactory == nil {
+		return nil, fmt.Errorf("listBranchFilesFactory is nil")
+	}
+
+	if applyFiltersFactory == nil {
+		return nil, fmt.Errorf("applyFiltersFactory is nil")
+	}
+
+	if fetchAllDiffsFactory == nil {
+		return nil, fmt.Errorf("fetchAllDiffsFactory is nil")
+	}
+
+	if fetchAllBranchDiffsFactory == nil {
+		return nil, fmt.Errorf("fetchAllBranchDiffsFactory is nil")
+	}
+
+	if summarizeAllFactory == nil {
+		return nil, fmt.Errorf("summarizeAllFactory is nil")
+	}
+
+	if composeCommitFactory == nil {
+		return nil, fmt.Errorf("composeCommitFactory is nil")
+	}
+
+	if commitConfigProvider == nil {
+		return nil, fmt.Errorf("commitConfigProvider is nil")
+	}
+
+	if commandParametersReader == nil {
+		return nil, fmt.Errorf("commandParametersReader is nil")
+	}
+
+	if outputWriter == nil {
+		return nil, fmt.Errorf("outputWriter is nil")
+	}
+
 	return &Factory{
 		listStagedFactory:          listStagedFactory,
 		listBranchFilesFactory:     listBranchFilesFactory,
@@ -70,19 +121,31 @@ func NewFactory(
 		fetchAllBranchDiffsFactory: fetchAllBranchDiffsFactory,
 		summarizeAllFactory:        summarizeAllFactory,
 		composeCommitFactory:       composeCommitFactory,
-		commitConfigService:        commitConfigService,
-		commandService:             commandService,
-		outputService:              outputService,
-	}
+		commitConfigProvider:       commitConfigProvider,
+		commandParametersReader:    commandParametersReader,
+		outputWriter:               outputWriter,
+	}, nil
 }
 
 // NewFlow creates and returns the commit composition flow function with added progress reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
+		if f == nil {
+			return fmt.Errorf("factory is nil")
+		}
+
+		if ctx == nil {
+			return fmt.Errorf("context is nil")
+		}
+
+		if flowCtx == nil {
+			return fmt.Errorf("flow context is nil")
+		}
+
 		flowCtx.SendRunning("Composing commit message")
 
 		// Check if we're in squash mode (branch comparison)
-		targetBranch, err := f.commandService.GetTargetBranchFlag()
+		targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get target-branch flag: %w", err)
 		}
@@ -93,45 +156,57 @@ func (f *Factory) NewFlow() executor.Flow {
 		if targetBranch != "" {
 			// Squash mode: list files changed in branch
 			listBranchFiles := f.listBranchFilesFactory.NewActivity()
-			branchFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListBranchFiles", listBranchFiles, &listbranchfiles.Input{
-				TargetBranch: targetBranch,
-			})
-			branchFilesRaw, err := branchFilesFuture.Get(ctx)
+			branchFilesFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ListBranchFiles",
+				listBranchFiles,
+				&listbranchfiles.Input{
+					TargetBranch: targetBranch,
+				},
+			)
+
+			branchFiles, err := branchFilesFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to list branch files: %w", err)
-			}
-			branchFiles, ok := branchFilesRaw.(*listbranchfiles.Output)
-			if !ok {
-				return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, branchFilesRaw)
 			}
 			files = branchFiles.Files
 		} else {
 			// Normal mode: list staged files
 			listStaged := f.listStagedFactory.NewActivity()
-			stagedFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ListStagedFiles", listStaged, &liststaged.Input{})
-			stagedFilesRaw, err := stagedFilesFuture.Get(ctx)
+			stagedFilesFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ListStagedFiles",
+				listStaged,
+				&liststaged.Input{},
+			)
+
+			stagedFiles, err := stagedFilesFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to list staged files: %w", err)
-			}
-			stagedFiles, ok := stagedFilesRaw.(*liststaged.Output)
-			if !ok {
-				return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, stagedFilesRaw)
 			}
 			files = stagedFiles.Files
 		}
 
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
-		filteredFilesFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ApplyFilters", applyFilters, &applyfilters.Input{
-			Files: files,
-		})
-		filteredFilesRaw, err := filteredFilesFuture.Get(ctx)
+		filteredFilesFuture := executor.ExecuteActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"ApplyFilters",
+			applyFilters,
+			&applyfilters.Input{
+				Files: files,
+			},
+		)
+
+		filteredFiles, err := filteredFilesFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to apply filters: %w", err)
-		}
-		filteredFiles, ok := filteredFilesRaw.(*applyfilters.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, filteredFilesRaw)
 		}
 
 		// Phase 3: Fetch diffs for all files
@@ -140,88 +215,109 @@ func (f *Factory) NewFlow() executor.Flow {
 		if targetBranch != "" {
 			// Squash mode: fetch branch diffs
 			fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-			fetchAllBranchDiffsFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "FetchAllBranchDiffs", fetchAllBranchDiffs, &fetchallbranchdiffs.Input{
-				Files:        filteredFiles.Files,
-				TargetBranch: targetBranch,
-			})
-			fetchAllBranchDiffsRaw, err := fetchAllBranchDiffsFuture.Get(ctx)
+			fetchAllBranchDiffsFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"FetchAllBranchDiffs",
+				fetchAllBranchDiffs,
+				&fetchallbranchdiffs.Input{
+					Files:        filteredFiles.Files,
+					TargetBranch: targetBranch,
+				},
+			)
+
+			fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to fetch branch diffs: %w", err)
 			}
-			fetchAllBranchDiffsOutput, ok := fetchAllBranchDiffsRaw.(*fetchallbranchdiffs.Output)
-			if !ok {
-				return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, fetchAllBranchDiffsRaw)
-			}
-			// Convert to generic slice
+
 			changes = append(changes, fetchAllBranchDiffsOutput.Changes...)
 		} else {
 			// Normal mode: fetch staged diffs
 			fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
-			fetchAllDiffsFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "FetchAllDiffs", fetchAllDiffs, &fetchalldiffs.Input{
-				Files: filteredFiles.Files,
-			})
-			fetchAllDiffsRaw, err := fetchAllDiffsFuture.Get(ctx)
+			fetchAllDiffsFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"FetchAllDiffs",
+				fetchAllDiffs,
+				&fetchalldiffs.Input{
+					Files: filteredFiles.Files,
+				},
+			)
+
+			fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to fetch diffs: %w", err)
 			}
-			fetchAllDiffsOutput, ok := fetchAllDiffsRaw.(*fetchalldiffs.Output)
-			if !ok {
-				return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, fetchAllDiffsRaw)
-			}
-			// Convert to generic slice
+
 			changes = append(changes, fetchAllDiffsOutput.Changes...)
 		}
 
 		// Phase 4: Summarize changes for all files
 		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "SummarizeAll", summarizeAll, &summarizeall.Input{
-			Changes: changes,
-		})
-		summarizeAllRaw, err := summarizeAllFuture.Get(ctx)
+		summarizeAllFuture := executor.ExecuteActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"SummarizeAll",
+			summarizeAll,
+			&summarizeall.Input{
+				Changes: changes,
+			},
+		)
+
+		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to summarize changes: %w", err)
 		}
-		summarizeAllOutput, ok := summarizeAllRaw.(*summarizeall.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, summarizeAllRaw)
-		}
 
 		// Phase 5: Compose commit message
-		commitConfig, err := f.commitConfigService.GetCommitConfig()
+		cfg, err := f.commitConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}
 
-		intent, err := f.commandService.GetIntentFlag()
+		intent, err := f.commandParametersReader.GetIntentFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get intent flag: %w", err)
 		}
 
 		if intent == "" {
-			intent = f.commandService.GetStdIn()
+			stdin, err := f.commandParametersReader.GetStdIn()
+			if err != nil {
+				return fmt.Errorf("failed to get stdin: %w", err)
+			}
+
+			intent = stdin
 		}
 
 		composeCommit := f.composeCommitFactory.NewActivity()
-		commitFuture := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "ComposeCommit", composeCommit, &composecommit.Input{
-			Profile:      commitConfig.Profile,
-			SystemPrompt: commitConfig.SystemPrompt,
-			Summaries:    summarizeAllOutput.Summaries,
-			Intent:       intent,
-		})
+		commitFuture := executor.ExecuteActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"ComposeCommit",
+			composeCommit,
+			&composecommit.Input{
+				Profile:      cfg.Profile,
+				SystemPrompt: cfg.SystemPrompt,
+				Summaries:    summarizeAllOutput.Summaries,
+				Intent:       intent,
+			},
+		)
 
-		commitResultRaw, err := commitFuture.Get(ctx)
+		commitResult, err := commitFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to compose commit message: %w", err)
 		}
 
-		commitResult, ok := commitResultRaw.(*composecommit.Output)
-		if !ok {
-			return fmt.Errorf("%w: %T", executor.ErrInvalidInputType, commitResultRaw)
-		}
-
 		flowCtx.SendCompleted("")
 
-		f.outputService.PrintLine(commitResult.CommitMessage)
+		if err := f.outputWriter.PrintLine(commitResult.CommitMessage); err != nil {
+			return fmt.Errorf("failed to print commit message: %w", err)
+		}
 
 		return nil
 	}
