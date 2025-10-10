@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
@@ -40,57 +40,62 @@ type Output struct {
 
 // Factory creates instances of the FetchAllBranchDiffs activity with injected dependencies.
 type Factory struct {
-	fetchBranchFileDiffActivityFactory executor.ActivityFactory
+	branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]
 }
 
-// NewFactory creates a new FetchAllBranchDiffs activity factory with injected services.
-func NewFactory(
-	fetchBranchFileDiffActivityFactory executor.ActivityFactory,
-) *Factory {
-	return &Factory{
-		fetchBranchFileDiffActivityFactory: fetchBranchFileDiffActivityFactory,
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.
+func NewFactory(branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]) (*Factory, error) {
+	if branchFileDiffActivityFactory == nil {
+		return nil, fmt.Errorf("branch file diff activity factory cannot be nil")
 	}
+
+	return &Factory{
+		branchFileDiffActivityFactory: branchFileDiffActivityFactory,
+	}, nil
 }
 
 // NewActivity creates and returns the FetchAllBranchDiffs activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("fetch all branch diffs factory is nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
 
-		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
+		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
-			fetchBranchFileDiff := f.fetchBranchFileDiffActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchBranchFileDiff, &fetchbranchfilediff.Input{
-				Filename:     file,
-				TargetBranch: input.TargetBranch,
-			})
-			readChangesFutures = append(readChangesFutures, future)
+			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
+			fut := executor.ExecuteActivity[*fetchbranchfilediff.Input, *git.FileChange](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				file,
+				fetchBranchFileDiff,
+				&fetchbranchfilediff.Input{
+					Filename:     file,
+					TargetBranch: input.TargetBranch,
+				},
+			)
+			readChangesFutures = append(readChangesFutures, fut)
 		}
 
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
-		for _, err := range errs {
+		for i, err := range errs {
 			if err != nil {
-				return nil, fmt.Errorf("failed to read branch diffs: %w", err)
+				return nil, fmt.Errorf("failed to read branch diff for file %d: %w", i, err)
 			}
 		}
 
 		changes := make([]*git.FileChange, 0, len(changesResults))
-		for _, result := range changesResults {
-			changeOutput, ok := result.(*git.FileChange)
-			if !ok {
-				continue
-			}
-			changes = append(changes, changeOutput)
-		}
+		changes = append(changes, changesResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
 

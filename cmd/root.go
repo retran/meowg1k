@@ -18,17 +18,12 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
 )
-
-var ErrCommandIsNil = errors.New("command is nil")
-
-var ErrAppNotInitialized = errors.New("application not initialized")
 
 func Execute() error {
 	return rootCmd.Execute()
@@ -39,7 +34,7 @@ var rootCmd = &cobra.Command{
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd == nil {
-			return ErrCommandIsNil
+			return fmt.Errorf("command is nil")
 		}
 
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
@@ -54,11 +49,21 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return fmt.Errorf("command is nil")
+		}
+
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
 			return nil
 		}
 
+		// TODO return proper errors
+
 		ctx := cmd.Context()
+		if ctx == nil {
+			return nil
+		}
+
 		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
 		if !ok || appContainer == nil {
 			return nil
@@ -72,4 +77,6 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "config file path (overrides project/user configs when specified)")
 	rootCmd.PersistentFlags().Bool("silent", false, "silent mode - only output the result without progress indicators")
+	rootCmd.PersistentFlags().Bool("no-cache", false, "disable LLM response caching")
+	rootCmd.PersistentFlags().Bool("update-cache", false, "force cache refresh by making fresh requests and updating cache entries")
 }

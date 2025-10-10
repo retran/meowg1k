@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -33,37 +32,44 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ListStaged activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// StagedFileListReader reads list of staged files from git.
+type StagedFileListReader interface {
+	ReadStagedFiles() ([]string, error)
 }
 
-// NewFactory creates a new ListStaged activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
-	return &Factory{
-		gitService: gitService,
+// Factory creates instances of the ListStaged activity with injected dependencies.
+type Factory struct {
+	stagedFileListReader StagedFileListReader
+}
+
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new ListStaged activity factory with the provided staged file list reader.
+func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
+	if stagedFileListReader == nil {
+		return nil, fmt.Errorf("staged file list reader cannot be nil")
 	}
+
+	return &Factory{
+		stagedFileListReader: stagedFileListReader,
+	}, nil
 }
 
 // NewActivity creates and returns the ListStaged activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("list staged factory is nil")
+		}
+
 		executorCtx.SendRunning("Listing staged files")
 
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
-		}
-
-		_ = input // input is empty struct, but we validate it
-
-		files, err := f.gitService.ReadStagedFiles()
+		files, err := f.stagedFileListReader.ReadStagedFiles()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged files: %w", err)
 		}

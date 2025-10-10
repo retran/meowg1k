@@ -72,7 +72,7 @@ While comprehensive debug logging is planned for a future release, you can curre
 
 ### Q: What happens if I hit my provider's rate limits?
 
-You can configure rate limits directly in your `meowg1k` profile to prevent this. If you do hit a provider limit, the tool will receive an error. By setting `requestsPerMinute` in your config, `meowg1k` will automatically throttle itself to stay under the limit you define.
+You can configure rate limits directly in your `meowg1k` model definition to prevent this. If you do hit a provider limit, the tool will receive an error. By setting `requestsPerMinute` in your config, `meowg1k` will automatically throttle itself to stay under the limit you define.
 
 ### Q: Can I use this in CI/CD?
 
