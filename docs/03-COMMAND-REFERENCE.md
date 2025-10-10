@@ -10,6 +10,8 @@ These flags can be used with any command.
 
 - `--config <path>`: Specify a path to a configuration file. This overrides any project-level or user-level configs.
 - `--silent`: Enables silent mode, which suppresses progress indicators and other non-essential output. Ideal for scripting.
+- `--no-cache`: Disables LLM response caching for the current command.
+- `--update-cache`: Forces a cache refresh by making a fresh request to the LLM and updating the cache entry.
 - `--help`: Shows help information for any command.
 
 ---
@@ -94,14 +96,14 @@ meow commit -t dev -i "Implement the entire user profile feature"
 
 ---
 
-## `meow pr` (alias: `p`)
+## `meow pullrequest` (aliases: `pr`)
 
 Generates a Pull Request title and description based on the difference between your current branch and a base branch.
 
 ### Usage
 
 ```bash
-meow pr [flags]
+meow pullrequest [flags]
 ```
 
 ### Flags
@@ -113,13 +115,13 @@ meow pr [flags]
 
 ```bash
 # Generate a PR description for changes to be merged into 'main'
-meow pr --base main
+meow pullrequest --base main
 
 # Provide intent to get a more focused PR description
-meow pr -b dev -i "Add a complete Stripe payment integration"
+meow pullrequest -b dev -i "Add a complete Stripe payment integration"
 
 # Pipe the intent via stdin
-echo "This PR adds a new caching layer using Redis" | meow pr -b main
+echo "This PR adds a new caching layer using Redis" | meow pullrequest -b main
 ```
 
 ---

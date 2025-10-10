@@ -1,15 +1,15 @@
 .\" docs/man/meow-pr.1
-.TH MEOW-PR 1 "2025-10-04" "meowg1k" "User Commands"
+.TH MEOW-PULLREQUEST 1 "2025-10-04" "meowg1k" "User Commands"
 .SH NAME
-meow-pr \- generate Pull Request descriptions from branch diffs
+meow-pullrequest \- generate Pull Request descriptions from branch diffs
 .SH SYNOPSIS
-.B meow pr \-\-base
+.B meow pullrequest \-\-base
 \fIBRANCH\fR [\fIflags\fR]
 .br
-.B meow p \-b
+.B meow pr \-b
 \fIBRANCH\fR [\fIflags\fR]
 .SH DESCRIPTION
-.B meow pr
+.B meow pullrequest
 generates Pull Request titles and descriptions by analyzing the differences
 between your current branch and a specified base branch. It creates
 comprehensive, Markdown-formatted PR descriptions suitable for GitHub,
@@ -25,10 +25,10 @@ section. Different files can use different profiles and prompts based on
 pattern-matching rules. Files can also be skipped entirely (e.g., documentation,
 generated files).
 .IP "2."
-\fBReduce Phase (PR):\fR The individual file summaries are combined and sent
-to the AI to generate the final PR description using the configuration from
-the
-.B pr
+\fBReduce Phase (Pull Request):\fR The individual file summaries are combined and
+sent to the AI to generate the final PR description using the configuration
+from the
+.B pullRequest
 section.
 .PP
 This approach allows you to optimize for both quality (using powerful models
@@ -94,13 +94,13 @@ summarize:
       skip: true
 .fi
 .PP
-.B pr
+.B pullRequest
 (required): Configure the Reduce phase where file summaries are combined
 into the final PR description. Should define the format and structure of
 the output:
 .PP
 .nf
-pr:
+pullRequest:
   profile: "smart"
   systemPrompt: |
     You are an expert software engineer writing a Pull Request.
@@ -126,7 +126,7 @@ for complete configuration reference.
 Generate PR description for changes to merge into main:
 .PP
 .nf
-.B meow pr \-\-base main
+.B meow pullrequest \-\-base main
 .fi
 .PP
 Short form:
@@ -139,13 +139,13 @@ Short form:
 Via command-line flag:
 .PP
 .nf
-.B meow pr \-b main \-i "Add complete Stripe payment integration"
+.B meow pullrequest \-b main \-i "Add complete Stripe payment integration"
 .fi
 .PP
 Via stdin:
 .PP
 .nf
-.B echo "Refactor authentication to use JWT tokens" | meow pr \-b main
+.B echo "Refactor authentication to use JWT tokens" | meow pullrequest \-b main
 .fi
 
 .SS Advanced Configuration Example
@@ -259,7 +259,7 @@ Use in shell scripts without progress indicators:
 .PP
 .nf
 .B #!/bin/bash
-.B PR_DESCRIPTION=$(meow pr \-\-base main \-\-silent)
+.B PR_DESCRIPTION=$(meow pullrequest \-\-base main \-\-silent)
 .B echo "$PR_DESCRIPTION" > pr_description.md
 .fi
 
@@ -325,7 +325,7 @@ Push branch: \fBgit push origin feature-branch\fR
 .IP "3."
 Create PR with generated description:
 .br
-\fBgh pr create \-\-title "Feature" \-\-body "$(meow pr \-b main \-\-silent)"\fR
+.B gh pr create \-\-title "Feature" \-\-body "$(meow pullrequest \-b main \-\-silent)"\fR
 
 .SH NOTES
 The
@@ -338,8 +338,8 @@ intended target.
 For convenience, create shell aliases:
 .PP
 .nf
-alias mpr='meow pr \-\-base main'
-alias mprd='meow pr \-\-base dev'
+alias mpr='meow pullrequest \-\-base main'
+alias mprd='meow pullrequest \-\-base dev'
 .fi
 
 .SH SEE ALSO

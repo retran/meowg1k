@@ -87,7 +87,7 @@ git add .
 meow commit
 
 # Generate a Pull Request description
-meow pr --base main
+meow pullrequest --base main
 ```
 
 ---

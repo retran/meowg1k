@@ -34,10 +34,14 @@ For tasks you perform often, like code reviews or security checks, defining a ta
 **Configuration (`.meowg1k/config.yaml`):**
 
 ```yaml
-profiles:
-  claude-secure:
+models:
+  claude-sonnet:
     provider: "anthropic"
     model: "claude-3-5-sonnet-20240620"
+
+profiles:
+  claude-secure:
+    model: "claude-sonnet"
 
 generate:
   default:
@@ -70,23 +74,29 @@ This example shows the power of the `summarize` and `commit` workflow.
 **Configuration (`.meowg1k/config.yaml`):**
 
 ```yaml
-profiles:
-  gemini-fast:
+models:
+  gemini-flash:
     provider: "gemini"
     model: "gemini-1.5-flash-latest"
-  claude-smart:
+  claude-sonnet:
     provider: "anthropic"
     model: "claude-3-5-sonnet-20240620"
+
+profiles:
+  fast:
+    model: "gemini-flash"
+  smart:
+    model: "claude-sonnet"
 
 summarize:
   # Use the fast, cheap model to summarize each file change
   default:
-    profile: "gemini-fast"
+    profile: "fast"
     systemPrompt: "Provide a one-sentence summary of this code change."
 
 commit:
   # Use the smart, expensive model to write the final commit message
-  profile: "claude-smart"
+  profile: "smart"
   systemPrompt: |
     You are an expert software engineer. Based on the file summaries, write a commit message in the Conventional Commits format.
     Deduce the type and scope, write a concise subject, and add a body explaining the 'why' if the change is non-trivial.
@@ -115,25 +125,25 @@ This recipe demonstrates how to use advanced `summarize` rules to generate a hig
 **Configuration (`.meowg1k/config.yaml`):**
 
 ```yaml
-# ... (profiles defined as above) ...
+# ... (models and profiles defined as above) ...
 filter:
   ignore:
     - "dist/**"
 
 summarize:
   default:
-    profile: "gemini-fast"
+    profile: "fast"
   rules:
     # Rule 1: Skip all documentation changes from the analysis
     - match: "**/*.md"
       skip: true
     # Rule 2: Use the best model for critical service logic
     - match: "internal/adapters/**/*.go"
-      profile: "claude-smart"
+      profile: "smart"
       systemPrompt: "Deeply analyze this business logic change. Focus on correctness, performance, and potential side effects."
 
-pr:
-  profile: "claude-smart"
+pullRequest:
+  profile: "smart"
   systemPrompt: |
     You are an expert engineer. Write a PR description with a title and a body using this Markdown template:
     ## 🎯 Goal
@@ -147,16 +157,16 @@ pr:
 **Command:**
 
 ```bash
-meow pr --base main
+meow pullrequest --base main
 ```
 
 **Explanation:**
 
-- When you run `meow pr`, it first ignores any files in `dist/`.
+- When you run `meow pullrequest`, it first ignores any files in `dist/`.
 - Then, it skips summarizing any changes to `.md` files.
 - For changes in `internal/services/`, it uses the powerful `claude-smart` profile and a specialized prompt.
 - All other files are summarized using the default `gemini-fast` profile.
-- Finally, the collected summaries are used by the `pr` configuration to generate a well-structured Markdown description.
+- Finally, the collected summaries are used by the `pullRequest` configuration to generate a well-structured Markdown description.
 
 ---
 
@@ -169,11 +179,15 @@ When working with proprietary or highly sensitive code, you can use a local LLM 
 **Configuration (`.meowg1k/config.yaml`):**
 
 ```yaml
-profiles:
-  local-secure:
+models:
+  local:
     provider: "llama"
     baseURL: "http://localhost:8080"
     model: "llama3-8b-instruct" # The model name your server is using
+
+profiles:
+  local-secure:
+    model: "local"
 
 generate:
   tasks:

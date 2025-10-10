@@ -61,9 +61,9 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 	var profileName string
 	var systemPrompt string
 
-	if config.PR != nil {
-		profileName = config.PR.Profile
-		systemPrompt = config.PR.SystemPrompt
+	if config.PullRequest != nil {
+		profileName = config.PullRequest.Profile
+		systemPrompt = config.PullRequest.SystemPrompt
 	}
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))

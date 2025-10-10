@@ -49,45 +49,80 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 
 The `config.yaml` file has several top-level sections that control different aspects of the tool.
 
-### `profiles`
+### `models`
 
-Profiles are the core of the configuration. A profile is a reusable set of settings for an AI provider.
+Models are definitions of a specific LLM API endpoint, including its provider, connection details, and rate limits. You can define multiple models and reference them from different profiles.
 
 ```yaml
-profiles:
-  # A minimal profile for quick tasks
-  fast-free:
+models:
+  # A model for quick, free tasks via OpenRouter
+  openrouter-llama-free:
     provider: "openrouter"
     model: "meta-llama/llama-3.1-8b-instruct:free"
 
-  # A powerful profile for complex reasoning
-  smart-claude:
+  # A powerful model for complex reasoning
+  claude-sonnet:
     provider: "anthropic"
     model: "claude-3-5-sonnet-20240620"
-    timeout: "10m" # Increase timeout for long tasks
     maxInputTokens: 180000
 
-  # A profile for a local llama.cpp server
+  # A model for a local llama.cpp server
   local-dev:
     provider: "llama"
     baseURL: "http://localhost:8080" # Required for local models
     apiKeyEnv: "MY_LOCAL_API_KEY"    # Optional: specify a custom env var
+
+  # A model with rate limiting to control costs
+  openai-cost-controlled:
+    provider: "openai"
+    model: "gpt-4o"
+    rateLimit:
+      requestsPerMinute: 20  # Max 20 requests per minute (0 = unlimited)
+      requestsPerDay: 500    # Max 500 requests per day
+      tokensPerMinute: 40000 # Max 40k tokens (input + output) per minute
 ```
 
-#### Rate Limiting
+### `profiles`
 
-You can configure rate limits within any profile to control costs and avoid hitting provider limits.
+Profiles define a reusable set of parameters for an LLM request, such as timeout or temperature. Each profile must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
 
 ```yaml
 profiles:
-  cost-controlled:
-    provider: "openai"
-    model: "gpt-4o"
-    # Request-based limits
-    requestsPerMinute: 20  # Max 20 requests per minute (0 = unlimited)
-    requestsPerDay: 500    # Max 500 requests per day
-    # Token-based limits
-    tokensPerMinute: 40000 # Max 40k tokens (input + output) per minute
+  # A profile for fast, general tasks
+  fast:
+    model: "openrouter-llama-free"
+
+  # A profile for complex tasks that may take longer
+  smart:
+    model: "claude-sonnet"
+    timeout: "10m" # Increase timeout for long tasks
+    temperature: 0.2
+
+  # A profile for creative generation
+  creative:
+    model: "claude-sonnet"
+    temperature: 0.8
+    topK: 50
+```
+
+### `cache`
+
+The top-level `cache` section allows you to configure caching for LLM responses to save time and reduce costs.
+
+```yaml
+cache:
+  enabled: true
+  ttl: "168h" # Cache entries expire after 1 week (7 * 24h)
+```
+
+You can also override these settings on a per-profile basis:
+
+```yaml
+profiles:
+  no-cache-profile:
+    model: "claude-sonnet"
+    cache:
+      enabled: false # Disable cache for this profile
 ```
 
 ### `filter`
@@ -114,13 +149,13 @@ filter:
 
 ### `summarize`
 
-This section configures the "Map" phase for `commit` and `pr` commands, where each file change is analyzed individually. It uses a rule-based system to apply different analysis strategies to different files.
+This section configures the "Map" phase for `commit` and `pullrequest` commands, where each file change is analyzed individually. It uses a rule-based system to apply different analysis strategies to different files.
 
 ```yaml
 summarize:
   # Default settings applied when no specific rule matches
   default:
-    profile: "fast-free"
+    profile: "fast"
     systemPrompt: "Summarize this code change concisely."
 
   # Rules are evaluated top-down; the first match wins
@@ -131,7 +166,7 @@ summarize:
 
     # 2. Use a powerful model for critical Go files
     - match: "internal/adapters/**/*.go"
-      profile: "smart-claude"
+      profile: "smart"
       systemPrompt: "Analyze this Go code change, focusing on business logic and potential side effects."
 
     # 3. Skip generated test snapshots
@@ -139,27 +174,27 @@ summarize:
       skip: true
 ```
 
-### `generate`, `commit`, and `pr`
+### `generate`, `commit`, and `pullrequest`
 
 These top-level sections configure the specific commands.
 
 - **`generate`**: Define pre-set tasks for the `meow generate -t <task-name>` command.
-- **`commit` / `pr`**: Configure the final "Reduce" phase, where individual file summaries are combined into a single commit message or PR description.
+- **`commit` / `pullrequest`**: Configure the final "Reduce" phase, where individual file summaries are combined into a single commit message or PR description.
 
 ```yaml
 generate:
   default:
-    profile: "smart-claude"
+    profile: "smart"
     systemPrompt: "You are an expert software engineer."
   tasks:
     security-review:
       userPrompt: "Perform a comprehensive security review of this code."
     add-tests:
-      profile: "smart-claude" # Can override the default profile
+      profile: "smart" # Can override the default profile
       userPrompt: "Write comprehensive unit tests for this code in Go."
 
 commit:
-  profile: "smart-claude"
+  profile: "smart"
   systemPrompt: |
     You are an expert software engineer reviewing code changes. Your task is to write a high-quality commit message in the Conventional Commits format based on the provided summaries of file changes.
 
@@ -170,8 +205,8 @@ commit:
     4.  **Body (Optional):** If the change is non-trivial, add a body explaining the "why" behind the change, not just the "what". Describe the problem and the solution.
     5.  **Footer:** If applicable, add a `BREAKING CHANGE:` notice or link to issues (e.g., `Closes #42`).
 
-pr:
-  profile: "smart-claude"
+pullRequest:
+  profile: "smart"
   systemPrompt: |
     You are an expert software engineer tasked with writing a Pull Request description. Based on the summaries of file changes, generate a complete PR description in Markdown format.
 
@@ -216,14 +251,18 @@ pr:
 
 ### Minimal Configuration
 
-For a quick start, you only need to define a default profile.
+For a quick start, you only need to define a default model and profile.
 
 ```yaml
 # .meowg1k/config.yaml
-profiles:
+models:
   default:
     provider: "gemini"
     model: "gemini-1.5-flash-latest"
+
+profiles:
+  default:
+    model: "default"
 
 # All commands will now use this profile by default.
 generate:
@@ -231,7 +270,7 @@ generate:
     profile: "default"
 commit:
   profile: "default"
-pr:
+pullRequest:
   profile: "default"
 ```
 
@@ -241,15 +280,21 @@ This example showcases multiple features working together.
 
 ```yaml
 # .meowg1k/config.yaml
-profiles:
+models:
   gemini-flash:
     provider: "gemini"
     model: "gemini-1.5-flash-latest"
-    requestsPerMinute: 30
-
-  claude-main:
+    rateLimit:
+      requestsPerMinute: 30
+  claude-sonnet:
     provider: "anthropic"
     model: "claude-3-5-sonnet-20240620"
+
+profiles:
+  fast:
+    model: "gemini-flash"
+  smart:
+    model: "claude-sonnet"
     timeout: "15m"
 
 filter:
@@ -260,29 +305,29 @@ filter:
 
 summarize:
   default:
-    profile: "gemini-flash"
+    profile: "fast"
     systemPrompt: "Summarize the following code change."
   rules:
     - match: "internal/database/**/*.sql"
-      profile: "claude-main"
+      profile: "smart"
       systemPrompt: "Analyze this SQL migration. Explain schema changes and potential data loss risks."
 
 generate:
   default:
-    profile: "claude-main"
+    profile: "smart"
   tasks:
     refactor:
       userPrompt: "Refactor this code to improve readability and performance."
     docs:
-      profile: "gemini-flash"
+      profile: "fast"
       userPrompt: "Generate GoDoc comments for all public functions."
 
 commit:
-  profile: "claude-main"
+  profile: "smart"
   systemPrompt: "Write a Conventional Commit message based on the provided change summaries."
 
-pr:
-  profile: "claude-main"
+pullRequest:
+  profile: "smart"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
 

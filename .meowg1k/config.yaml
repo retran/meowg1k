@@ -221,7 +221,7 @@ commit:
 
     Generate only the commit message, nothing else.
 
-pr:
+pullRequest:
   profile: "smart"
   systemPrompt: |
     You are an expert software engineer creating a Pull Request description for a Go project.

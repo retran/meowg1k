@@ -40,8 +40,8 @@ type Config struct {
 	// Commit command configuration ("Reduce" phase)
 	Commit *CommandConfig `yaml:"commit" mapstructure:"commit"`
 
-	// PR command configuration ("Reduce" phase)
-	PR *CommandConfig `yaml:"pullrequest" mapstructure:"pullrequest"`
+	// PullRequest command configuration ("Reduce" phase)
+	PullRequest *CommandConfig `yaml:"pullRequest" mapstructure:"pullRequest"`
 
 	// Cache configuration for LLM response caching
 	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
