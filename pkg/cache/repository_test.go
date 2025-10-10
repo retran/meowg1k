@@ -135,6 +135,7 @@ func TestRepository_Get_NilContext(t *testing.T) {
 
 	repo := NewRepository(db)
 
+	//nolint:staticcheck // Testing nil context handling
 	_, _, err := repo.Get(nil, "test-key")
 	if err == nil {
 		t.Fatal("expected error for nil context")
@@ -243,6 +244,7 @@ func TestRepository_Set_NilContext(t *testing.T) {
 
 	repo := NewRepository(db)
 
+	//nolint:staticcheck // Testing nil context handling
 	err := repo.Set(nil, "test-key", "test-value")
 	if err == nil {
 		t.Fatal("expected error for nil context")
@@ -337,6 +339,7 @@ func TestRepository_Purge_NilContext(t *testing.T) {
 
 	repo := NewRepository(db)
 
+	//nolint:staticcheck // Testing nil context handling
 	err := repo.Purge(nil, time.Hour)
 	if err == nil {
 		t.Fatal("expected error for nil context")
