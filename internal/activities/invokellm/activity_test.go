@@ -21,26 +21,47 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/testutil/gatewaymocks"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
-// mockExecutor is a mock implementation of executor.Executor
-type mockExecutor struct{}
-
-func (m *mockExecutor) RunActivity(ctx context.Context, executorCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
-	return nil
+// mockGenerationGateway is a mock implementation of GenerationGateway for testing.
+type mockGenerationGateway struct {
+	Content string
+	Err     error
 }
 
-func (m *mockExecutor) RunFlow(ctx context.Context, name string, flow executor.Flow, retryPolicy *executor.RetryPolicy) error {
-	return nil
+func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {
+	if m.Err != nil {
+		return "", m.Err
+	}
+	return m.Content, nil
+}
+
+// mockGenerationGatewayFactory is a mock implementation of GenerationGatewayFactory for testing.
+type mockGenerationGatewayFactory struct {
+	Gateway ports.GenerationGateway
+	Err     error
+}
+
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	if m.Gateway != nil {
+		return m.Gateway, nil
+	}
+	return &mockGenerationGateway{Content: "test content"}, nil
 }
 
 func TestNewFactory(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
-	factory := NewFactory(gwFactory)
+	gwFactory := &mockGenerationGatewayFactory{}
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 
 	if factory == nil {
 		t.Error("NewFactory returned nil")
@@ -48,17 +69,20 @@ func TestNewFactory(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_Success(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
-		GenerationGateway: &gatewaymocks.MockGenerationGateway{
+	gwFactory := &mockGenerationGatewayFactory{
+		Gateway: &mockGenerationGateway{
 			Content: "Generated content",
 		},
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{
@@ -69,14 +93,9 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	result, err := activity(ctx, executorCtx, input)
+	output, err := activity(ctx, executorCtx, input)
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
-	}
-
-	output, ok := result.(*Output)
-	if !ok {
-		t.Errorf("Expected *Output, got %T", result)
 	}
 
 	if output.Content != "Generated content" {
@@ -85,43 +104,37 @@ func TestInvokeLLMActivity_Success(t *testing.T) {
 }
 
 func TestInvokeLLMActivity_NilInput(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
-	factory := NewFactory(gwFactory)
-	activity := factory.NewActivity()
-
-	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
-
-	_, err := activity(ctx, executorCtx, nil)
-	if err != executor.ErrInputCannotBeNil {
-		t.Errorf("Expected ErrInputCannotBeNil, got %v", err)
+	gwFactory := &mockGenerationGatewayFactory{}
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
 	}
-}
 
-func TestInvokeLLMActivity_InvalidInputType(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{}
-	factory := NewFactory(gwFactory)
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
-	_, err := activity(ctx, executorCtx, "invalid input")
-	if !errors.Is(err, executor.ErrInvalidInputType) {
-		t.Errorf("Expected ErrInvalidInputType, got %v", err)
+	_, err = activity(ctx, executorCtx, nil)
+	if err == nil {
+		t.Error("Expected error for nil input, got nil")
 	}
 }
 
 func TestInvokeLLMActivity_GatewayError(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
+	gwFactory := &mockGenerationGatewayFactory{
 		Err: errors.New("gateway creation failed"),
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{
@@ -132,24 +145,28 @@ func TestInvokeLLMActivity_GatewayError(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	_, err := activity(ctx, executorCtx, input)
+	_, err = activity(ctx, executorCtx, input)
 	if err == nil {
 		t.Error("Expected error from gateway creation")
 	}
 }
 
 func TestInvokeLLMActivity_GenerationError(t *testing.T) {
-	gwFactory := &gatewaymocks.MockGatewayFactory{
-		GenerationGateway: &gatewaymocks.MockGenerationGateway{
+	gwFactory := &mockGenerationGatewayFactory{
+		Gateway: &mockGenerationGateway{
 			Err: errors.New("generation failed"),
 		},
 	}
 
-	factory := NewFactory(gwFactory)
+	factory, err := NewFactory(gwFactory)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	executorCtx := executor.NewContext("test", nil, &mockExecutor{})
+	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
 		Profile: &profile.ResolvedProfile{
@@ -160,8 +177,41 @@ func TestInvokeLLMActivity_GenerationError(t *testing.T) {
 		UserPrompt:   "User prompt",
 	}
 
-	_, err := activity(ctx, executorCtx, input)
+	_, err = activity(ctx, executorCtx, input)
 	if err == nil {
 		t.Error("Expected error from generation")
+	}
+}
+
+func TestNewFactory_NilGatewayFactory(t *testing.T) {
+	_, err := NewFactory(nil)
+	if err == nil {
+		t.Fatal("expected error for nil gateway factory, got nil")
+	}
+	expectedMsg := "gateway factory cannot be nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNewActivity_NilFactory(t *testing.T) {
+	var factory *Factory
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	executorCtx := executor.NewContext("test", nil, nil)
+	input := &Input{
+		Profile:      &profile.ResolvedProfile{Provider: "test", Model: "test-model"},
+		SystemPrompt: "system",
+		UserPrompt:   "user",
+	}
+
+	_, err := activity(ctx, executorCtx, input)
+	if err == nil {
+		t.Fatal("expected error for nil factory, got nil")
+	}
+	expectedMsg := "invoke LLM factory is nil"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
 }

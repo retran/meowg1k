@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -35,30 +34,39 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ListBranchFiles activity with injected dependencies.
-type Factory struct {
-	gitService git.Service
+// BranchFileListReader reads list of changed files in a branch.
+type BranchFileListReader interface {
+	GetChangedFilesInBranch(targetBranch string) ([]string, error)
 }
 
-// NewFactory creates a new ListBranchFiles activity factory with injected services.
-func NewFactory(
-	gitService git.Service,
-) *Factory {
-	return &Factory{
-		gitService: gitService,
+// Factory creates instances of the ListBranchFiles activity with injected dependencies.
+type Factory struct {
+	branchFileListReader BranchFileListReader
+}
+
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new ListBranchFiles activity factory with the provided branch file list reader.
+func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
+	if branchFileListReader == nil {
+		return nil, fmt.Errorf("branch file list reader cannot be nil")
 	}
+
+	return &Factory{
+		branchFileListReader: branchFileListReader,
+	}, nil
 }
 
 // NewActivity creates and returns the ListBranchFiles activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("list branch files factory is nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		if input.TargetBranch == "" {
@@ -67,7 +75,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Listing changed files compared to %s", input.TargetBranch))
 
-		files, err := f.gitService.GetChangedFilesInBranch(input.TargetBranch)
+		files, err := f.branchFileListReader.GetChangedFilesInBranch(input.TargetBranch)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 		}

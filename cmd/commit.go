@@ -17,9 +17,12 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 var commitCmd = &cobra.Command{
@@ -45,17 +48,33 @@ You can provide your intent or context in two ways:
 
 The intent will be included in the prompt to help generate a more accurate commit message.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
-
-		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || appContainer == nil {
-			return ErrAppNotInitialized
+		if cmd == nil {
+			return fmt.Errorf("command is nil")
 		}
 
-		flow := appContainer.CreateCommitFlow()
+		ctx := cmd.Context()
 
-		runner := app.NewFlowRunner(appContainer)
-		return runner.RunFlow(ctx, "GenerateCommit", flow)
+		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
+		if !ok || container == nil {
+			return fmt.Errorf("application not initialized")
+		}
+
+		flow, err := container.CreateCommitFlow()
+		if err != nil {
+			return fmt.Errorf("failed to create commit flow: %w", err)
+		}
+
+		orchestrator, err := executor.NewOrchestrator(container.OutputService)
+		if err != nil {
+			return fmt.Errorf("failed to create flow runner: %w", err)
+		}
+
+		silent, err := container.CommandService.GetSilentFlag()
+		if err != nil {
+			return fmt.Errorf("failed to get command silent flag: %w", err)
+		}
+
+		return orchestrator.Execute(ctx, "GenerateCommit", flow, silent)
 	},
 }
 

@@ -67,17 +67,17 @@ export MEOW_GEMINI_API_KEY="your-key-here"
 **Solution:**
 
 - Your usage is exceeding your provider's limits.
-- The best solution is to configure rate limiting in your `.meowg1k/config.yaml` profile to stay within the allowed budget.
+- The best solution is to configure rate limiting in your `.meowg1k/config.yaml` model definition to stay within the allowed budget.
 
 ```yaml
-profiles:
-openai-safe:
+models:
+  openai-safe:
     provider: "openai"
-    requestsPerMinute: 20
-    tokensPerMinute: 40000
-```
-
----
+    model: "gpt-4o"
+    rateLimit:
+      requestsPerMinute: 20
+      tokensPerMinute: 40000
+```---
 
 ## Configuration
 
@@ -101,14 +101,14 @@ openai-safe:
 
 ## Command Usage
 
-### Problem: `meow pr` fails with "missing required flag: --base"
+### Problem: `meow pullrequest` fails with "missing required flag: --base"
 
 **Solution:**
 
-- The `pr` command always requires you to specify the target branch for comparison. Add the flag to your command:
+- The `pullrequest` command always requires you to specify the target branch for comparison. Add the flag to your command:
 
 ```bash
-meow pr --base main
+meow pullrequest --base main
 ```
 
 #### Pro Tip: Automate Target Branch Detection
@@ -119,23 +119,17 @@ You can create a shell function or script that automatically detects your reposi
 # Add this to your ~/.bashrc or ~/.zshrc
 function mpr() {
     # Try to get the default branch from origin/HEAD
-    local default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-
-    # Fallback to common branch names if origin/HEAD is not set
+    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@')
     if [ -z "$default_branch" ]; then
-        if git rev-parse --verify main >/dev/null 2>&1; then
-            default_branch="main"
-        elif git rev-parse --verify master >/dev/null 2>&1; then
-            default_branch="master"
-        else
-            echo "Error: Could not detect default branch. Please specify with --base"
-            return 1
-        fi
+        # Fallback for detached HEAD or other cases
+        default_branch="main"
     fi
-
     echo "Using base branch: $default_branch"
-    meow pr --base "$default_branch" "$@"
+    meow pullrequest --base "$default_branch" "$@"
 }
+```
+
+After adding this function and reloading your shell, you can simply run `mpr` instead of `meow pullrequest --base main`.
 ```
 
 After adding this function and reloading your shell, you can simply run `mpr` instead of `meow pr --base main`.

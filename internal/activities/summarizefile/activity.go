@@ -23,8 +23,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/summarize"
+	"github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -43,33 +42,51 @@ type Output struct {
 	Skipped  bool
 }
 
-// Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
-type Factory struct {
-	invokeLLMFactory *invokellm.Factory
-	summarizeService summarize.Service
+// SummarizationConfigProvider provides summarization configuration for files.
+type SummarizationConfigProvider interface {
+	Get(filename string) (*summarize.ResolvedConfig, error)
 }
 
-// NewFactory creates a new SummarizeFileChanges activity factory with injected services.
-func NewFactory(gatewayFactory gateway.Factory, summarizeService summarize.Service) *Factory {
-	return &Factory{
-		invokeLLMFactory: invokellm.NewFactory(gatewayFactory),
-		summarizeService: summarizeService,
+// Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
+type Factory struct {
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	summarizationConfigProvider      SummarizationConfigProvider
+}
+
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
+func NewFactory(
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	summarizationConfigProvider SummarizationConfigProvider,
+) (*Factory, error) {
+	if contentGenerationActivityFactory == nil {
+		return nil, fmt.Errorf("content generation activity factory is nil")
 	}
+
+	if summarizationConfigProvider == nil {
+		return nil, fmt.Errorf("file summarization config provider is nil")
+	}
+
+	return &Factory{
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
+		summarizationConfigProvider:      summarizationConfigProvider,
+	}, nil
 }
 
 // NewActivity creates and returns the SummarizeFileChanges activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("factory is nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		config, err := f.summarizeService.GetSummarizationConfig(input.Filename)
+		config, err := f.summarizationConfigProvider.Get(input.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get summarization config for %s: %w", input.Filename, err)
 		}
@@ -100,7 +117,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		content := strings.Join(contentParts, "")
 
-		invokeLLM := f.invokeLLMFactory.NewActivity()
+		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
 
 		invokeInput := &invokellm.Input{
 			Profile:      config.Profile,
@@ -108,15 +125,17 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "InvokeLLM", invokeLLM, invokeInput)
-		invokeResult, err := invokeFuture.Get(ctx)
+		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+			executorCtx.GetExecutor(),
+			ctx,
+			executorCtx,
+			"GenerateContent",
+			contentGenerationActivity,
+			invokeInput,
+		)
+		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)
-		}
-
-		invokeOutput, ok := invokeResult.(*invokellm.Output)
-		if !ok {
-			return nil, fmt.Errorf("%w: expected *invokellm.Output, got %T", executor.ErrInvalidOutputType, invokeResult)
 		}
 
 		executorCtx.SendCompleted(input.Filename)

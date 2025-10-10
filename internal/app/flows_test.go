@@ -17,22 +17,78 @@ limitations under the License.
 package app
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 
+	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
+	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/pkg/ratelimit"
 )
+
+// mockDBHost is a test mock implementation of db.Host using in-memory SQLite.
+type mockDBHost struct {
+	mainDB    *sql.DB
+	projectDB *sql.DB
+}
+
+func (h *mockDBHost) GetDB() (*sql.DB, error) {
+	return h.mainDB, nil
+}
+
+func (h *mockDBHost) GetProjectDB() (*sql.DB, error) {
+	return h.projectDB, nil
+}
+
+func (h *mockDBHost) Close() error {
+	if err := h.mainDB.Close(); err != nil {
+		return err
+	}
+	return h.projectDB.Close()
+}
+
+// newMockDBHost creates a new mock db.Host with in-memory databases for testing.
+func newMockDBHost() (ports.Host, error) {
+	mainDB, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+
+	// Run migrations
+	allMigrations := []migrations.Migration{}
+	allMigrations = append(allMigrations, ratelimit.Migrations...)
+	allMigrations = append(allMigrations, cache.Migrations...)
+	if err := migrations.RunMigrations(mainDB, allMigrations); err != nil {
+		mainDB.Close()
+		return nil, err
+	}
+
+	projectDB := mainDB // Use same DB for both
+
+	return &mockDBHost{
+		mainDB:    mainDB,
+		projectDB: projectDB,
+	}, nil
+}
 
 func TestCreateCommitFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"
@@ -58,12 +114,22 @@ filter:
 
 	cmd.Flags().Set("config", configPath)
 
-	container, err := NewAppContainer(cmd)
+	// Create mock DB host for testing (uses in-memory database)
+	dbHost, err := newMockDBHost()
 	if err != nil {
-		t.Fatalf("NewAppContainer returned error: %v", err)
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow := container.CreateCommitFlow()
+	flow, err := container.CreateCommitFlow()
+	if err != nil {
+		t.Fatalf("CreateCommitFlow returned error: %v", err)
+	}
 	if flow == nil {
 		t.Error("CreateCommitFlow returned nil")
 	}
@@ -75,12 +141,15 @@ filter:
 func TestCreateGenerateFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"
@@ -111,9 +180,16 @@ filter:
 
 	cmd.Flags().Set("config", configPath)
 
-	container, err := NewAppContainer(cmd)
+	// Create mock DB host for testing (uses in-memory database)
+	dbHost, err := newMockDBHost()
 	if err != nil {
-		t.Fatalf("NewAppContainer returned error: %v", err)
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
 	flow, err := container.CreateGenerateFlow()
@@ -128,12 +204,15 @@ filter:
 func TestCreateGenerateFlowWithUserPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "test"
@@ -156,9 +235,16 @@ generate:
 	cmd.Flags().Set("config", configPath)
 	cmd.Flags().Set("user-prompt", "Custom prompt")
 
-	container, err := NewAppContainer(cmd)
+	// Create mock DB host for testing (uses in-memory database)
+	dbHost, err := newMockDBHost()
 	if err != nil {
-		t.Fatalf("NewAppContainer returned error: %v", err)
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
 	flow, err := container.CreateGenerateFlow()
@@ -174,10 +260,13 @@ func TestCreateGenerateFlowWithMissingProfile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	// Create config with missing profile reference
-	configContent := `profiles:
-  test:
+	configContent := `models:
+  gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
+profiles:
+  test:
+    model: "gpt-35-turbo"
 generate:
   default:
     profile: "nonexistent"
@@ -199,9 +288,16 @@ generate:
 
 	cmd.Flags().Set("config", configPath)
 
-	container, err := NewAppContainer(cmd)
+	// Create mock DB host for testing (uses in-memory database)
+	dbHost, err := newMockDBHost()
 	if err != nil {
-		t.Fatalf("NewAppContainer returned error: %v", err)
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
 	flow, err := container.CreateGenerateFlow()

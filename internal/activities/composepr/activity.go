@@ -24,8 +24,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/profile"
+	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -44,29 +43,35 @@ type Output struct {
 
 // Factory creates instances of the ComposePR activity with injected dependencies.
 type Factory struct {
-	invokeLLMFactory *invokellm.Factory
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 }
 
-// NewFactory creates a new ComposePR activity factory with injected services.
-func NewFactory(gatewayFactory gateway.Factory) *Factory {
-	return &Factory{
-		invokeLLMFactory: invokellm.NewFactory(gatewayFactory),
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.
+func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]) (*Factory, error) {
+	if contentGenerationActivityFactory == nil {
+		return nil, fmt.Errorf("content generation activity factory cannot be nil")
 	}
+
+	return &Factory{
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
+	}, nil
 }
 
 // NewActivity creates and returns the ComposePR activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("compose PR factory is nil")
+		}
+
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning("Composing Pull Request description")
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
-		}
 
 		var contentBuilder strings.Builder
 		contentBuilder.WriteString("File Change Summaries:\n\n")
@@ -85,7 +90,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 
 		content := contentBuilder.String()
 
-		invokeLLM := f.invokeLLMFactory.NewActivity()
+		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
 
 		invokeInput := &invokellm.Input{
 			Profile:      input.Profile,
@@ -93,15 +98,18 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, "InvokeLLM", invokeLLM, invokeInput)
-		invokeResult, err := invokeFuture.Get(ctx)
+		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+			executorCtx.GetExecutor(),
+			ctx,
+			executorCtx,
+			"GenerateContent",
+			contentGenerationActivity,
+			invokeInput,
+		)
+
+		invokeOutput, err := invokeFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)
-		}
-
-		invokeOutput, ok := invokeResult.(*invokellm.Output)
-		if !ok {
-			return nil, fmt.Errorf("%w: expected *invokellm.Output, got %T", executor.ErrInvalidOutputType, invokeResult)
 		}
 
 		executorCtx.SendCompleted("")

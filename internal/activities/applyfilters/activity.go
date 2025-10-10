@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/services/filter"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -35,36 +34,43 @@ type Output struct {
 	Files []string
 }
 
-// Factory creates instances of the ApplyFilters activity with injected dependencies.
-type Factory struct {
-	filterService filter.Service
+// FileIgnoreChecker checks if a file should be ignored based on filter rules.
+type FileIgnoreChecker interface {
+	IsIgnoredFile(file string) bool
 }
 
-// NewFactory creates a new ApplyFilters activity factory with injected services.
-func NewFactory(filterService filter.Service) executor.ActivityFactory {
-	return &Factory{
-		filterService: filterService,
+// Factory creates instances of the ApplyFilters activity with injected dependencies.
+type Factory struct {
+	fileIgnoreChecker FileIgnoreChecker
+}
+
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
+func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*Input, *Output], error) {
+	if fileIgnoreChecker == nil {
+		return nil, fmt.Errorf("applyfilters.NewFactory: fileIgnoreChecker cannot be nil")
 	}
+
+	return &Factory{
+		fileIgnoreChecker: fileIgnoreChecker,
+	}, nil
 }
 
 // NewActivity creates and returns the ApplyFilters activity function.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Applying filters")
 
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
-		}
-
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		filteredFiles := make([]string, 0, len(input.Files))
 
 		for _, file := range input.Files {
-			if !f.filterService.IsIgnoredFile(file) {
+			if !f.fileIgnoreChecker.IsIgnoredFile(file) {
 				filteredFiles = append(filteredFiles, file)
 			}
 		}
