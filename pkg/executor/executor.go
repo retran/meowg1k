@@ -26,46 +26,109 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// DefaultRetryPolicy returns a sensible default retry policy
-func DefaultRetryPolicy() *RetryPolicy {
-	return &RetryPolicy{
-		MaxAttempts:  3,
-		InitialDelay: 100 * time.Millisecond,
-		MaxDelay:     5 * time.Second,
-		Multiplier:   2.0,
+// ExecuteActivity is a generic wrapper around the executor's ExecuteActivity method.
+// It provides compile-time type safety for activity inputs and outputs.
+func ExecuteActivity[T, K any](
+	e Executor,
+	ctx context.Context,
+	parentCtx *Context,
+	name string,
+	activity Activity[T, K],
+	input T,
+) *future.Future[K] {
+	typedFuture := future.NewFuture[K]()
+
+	// Validate inputs
+	if e == nil {
+		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil"))
+		return typedFuture
 	}
+
+	if ctx == nil {
+		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil"))
+		return typedFuture
+	}
+
+	if parentCtx == nil {
+		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil"))
+		return typedFuture
+	}
+
+	if name == "" {
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty"))
+		return typedFuture
+	}
+
+	if activity == nil {
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name))
+		return typedFuture
+	}
+
+	// Create a type-erased activity that calls the typed activity
+	untypedActivity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
+		typedInput, ok := input.(T)
+		if !ok {
+			return nil, fmt.Errorf("invalid input type for activity %q: expected %T, got %T", name, *new(T), input)
+		}
+		return activity(ctx, activityCtx, typedInput)
+	}
+
+	// Call the untyped executor method
+	untypedFuture := e.ExecuteActivity(ctx, parentCtx, name, untypedActivity, input)
+
+	go func() {
+		result, err := untypedFuture.Get(ctx)
+		if err != nil {
+			_ = typedFuture.CompleteWithError(err)
+			return
+		}
+
+		typedResult, ok := result.(K)
+		if !ok {
+			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result))
+			return
+		}
+
+		_ = typedFuture.Complete(typedResult)
+	}()
+
+	return typedFuture
 }
 
-// NoRetryPolicy returns a policy that doesn't retry
-func NoRetryPolicy() RetryPolicy {
-	return RetryPolicy{
-		MaxAttempts:  1,
-		InitialDelay: 0,
-		MaxDelay:     0,
-		Multiplier:   1.0,
-	}
+// Executor defines the interface for executing flows and activities.
+type Executor interface {
+	ExecuteActivity(
+		ctx context.Context,
+		parentCtx *Context,
+		name string,
+		activity Activity[any, any],
+		input any,
+	) *future.Future[any]
+	ExecuteFlow(ctx context.Context, name string, flow Flow) error
+	WithRetryPolicy(policy *RetryPolicy) Executor
+	WithFeedbackHandler(handler FeedbackHandler) Executor
 }
 
-// Impl is the central component for running activities
+// executorImpl is the central component for running activities
 // It handles retry logic, feedback, and will handle caching/rate limiting in the future
-type Impl struct {
+type executorImpl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
 }
 
 // Compile-time check to ensure Impl implements Executor interface
-var _ Executor = (*Impl)(nil)
+var _ Executor = (*executorImpl)(nil)
 
 // NewExecutor creates a new activity executor with the given configuration
-func NewExecutor() *Impl {
-	return &Impl{
+func NewExecutor() *executorImpl {
+	return &executorImpl{
 		RetryPolicy:     DefaultRetryPolicy(),
 		FeedbackHandler: NoOpFeedbackHandler,
 	}
 }
 
 // WithRetryPolicy sets the retry policy for this executor
-func (e *Impl) WithRetryPolicy(policy *RetryPolicy) *Impl {
+func (e *executorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	if policy == nil {
 		policy = DefaultRetryPolicy()
 	}
@@ -75,7 +138,7 @@ func (e *Impl) WithRetryPolicy(policy *RetryPolicy) *Impl {
 }
 
 // WithFeedbackHandler sets the feedback handler for this executor
-func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) *Impl {
+func (e *executorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	if handler == nil {
 		handler = NoOpFeedbackHandler
 	}
@@ -84,8 +147,8 @@ func (e *Impl) WithFeedbackHandler(handler FeedbackHandler) *Impl {
 	return e
 }
 
-// RunFlow runs a flow asynchronously and returns when it completes or fails
-func (e *Impl) RunFlow(
+// ExecuteFlow runs a flow asynchronously and returns when it completes or fails
+func (e *executorImpl) ExecuteFlow(
 	ctx context.Context,
 	flowName string,
 	flow Flow,
@@ -110,7 +173,7 @@ func (e *Impl) RunFlow(
 	executorCtx := NewContext(flowName, e.FeedbackHandler, e)
 
 	go func() {
-		err := e.executeFlow(ctx, executorCtx, flow)
+		err := e.executeFlowImpl(ctx, executorCtx, flow)
 		if err != nil {
 			_ = fut.CompleteWithError(err)
 		} else {
@@ -126,9 +189,9 @@ func (e *Impl) RunFlow(
 	return nil
 }
 
-// runActivity runs a sub-activity asynchronously and returns a future for its result
+// ExecuteActivity runs a sub-activity asynchronously and returns a future for its result
 // This is the internal implementation used by the generic RunActivity function.
-func (e *Impl) runActivity(
+func (e *executorImpl) ExecuteActivity(
 	ctx context.Context,
 	parentCtx *Context,
 	activityName string,
@@ -172,7 +235,7 @@ func (e *Impl) runActivity(
 	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
 
 	go func() {
-		result, err := e.executeActivity(ctx, activityCtx, activity, input, e.RetryPolicy)
+		result, err := e.executeActivityImpl(ctx, activityCtx, activity, input, e.RetryPolicy)
 		if err != nil {
 			_ = fut.CompleteWithError(err)
 		} else {
@@ -183,7 +246,7 @@ func (e *Impl) runActivity(
 	return fut
 }
 
-func (e *Impl) executeFlow(
+func (e *executorImpl) executeFlowImpl(
 	ctx context.Context,
 	flowCtx *Context,
 	flow func(context.Context, *Context) error,
@@ -220,8 +283,7 @@ func (e *Impl) executeFlow(
 	return nil
 }
 
-// executeActivity handles typed sub-activities with retry logic
-func (e *Impl) executeActivity(
+func (e *executorImpl) executeActivityImpl(
 	ctx context.Context,
 	activityCtx *Context,
 	activity Activity[any, any],

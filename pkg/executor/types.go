@@ -21,8 +21,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Status represents the current status of an activity.
@@ -38,6 +36,26 @@ const (
 	// StatusFailed indicates that the activity has failed.
 	StatusFailed Status = "failed"
 )
+
+// DefaultRetryPolicy returns a sensible default retry policy
+func DefaultRetryPolicy() *RetryPolicy {
+	return &RetryPolicy{
+		MaxAttempts:  3,
+		InitialDelay: 100 * time.Millisecond,
+		MaxDelay:     5 * time.Second,
+		Multiplier:   2.0,
+	}
+}
+
+// NoRetryPolicy returns a policy that doesn't retry
+func NoRetryPolicy() RetryPolicy {
+	return RetryPolicy{
+		MaxAttempts:  1,
+		InitialDelay: 0,
+		MaxDelay:     0,
+		Multiplier:   1.0,
+	}
+}
 
 // Feedback contains information about activity execution progress.
 type Feedback struct {
@@ -176,85 +194,34 @@ type ActivityFactory[T any, K any] interface {
 // Flow defines a function that can be executed by the executor.
 type Flow func(ctx context.Context, flowCtx *Context) error
 
-// Executor defines the interface for executing flows and activities.
-type Executor interface {
-	runActivity(
-		ctx context.Context,
-		parentCtx *Context,
-		name string,
-		activity Activity[any, any],
-		input any,
-	) *future.Future[any]
-	RunFlow(ctx context.Context, name string, flow Flow) error
+// Execution represents the progress state of a single execution.
+type Execution struct {
+	Name       string
+	Status     Status
+	Message    string
+	Result     string
+	StartTime  time.Time
+	EndTime    *time.Time
+	Error      error
+	Metadata   map[string]any
+	ParentName string
+	Children   []string
+	Level      int
 }
 
-// RunActivity is a generic wrapper around the executor's runActivity method.
-// It provides compile-time type safety for activity inputs and outputs.
-func RunActivity[T, K any](
-	e Executor,
-	ctx context.Context,
-	parentCtx *Context,
-	name string,
-	activity Activity[T, K],
-	input T,
-) *future.Future[K] {
-	typedFuture := future.NewFuture[K]()
-
-	// Validate inputs
-	if e == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil"))
-		return typedFuture
+func (e *Execution) getDurationString() string {
+	if e.EndTime == nil {
+		return ""
 	}
-
-	if ctx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil"))
-		return typedFuture
+	duration := e.EndTime.Sub(e.StartTime)
+	switch {
+	case duration < time.Second:
+		return fmt.Sprintf("%dms", duration.Milliseconds())
+	case duration < time.Minute:
+		return fmt.Sprintf("%.1fs", duration.Seconds())
+	default:
+		return fmt.Sprintf("%.1fm", duration.Minutes())
 	}
-
-	if parentCtx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil"))
-		return typedFuture
-	}
-
-	if name == "" {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty"))
-		return typedFuture
-	}
-
-	if activity == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name))
-		return typedFuture
-	}
-
-	// Create a type-erased activity that calls the typed activity
-	untypedActivity := func(ctx context.Context, activityCtx *Context, input any) (any, error) {
-		typedInput, ok := input.(T)
-		if !ok {
-			return nil, fmt.Errorf("invalid input type for activity %q: expected %T, got %T", name, *new(T), input)
-		}
-		return activity(ctx, activityCtx, typedInput)
-	}
-
-	// Call the untyped executor method
-	untypedFuture := e.runActivity(ctx, parentCtx, name, untypedActivity, input)
-
-	go func() {
-		result, err := untypedFuture.Get(ctx)
-		if err != nil {
-			_ = typedFuture.CompleteWithError(err)
-			return
-		}
-
-		typedResult, ok := result.(K)
-		if !ok {
-			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result))
-			return
-		}
-
-		_ = typedFuture.Complete(typedResult)
-	}()
-
-	return typedFuture
 }
 
 // RetryPolicy defines the retry behavior for an operation.

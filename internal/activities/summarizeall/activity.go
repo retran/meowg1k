@@ -72,7 +72,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
 		for _, change := range input.Changes {
 			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
-			fut := executor.RunActivity[*summarizefile.Input, *summarizefile.Output](
+			fut := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
 				executorCtx.GetExecutor(),
 				ctx,
 				executorCtx,

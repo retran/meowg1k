@@ -24,7 +24,7 @@ import (
 )
 
 func TestNewExecutionTracker(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	if tracker == nil {
 		t.Fatal("NewExecutionTracker returned nil")
 	}
@@ -43,7 +43,7 @@ func TestNewExecutionTracker(t *testing.T) {
 }
 
 func TestNewExecutionTrackerSilent(t *testing.T) {
-	tracker := NewExecutionTracker(true)
+	tracker := NewTracker(true)
 	if tracker == nil {
 		t.Fatal("NewExecutionTracker returned nil")
 	}
@@ -53,7 +53,7 @@ func TestNewExecutionTrackerSilent(t *testing.T) {
 }
 
 func TestExecutionTracker_StartStop(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 
 	tracker.Start()
 
@@ -66,7 +66,7 @@ func TestExecutionTracker_StartStop(t *testing.T) {
 }
 
 func TestExecutionTracker_StartStopSilent(t *testing.T) {
-	tracker := NewExecutionTracker(true)
+	tracker := NewTracker(true)
 
 	// Start and Stop should be no-ops in silent mode
 	tracker.Start()
@@ -76,7 +76,7 @@ func TestExecutionTracker_StartStopSilent(t *testing.T) {
 }
 
 func TestExecutionTracker_FeedbackHandler(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 
 	handler := tracker.FeedbackHandler()
 	if handler == nil {
@@ -85,7 +85,7 @@ func TestExecutionTracker_FeedbackHandler(t *testing.T) {
 }
 
 func TestExecutionTracker_FeedbackHandlerSilent(t *testing.T) {
-	tracker := NewExecutionTracker(true)
+	tracker := NewTracker(true)
 
 	handler := tracker.FeedbackHandler()
 	if handler == nil {
@@ -94,7 +94,7 @@ func TestExecutionTracker_FeedbackHandlerSilent(t *testing.T) {
 }
 
 func TestExecutionTracker_WithFeedback(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -134,7 +134,7 @@ func TestExecutionTracker_WithFeedback(t *testing.T) {
 }
 
 func TestExecutionTracker_MultipleExecutions(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -182,7 +182,7 @@ func TestExecutionTracker_MultipleExecutions(t *testing.T) {
 }
 
 func TestExecutionTracker_StatusTransitions(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -219,7 +219,7 @@ func TestExecutionTracker_StatusTransitions(t *testing.T) {
 }
 
 func TestExecutionTracker_WithError(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -249,7 +249,7 @@ func TestExecutionTracker_WithError(t *testing.T) {
 }
 
 func TestExecutionTracker_WithMetadata(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -285,7 +285,7 @@ func TestExecutionTracker_WithMetadata(t *testing.T) {
 }
 
 func TestExecutionTracker_MultipleStatuses(t *testing.T) {
-	tracker := NewExecutionTracker(false)
+	tracker := NewTracker(false)
 	tracker.Start()
 	defer tracker.Stop()
 

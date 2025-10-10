@@ -112,7 +112,7 @@ func TestRunFlow(t *testing.T) {
 		return nil
 	}
 
-	err := exec.RunFlow(ctx, "test", flow)
+	err := exec.ExecuteFlow(ctx, "test", flow)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -126,7 +126,7 @@ func TestRunFlowWithError(t *testing.T) {
 		return errTest
 	}
 
-	err := exec.RunFlow(ctx, "test", flow)
+	err := exec.ExecuteFlow(ctx, "test", flow)
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -144,7 +144,7 @@ func TestRunActivity(t *testing.T) {
 		return "result", nil
 	}
 
-	fut := RunActivity(exec, ctx, parentCtx, "test", activity, "input")
+	fut := ExecuteActivity(exec, ctx, parentCtx, "test", activity, "input")
 	result, err := fut.Get(ctx)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -163,7 +163,7 @@ func TestRunActivityWithError(t *testing.T) {
 		return "", errActivity
 	}
 
-	fut := RunActivity(exec, ctx, parentCtx, "test", activity, "input")
+	fut := ExecuteActivity(exec, ctx, parentCtx, "test", activity, "input")
 	_, err := fut.Get(ctx)
 	if err == nil {
 		t.Error("expected error")
@@ -372,7 +372,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := RunActivity(executor, ctx, parentCtx, "complex", complexActivity, "test-input")
+	future := ExecuteActivity(executor, ctx, parentCtx, "complex", complexActivity, "test-input")
 
 	result, err := future.Get(context.Background())
 	if err != nil {
@@ -410,7 +410,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := RunActivity(executor, ctx, parentCtx, "failing", failingActivity, 42)
+	future := ExecuteActivity(executor, ctx, parentCtx, "failing", failingActivity, 42)
 
 	_, err := future.Get(context.Background())
 	if err == nil {
@@ -452,14 +452,14 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 		executorCtx.SendRunning("Starting flow")
 
 		// Run first activity
-		future1 := RunActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity1", simpleActivity, "input1")
+		future1 := ExecuteActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity1", simpleActivity, "input1")
 		result1, err := future1.Get(ctx)
 		if err != nil {
 			return err
 		}
 
 		// Run second activity
-		future2 := RunActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity2", simpleActivity, "input2")
+		future2 := ExecuteActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity2", simpleActivity, "input2")
 		result2, err := future2.Get(ctx)
 		if err != nil {
 			return err
@@ -471,7 +471,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 
 	// Execute the flow
 	ctx := context.Background()
-	err := executor.RunFlow(ctx, "test-flow", testFlow)
+	err := executor.ExecuteFlow(ctx, "test-flow", testFlow)
 	if err != nil {
 		t.Fatalf("Expected no error from flow, got %v", err)
 	}
@@ -511,7 +511,7 @@ func TestExecutorWithTimeout(t *testing.T) {
 	defer cancel()
 
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, executor)
-	future := RunActivity(executor, ctx, parentCtx, "slow", slowActivity, "test")
+	future := ExecuteActivity(executor, ctx, parentCtx, "slow", slowActivity, "test")
 
 	_, err := future.Get(context.Background())
 	if err == nil {

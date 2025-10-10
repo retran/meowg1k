@@ -21,53 +21,54 @@ import (
 	"fmt"
 )
 
-type Flusher interface {
+// OutputSink defines an interface for flushing output.
+type OutputSink interface {
 	Flush() error
 }
 
-// FlowRunner provides a unified way to execute flows with proper tracker and output handling.
-type FlowRunner struct {
-	flusher Flusher
+// Orchestrator provides a unified way to execute flows with proper tracker and output handling.
+type Orchestrator struct {
+	outputSink OutputSink
 }
 
-// NewFlowRunner creates a new FlowRunner with the given container.
-func NewFlowRunner(flusher Flusher) (*FlowRunner, error) {
-	if flusher == nil {
+// NewOrchestrator creates a new FlowRunner with the given container.
+func NewOrchestrator(outputSink OutputSink) (*Orchestrator, error) {
+	if outputSink == nil {
 		return nil, fmt.Errorf("flusher is nil")
 	}
 
-	return &FlowRunner{flusher: flusher}, nil
+	return &Orchestrator{outputSink: outputSink}, nil
 }
 
-// RunFlow executes a flow with proper tracker initialization and cleanup.
-func (r *FlowRunner) RunFlow(
+// Execute executes a flow with proper tracker initialization and cleanup.
+func (o *Orchestrator) Execute(
 	ctx context.Context,
 	flowName string,
 	flow Flow,
 	silent bool,
 ) error {
-	if r == nil {
+	if o == nil {
 		return fmt.Errorf("flow runner is nil")
 	}
 
-	executionTracker := NewExecutionTracker(silent)
+	executionTracker := NewTracker(silent)
 	executionTracker.Start()
 
 	exec := NewExecutor().
 		WithRetryPolicy(DefaultRetryPolicy()).
 		WithFeedbackHandler(executionTracker.FeedbackHandler())
 
-	flowErr := exec.RunFlow(ctx, flowName, flow)
+	err := exec.ExecuteFlow(ctx, flowName, flow)
 
 	executionTracker.Stop()
 
-	if flushErr := r.flusher.Flush(); flushErr != nil {
-		if flowErr != nil {
-			return fmt.Errorf("flow error: %w, flush error: %v", flowErr, flushErr)
+	if flushErr := o.outputSink.Flush(); flushErr != nil {
+		if err != nil {
+			return fmt.Errorf("flow error: %w, flush error: %v", err, flushErr)
 		}
 
 		return fmt.Errorf("failed to flush output: %w", flushErr)
 	}
 
-	return flowErr
+	return err
 }

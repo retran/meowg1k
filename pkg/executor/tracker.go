@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package ui provides terminal-based user interface components.
 package executor
 
 import (
@@ -53,12 +52,12 @@ const (
 
 var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-// ExecutionTracker tracks and displays the progress of executions in the terminal.
-type ExecutionTracker struct {
+// Tracker tracks and displays the progress of executions in the terminal.
+type Tracker struct {
 	silent       bool
 	wg           sync.WaitGroup
 	mu           sync.RWMutex // Protects executions and order
-	executions   map[string]*ExecutionProgress
+	executions   map[string]*Execution
 	order        []string // Preserves insertion order for stable output
 	feedbackChan chan *Feedback
 
@@ -66,33 +65,18 @@ type ExecutionTracker struct {
 	displayedLines int // Number of lines rendered in the last tick
 }
 
-// ExecutionProgress represents the progress state of a single execution.
-type ExecutionProgress struct {
-	Name       string
-	Status     Status
-	Message    string
-	Result     string
-	StartTime  time.Time
-	EndTime    *time.Time
-	Error      error
-	Metadata   map[string]any
-	ParentName string
-	Children   []string
-	Level      int
-}
-
-// NewExecutionTracker creates a new progress tracker.
-func NewExecutionTracker(silent bool) *ExecutionTracker {
-	return &ExecutionTracker{
+// NewTracker creates a new progress tracker.
+func NewTracker(silent bool) *Tracker {
+	return &Tracker{
 		silent:       silent,
-		executions:   make(map[string]*ExecutionProgress),
+		executions:   make(map[string]*Execution),
 		order:        make([]string, 0),
 		feedbackChan: make(chan *Feedback, feedbackChanSize),
 	}
 }
 
 // Start launches the goroutine for processing events and rendering the UI.
-func (t *ExecutionTracker) Start() {
+func (t *Tracker) Start() {
 	if t == nil || t.silent {
 		return
 	}
@@ -103,7 +87,7 @@ func (t *ExecutionTracker) Start() {
 }
 
 // Stop signals the tracker to stop and waits for it to finish.
-func (t *ExecutionTracker) Stop() {
+func (t *Tracker) Stop() {
 	if t == nil || t.silent {
 		return
 	}
@@ -116,7 +100,7 @@ func (t *ExecutionTracker) Stop() {
 }
 
 // FeedbackHandler returns a handler function to receive progress feedback.
-func (t *ExecutionTracker) FeedbackHandler() FeedbackHandler {
+func (t *Tracker) FeedbackHandler() FeedbackHandler {
 	return func(feedback *Feedback) {
 		if t == nil || t.feedbackChan == nil || feedback == nil {
 			return
@@ -125,8 +109,41 @@ func (t *ExecutionTracker) FeedbackHandler() FeedbackHandler {
 	}
 }
 
+// GetExecution returns a copy of the execution progress for the given name.
+// Returns nil if the execution doesn't exist.
+// This method is thread-safe and primarily intended for testing.
+func (t *Tracker) GetExecution(name string) *Execution {
+	if t == nil {
+		return nil
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	exec, exists := t.executions[name]
+	if !exists || exec == nil {
+		return nil
+	}
+
+	// Return a shallow copy to avoid race conditions
+	copyExec := *exec
+	return &copyExec
+}
+
+// GetExecutionCount returns the number of tracked executions.
+// This method is thread-safe and primarily intended for testing.
+func (t *Tracker) GetExecutionCount() int {
+	if t == nil {
+		return 0
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.executions)
+}
+
 // run is the main event processing and rendering loop.
-func (t *ExecutionTracker) run() {
+func (t *Tracker) run() {
 	defer t.wg.Done()
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
@@ -156,7 +173,7 @@ func (t *ExecutionTracker) run() {
 }
 
 // redraw clears the previous output and redraws the entire progress block.
-func (t *ExecutionTracker) redraw() {
+func (t *Tracker) redraw() {
 	if t == nil {
 		return
 	}
@@ -195,13 +212,13 @@ func (t *ExecutionTracker) redraw() {
 }
 
 // drawSpinner renders only the spinner line.
-func (t *ExecutionTracker) drawSpinner() {
+func (t *Tracker) drawSpinner() {
 	spinner := spinnerChars[t.spinnerIndex%len(spinnerChars)]
 	fmt.Fprintf(os.Stderr, "\r%s Working...\033[K", spinner)
 }
 
 // updateExecution updates the state of an execution based on feedback.
-func (t *ExecutionTracker) updateExecution(feedback *Feedback) {
+func (t *Tracker) updateExecution(feedback *Feedback) {
 	if t == nil || feedback == nil || feedback.ActivityName == "" {
 		return
 	}
@@ -212,7 +229,7 @@ func (t *ExecutionTracker) updateExecution(feedback *Feedback) {
 	exec, exists := t.executions[feedback.ActivityName]
 	if !exists {
 		parentName, level := parseActivityHierarchy(feedback.ActivityName)
-		exec = &ExecutionProgress{
+		exec = &Execution{
 			Name:       feedback.ActivityName,
 			StartTime:  feedback.Timestamp,
 			Metadata:   make(map[string]any),
@@ -253,7 +270,7 @@ type lineStyle struct {
 }
 
 // formatLine formats a single execution's status into a string.
-func (t *ExecutionTracker) formatLine(exec *ExecutionProgress, style lineStyle) string {
+func (t *Tracker) formatLine(exec *Execution, style lineStyle) string {
 	if t == nil || exec == nil {
 		return ""
 	}
@@ -278,8 +295,8 @@ func (t *ExecutionTracker) formatLine(exec *ExecutionProgress, style lineStyle) 
 	truncatedName := truncateString(displayName, style.nameWidth)
 	paddedName := fmt.Sprintf("%-*s", style.nameWidth, truncatedName)
 
-	duration := getDurationString(exec)
-	progressInfo := getChildProgressInfo(t, exec)
+	duration := exec.getDurationString()
+	progressInfo := t.getChildProgressInfo(exec)
 
 	var errorMsg string
 	if exec.Status == StatusFailed && exec.Error != nil {
@@ -289,6 +306,51 @@ func (t *ExecutionTracker) formatLine(exec *ExecutionProgress, style lineStyle) 
 	return fmt.Sprintf("%s%s%s%s %s %6s  %s%s\033[K\n",
 		style.indent, color, icon, colorReset,
 		paddedName, duration, progressInfo, errorMsg)
+}
+
+func (t *Tracker) getChildProgressInfo(exec *Execution) string {
+	total := len(exec.Children)
+	if total == 0 {
+		if exec.Status == StatusCompleted {
+			return exec.Result
+		}
+		return ""
+	}
+
+	var completed, failed, running int
+	for _, childName := range exec.Children {
+		if child, exists := t.executions[childName]; exists {
+			switch child.Status {
+			case StatusCompleted:
+				completed++
+			case StatusFailed:
+				failed++
+			case StatusRunning:
+				running++
+			}
+		}
+	}
+
+	done := completed + failed
+	if done == total {
+		if failed > 0 {
+			return fmt.Sprintf("[%d/%d, %d failed]", completed, total, failed)
+		}
+		return fmt.Sprintf("[%d/%d]", completed, total)
+	}
+
+	var parts []string
+	if running > 0 {
+		parts = append(parts, fmt.Sprintf("%d running", running))
+	}
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed", failed))
+	}
+
+	if len(parts) > 0 {
+		return fmt.Sprintf("[%d/%d, %s]", done, total, strings.Join(parts, ", "))
+	}
+	return fmt.Sprintf("[%d/%d]", done, total)
 }
 
 func sanitizeDescription(description string) string {
@@ -343,97 +405,4 @@ func parseActivityHierarchy(activityName string) (parentName string, level int) 
 		parentName = strings.Join(parts[:level], "::")
 	}
 	return parentName, level
-}
-
-func getChildProgressInfo(t *ExecutionTracker, exec *ExecutionProgress) string {
-	total := len(exec.Children)
-	if total == 0 {
-		if exec.Status == StatusCompleted {
-			return exec.Result
-		}
-		return ""
-	}
-
-	var completed, failed, running int
-	for _, childName := range exec.Children {
-		if child, exists := t.executions[childName]; exists {
-			switch child.Status {
-			case StatusCompleted:
-				completed++
-			case StatusFailed:
-				failed++
-			case StatusRunning:
-				running++
-			}
-		}
-	}
-
-	done := completed + failed
-	if done == total {
-		if failed > 0 {
-			return fmt.Sprintf("[%d/%d, %d failed]", completed, total, failed)
-		}
-		return fmt.Sprintf("[%d/%d]", completed, total)
-	}
-
-	var parts []string
-	if running > 0 {
-		parts = append(parts, fmt.Sprintf("%d running", running))
-	}
-	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", failed))
-	}
-
-	if len(parts) > 0 {
-		return fmt.Sprintf("[%d/%d, %s]", done, total, strings.Join(parts, ", "))
-	}
-	return fmt.Sprintf("[%d/%d]", done, total)
-}
-
-func getDurationString(exec *ExecutionProgress) string {
-	if exec.EndTime == nil {
-		return ""
-	}
-	duration := exec.EndTime.Sub(exec.StartTime)
-	switch {
-	case duration < time.Second:
-		return fmt.Sprintf("%dms", duration.Milliseconds())
-	case duration < time.Minute:
-		return fmt.Sprintf("%.1fs", duration.Seconds())
-	default:
-		return fmt.Sprintf("%.1fm", duration.Minutes())
-	}
-}
-
-// GetExecution returns a copy of the execution progress for the given name.
-// Returns nil if the execution doesn't exist.
-// This method is thread-safe and primarily intended for testing.
-func (t *ExecutionTracker) GetExecution(name string) *ExecutionProgress {
-	if t == nil {
-		return nil
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	exec, exists := t.executions[name]
-	if !exists || exec == nil {
-		return nil
-	}
-
-	// Return a shallow copy to avoid race conditions
-	copyExec := *exec
-	return &copyExec
-}
-
-// GetExecutionCount returns the number of tracked executions.
-// This method is thread-safe and primarily intended for testing.
-func (t *ExecutionTracker) GetExecutionCount() int {
-	if t == nil {
-		return 0
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return len(t.executions)
 }

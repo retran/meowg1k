@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
-	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/output"
+	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"

@@ -19,10 +19,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 var prCmd = &cobra.Command{
@@ -65,7 +65,7 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return fmt.Errorf("failed to create PR flow: %w", err)
 		}
 
-		runner, err := executor.NewFlowRunner(appContainer.OutputService)
+		runner, err := executor.NewOrchestrator(appContainer.OutputService)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
@@ -75,7 +75,7 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return runner.RunFlow(ctx, "GeneratePR", flow, silent)
+		return runner.Execute(ctx, "GeneratePR", flow, silent)
 	},
 }
 

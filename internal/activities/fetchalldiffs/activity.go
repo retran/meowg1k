@@ -72,7 +72,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
-			fut := executor.RunActivity[*fetchfilediff.Input, *git.FileChange](
+			fut := executor.ExecuteActivity[*fetchfilediff.Input, *git.FileChange](
 				executorCtx.GetExecutor(),
 				ctx,
 				executorCtx,

@@ -156,7 +156,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		if targetBranch != "" {
 			// Squash mode: list files changed in branch
 			listBranchFiles := f.listBranchFilesFactory.NewActivity()
-			branchFilesFuture := executor.RunActivity(
+			branchFilesFuture := executor.ExecuteActivity(
 				flowCtx.GetExecutor(),
 				ctx,
 				flowCtx,
@@ -175,7 +175,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		} else {
 			// Normal mode: list staged files
 			listStaged := f.listStagedFactory.NewActivity()
-			stagedFilesFuture := executor.RunActivity(
+			stagedFilesFuture := executor.ExecuteActivity(
 				flowCtx.GetExecutor(),
 				ctx,
 				flowCtx,
@@ -193,7 +193,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
-		filteredFilesFuture := executor.RunActivity(
+		filteredFilesFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -215,7 +215,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		if targetBranch != "" {
 			// Squash mode: fetch branch diffs
 			fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-			fetchAllBranchDiffsFuture := executor.RunActivity(
+			fetchAllBranchDiffsFuture := executor.ExecuteActivity(
 				flowCtx.GetExecutor(),
 				ctx,
 				flowCtx,
@@ -236,7 +236,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		} else {
 			// Normal mode: fetch staged diffs
 			fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
-			fetchAllDiffsFuture := executor.RunActivity(
+			fetchAllDiffsFuture := executor.ExecuteActivity(
 				flowCtx.GetExecutor(),
 				ctx,
 				flowCtx,
@@ -257,7 +257,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 4: Summarize changes for all files
 		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := executor.RunActivity(
+		summarizeAllFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -294,7 +294,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		composeCommit := f.composeCommitFactory.NewActivity()
-		commitFuture := executor.RunActivity(
+		commitFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,

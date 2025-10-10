@@ -126,7 +126,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			SystemPrompt: systemPrompt,
 		}
 
-		future := executor.RunActivity(
+		future := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,

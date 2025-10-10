@@ -125,7 +125,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			UserPrompt:   content,
 		}
 
-		invokeFuture := executor.RunActivity[*invokellm.Input, *invokellm.Output](
+		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
 			executorCtx.GetExecutor(),
 			ctx,
 			executorCtx,

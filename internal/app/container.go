@@ -30,7 +30,6 @@ import (
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
-	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/adapters/command"
@@ -38,6 +37,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/dbpath"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
+	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"

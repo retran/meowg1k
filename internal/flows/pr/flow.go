@@ -140,7 +140,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 1: List files changed in branch
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
-		branchFilesFuture := executor.RunActivity(
+		branchFilesFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -158,7 +158,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
-		filteredFilesFuture := executor.RunActivity(
+		filteredFilesFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -176,7 +176,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 3: Fetch diffs for all files
 		fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-		fetchAllBranchDiffsFuture := executor.RunActivity(
+		fetchAllBranchDiffsFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -198,7 +198,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// Phase 4: Summarize changes for all files
 		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := executor.RunActivity(
+		summarizeAllFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,
@@ -235,7 +235,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		composePR := f.composePRFactory.NewActivity()
-		prFuture := executor.RunActivity(
+		prFuture := executor.ExecuteActivity(
 			flowCtx.GetExecutor(),
 			ctx,
 			flowCtx,

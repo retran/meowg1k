@@ -60,14 +60,14 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runner, err := NewFlowRunner(output.NewService(coreOutput.Stdout))
+			runner, err := NewOrchestrator(output.NewService(coreOutput.Stdout))
 			if err != nil {
 				t.Fatalf("NewFlowRunner() returned error: %v", err)
 			}
 
 			flow := mockFlow(tt.flowError)
 
-			err = runner.RunFlow(context.Background(), "TestFlow", flow, false)
+			err = runner.Execute(context.Background(), "TestFlow", flow, false)
 			if (err != nil) != tt.wantError {
 				t.Errorf("RunFlow() error = %v, wantError %v", err, tt.wantError)
 			}
@@ -77,7 +77,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 // mockOutputService is a mock implementation of output.Service for testing
 func TestNewFlowRunner(t *testing.T) {
-	runner, err := NewFlowRunner(output.NewService(coreOutput.Stdout))
+	runner, err := NewOrchestrator(output.NewService(coreOutput.Stdout))
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestNewFlowRunner(t *testing.T) {
 }
 
 func TestNewFlowRunnerNil(t *testing.T) {
-	runner, err := NewFlowRunner(nil)
+	runner, err := NewOrchestrator(nil)
 	if err == nil {
 		t.Error("Expected error when NewFlowRunner called with nil")
 	}
@@ -127,7 +127,7 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 		flushError: context.Canceled,
 	}
 
-	runner, err := NewFlowRunner(mockOutput)
+	runner, err := NewOrchestrator(mockOutput)
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 	// Use a flow that succeeds, but flush will fail
 	flow := mockFlow(nil)
 
-	err = runner.RunFlow(context.Background(), "TestFlow", flow, false)
+	err = runner.Execute(context.Background(), "TestFlow", flow, false)
 
 	if err == nil {
 		t.Error("RunFlow() expected error from Flush, got nil")
@@ -151,7 +151,7 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 	// Create an output service for testing
 	mockOutput := output.NewService(coreOutput.Discard)
 
-	runner, err := NewFlowRunner(mockOutput)
+	runner, err := NewOrchestrator(mockOutput)
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 	// Use a flow that fails
 	flow := mockFlow(context.Canceled)
 
-	err = runner.RunFlow(context.Background(), "TestFlow", flow, false)
+	err = runner.Execute(context.Background(), "TestFlow", flow, false)
 
 	if err == nil {
 		t.Error("RunFlow() expected error, got nil")

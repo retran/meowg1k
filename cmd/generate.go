@@ -19,10 +19,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 var generateCmd = &cobra.Command{
@@ -46,7 +46,7 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
-		runner, err := executor.NewFlowRunner(appContainer.OutputService)
+		runner, err := executor.NewOrchestrator(appContainer.OutputService)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
@@ -56,7 +56,7 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return runner.RunFlow(ctx, "GenerateContent", flow, silent)
+		return runner.Execute(ctx, "GenerateContent", flow, silent)
 	},
 }
 
