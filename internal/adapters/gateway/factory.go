@@ -28,20 +28,29 @@ import (
 )
 
 type Factory struct {
-	mu       sync.Mutex
-	limiters map[string]ratelimit.Limiter // key is profile name
-	repoFunc func() ratelimit.Repository  // lazy function to get database repository
+	mu            sync.Mutex
+	limiters      map[string]ratelimit.Limiter // key is profile name
+	rateLimitRepo ratelimit.Repository         // rate limit repository
+	cacheRepo     ports.CacheRepository        // cache repository for LLM responses
+	flagReader    ports.FlagReader             // command-line flag reader
 }
 
-// NewFactory creates a new gateway factory with a lazy repository function.
-// The repoFunc will only be called when a rate limiter with actual limits is needed.
-func NewFactory(repoFunc func() ratelimit.Repository) (*Factory, error) {
-	if repoFunc == nil {
-		return nil, fmt.Errorf("repository function is nil")
+// NewFactory creates a new gateway factory with dependencies.
+// rateLimitRepo is required for rate limiting functionality.
+// cacheRepo and flagReader can be nil if caching is not needed.
+func NewFactory(
+	rateLimitRepo ratelimit.Repository,
+	cacheRepo ports.CacheRepository,
+	flagReader ports.FlagReader,
+) (*Factory, error) {
+	if rateLimitRepo == nil {
+		return nil, fmt.Errorf("rate limit repository is nil")
 	}
 	return &Factory{
-		limiters: make(map[string]ratelimit.Limiter),
-		repoFunc: repoFunc,
+		limiters:      make(map[string]ratelimit.Limiter),
+		rateLimitRepo: rateLimitRepo,
+		cacheRepo:     cacheRepo,
+		flagReader:    flagReader,
 	}, nil
 }
 
@@ -78,13 +87,9 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
 		limiter = ratelimit.NewNoOpLimiter()
 	} else {
-		repo := f.repoFunc()
-		if repo == nil {
-			return nil, fmt.Errorf("rate limiting is configured but database repository is not available")
-		}
 		var err error
 		// TODO proper context
-		limiter, err = ratelimit.NewLimiter(context.Background(), config, repo)
+		limiter, err = ratelimit.NewLimiter(context.Background(), config, f.rateLimitRepo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create rate limiter: %w", err)
 		}
@@ -93,6 +98,34 @@ func (f *Factory) getRateLimiter(profile *profile.ResolvedProfile) (ratelimit.Li
 	f.limiters[key] = limiter
 
 	return limiter, nil
+}
+
+// shouldEnableCache determines whether caching should be enabled based on profile config and flags.
+func (f *Factory) shouldEnableCache(profile *profile.ResolvedProfile) bool {
+	// Cache must be available
+	if f.cacheRepo == nil {
+		return false
+	}
+
+	// Check if --no-cache flag is set
+	if f.flagReader != nil {
+		if noCache, err := f.flagReader.GetNoCacheFlag(); err == nil && noCache {
+			return false
+		}
+	}
+
+	// Check if caching is enabled for this profile
+	return profile.CacheEnabled
+}
+
+// shouldUpdateCache determines whether cache should be forcefully updated based on flags.
+func (f *Factory) shouldUpdateCache() bool {
+	if f.flagReader == nil {
+		return false
+	}
+
+	updateCache, err := f.flagReader.GetUpdateCacheFlag()
+	return err == nil && updateCache
 }
 
 // NewGenerationGateway creates a new generation gateway based on the provided profile.
@@ -173,7 +206,15 @@ func (f *Factory) NewGenerationGateway(
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
 
-	return newRateLimitedGenerationGateway(gateway, limiter), nil
+	gateway = newRateLimitedGenerationGateway(gateway, limiter)
+
+	// Conditionally wrap with caching
+	if f.shouldEnableCache(profile) {
+		updateCache := f.shouldUpdateCache()
+		gateway = newCachingGenerationGateway(gateway, f.cacheRepo, updateCache)
+	}
+
+	return gateway, nil
 }
 
 // NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
@@ -234,5 +275,13 @@ func (f *Factory) NewEmbeddingsGateway(
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
 
-	return newRateLimitedEmbeddingsGateway(gateway, limiter), nil
+	gateway = newRateLimitedEmbeddingsGateway(gateway, limiter)
+
+	// Conditionally wrap with caching
+	if f.shouldEnableCache(profile) {
+		updateCache := f.shouldUpdateCache()
+		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)
+	}
+
+	return gateway, nil
 }

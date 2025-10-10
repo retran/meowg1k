@@ -36,6 +36,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/output"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
 )
@@ -102,6 +103,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 	}
 
 	rateLimitRepo := ratelimit.NewRepository(mainDB)
+	cacheRepo := cache.NewRepository(mainDB)
 
 	if err := shutdownService.Register(func(ctx context.Context) error {
 		if dbHost != nil {
@@ -119,6 +121,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 	container.OutputService = outputService
 	container.dbHost = dbHost
 	container.rateLimitRepo = rateLimitRepo
+	container.cacheRepo = cacheRepo
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
 	cmd.SetContext(shutdownCtx)

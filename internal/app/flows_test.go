@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
@@ -62,6 +63,7 @@ func newMockDBHost() (ports.Host, error) {
 	// Run migrations
 	allMigrations := []migrations.Migration{}
 	allMigrations = append(allMigrations, ratelimit.Migrations...)
+	allMigrations = append(allMigrations, cache.Migrations...)
 	if err := migrations.RunMigrations(mainDB, allMigrations); err != nil {
 		mainDB.Close()
 		return nil, err

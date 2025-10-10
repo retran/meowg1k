@@ -48,4 +48,8 @@ type ResolvedProfile struct {
 	Temperature *float64      // Temperature parameter (optional)
 	TopP        *float64      // TopP parameter (optional)
 	TopK        *int          // TopK parameter (optional)
+
+	// Cache configuration (merged from global and profile-specific settings)
+	CacheEnabled bool          // Whether caching is enabled for this profile
+	CacheTTL     time.Duration // Cache TTL for this profile
 }

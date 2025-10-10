@@ -181,3 +181,29 @@ func (s *Service) GetStdIn() (string, error) {
 
 	return s.stdin, nil
 }
+
+// GetNoCacheFlag retrieves the no-cache flag from command flags.
+func (s *Service) GetNoCacheFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetBool("no-cache")
+}
+
+// GetUpdateCacheFlag retrieves the update-cache flag from command flags.
+func (s *Service) GetUpdateCacheFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetBool("update-cache")
+}

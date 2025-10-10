@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
@@ -50,6 +51,11 @@ func NewLocalHost(dbPathService DBPathService) (ports.Host, error) {
 	db, err := sql.Open("sqlite3", dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open main db at %s: %w", mainDBPath, err)
+	}
+
+	// Enable Write-Ahead Logging for better concurrent access
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	projectDB := db // TODO: For now, use the same DB for projects
@@ -96,6 +102,9 @@ func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 
 	// Add rate limiting migrations
 	allMigrations = append(allMigrations, ratelimit.Migrations...)
+
+	// Add cache migrations
+	allMigrations = append(allMigrations, cache.Migrations...)
 
 	// Future: add other subsystem migrations here
 	// allMigrations = append(allMigrations, someother.Migrations...)

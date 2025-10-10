@@ -42,6 +42,18 @@ type Config struct {
 
 	// PR command configuration ("Reduce" phase)
 	PR *CommandConfig `yaml:"pullrequest" mapstructure:"pullrequest"`
+
+	// Cache configuration for LLM response caching
+	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
+}
+
+// CacheConfig defines configuration for LLM response caching.
+type CacheConfig struct {
+	// Enabled determines whether caching is enabled
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+
+	// TTL defines how long cache entries should be kept before being purged
+	TTL time.Duration `yaml:"ttl" mapstructure:"ttl"`
 }
 
 // ModelDefinition defines an LLM API instance with connection parameters.
@@ -105,6 +117,9 @@ type ProfileDefinition struct {
 
 	// MaxTokens overrides the model's default max output tokens for this profile (optional)
 	MaxTokens *int `yaml:"maxTokens" mapstructure:"maxTokens"`
+
+	// Cache overrides global cache settings for this profile (optional)
+	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
 }
 
 // GenerateConfig holds configuration for the generate command.

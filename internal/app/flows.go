@@ -46,7 +46,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/task"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
-	"github.com/retran/meowg1k/internal/flows/pullrequest"
+	pr "github.com/retran/meowg1k/internal/flows/pullrequest"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -85,7 +85,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
@@ -194,7 +194,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create generate prompt service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
@@ -253,7 +253,7 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo)
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}

@@ -19,6 +19,7 @@ package ports
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -68,4 +69,23 @@ type Host interface {
 	GetDB() (*sql.DB, error)
 	GetProjectDB() (*sql.DB, error)
 	Close() error
+}
+
+// CacheRepository defines the contract for LLM response caching.
+type CacheRepository interface {
+	// Get retrieves a cached value by key.
+	// Returns the value, whether it was found, and any error.
+	Get(ctx context.Context, key string) (string, bool, error)
+
+	// Set stores a value in the cache with the given key.
+	Set(ctx context.Context, key, value string) error
+
+	// Purge removes cache entries older than the specified TTL.
+	Purge(ctx context.Context, ttl time.Duration) error
+}
+
+// FlagReader defines the contract for reading command-line flags.
+type FlagReader interface {
+	GetNoCacheFlag() (bool, error)
+	GetUpdateCacheFlag() (bool, error)
 }

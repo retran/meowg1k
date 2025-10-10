@@ -147,6 +147,18 @@ func (s *Service) resolveProfileInternal(
 		TopK:            profileDef.TopK,
 	}
 
+	// Merge cache configuration (profile overrides global)
+	if profileDef.Cache != nil {
+		// Profile-specific cache config
+		resolved.CacheEnabled = profileDef.Cache.Enabled
+		resolved.CacheTTL = profileDef.Cache.TTL
+	} else if cfg.Cache != nil {
+		// Use global cache config
+		resolved.CacheEnabled = cfg.Cache.Enabled
+		resolved.CacheTTL = cfg.Cache.TTL
+	}
+	// Otherwise, caching is disabled (CacheEnabled defaults to false)
+
 	if resolved.Timeout == 0 {
 		resolved.Timeout = 5 * time.Minute
 	}

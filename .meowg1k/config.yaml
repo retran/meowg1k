@@ -18,10 +18,21 @@ models:
 profiles:
   fast:
     model: "qwen-flash"
+    cache:
+      enabled: true
+      ttl: "24h"  # Cache fast completions for 1 day
 
   smart:
     model: "qwen-plus"
     timeout: "10m"
+    cache:
+      enabled: true
+      ttl: "72h"  # Cache smart completions longer (3 days)
+
+# Global cache configuration (can be overridden per profile)
+cache:
+  enabled: true
+  ttl: "24h"  # Default: cache entries expire after 24 hours
 
 generate:
   default:

@@ -39,6 +39,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
 )
@@ -76,6 +77,9 @@ type Container struct {
 
 	// rateLimitRepo is the repository for rate limiting state (lazy initialized)
 	rateLimitRepo ratelimit.Repository
+
+	// cacheRepo is the repository for LLM response caching (lazy initialized)
+	cacheRepo ports.CacheRepository
 
 	// dbInitOnce ensures database is initialized only once
 	dbInitOnce sync.Once
@@ -219,6 +223,17 @@ func (c *Container) initDB() error {
 		}
 
 		rateLimitRepo := ratelimit.NewRepository(mainDB)
+		cacheRepo := cache.NewRepository(mainDB)
+
+		// Purge expired cache entries on startup if caching is configured
+		config, err := c.ConfigService.Get()
+		if err == nil && config != nil && config.Cache != nil && config.Cache.TTL > 0 {
+			ctx := c.ShutdownService.Context()
+			if err := cacheRepo.Purge(ctx, config.Cache.TTL); err != nil {
+				c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
+				// Don't fail initialization - just log the error
+			}
+		}
 
 		if err := c.ShutdownService.Register(func(ctx context.Context) error {
 			if err := dbHost.Close(); err != nil {
@@ -232,17 +247,35 @@ func (c *Container) initDB() error {
 
 		c.dbHost = dbHost
 		c.rateLimitRepo = rateLimitRepo
+		c.cacheRepo = cacheRepo
 	})
 	return initErr
 }
 
 // GetRateLimitRepo returns the rate limit repository, initializing the database if needed.
 func (c *Container) GetRateLimitRepo() ratelimit.Repository {
+	// If already set (e.g., in tests), return it directly
+	if c.rateLimitRepo != nil {
+		return c.rateLimitRepo
+	}
 	if err := c.initDB(); err != nil {
 		c.Logger.Error("failed to initialize database", "error", err)
 		return nil
 	}
 	return c.rateLimitRepo
+}
+
+// GetCacheRepo returns the cache repository, initializing the database if needed.
+func (c *Container) GetCacheRepo() ports.CacheRepository {
+	// If already set (e.g., in tests), return it directly
+	if c.cacheRepo != nil {
+		return c.cacheRepo
+	}
+	if err := c.initDB(); err != nil {
+		c.Logger.Error("failed to initialize database", "error", err)
+		return nil
+	}
+	return c.cacheRepo
 }
 
 // getLogDir returns the appropriate log directory for the current OS.

@@ -54,24 +54,24 @@ func TestNewGatewayFactory(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(repo, nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
 }
 
 func TestNewGatewayFactoryNilRepo(t *testing.T) {
-	factory, err := NewFactory(nil)
+	factory, err := NewFactory(nil, nil, nil)
 	assert.Error(t, err)
 	assert.Nil(t, factory)
-	assert.Contains(t, err.Error(), "repository function is nil")
+	assert.Contains(t, err.Error(), "rate limit repository is nil")
 }
 
 func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(repo, nil, nil)
 	assert.NoError(t, err)
 	ctx := context.Background()
 
@@ -305,9 +305,12 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 }
 
 func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
+	db, repo := setupTestRepoForFactory(t)
+	defer db.Close()
+
 	factory := &Factory{
-		limiters: make(map[string]ratelimit.Limiter),
-		repoFunc: func() ratelimit.Repository { return nil },
+		limiters:      make(map[string]ratelimit.Limiter),
+		rateLimitRepo: repo,
 	}
 	ctx := context.Background()
 
@@ -489,10 +492,12 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	}
 }
 
-// TestGatewayFactory_NoOpLimiterFallback tests that the factory falls back to no-op limiter when DB error occurs
+// TestGatewayFactory_NoOpLimiterFallback tests that the factory uses no-op limiter when no rate limits are configured
 func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
-	// Create a factory with a repo function that returns nil (simulating DB error)
-	factory, err := NewFactory(func() ratelimit.Repository { return nil })
+	db, repo := setupTestRepoForFactory(t)
+	defer db.Close()
+
+	factory, err := NewFactory(repo, nil, nil)
 	assert.NoError(t, err)
 
 	// Create a profile with rate limits enabled
@@ -517,11 +522,10 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 		},
 	}
 
-	// Get or create a limiter - should fail fast when DB is not available and rate limiting is configured
+	// Get or create a limiter - should succeed when repo is valid and rate limiting is configured
 	limiter, err := factory.getRateLimiter(prof)
-	require.Error(t, err, "Should return error when DB fails and rate limiting is configured")
-	require.Nil(t, limiter, "Should not return a limiter when DB fails")
-	assert.Contains(t, err.Error(), "database repository is not available")
+	require.NoError(t, err, "Should not return error when repo is valid and rate limiting is configured")
+	require.NotNil(t, limiter, "Should return a limiter when rate limiting is configured")
 }
 
 // TestGatewayFactory_NoLimitsNoOpLimiter tests that no-op limiter is used when no limits are configured
@@ -529,7 +533,7 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(func() ratelimit.Repository { return repo })
+	factory, err := NewFactory(repo, nil, nil)
 	assert.NoError(t, err)
 
 	// Create a profile with NO rate limits - should use no-op limiter without touching DB

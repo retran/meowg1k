@@ -77,4 +77,6 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "config file path (overrides project/user configs when specified)")
 	rootCmd.PersistentFlags().Bool("silent", false, "silent mode - only output the result without progress indicators")
+	rootCmd.PersistentFlags().Bool("no-cache", false, "disable LLM response caching")
+	rootCmd.PersistentFlags().Bool("update-cache", false, "force cache refresh by making fresh requests and updating cache entries")
 }
