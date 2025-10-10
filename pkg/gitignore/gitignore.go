@@ -134,6 +134,10 @@ func parsePattern(line string) *pattern {
 // Match checks if a given path should be ignored.
 // path is the relative path from the root.
 func (m *Matcher) Match(path string, isDir bool) bool {
+	if m == nil {
+		return false
+	}
+
 	path = filepath.ToSlash(path)
 
 	if isDir && !strings.HasSuffix(path, "/") {
@@ -142,6 +146,9 @@ func (m *Matcher) Match(path string, isDir bool) bool {
 
 	var finalMatch *pattern
 	for _, p := range m.patterns {
+		if p == nil {
+			continue
+		}
 		if p.regex != nil && p.regex.MatchString(path) {
 			if strings.HasSuffix(p.raw, "/") && !isDir {
 				continue
@@ -164,6 +171,9 @@ func (m *Matcher) Match(path string, isDir bool) bool {
 
 			var parentMatch *pattern
 			for _, p := range m.patterns {
+				if p == nil {
+					continue
+				}
 				if p.regex != nil && p.regex.MatchString(parent) {
 					parentMatch = p
 				}

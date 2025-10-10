@@ -17,14 +17,117 @@ limitations under the License.
 package app
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/retran/meowg1k/internal/adapters/command"
+	"github.com/retran/meowg1k/internal/adapters/config"
+	"github.com/retran/meowg1k/internal/adapters/output"
+	domainOutput "github.com/retran/meowg1k/internal/domain/output"
+	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/cache"
+	"github.com/retran/meowg1k/pkg/ratelimit"
+	"github.com/retran/meowg1k/pkg/shutdown"
 )
+
+// testMockDBHost is a simple mock implementation for testing nil validation
+type testMockDBHost struct{}
+
+func (h *testMockDBHost) GetDB() (*sql.DB, error) {
+	return nil, nil
+}
+
+func (h *testMockDBHost) GetProjectDB() (*sql.DB, error) {
+	return nil, nil
+}
+
+func (h *testMockDBHost) Close() error {
+	return nil
+}
+
+// NewTestAppContainer creates a new app.Container for testing with a mock database host.
+// This ensures tests use in-memory databases and don't create files on disk.
+func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("cobra command is nil")
+	}
+	if dbHost == nil {
+		return nil, fmt.Errorf("host is nil")
+	}
+
+	container := &Container{}
+
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Use a discard logger for tests to avoid log output
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	shutdownService := shutdown.NewService(logger, ctx, 10*time.Second)
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	configService, err := config.NewService(commandService)
+	if err != nil {
+		return nil, err
+	}
+
+	outputService := output.NewService(domainOutput.Stdout)
+	if err := shutdownService.Register(func(ctx context.Context) error {
+		return outputService.Flush()
+	}); err != nil {
+		return nil, err
+	}
+
+	mainDB, err := dbHost.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get main database: %w", err)
+	}
+
+	rateLimitRepo := ratelimit.NewRepository(mainDB)
+	cacheRepo := cache.NewRepository(mainDB)
+
+	if err := shutdownService.Register(func(ctx context.Context) error {
+		if dbHost != nil {
+			return dbHost.Close()
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	container.Logger = logger
+	container.ShutdownService = shutdownService
+	container.CommandService = commandService
+	container.ConfigService = configService
+	container.OutputService = outputService
+	container.dbHost = dbHost
+	container.rateLimitRepo = rateLimitRepo
+	container.cacheRepo = cacheRepo
+
+	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
+	cmd.SetContext(shutdownCtx)
+
+	return container, nil
+}
 
 func TestGetLogDir(t *testing.T) {
 	dir, err := getLogDir()
@@ -167,6 +270,40 @@ generate:
 	if val != container {
 		t.Error("AppContainerKey not set correctly in context")
 	}
+}
+
+func TestNewAppContainerNil(t *testing.T) {
+	container, err := NewAppContainer(nil)
+	if err == nil {
+		t.Fatal("expected error when cmd is nil, got nil")
+	}
+	if container != nil {
+		t.Errorf("expected nil container, got: %v", container)
+	}
+}
+
+func TestNewTestAppContainerNil(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+
+	t.Run("nil cmd", func(t *testing.T) {
+		container, err := NewTestAppContainer(nil, &testMockDBHost{})
+		if err == nil {
+			t.Fatal("expected error when cmd is nil, got nil")
+		}
+		if container != nil {
+			t.Errorf("expected nil container, got: %v", container)
+		}
+	})
+
+	t.Run("nil dbHost", func(t *testing.T) {
+		container, err := NewTestAppContainer(cmd, nil)
+		if err == nil {
+			t.Fatal("expected error when dbHost is nil, got nil")
+		}
+		if container != nil {
+			t.Errorf("expected nil container, got: %v", container)
+		}
+	})
 }
 
 func TestNewAppContainerWithErrors(t *testing.T) {
@@ -391,9 +528,9 @@ generate:
 		t.Error("Context should not be nil")
 	}
 
-	config := container.ConfigService.GetConfig()
-	if config == nil {
-		t.Fatal("Config should not be nil")
+	config, err := container.ConfigService.Get()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
 	}
 
 	if len(config.Profiles) != 2 {

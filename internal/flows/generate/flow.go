@@ -19,52 +19,93 @@ package generate
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/output"
-	"github.com/retran/meowg1k/internal/services/prompt"
-	"github.com/retran/meowg1k/internal/services/task"
+	"github.com/retran/meowg1k/internal/domain/task"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// ErrInvalidActivityOutputType is returned when an activity returns an unexpected output type.
-var ErrInvalidActivityOutputType = errors.New("invalid output type from InvokeLLM activity")
+// TaskConfigProvider provides resolved task configuration.
+type TaskConfigProvider interface {
+	Get() (*task.ResolvedConfig, error)
+}
+
+// UserPromptProvider provides the user prompt for content generation.
+type UserPromptProvider interface {
+	GetUserPrompt() (string, error)
+}
+
+// SystemPromptProvider provides the system prompt for content generation.
+type SystemPromptProvider interface {
+	GetSystemPrompt() (string, error)
+}
 
 // FlowFactory creates instances of the generate flow with injected dependencies.
 type FlowFactory struct {
-	taskService          task.Service
-	userPromptProvider   prompt.UserPromptProvider
-	systemPromptProvider prompt.SystemPromptProvider
-	invokeLLMFactory     *invokellm.Factory
-	outputService        output.Service
+	taskConfigProvider               TaskConfigProvider
+	userPromptProvider               UserPromptProvider
+	systemPromptProvider             SystemPromptProvider
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	outputWriter                     ports.OutputWriter
 }
 
-// NewFlowFactory creates a new generate flow factory with injected services.
+// NewFlowFactory creates a new generate flow factory with injected adapters.
 func NewFlowFactory(
-	taskService task.Service,
-	userPromptProvider prompt.UserPromptProvider,
-	systemPromptProvider prompt.SystemPromptProvider,
-	gatewayFactory gateway.Factory,
-	outputService output.Service,
-) *FlowFactory {
-	invokeLLMFactory := invokellm.NewFactory(gatewayFactory)
-	return &FlowFactory{
-		taskService:          taskService,
-		userPromptProvider:   userPromptProvider,
-		systemPromptProvider: systemPromptProvider,
-		invokeLLMFactory:     invokeLLMFactory,
-		outputService:        outputService,
+	taskConfigProvider TaskConfigProvider,
+	userPromptProvider UserPromptProvider,
+	systemPromptProvider SystemPromptProvider,
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	outputWriter ports.OutputWriter,
+) (*FlowFactory, error) {
+	if taskConfigProvider == nil {
+		return nil, fmt.Errorf("taskConfigProvider is nil")
 	}
+
+	if userPromptProvider == nil {
+		return nil, fmt.Errorf("userPromptProvider is nil")
+	}
+
+	if systemPromptProvider == nil {
+		return nil, fmt.Errorf("systemPromptProvider is nil")
+	}
+
+	if contentGenerationActivityFactory == nil {
+		return nil, fmt.Errorf("contentGenerationActivityFactory is nil")
+	}
+
+	if outputWriter == nil {
+		return nil, fmt.Errorf("outputWriter is nil")
+	}
+
+	return &FlowFactory{
+		taskConfigProvider:               taskConfigProvider,
+		userPromptProvider:               userPromptProvider,
+		systemPromptProvider:             systemPromptProvider,
+		contentGenerationActivityFactory: contentGenerationActivityFactory,
+		outputWriter:                     outputWriter,
+	}, nil
 }
 
 // NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		task := f.taskService.Get()
+		if f == nil {
+			return fmt.Errorf("factory is nil")
+		}
+		if ctx == nil {
+			return fmt.Errorf("context is nil")
+		}
+		if flowCtx == nil {
+			return fmt.Errorf("flow context is nil")
+		}
+
+		task, err := f.taskConfigProvider.Get()
+		if err != nil {
+			return fmt.Errorf("failed to get task config: %w", err)
+		}
 
 		flowCtx.SendRunning("Generating content")
 
@@ -78,31 +119,34 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return fmt.Errorf("failed to get system prompt: %w", err)
 		}
 
-		activity := f.invokeLLMFactory.NewActivity()
+		activity := f.contentGenerationActivityFactory.NewActivity()
 		input := &invokellm.Input{
 			Profile:      task.Profile,
 			UserPrompt:   userPrompt,
 			SystemPrompt: systemPrompt,
 		}
 
-		future := flowCtx.GetExecutor().RunActivity(ctx, flowCtx, "InvokeLLM", activity, input)
+		future := executor.ExecuteActivity(
+			flowCtx.GetExecutor(),
+			ctx,
+			flowCtx,
+			"InvokeLLM",
+			activity,
+			input,
+		)
 
-		output, err := future.Get(ctx)
+		invokeOutput, err := future.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
-		}
-
-		invokeOutput, ok := output.(*invokellm.Output)
-
-		if !ok {
-			return ErrInvalidActivityOutputType
 		}
 
 		flowCtx.SendCompleted("")
 
 		time.Sleep(300 * time.Millisecond)
 
-		f.outputService.PrintLine(invokeOutput.Content)
+		if err := f.outputWriter.PrintLine(invokeOutput.Content); err != nil {
+			return fmt.Errorf("failed to print generated content: %w", err)
+		}
 
 		return nil
 	}

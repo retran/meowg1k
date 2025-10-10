@@ -19,12 +19,9 @@ package future
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sync"
 )
-
-// ErrNoFuturesProvided indicates that no futures were provided to a wait operation.
-var ErrNoFuturesProvided = errors.New("no futures provided")
 
 // Future represents a value that will be available in the future
 type Future[T any] struct {
@@ -47,13 +44,18 @@ func NewFuture[T any]() *Future[T] {
 	}
 }
 
-// Complete completes the future with a value
-func (f *Future[T]) Complete(value T) {
+// Complete completes the future with a value.
+// Returns an error if the future is nil.
+func (f *Future[T]) Complete(value T) error {
+	if f == nil {
+		return fmt.Errorf("future is nil")
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.done {
-		return
+		return nil
 	}
 
 	f.done = true
@@ -62,15 +64,21 @@ func (f *Future[T]) Complete(value T) {
 	f.ch <- result[T]{value: value}
 
 	close(f.ch)
+	return nil
 }
 
-// CompleteWithError completes the future with an error
-func (f *Future[T]) CompleteWithError(err error) {
+// CompleteWithError completes the future with an error.
+// Returns an error if the future is nil.
+func (f *Future[T]) CompleteWithError(err error) error {
+	if f == nil {
+		return fmt.Errorf("future is nil")
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	if f.done {
-		return
+		return nil
 	}
 
 	f.done = true
@@ -79,10 +87,20 @@ func (f *Future[T]) CompleteWithError(err error) {
 	f.ch <- result[T]{error: err}
 
 	close(f.ch)
+	return nil
 }
 
 // Get waits for the future to complete and returns the result
 func (f *Future[T]) Get(ctx context.Context) (T, error) {
+	var zero T
+	if f == nil {
+		return zero, fmt.Errorf("future is nil")
+	}
+
+	if ctx == nil {
+		return zero, fmt.Errorf("context is nil")
+	}
+
 	f.mu.RLock()
 
 	if f.done {
@@ -98,13 +116,16 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	case res := <-f.ch:
 		return res.value, res.error
 	case <-ctx.Done():
-		var zero T
 		return zero, ctx.Err()
 	}
 }
 
 // IsDone returns true if the future is completed
 func (f *Future[T]) IsDone() bool {
+	if f == nil {
+		return false
+	}
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -113,6 +134,11 @@ func (f *Future[T]) IsDone() bool {
 
 // TryGet returns the result if available, or nil if not ready
 func (f *Future[T]) TryGet() (T, error, bool) {
+	var zero T
+	if f == nil {
+		return zero, fmt.Errorf("future is nil"), false
+	}
+
 	f.mu.RLock()
 
 	if f.done {
@@ -128,30 +154,41 @@ func (f *Future[T]) TryGet() (T, error, bool) {
 	case res := <-f.ch:
 		return res.value, res.error, true
 	default:
-		var zero T
 		return zero, nil, false
 	}
 }
 
 // WaitAll waits for all futures to complete and returns all results
 func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
-	results := make([]T, len(futures))
-	errors := make([]error, len(futures))
-
-	for i, future := range futures {
-		result, err := future.Get(ctx)
-		results[i] = result
-		errors[i] = err
+	if ctx == nil {
+		return nil, []error{fmt.Errorf("context is nil")}
 	}
 
-	return results, errors
+	results := make([]T, len(futures))
+	errs := make([]error, len(futures))
+
+	for i, future := range futures {
+		if future == nil {
+			errs[i] = fmt.Errorf("future at index %d is nil", i)
+			continue
+		}
+		result, err := future.Get(ctx)
+		results[i] = result
+		errs[i] = err
+	}
+
+	return results, errs
 }
 
 // WaitAny waits for any future to complete and returns its result and index
 // The returned index indicates which future completed first
 func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index int, err error) {
+	if ctx == nil {
+		return value, -1, fmt.Errorf("context is nil")
+	}
+
 	if len(futures) == 0 {
-		return value, -1, ErrNoFuturesProvided
+		return value, -1, fmt.Errorf("no futures provided")
 	}
 
 	type indexedResult struct {
@@ -163,6 +200,9 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 	resultCh := make(chan indexedResult, len(futures))
 
 	for i, future := range futures {
+		if future == nil {
+			continue
+		}
 		go func(idx int, f *Future[T]) {
 			result, err := f.Get(ctx)
 			resultCh <- indexedResult{result, err, idx}
@@ -184,7 +224,16 @@ func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[
 	results = make(map[K]T)
 	errors = make(map[K]error)
 
+	if ctx == nil {
+		errors[*new(K)] = fmt.Errorf("context is nil")
+		return results, errors
+	}
+
 	for key, future := range futures {
+		if future == nil {
+			errors[key] = fmt.Errorf("future for key %v is nil", key)
+			continue
+		}
 		result, err := future.Get(ctx)
 		results[key] = result
 		errors[key] = err

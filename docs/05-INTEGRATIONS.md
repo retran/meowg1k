@@ -84,7 +84,7 @@ Integrating `meowg1k` into your CI/CD pipeline ensures consistency and automates
 
 This workflow automatically generates a PR description when a new pull request is opened.
 
-**Goal:** When a PR is opened, a GitHub Action runs `meow pr` and updates the PR's body with the generated content.
+**Goal:** When a PR is opened, a GitHub Action runs `meow pullrequest` and updates the PR's body with the generated content.
 
 **Setup:** Create a file at `.github/workflows/pr_description.yml`.
 

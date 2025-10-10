@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
-	"github.com/retran/meowg1k/internal/services/git"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )
@@ -39,39 +39,50 @@ type Output struct {
 
 // Factory creates instances of the FetchAllDiffs activity with injected dependencies.
 type Factory struct {
-	fetchFileDiffActivityFactory executor.ActivityFactory
+	fileDiffActivityFactory executor.ActivityFactory[*fetchfilediff.Input, *git.FileChange]
 }
 
-// NewFactory creates a new FetchAllDiffs activity factory with injected services.
-func NewFactory(
-	fetchFileDiffActivityFactory executor.ActivityFactory,
-) *Factory {
-	return &Factory{
-		fetchFileDiffActivityFactory: fetchFileDiffActivityFactory,
+// Compile-time check to ensure Factory implements ActivityFactory interface
+var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
+
+// NewFactory creates a new FetchAllDiffs activity factory with the provided file diff activity factory.
+func NewFactory(fileDiffActivityFactory executor.ActivityFactory[*fetchfilediff.Input, *git.FileChange]) (*Factory, error) {
+	if fileDiffActivityFactory == nil {
+		return nil, fmt.Errorf("file diff activity factory cannot be nil")
 	}
+
+	return &Factory{
+		fileDiffActivityFactory: fileDiffActivityFactory,
+	}, nil
 }
 
 // NewActivity creates and returns the FetchAllDiffs activity function with added progress reporting.
-func (f *Factory) NewActivity() executor.Activity[any, any] {
-	return func(ctx context.Context, executorCtx *executor.Context, activityInput any) (any, error) {
-		if activityInput == nil {
-			return nil, executor.ErrInputCannotBeNil
+func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+		if f == nil {
+			return nil, fmt.Errorf("fetch all diffs factory is nil")
 		}
 
-		input, ok := activityInput.(*Input)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", executor.ErrInvalidInputType, activityInput)
+		if input == nil {
+			return nil, fmt.Errorf("input cannot be nil")
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files", len(input.Files)))
 
-		readChangesFutures := make([]*future.Future[any], 0, len(input.Files))
+		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
-			fetchFileDiff := f.fetchFileDiffActivityFactory.NewActivity()
-			future := executorCtx.GetExecutor().RunActivity(ctx, executorCtx, file, fetchFileDiff, &fetchfilediff.Input{
-				Filename: file,
-			})
-			readChangesFutures = append(readChangesFutures, future)
+			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
+			fut := executor.ExecuteActivity[*fetchfilediff.Input, *git.FileChange](
+				executorCtx.GetExecutor(),
+				ctx,
+				executorCtx,
+				file,
+				fetchFileDiff,
+				&fetchfilediff.Input{
+					Filename: file,
+				},
+			)
+			readChangesFutures = append(readChangesFutures, fut)
 		}
 
 		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
@@ -82,13 +93,7 @@ func (f *Factory) NewActivity() executor.Activity[any, any] {
 		}
 
 		changes := make([]*git.FileChange, 0, len(changesResults))
-		for _, result := range changesResults {
-			changeOutput, ok := result.(*git.FileChange)
-			if !ok {
-				continue
-			}
-			changes = append(changes, changeOutput)
-		}
+		changes = append(changes, changesResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
 
