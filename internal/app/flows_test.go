@@ -26,7 +26,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/spf13/cobra"
 
-	"github.com/retran/meowg1k/internal/db"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
@@ -53,7 +53,7 @@ func (h *mockDBHost) Close() error {
 }
 
 // newMockDBHost creates a new mock db.Host with in-memory databases for testing.
-func newMockDBHost() (db.Host, error) {
+func newMockDBHost() (ports.Host, error) {
 	mainDB, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		return nil, err

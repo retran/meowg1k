@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package pullRequest provides a flow to compose a Pull Request description based on branch changes.
+// Package pullrequest provides a flow to compose a Pull Request description based on branch changes.
 package pr
 
 import (
@@ -26,10 +26,23 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/core/git"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/git"
+	"github.com/retran/meowg1k/internal/domain/pullrequest"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// PullRequestConfigProvider provides pull request configuration.
+type PullRequestConfigProvider interface {
+	Get() (*pullrequest.ResolvedConfig, error)
+}
+
+// CommandParametersReader reads command-line parameters and flags.
+type CommandParametersReader interface {
+	GetBaseBranchFlag() (string, error)
+	GetIntentFlag() (string, error)
+	GetStdIn() (string, error)
+}
 
 // Factory creates instances of the PR flow with injected dependencies.
 type Factory struct {
@@ -38,20 +51,20 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
-	prConfigProvider           ports.PRConfigProvider
-	commandParametersReader    ports.CommandParametersReader
+	prConfigProvider           PullRequestConfigProvider
+	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
 }
 
-// NewFactory creates a new PR flow factory with injected services.
+// NewFactory creates a new PR flow factory with injected adapters.
 func NewFactory(
 	listBranchFilesFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output],
 	applyFiltersFactory executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output],
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composePRFactory executor.ActivityFactory[*composepr.Input, *composepr.Output],
-	prConfigProvider ports.PRConfigProvider,
-	commandParametersReader ports.CommandParametersReader,
+	prConfigProvider PullRequestConfigProvider,
+	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
 	if listBranchFilesFactory == nil {
@@ -202,7 +215,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose PR description
-		cfg, err := f.prConfigProvider.GetPRConfig()
+		cfg, err := f.prConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
 		}

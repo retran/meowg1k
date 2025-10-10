@@ -128,7 +128,7 @@ summarize:
     - match: "**/*.md"
       skip: true
     # Rule 2: Use the best model for critical service logic
-    - match: "internal/services/**/*.go"
+    - match: "internal/adapters/**/*.go"
       profile: "claude-smart"
       systemPrompt: "Deeply analyze this business logic change. Focus on correctness, performance, and potential side effects."
 

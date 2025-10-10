@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/core/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -35,16 +34,21 @@ type Output struct {
 	Files []string
 }
 
+// BranchFileListReader reads list of changed files in a branch.
+type BranchFileListReader interface {
+	GetChangedFilesInBranch(targetBranch string) ([]string, error)
+}
+
 // Factory creates instances of the ListBranchFiles activity with injected dependencies.
 type Factory struct {
-	branchFileListReader ports.BranchFileListReader
+	branchFileListReader BranchFileListReader
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ListBranchFiles activity factory with the provided branch file list reader.
-func NewFactory(branchFileListReader ports.BranchFileListReader) (*Factory, error) {
+func NewFactory(branchFileListReader BranchFileListReader) (*Factory, error) {
 	if branchFileListReader == nil {
 		return nil, fmt.Errorf("branch file list reader cannot be nil")
 	}

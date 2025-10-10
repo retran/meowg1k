@@ -21,9 +21,9 @@ import (
 	"errors"
 	"testing"
 
-	coreGateway "github.com/retran/meowg1k/internal/core/gateway"
-	"github.com/retran/meowg1k/internal/core/ports"
-	"github.com/retran/meowg1k/internal/core/profile"
+	coreGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 

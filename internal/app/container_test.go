@@ -29,13 +29,13 @@ import (
 	"testing"
 	"time"
 
+	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/spf13/cobra"
 
-	coreOutput "github.com/retran/meowg1k/internal/core/output"
-	"github.com/retran/meowg1k/internal/db"
-	"github.com/retran/meowg1k/internal/services/command"
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/output"
+	"github.com/retran/meowg1k/internal/adapters/command"
+	"github.com/retran/meowg1k/internal/adapters/config"
+	"github.com/retran/meowg1k/internal/adapters/output"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
 )
@@ -57,7 +57,7 @@ func (h *testMockDBHost) Close() error {
 
 // NewTestAppContainer creates a new app.Container for testing with a mock database host.
 // This ensures tests use in-memory databases and don't create files on disk.
-func NewTestAppContainer(cmd *cobra.Command, dbHost db.Host) (*Container, error) {
+func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, error) {
 	if cmd == nil {
 		return nil, fmt.Errorf("cobra command is nil")
 	}

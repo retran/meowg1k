@@ -130,7 +130,7 @@ summarize:
       skip: true
 
     # 2. Use a powerful model for critical Go files
-    - match: "internal/services/**/*.go"
+    - match: "internal/adapters/**/*.go"
       profile: "smart-claude"
       systemPrompt: "Analyze this Go code change, focusing on business logic and potential side effects."
 

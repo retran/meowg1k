@@ -23,24 +23,40 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/task"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// TaskConfigProvider provides resolved task configuration.
+type TaskConfigProvider interface {
+	Get() (*task.ResolvedConfig, error)
+}
+
+// UserPromptProvider provides the user prompt for content generation.
+type UserPromptProvider interface {
+	GetUserPrompt() (string, error)
+}
+
+// SystemPromptProvider provides the system prompt for content generation.
+type SystemPromptProvider interface {
+	GetSystemPrompt() (string, error)
+}
+
 // FlowFactory creates instances of the generate flow with injected dependencies.
 type FlowFactory struct {
-	taskConfigProvider               ports.TaskConfigProvider
-	userPromptProvider               ports.UserPromptProvider
-	systemPromptProvider             ports.SystemPromptProvider
+	taskConfigProvider               TaskConfigProvider
+	userPromptProvider               UserPromptProvider
+	systemPromptProvider             SystemPromptProvider
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 	outputWriter                     ports.OutputWriter
 }
 
-// NewFlowFactory creates a new generate flow factory with injected services.
+// NewFlowFactory creates a new generate flow factory with injected adapters.
 func NewFlowFactory(
-	taskConfigProvider ports.TaskConfigProvider,
-	userPromptProvider ports.UserPromptProvider,
-	systemPromptProvider ports.SystemPromptProvider,
+	taskConfigProvider TaskConfigProvider,
+	userPromptProvider UserPromptProvider,
+	systemPromptProvider SystemPromptProvider,
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
 	outputWriter ports.OutputWriter,
 ) (*FlowFactory, error) {

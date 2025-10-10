@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package app contains the main application struct and orchestrates cross-cutting services.
+// Package app contains the main application struct and orchestrates cross-cutting adapters.
 package app
 
 import (
@@ -30,20 +30,28 @@ import (
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
+	coreOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/spf13/cobra"
 
-	coreOutput "github.com/retran/meowg1k/internal/core/output"
-	"github.com/retran/meowg1k/internal/core/ports"
-	"github.com/retran/meowg1k/internal/db"
-	"github.com/retran/meowg1k/internal/services/command"
-	"github.com/retran/meowg1k/internal/services/config"
-	"github.com/retran/meowg1k/internal/services/dbpath"
-	"github.com/retran/meowg1k/internal/services/output"
+	"github.com/retran/meowg1k/internal/adapters/command"
+	"github.com/retran/meowg1k/internal/adapters/config"
+	"github.com/retran/meowg1k/internal/adapters/dbpath"
+	"github.com/retran/meowg1k/internal/adapters/output"
+	"github.com/retran/meowg1k/internal/adapters/sqlite"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
-// Container is the main application struct that holds all cross-cutting services.
+// Writer writes output to the user (used in activities).
+type Writer interface {
+	Print(content string) error
+	PrintLine(content string) error
+	Printf(format string, args ...any) error
+	Flush() error
+}
+
+// Container is the main application struct that holds all cross-cutting adapters.
 type Container struct {
 	// Logger is the structured logger for the application.
 	Logger *slog.Logger
@@ -58,10 +66,10 @@ type Container struct {
 	ConfigService *config.Service
 
 	// OutputService handles application output to stdout/stderr.
-	OutputService ports.Writer
+	OutputService Writer
 
 	// dbHost provides access to database connections (lazy initialized)
-	dbHost db.Host
+	dbHost ports.Host
 
 	// dbPathService provides database path management
 	dbPathService *dbpath.Service
@@ -101,7 +109,7 @@ type appContainerKey struct{}
 // AppContainerKey is the context key for storing and retrieving the Container instance.
 var AppContainerKey = appContainerKey{}
 
-// NewAppContainer initializes the main application struct with all necessary services.
+// NewAppContainer initializes the main application struct with all necessary adapters.
 func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	if cmd == nil {
 		return nil, fmt.Errorf("cobra command is nil")
@@ -198,7 +206,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 func (c *Container) initDB() error {
 	var initErr error
 	c.dbInitOnce.Do(func() {
-		dbHost, err := db.NewLocalHost(c.dbPathService)
+		dbHost, err := sqlite.NewLocalHost(c.dbPathService)
 		if err != nil {
 			initErr = fmt.Errorf("failed to initialize database host: %w", err)
 			return

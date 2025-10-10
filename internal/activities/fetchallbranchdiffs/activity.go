@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
-	"github.com/retran/meowg1k/internal/core/git"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/retran/meowg1k/pkg/future"
 )

@@ -28,10 +28,23 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/core/git"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/commit"
+	"github.com/retran/meowg1k/internal/domain/git"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
+
+// CommitConfigProvider provides commit message configuration.
+type CommitConfigProvider interface {
+	Get() (*commit.ResolvedConfig, error)
+}
+
+// CommandParametersReader reads command-line parameters and flags.
+type CommandParametersReader interface {
+	GetTargetBranchFlag() (string, error)
+	GetIntentFlag() (string, error)
+	GetStdIn() (string, error)
+}
 
 // Factory creates instances of the commit flow with injected dependencies.
 type Factory struct {
@@ -42,12 +55,12 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
-	commitConfigProvider       ports.CommitConfigProvider
-	commandParametersReader    ports.CommandParametersReader
+	commitConfigProvider       CommitConfigProvider
+	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
 }
 
-// NewFactory creates a new commit flow factory with injected services.
+// NewFactory creates a new commit flow factory with injected adapters.
 func NewFactory(
 	listStagedFactory executor.ActivityFactory[*liststaged.Input, *liststaged.Output],
 	listBranchFilesFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output],
@@ -56,8 +69,8 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composeCommitFactory executor.ActivityFactory[*composecommit.Input, *composecommit.Output],
-	commitConfigProvider ports.CommitConfigProvider,
-	commandParametersReader ports.CommandParametersReader,
+	commitConfigProvider CommitConfigProvider,
+	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
 	if listStagedFactory == nil {
@@ -261,7 +274,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Phase 5: Compose commit message
-		cfg, err := f.commitConfigProvider.GetCommitConfig()
+		cfg, err := f.commitConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
 		}

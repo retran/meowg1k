@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package app contains the main application struct and orchestrates cross-cutting services.
+// Package app contains the main application struct and orchestrates cross-cutting adapters.
 package app
 
 import (
@@ -32,21 +32,21 @@ import (
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
+	"github.com/retran/meowg1k/internal/adapters/gateway"
+	"github.com/retran/meowg1k/internal/adapters/git"
+	"github.com/retran/meowg1k/internal/adapters/workspace"
+	commitService "github.com/retran/meowg1k/internal/core/commit"
+	"github.com/retran/meowg1k/internal/core/filter"
+	"github.com/retran/meowg1k/internal/core/model"
+	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/provider"
+	"github.com/retran/meowg1k/internal/core/pullrequest"
+	"github.com/retran/meowg1k/internal/core/summarize"
+	"github.com/retran/meowg1k/internal/core/task"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
 	"github.com/retran/meowg1k/internal/flows/pr"
-	commitService "github.com/retran/meowg1k/internal/services/commit"
-	"github.com/retran/meowg1k/internal/services/filter"
-	"github.com/retran/meowg1k/internal/services/gateway"
-	"github.com/retran/meowg1k/internal/services/git"
-	"github.com/retran/meowg1k/internal/services/model"
-	"github.com/retran/meowg1k/internal/services/profile"
-	"github.com/retran/meowg1k/internal/services/prompt"
-	"github.com/retran/meowg1k/internal/services/provider"
-	"github.com/retran/meowg1k/internal/services/pullRequest"
-	"github.com/retran/meowg1k/internal/services/summarize"
-	"github.com/retran/meowg1k/internal/services/task"
-	"github.com/retran/meowg1k/internal/services/workspace"
+	"github.com/retran/meowg1k/internal/prompt"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -251,7 +251,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
 
-	prConfigService, err := pullRequest.NewService(c.ConfigService, profileService)
+	prConfigService, err := pullrequest.NewService(c.ConfigService, profileService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
@@ -300,7 +300,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 
 	composePRFactory, err := composepr.NewFactory(invokeLLMFactory)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compose pullRequest factory: %w", err)
+		return nil, fmt.Errorf("failed to create compose pullrequest factory: %w", err)
 	}
 
 	flowFactory, err := pr.NewFactory(
@@ -314,7 +314,7 @@ func (c *Container) CreatePRFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pullRequest flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create pullrequest flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil

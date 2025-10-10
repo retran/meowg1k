@@ -22,8 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/core/git"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -33,16 +32,23 @@ type Input struct {
 	TargetBranch string
 }
 
+// BranchDiffReader reads file diffs between branches.
+type BranchDiffReader interface {
+	GetBranchDiff(filename, targetBranch string) (string, error)
+	ReadOriginalFileContent(filename string) (string, error)
+	ReadStagedFileContent(filename string) (string, error)
+}
+
 // Factory creates instances of the FetchBranchFileDiff activity with injected dependencies.
 type Factory struct {
-	branchDiffReader ports.BranchDiffReader
+	branchDiffReader BranchDiffReader
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.
-func NewFactory(branchDiffReader ports.BranchDiffReader) (*Factory, error) {
+func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 	if branchDiffReader == nil {
 		return nil, fmt.Errorf("branch diff reader cannot be nil")
 	}

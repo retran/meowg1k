@@ -22,7 +22,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
-	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 

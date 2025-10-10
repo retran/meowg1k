@@ -22,8 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/core/git"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -32,16 +31,23 @@ type Input struct {
 	Filename string
 }
 
+// StagedChangesReader reads staged file changes from git.
+type StagedChangesReader interface {
+	ReadStagedChanges(filename string) (string, error)
+	ReadOriginalFileContent(filename string) (string, error)
+	ReadStagedFileContent(filename string) (string, error)
+}
+
 // Factory creates instances of the FetchFileDiff activity with injected dependencies.
 type Factory struct {
-	stagedChangesReader ports.StagedChangesReader
+	stagedChangesReader StagedChangesReader
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
-func NewFactory(stagedChangesReader ports.StagedChangesReader) (*Factory, error) {
+func NewFactory(stagedChangesReader StagedChangesReader) (*Factory, error) {
 	if stagedChangesReader == nil {
 		return nil, fmt.Errorf("staged changes reader cannot be nil")
 	}

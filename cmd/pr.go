@@ -19,6 +19,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -64,12 +65,17 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return fmt.Errorf("failed to create PR flow: %w", err)
 		}
 
-		runner, err := app.NewFlowRunner(appContainer)
+		runner, err := executor.NewFlowRunner(appContainer.OutputService)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
 
-		return runner.RunFlow(ctx, "GeneratePR", flow)
+		silent, err := appContainer.CommandService.GetSilentFlag()
+		if err != nil {
+			return fmt.Errorf("failed to get command silent flag: %w", err)
+		}
+
+		return runner.RunFlow(ctx, "GeneratePR", flow, silent)
 	},
 }
 

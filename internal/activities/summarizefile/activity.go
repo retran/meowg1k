@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/core/ports"
+	"github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -42,28 +42,36 @@ type Output struct {
 	Skipped  bool
 }
 
+// SummarizationConfigProvider provides summarization configuration for files.
+type SummarizationConfigProvider interface {
+	Get(filename string) (*summarize.ResolvedConfig, error)
+}
+
 // Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
 type Factory struct {
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
-	fileSummarizationConfigProvider  ports.FileSummarizationConfigProvider
+	summarizationConfigProvider      SummarizationConfigProvider
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
-func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output], fileSummarizationConfigProvider ports.FileSummarizationConfigProvider) (*Factory, error) {
+func NewFactory(
+	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	summarizationConfigProvider SummarizationConfigProvider,
+) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
 		return nil, fmt.Errorf("content generation activity factory is nil")
 	}
 
-	if fileSummarizationConfigProvider == nil {
+	if summarizationConfigProvider == nil {
 		return nil, fmt.Errorf("file summarization config provider is nil")
 	}
 
 	return &Factory{
 		contentGenerationActivityFactory: contentGenerationActivityFactory,
-		fileSummarizationConfigProvider:  fileSummarizationConfigProvider,
+		summarizationConfigProvider:      summarizationConfigProvider,
 	}, nil
 }
 
@@ -78,7 +86,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		config, err := f.fileSummarizationConfigProvider.GetSummarizationConfig(input.Filename)
+		config, err := f.summarizationConfigProvider.Get(input.Filename)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get summarization config for %s: %w", input.Filename, err)
 		}
