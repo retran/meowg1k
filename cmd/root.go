@@ -57,6 +57,8 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
+		// TODO return proper errors
+
 		ctx := cmd.Context()
 		if ctx == nil {
 			return nil

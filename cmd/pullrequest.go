@@ -26,8 +26,8 @@ import (
 )
 
 var prCmd = &cobra.Command{
-	Use:     "pr",
-	Aliases: []string{"p"},
+	Use:     "pullrequest",
+	Aliases: []string{"pr"},
 	Short:   "Generate Pull Request description based on branch diff",
 	Long: `Generate a Pull Request description based on the diff between the current branch and a base branch.
 
@@ -55,33 +55,33 @@ The intent will be included in the prompt to help generate a more accurate PR de
 
 		ctx := cmd.Context()
 
-		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || appContainer == nil {
+		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
+		if !ok || container == nil {
 			return fmt.Errorf("application not initialized")
 		}
 
-		flow, err := appContainer.CreatePRFlow()
+		flow, err := container.CreatePullRequestFlow()
 		if err != nil {
-			return fmt.Errorf("failed to create PR flow: %w", err)
+			return fmt.Errorf("failed to create pull request flow: %w", err)
 		}
 
-		runner, err := executor.NewOrchestrator(appContainer.OutputService)
+		orchestrator, err := executor.NewOrchestrator(container.OutputService)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
 
-		silent, err := appContainer.CommandService.GetSilentFlag()
+		silent, err := container.CommandService.GetSilentFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return runner.Execute(ctx, "GeneratePR", flow, silent)
+		return orchestrator.Execute(ctx, "GeneratePullRequest", flow, silent)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(prCmd)
-	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the PR (can also be provided via stdin)")
+	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the Pull Request (can also be provided via stdin)")
 	prCmd.Flags().StringP("base", "b", "", "Base branch to compare against (required)")
 	_ = prCmd.MarkFlagRequired("base")
 }

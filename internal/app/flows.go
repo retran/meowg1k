@@ -221,8 +221,8 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 	return flowFactory.NewFlow(), nil
 }
 
-// CreatePRFlow creates a complete PR flow with all dependencies.
-func (c *Container) CreatePRFlow() (executor.Flow, error) {
+// CreatePullRequestFlow creates a complete PR flow with all dependencies.
+func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 	workspaceService := workspace.NewService()
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {

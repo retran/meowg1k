@@ -54,27 +54,27 @@ The intent will be included in the prompt to help generate a more accurate commi
 
 		ctx := cmd.Context()
 
-		appContainer, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || appContainer == nil {
+		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
+		if !ok || container == nil {
 			return fmt.Errorf("application not initialized")
 		}
 
-		flow, err := appContainer.CreateCommitFlow()
+		flow, err := container.CreateCommitFlow()
 		if err != nil {
 			return fmt.Errorf("failed to create commit flow: %w", err)
 		}
 
-		runner, err := executor.NewOrchestrator(appContainer.OutputService)
+		orchestrator, err := executor.NewOrchestrator(container.OutputService)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
 
-		silent, err := appContainer.CommandService.GetSilentFlag()
+		silent, err := container.CommandService.GetSilentFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return runner.Execute(ctx, "GenerateCommit", flow, silent)
+		return orchestrator.Execute(ctx, "GenerateCommit", flow, silent)
 	},
 }
 
