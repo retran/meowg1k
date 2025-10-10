@@ -29,7 +29,9 @@ import (
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
+	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/domain/commit"
+	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -403,6 +405,150 @@ func TestFactory_NewFlow(t *testing.T) {
 			},
 			wantErr:        true,
 			expectedErrMsg: "failed to get target-branch flag",
+		},
+		{
+			name: "successful flow execution - staged mode",
+			setupFactory: func() *Factory {
+				mockReader := &mockCommandParametersReader{
+					targetBranch: "",
+					intent:       "test intent",
+				}
+
+				mockConfig := &mockCommitConfigProvider{
+					config: &commit.ResolvedConfig{
+						Profile:      nil,
+						SystemPrompt: "test prompt",
+					},
+				}
+
+				factory, _ := NewFactory(
+					&mockActivityFactory[*liststaged.Input, *liststaged.Output]{
+						newActivityFunc: func() executor.Activity[*liststaged.Input, *liststaged.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *liststaged.Input) (*liststaged.Output, error) {
+								return &liststaged.Output{Files: []string{"file1.go", "file2.go"}}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]{},
+					&mockActivityFactory[*applyfilters.Input, *applyfilters.Output]{
+						newActivityFunc: func() executor.Activity[*applyfilters.Input, *applyfilters.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *applyfilters.Input) (*applyfilters.Output, error) {
+								return &applyfilters.Output{Files: input.Files}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]{
+						newActivityFunc: func() executor.Activity[*fetchalldiffs.Input, *fetchalldiffs.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *fetchalldiffs.Input) (*fetchalldiffs.Output, error) {
+								return &fetchalldiffs.Output{Changes: []*git.FileChange{}}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
+					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{
+						newActivityFunc: func() executor.Activity[*summarizeall.Input, *summarizeall.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *summarizeall.Input) (*summarizeall.Output, error) {
+								return &summarizeall.Output{
+									Summaries: []*summarizefile.Output{
+										{Filename: "file1.go", Summary: "summary1", Skipped: false},
+										{Filename: "file2.go", Summary: "summary2", Skipped: false},
+									},
+								}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{
+						newActivityFunc: func() executor.Activity[*composecommit.Input, *composecommit.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *composecommit.Input) (*composecommit.Output, error) {
+								return &composecommit.Output{CommitMessage: "test commit message"}, nil
+							}
+						},
+					},
+					mockConfig,
+					mockReader,
+					&mockOutputWriter{},
+				)
+				return factory
+			},
+			setupContext: func() (context.Context, *executor.Context) {
+				ctx := context.Background()
+				exec := executor.NewExecutor()
+				flowCtx := executor.NewContext("test", nil, exec)
+				return ctx, flowCtx
+			},
+			wantErr: false,
+		},
+		{
+			name: "successful flow execution - branch mode",
+			setupFactory: func() *Factory {
+				mockReader := &mockCommandParametersReader{
+					targetBranch: "main",
+					intent:       "",
+					stdin:        "stdin intent",
+				}
+
+				mockConfig := &mockCommitConfigProvider{
+					config: &commit.ResolvedConfig{
+						Profile:      nil,
+						SystemPrompt: "test prompt",
+					},
+				}
+
+				factory, _ := NewFactory(
+					&mockActivityFactory[*liststaged.Input, *liststaged.Output]{},
+					&mockActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]{
+						newActivityFunc: func() executor.Activity[*listbranchfiles.Input, *listbranchfiles.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *listbranchfiles.Input) (*listbranchfiles.Output, error) {
+								return &listbranchfiles.Output{Files: []string{"file1.go"}}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*applyfilters.Input, *applyfilters.Output]{
+						newActivityFunc: func() executor.Activity[*applyfilters.Input, *applyfilters.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *applyfilters.Input) (*applyfilters.Output, error) {
+								return &applyfilters.Output{Files: input.Files}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]{},
+					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{
+						newActivityFunc: func() executor.Activity[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *fetchallbranchdiffs.Input) (*fetchallbranchdiffs.Output, error) {
+								return &fetchallbranchdiffs.Output{Changes: []*git.FileChange{}}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{
+						newActivityFunc: func() executor.Activity[*summarizeall.Input, *summarizeall.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *summarizeall.Input) (*summarizeall.Output, error) {
+								return &summarizeall.Output{
+									Summaries: []*summarizefile.Output{
+										{Filename: "file1.go", Summary: "branch summary", Skipped: false},
+									},
+								}, nil
+							}
+						},
+					},
+					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{
+						newActivityFunc: func() executor.Activity[*composecommit.Input, *composecommit.Output] {
+							return func(ctx context.Context, activityCtx *executor.Context, input *composecommit.Input) (*composecommit.Output, error) {
+								return &composecommit.Output{CommitMessage: "branch commit message"}, nil
+							}
+						},
+					},
+					mockConfig,
+					mockReader,
+					&mockOutputWriter{},
+				)
+				return factory
+			},
+			setupContext: func() (context.Context, *executor.Context) {
+				ctx := context.Background()
+				exec := executor.NewExecutor()
+				flowCtx := executor.NewContext("test", nil, exec)
+				return ctx, flowCtx
+			},
+			wantErr: false,
 		},
 	}
 
