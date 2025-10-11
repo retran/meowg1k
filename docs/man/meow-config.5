@@ -5,7 +5,7 @@ meow-config \- configuration format for the \fBmeow\fR CLI
 .SH SYNOPSIS
 .B ~/.config/meowg1k/config.yaml
 .br
-.B ./.meowg1k/config.yaml
+.B ./.meowg1k.yaml
 .br
 Specified via \fB\-\-config\fR \fIFILE\fR flag
 
@@ -22,7 +22,7 @@ User config: \fB~/.config/meowg1k/config.yaml\fR
 .br
 Personal defaults, not committed to version control.
 .IP "2."
-Project config: \fB./.meowg1k/config.yaml\fR
+Project config: \fB./.meowg1k.yaml\fR
 .br
 Team-shared settings, recommended to commit to repository.
 .IP "3."
@@ -274,7 +274,7 @@ generate:
 Comprehensive setup for a development team:
 .PP
 .nf
-# .meowg1k/config.yaml
+# .meowg1k.yaml
 
 profiles:
   gemini-fast:
@@ -452,7 +452,7 @@ pr:
 .B ~/.config/meowg1k/config.yaml
 User-level configuration. Personal defaults, not committed to version control.
 .TP
-.B ./.meowg1k/config.yaml
+.B ./.meowg1k.yaml
 Project-level configuration. Should be committed to repository for team sharing.
 
 .SH ENVIRONMENT VARIABLES
@@ -475,9 +475,22 @@ variables:
 .PP
 Custom variables can be specified using the \fBapiKeyEnv\fR field in profiles.
 
+.SH FILES
+.TP
+.B ~/.config/meowg1k/config.yaml
+User-level configuration file for personal defaults.
+.TP
+.B ./.meowg1k.yaml
+Project-level configuration file. Recommended for team-shared settings.
+.TP
+.B ./.meowg1k/logs/
+Trace logs directory containing detailed execution logs in JSON Lines format.
+Each command creates a unique timestamped .jsonl file. Should be excluded
+from version control.
+
 .SH BEST PRACTICES
 .IP \[bu] 2
-\fBCommit project configs:\fR Add .meowg1k/config.yaml to version control
+\fBCommit project configs:\fR Add .meowg1k.yaml to version control
 for team consistency.
 .IP \[bu]
 \fBUse filter for security:\fR Always exclude files containing secrets,

@@ -46,7 +46,7 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
-		orchestrator, err := executor.NewOrchestrator(container.OutputService)
+		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
@@ -56,7 +56,7 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return orchestrator.Execute(ctx, "GenerateContent", flow, silent)
+		return orchestrator.Execute(ctx, "GenerateFlow", flow, silent)
 	},
 }
 

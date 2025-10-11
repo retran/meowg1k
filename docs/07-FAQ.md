@@ -64,13 +64,25 @@ cat file.py | meow g -u "Add type hints to this Python code"
 
 ### Q: How can I debug what is being sent to the AI?
 
-While comprehensive debug logging is planned for a future release, you can currently use several approaches to understand what's being sent:
+`meowg1k` automatically logs detailed trace information for every command execution. These logs include:
 
-1. **Deterministic behavior:** The tool's logic is deterministic. Given the same input and configuration, it will always generate the exact same request.
-2. **Isolate workflows:** Use a specific test config file (`--config test.yaml`) with known settings to isolate and test specific behaviors.
-3. **Provider dashboards:** Most AI providers (OpenAI, Anthropic, Gemini) offer request logs and usage dashboards where you can see the exact prompts and tokens sent.
-4. **Small test cases:** Create minimal test inputs and verify the output to build confidence in what's being processed.
-5. **Local models:** For complete transparency, use a local `llama.cpp` server where you can enable verbose logging on the server side to see all requests.
+- Complete request and response data for all LLM API calls
+- Execution flow and activity status changes
+- Timing and token usage information
+- Any errors that occurred
+
+**Viewing trace logs:**
+```bash
+# View the latest log file
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq '.'
+
+# See just the API interactions
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq 'select(.log_entry_type == "api_interaction")'
+```
+
+The logs are stored in `.meowg1k/logs/` in your workspace root in JSON Lines format (`.jsonl`). Each command creates a new uniquely-named log file.
+
+For more details, see the [Debugging & Trace Logs](./08-TROUBLESHOOTING.md#debugging--trace-logs) section in the Troubleshooting Guide.
 
 ### Q: What happens if I hit my provider's rate limits?
 
