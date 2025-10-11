@@ -89,3 +89,8 @@ type FlagReader interface {
 	GetNoCacheFlag() (bool, error)
 	GetUpdateCacheFlag() (bool, error)
 }
+
+// CommandNameReader defines the contract for reading the current command name.
+type CommandNameReader interface {
+	GetCommandName() (string, error)
+}
