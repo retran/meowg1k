@@ -15,17 +15,21 @@ between your current branch and a specified base branch. It creates
 comprehensive, Markdown-formatted PR descriptions suitable for GitHub,
 GitLab, Bitbucket, and other code review platforms.
 .PP
-The command uses the same two-phase "Map-Reduce" approach as
-.BR meow\-commit (1):
+The command supports two execution strategies (configured in the
+.B pullRequest
+section):
+.PP
+.B Summarize Strategy (default):
+Uses a two-phase "Map-Reduce" approach:
 .IP "1." 3
-\fBMap Phase (Summarize):\fR Each changed file is analyzed individually using
+\fBMap Phase:\fR Each changed file is analyzed individually using
 the configuration from the
 .B summarize
 section. Different files can use different profiles and prompts based on
 pattern-matching rules. Files can also be skipped entirely (e.g., documentation,
 generated files).
 .IP "2."
-\fBReduce Phase (Pull Request):\fR The individual file summaries are combined and
+\fBReduce Phase:\fR The individual file summaries are combined and
 sent to the AI to generate the final PR description using the configuration
 from the
 .B pullRequest
@@ -34,6 +38,13 @@ section.
 This approach allows you to optimize for both quality (using powerful models
 for critical files) and cost (using fast, cheap models or skipping non-critical
 files).
+.PP
+.B Flat Strategy:
+Sends the entire git diff directly to the model in a single request. This is
+faster and more efficient for small PRs (e.g., a few files or simple changes),
+as it eliminates the overhead of the Map-Reduce pipeline. However, if the
+diff size exceeds the model's token limit, the command will fail with an
+error suggesting you switch to the "summarize" strategy.
 
 .SH OPTIONS
 .TP
@@ -105,12 +116,12 @@ summarize:
 .PP
 .B pullRequest
 (required): Configure the Reduce phase where file summaries are combined
-into the final PR description. Should define the format and structure of
-the output:
+into the final PR description. Also controls the execution strategy:
 .PP
 .nf
 pullRequest:
   profile: "smart"
+  strategy: "summarize"  # or "flat" for small PRs
   systemPrompt: |
     You are an expert software engineer writing a Pull Request.
     Based on file summaries, generate a PR description in Markdown:
@@ -125,6 +136,17 @@ pullRequest:
     ## How to Test
     1. Step-by-step testing instructions
 .fi
+.PP
+The
+.B strategy
+field (optional, default: "summarize") determines how the PR description
+is generated:
+.IP \[bu] 2
+\fB"summarize"\fR: Uses the full Map-Reduce workflow. Best for PRs
+with many files or complex changes.
+.IP \[bu]
+\fB"flat"\fR: Sends the raw git diff directly to the model. Faster for
+small PRs (few files or minor changes). Fails if diff is too large.
 .PP
 See
 .BR meow\-config (5)
@@ -169,7 +191,7 @@ profiles:
     model: "gemini-2.5-flash"
   smart:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
 
 filter:
   ignore:

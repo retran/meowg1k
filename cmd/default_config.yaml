@@ -93,6 +93,10 @@ summarize:
 commit:
   default:
     profile: "smart"
+    # Strategy determines how changes are processed:
+    # - "summarize" (default): Map-Reduce approach, summarizes each file then composes the final message
+    # - "flat": Sends entire diff directly to the model without summarization (faster for small commits)
+    # strategy: "summarize"
     systemPrompt: >-
       You are a Git commit message expert.
       Generate clear, concise commit messages following conventional commits format.
@@ -101,6 +105,10 @@ commit:
 pullRequest:
   default:
     profile: "smart"
+    # Strategy determines how changes are processed:
+    # - "summarize" (default): Map-Reduce approach, summarizes each file then composes the final description
+    # - "flat": Sends entire diff directly to the model without summarization (faster for small PRs)
+    # strategy: "summarize"
     systemPrompt: >-
       You are a technical writer specializing in pull request descriptions.
       Generate comprehensive PR descriptions that explain:
