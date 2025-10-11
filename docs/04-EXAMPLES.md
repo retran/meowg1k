@@ -37,7 +37,7 @@ For tasks you perform often, like code reviews or security checks, defining a ta
 models:
   claude-sonnet:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
 
 profiles:
   claude-secure:
@@ -77,10 +77,10 @@ This example shows the power of the `summarize` and `commit` workflow.
 models:
   gemini-flash:
     provider: "gemini"
-    model: "gemini-1.5-flash-latest"
+    model: "gemini-2.5-flash"
   claude-sonnet:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
 
 profiles:
   fast:
@@ -116,7 +116,63 @@ meow commit -i "Fix the user login bug and refactor token handling"
 
 ---
 
-## 4. Advanced PR Descriptions with File-Specific Rules
+## 4. Fast Commit Messages for Small Changes
+
+For quick, small commits (single file changes or minor tweaks), the full Map-Reduce workflow can be overkill. The `flat` strategy sends the entire diff directly to the model, making it much faster.
+
+**Goal:** Generate commit messages quickly for small, incremental changes during development.
+
+**Configuration (`.meowg1k/config.yaml`):**
+
+```yaml
+models:
+  gemini-flash:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+
+profiles:
+  fast:
+    model: "gemini-flash"
+
+commit:
+  profile: "fast"
+  strategy: "flat"  # Skip the summarize step, send diff directly
+  systemPrompt: |
+    You are an expert software engineer. Write a concise commit message in Conventional Commits format based on this git diff.
+    Be brief and focus on what changed and why.
+```
+
+**Command:**
+
+```bash
+# Make a small change
+echo "// TODO: Add validation" >> service.go
+git add service.go
+
+# Generate a quick commit message
+meow commit
+```
+
+**Explanation:**
+
+- With `strategy: "flat"`, `meowg1k` bypasses the file-by-file summarization and sends the complete diff directly to the LLM.
+- This is ideal for small commits where the context fits easily within the model's token limit.
+- If the diff is too large (exceeds `maxInputTokens`), the command will fail with a helpful error suggesting you switch back to `strategy: "summarize"`.
+
+**When to use `flat` vs `summarize`:**
+
+- Use `flat` for:
+  - Single file changes
+  - Minor bug fixes or typos
+  - Quick iterative development
+- Use `summarize` (default) for:
+  - Multi-file refactorings
+  - Large feature implementations
+  - Complex changes that benefit from per-file analysis
+
+---
+
+## 5. Advanced PR Descriptions with File-Specific Rules
 
 This recipe demonstrates how to use advanced `summarize` rules to generate a highly accurate and structured PR description.
 
