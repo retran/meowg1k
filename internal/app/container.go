@@ -37,6 +37,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/dbpath"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
+	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
@@ -69,6 +70,9 @@ type Container struct {
 
 	// OutputService handles application output to stdout/stderr.
 	OutputService Writer
+
+	// TraceLogger provides context-aware trace logging for sessions.
+	TraceLogger *tracelog.Logger
 
 	// dbHost provides access to database connections (lazy initialized)
 	dbHost ports.Host
@@ -190,6 +194,15 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to register output service shutdown callback: %w", err)
 	}
 
+	// Initialize trace logger
+	traceLogger := tracelog.NewLogger(workspaceService)
+	err = shutdownService.Register(func(ctx context.Context) error {
+		return traceLogger.Close()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register trace logger shutdown callback: %w", err)
+	}
+
 	dbPathService, err := dbpath.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database path service: %w", err)
@@ -200,6 +213,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
+	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
