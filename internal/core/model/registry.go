@@ -236,70 +236,166 @@ var models = map[string]model2.ModelInfo{
 	},
 
 	// Anthropic models (provider: openrouter)
-	"anthropic/claude-sonnet-4": {
-		Provider:         "openrouter",
-		MaxContextTokens: 1000000,
-		MaxOutputTokens:  64000,
-		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude Sonnet 4 - high-performance model with 1M context window",
-	},
-	"anthropic/claude-3.7-sonnet": {
+	"anthropic/claude-sonnet-4-5": {
 		Provider:         "openrouter",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  64000,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3.7 Sonnet - high-performance with early extended thinking",
+		Description:      "Anthropic Claude Sonnet 4.5 (via OpenRouter) - best for complex agents and coding",
 	},
-	"anthropic/claude-3.5-haiku": {
-		Provider:         "openrouter",
-		MaxContextTokens: 200000,
-		MaxOutputTokens:  8192,
-		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3.5 Haiku - fastest model for near-instant responsiveness",
-	},
-	"anthropic/claude-opus-4.1": {
+	"anthropic/claude-opus-4-1": {
 		Provider:         "openrouter",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  32000,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude Opus 4.1 - most capable and intelligent model",
+		Description:      "Anthropic Claude Opus 4.1 (via OpenRouter) - exceptional for specialized complex tasks",
+	},
+	"anthropic/claude-sonnet-4": {
+		Provider:         "openrouter",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 4 (via OpenRouter) - high-performance model",
+	},
+	"anthropic/claude-opus-4": {
+		Provider:         "openrouter",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  32000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Opus 4 (via OpenRouter) - previous flagship model",
+	},
+	"anthropic/claude-3-7-sonnet": {
+		Provider:         "openrouter",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude 3.7 Sonnet (via OpenRouter) - high-performance with early extended thinking",
+	},
+	"anthropic/claude-3-5-haiku": {
+		Provider:         "openrouter",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  8192,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude 3.5 Haiku (via OpenRouter) - fastest model",
 	},
 
 	// Anthropic models (direct provider: anthropic)
+	// Claude 4.5 and Claude 4 - Latest generation (2025)
+	"claude-sonnet-4-5-20250929": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000, // 1M beta available with context-1m-2025-08-07 header
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 4.5 (Sep 2025) - best model for complex agents and coding with highest intelligence",
+	},
+	"claude-sonnet-4-5": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 4.5 (alias) - latest snapshot",
+	},
+	"claude-opus-4-1-20250805": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  32000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Opus 4.1 (Aug 2025) - exceptional model for specialized complex tasks",
+	},
 	"claude-opus-4-1": {
 		Provider:         "anthropic",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  32000,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude Opus 4.1 - most capable and intelligent model",
+		Description:      "Anthropic Claude Opus 4.1 (alias) - latest snapshot",
+	},
+	"claude-sonnet-4-20250514": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000, // 1M beta available with context-1m-2025-08-07 header
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 4 (May 2025) - high-performance model",
+	},
+	"claude-sonnet-4-0": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 4 (alias) - latest snapshot",
 	},
 	"claude-sonnet-4": {
 		Provider:         "anthropic",
-		MaxContextTokens: 1000000,
+		MaxContextTokens: 1000000, // Extended thinking with 1M context
 		MaxOutputTokens:  64000,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude Sonnet 4 - high-performance model with 1M context window",
+		Description:      "Anthropic Claude Sonnet 4 (alias) - latest snapshot with extended context",
 	},
+	"claude-opus-4-20250514": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  32000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Opus 4 (May 2025) - previous flagship model",
+	},
+	"claude-opus-4-0": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  32000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Opus 4 (alias) - latest snapshot",
+	},
+	"claude-3-7-sonnet-20250219": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 3.7 (Feb 2025) - high-performance with early extended thinking",
+	},
+	"claude-3-7-sonnet-latest": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  64000,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude Sonnet 3.7 (alias) - latest snapshot",
+	},
+
+	// Claude 3.5 generation (2024)
 	"claude-3-5-haiku-20241022": {
 		Provider:         "anthropic",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  8192,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3.5 Haiku - fastest model for near-instant responsiveness",
+		Description:      "Anthropic Claude 3.5 Haiku (Oct 2024) - fastest model for near-instant responsiveness",
+	},
+	"claude-3-5-haiku-latest": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  8192,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude 3.5 Haiku (alias) - latest snapshot",
 	},
 	"claude-3-5-sonnet-20241022": {
 		Provider:         "anthropic",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  8192,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3.5 Sonnet - balanced performance and speed",
+		Description:      "Anthropic Claude 3.5 Sonnet (Oct 2024) - DEPRECATED - balanced performance and speed",
+	},
+
+	// Claude 3 generation (legacy, 2024)
+	"claude-3-haiku-20240307": {
+		Provider:         "anthropic",
+		MaxContextTokens: 200000,
+		MaxOutputTokens:  4096,
+		TokenizerType:    model2.TokenizerCL100K,
+		Description:      "Anthropic Claude 3 Haiku (Mar 2024) - fast and compact model",
 	},
 	"claude-3-opus-20240229": {
 		Provider:         "anthropic",
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  4096,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3 Opus - most capable model for complex tasks",
+		Description:      "Anthropic Claude 3 Opus (Feb 2024) - DEPRECATED - most capable model for complex tasks",
 	},
 
 	// Google models (provider: openrouter)

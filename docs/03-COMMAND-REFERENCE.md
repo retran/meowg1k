@@ -102,6 +102,13 @@ echo "function add(a, b) { return a + b; }" | meow g \
 
 Generates a commit message based on staged changes or the difference between branches.
 
+The command supports two execution strategies (configured via the `commit.strategy` field in your config file):
+
+- **`summarize` (default)**: Uses a Map-Reduce approach, analyzing each file individually then combining summaries. Best for large commits.
+- **`flat`**: Sends the entire diff directly to the model. Faster for small commits, but fails if the diff is too large.
+
+See the [Configuration Guide](./02-CONFIGURATION.md) for details on configuring the strategy.
+
 ### Usage
 
 ```bash
@@ -148,16 +155,23 @@ meow commit -t dev -i "Implement the entire user profile feature"
 
 Generates a Pull Request title and description based on the difference between your current branch and a base branch.
 
+The command supports two execution strategies (configured via the `pullRequest.strategy` field in your config file):
+
+- **`summarize` (default)**: Uses a Map-Reduce approach, analyzing each file individually then combining summaries. Best for large PRs.
+- **`flat`**: Sends the entire diff directly to the model. Faster for small PRs, but fails if the diff is too large.
+
+See the [Configuration Guide](./02-CONFIGURATION.md) for details on configuring the strategy.
+
 ### Usage
 
 ```bash
-meow pullrequest [flags]
+meow pullrequest --base <branch> [flags]
 ```
 
 ### Flags
 
-- `-b, --base <branch>`: **(Required)** The base branch you intend to merge into (e.g., `main`, `dev`).
-- `-i, --intent <text>`: Provides a high-level developer intent for the PR, which helps the AI generate a more accurate title and description. Can also be provided via stdin.
+- `-b, --base <branch>`: **(Required)** The base branch to compare against (e.g., `main`, `dev`, `master`).
+- `-i, --intent <text>`: Provides high-level context or intent for the PR. Can also be provided via stdin.
 
 ### Examples
 

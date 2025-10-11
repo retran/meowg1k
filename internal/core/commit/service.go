@@ -68,10 +68,17 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 
 	var profileName string
 	var systemPrompt string
+	var strategy string
 
 	if cfg.Commit != nil {
 		profileName = cfg.Commit.Profile
 		systemPrompt = cfg.Commit.SystemPrompt
+		strategy = cfg.Commit.Strategy
+	}
+
+	// Default to "summarize" if strategy is not specified
+	if strategy == "" {
+		strategy = "summarize"
 	}
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
@@ -85,6 +92,7 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 
 	return &commit2.ResolvedConfig{
 		Profile:      resolvedProfile,
+		Strategy:     strategy,
 		SystemPrompt: systemPrompt,
 	}, nil
 }
