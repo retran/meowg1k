@@ -33,11 +33,11 @@ type TraceLogger interface {
 
 // loggingGenerationGateway wraps a GenerationGateway to log all API interactions.
 type loggingGenerationGateway struct {
-	inner      ports.GenerationGateway
-	logger     TraceLogger
-	command    string
-	profile    string
-	provider   string
+	inner    ports.GenerationGateway
+	logger   TraceLogger
+	command  string
+	profile  string
+	provider string
 }
 
 // newLoggingGenerationGateway creates a new logging wrapper for a generation gateway.
@@ -101,11 +101,11 @@ func (g *loggingGenerationGateway) GenerateContent(
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.
 type loggingEmbeddingsGateway struct {
-	inner      ports.EmbeddingsGateway
-	logger     TraceLogger
-	command    string
-	profile    string
-	provider   string
+	inner    ports.EmbeddingsGateway
+	logger   TraceLogger
+	command  string
+	profile  string
+	provider string
 }
 
 // newLoggingEmbeddingsGateway creates a new logging wrapper for an embeddings gateway.

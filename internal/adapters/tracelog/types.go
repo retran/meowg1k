@@ -40,14 +40,14 @@ type BaseLogEntry struct {
 // APIInteractionEntry logs an LLM API interaction.
 type APIInteractionEntry struct {
 	BaseLogEntry
-	Command    string         `json:"command"`
-	Profile    string         `json:"profile"`
-	Provider   string         `json:"provider"`
-	Model      string         `json:"model"`
-	Request    RequestData    `json:"request"`
-	Response   ResponseData   `json:"response"`
-	Usage      UsageData      `json:"usage,omitempty"`
-	DurationMs int64          `json:"duration_ms"`
+	Command    string       `json:"command"`
+	Profile    string       `json:"profile"`
+	Provider   string       `json:"provider"`
+	Model      string       `json:"model"`
+	Request    RequestData  `json:"request"`
+	Response   ResponseData `json:"response"`
+	Usage      UsageData    `json:"usage,omitempty"`
+	DurationMs int64        `json:"duration_ms"`
 }
 
 // RequestData contains details about the API request.

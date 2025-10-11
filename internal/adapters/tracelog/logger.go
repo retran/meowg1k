@@ -87,7 +87,7 @@ func (l *Logger) ensureLogFile() error {
 		return fmt.Errorf("failed to generate random suffix: %w", err)
 	}
 	randomSuffix := hex.EncodeToString(randomBytes)
-	
+
 	filename := fmt.Sprintf("%s_%s.log.jsonl", timestamp, randomSuffix)
 	logPath := filepath.Join(logsDir, filename)
 
