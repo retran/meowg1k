@@ -1,0 +1,89 @@
+/*
+Copyright © 2025 Andrew Vasilyev <me@retran.me>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Package tracelog provides context-aware trace logging for meowg1k sessions.
+package tracelog
+
+import "time"
+
+// LogEntryType represents the type of log entry.
+type LogEntryType string
+
+const (
+	// LogEntryTypeAPIInteraction represents an LLM API interaction.
+	LogEntryTypeAPIInteraction LogEntryType = "api_interaction"
+	// LogEntryTypeExecutionEvent represents an execution event from the executor framework.
+	LogEntryTypeExecutionEvent LogEntryType = "execution_event"
+	// LogEntryTypeApplicationError represents a critical application error.
+	LogEntryTypeApplicationError LogEntryType = "application_error"
+)
+
+// BaseLogEntry contains fields common to all log entries.
+type BaseLogEntry struct {
+	LogEntryType LogEntryType `json:"log_entry_type"`
+	Timestamp    time.Time    `json:"timestamp"`
+}
+
+// APIInteractionEntry logs an LLM API interaction.
+type APIInteractionEntry struct {
+	BaseLogEntry
+	Command    string         `json:"command"`
+	Profile    string         `json:"profile"`
+	Provider   string         `json:"provider"`
+	Model      string         `json:"model"`
+	Request    RequestData    `json:"request"`
+	Response   ResponseData   `json:"response"`
+	Usage      UsageData      `json:"usage,omitempty"`
+	DurationMs int64          `json:"duration_ms"`
+}
+
+// RequestData contains details about the API request.
+type RequestData struct {
+	SystemPrompt    string `json:"system_prompt"`
+	UserPrompt      string `json:"user_prompt"`
+	MaxOutputTokens int    `json:"max_output_tokens"`
+}
+
+// ResponseData contains details about the API response.
+type ResponseData struct {
+	Content string `json:"content"`
+	Error   string `json:"error,omitempty"`
+}
+
+// UsageData contains token usage information.
+type UsageData struct {
+	PromptTokens     int `json:"prompt_tokens,omitempty"`
+	CompletionTokens int `json:"completion_tokens,omitempty"`
+	TotalTokens      int `json:"total_tokens,omitempty"`
+}
+
+// ExecutionEventEntry logs an executor framework event.
+type ExecutionEventEntry struct {
+	BaseLogEntry
+	ExecutionName string         `json:"execution_name"`
+	Status        string         `json:"status"`
+	Message       string         `json:"message,omitempty"`
+	Error         string         `json:"error,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+}
+
+// ApplicationErrorEntry logs a critical application error.
+type ApplicationErrorEntry struct {
+	BaseLogEntry
+	Component  string `json:"component"`
+	Error      string `json:"error"`
+	StackTrace string `json:"stack_trace,omitempty"`
+}

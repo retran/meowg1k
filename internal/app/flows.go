@@ -87,7 +87,8 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
+	commandName, _ := c.CommandService.GetCommandName()
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, commandName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
@@ -202,7 +203,8 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create generate prompt service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
+	commandName, _ := c.CommandService.GetCommandName()
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, commandName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
@@ -261,7 +263,8 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService)
+	commandName, _ := c.CommandService.GetCommandName()
+	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, commandName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}

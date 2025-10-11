@@ -64,7 +64,7 @@ The intent will be included in the prompt to help generate a more accurate commi
 			return fmt.Errorf("failed to create commit flow: %w", err)
 		}
 
-		orchestrator, err := executor.NewOrchestrator(container.OutputService)
+		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
@@ -74,7 +74,7 @@ The intent will be included in the prompt to help generate a more accurate commi
 			return fmt.Errorf("failed to get command silent flag: %w", err)
 		}
 
-		return orchestrator.Execute(ctx, "GenerateCommit", flow, silent)
+		return orchestrator.Execute(ctx, "CommitFlow", flow, silent)
 	},
 }
 

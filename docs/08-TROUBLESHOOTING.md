@@ -185,10 +185,57 @@ export HTTPS_PROXY="[http://proxy.example.com:8080](http://proxy.example.com:808
 
 ---
 
+## Debugging & Trace Logs
+
+### Understanding Trace Logs
+
+Starting from version 0.1.0, `meowg1k` automatically logs detailed trace information for every command execution to help with debugging and auditing. These logs are stored in `.meowg1k/logs/` within your workspace root.
+
+**What gets logged:**
+- **API Interactions:** Every LLM API call, including request prompts, responses, timing, and token usage
+- **Execution Events:** Flow and activity lifecycle events (starting, running, completed, failed, retry attempts)
+- **Application Errors:** Critical errors from internal components
+
+**Log Location:**
+```
+<workspace-root>/.meowg1k/logs/
+```
+
+The workspace root is automatically detected by searching upward from your current directory for:
+- `.meowg1k.yaml` or `.meowg1k.yml` config file
+- `.git` directory
+- Or the directory specified with `--workspace` flag
+
+**Log Format:**
+- Each command execution creates a new log file with a unique timestamp
+- Format: `YYYYMMDD_HHMMSS_xxxxx.log.jsonl` (JSON Lines format)
+- Each line is a valid JSON object that can be parsed independently
+
+**Example:** Viewing recent API interactions:
+```bash
+# View the latest log file
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1)
+
+# Extract all API interactions from the latest log
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq 'select(.log_entry_type == "api_interaction")'
+
+# View just the prompts from the latest run
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq 'select(.log_entry_type == "api_interaction") | .request'
+
+# Count execution events by status
+cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq 'select(.log_entry_type == "execution_event") | .status' | sort | uniq -c
+```
+
+**Note:** Trace log files are excluded from version control by default (via `.gitignore`). These logs may contain sensitive information from your prompts and code, so be careful when sharing them.
+
+---
+
 ## Getting Further Help
 
 If your problem is not listed here, please:
 
-1. **Search Existing Issues:** Check the [GitHub Issues](https://github.com/retran/meowg1k/issues) to see if someone has already reported a similar problem.
+1. **Check Trace Logs:** Review the trace logs in `.meowg1k/logs/` for detailed information about what went wrong.
 
-2. **Open a New Issue:** If your problem is new, please [open a detailed bug report](https://github.com/retran/meowg1k/issues/new/choose). Include the command you ran, your configuration (with secrets removed), the output you received, and the output you expected.
+2. **Search Existing Issues:** Check the [GitHub Issues](https://github.com/retran/meowg1k/issues) to see if someone has already reported a similar problem.
+
+3. **Open a New Issue:** If your problem is new, please [open a detailed bug report](https://github.com/retran/meowg1k/issues/new/choose). Include the command you ran, your configuration (with secrets removed), the output you received, and relevant excerpts from your trace logs (with any sensitive data removed).

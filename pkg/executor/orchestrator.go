@@ -26,18 +26,28 @@ type OutputSink interface {
 	Flush() error
 }
 
+// TraceLogger defines the interface for trace logging feedback.
+type TraceLogger interface {
+	FeedbackHandler(inner FeedbackHandler) FeedbackHandler
+}
+
 // Orchestrator provides a unified way to execute flows with proper tracker and output handling.
 type Orchestrator struct {
-	outputSink OutputSink
+	outputSink  OutputSink
+	traceLogger TraceLogger
 }
 
 // NewOrchestrator creates a new FlowRunner with the given container.
-func NewOrchestrator(outputSink OutputSink) (*Orchestrator, error) {
+// traceLogger can be nil if trace logging is not needed.
+func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger) (*Orchestrator, error) {
 	if outputSink == nil {
 		return nil, fmt.Errorf("flusher is nil")
 	}
 
-	return &Orchestrator{outputSink: outputSink}, nil
+	return &Orchestrator{
+		outputSink:  outputSink,
+		traceLogger: traceLogger,
+	}, nil
 }
 
 // Execute executes a flow with proper tracker initialization and cleanup.
@@ -54,9 +64,15 @@ func (o *Orchestrator) Execute(
 	executionTracker := NewTracker(silent)
 	executionTracker.Start()
 
+	// Wrap the feedback handler with trace logging if available
+	feedbackHandler := executionTracker.FeedbackHandler()
+	if o.traceLogger != nil {
+		feedbackHandler = o.traceLogger.FeedbackHandler(feedbackHandler)
+	}
+
 	exec := NewExecutor().
 		WithRetryPolicy(DefaultRetryPolicy()).
-		WithFeedbackHandler(executionTracker.FeedbackHandler())
+		WithFeedbackHandler(feedbackHandler)
 
 	err := exec.ExecuteFlow(ctx, flowName, flow)
 
