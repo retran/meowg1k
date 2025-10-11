@@ -37,6 +37,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/dbpath"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
+	"github.com/retran/meowg1k/internal/adapters/workspace"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/cache"
@@ -174,7 +175,9 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create command service: %w", err)
 	}
 
-	configService, err := config.NewService(commandService)
+	workspaceService := workspace.NewService(commandService)
+
+	configService, err := config.NewService(commandService, workspaceService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
