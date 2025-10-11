@@ -42,6 +42,9 @@ tmp/
 temp/
 *.tmp
 
+# Trace logs
+.meowg1k/logs/
+
 .env
 .env.local
 docker-compose.override.yml

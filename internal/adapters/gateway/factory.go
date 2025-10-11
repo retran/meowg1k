@@ -33,15 +33,19 @@ type Factory struct {
 	rateLimitRepo ratelimit.Repository         // rate limit repository
 	cacheRepo     ports.CacheRepository        // cache repository for LLM responses
 	flagReader    ports.FlagReader             // command-line flag reader
+	traceLogger   TraceLogger                  // trace logger for API interactions
+	command       string                       // current command name
 }
 
 // NewFactory creates a new gateway factory with dependencies.
 // rateLimitRepo is required for rate limiting functionality.
-// cacheRepo and flagReader can be nil if caching is not needed.
+// cacheRepo, flagReader, and traceLogger can be nil if not needed.
 func NewFactory(
 	rateLimitRepo ratelimit.Repository,
 	cacheRepo ports.CacheRepository,
 	flagReader ports.FlagReader,
+	traceLogger TraceLogger,
+	command string,
 ) (*Factory, error) {
 	if rateLimitRepo == nil {
 		return nil, fmt.Errorf("rate limit repository is nil")
@@ -51,6 +55,8 @@ func NewFactory(
 		rateLimitRepo: rateLimitRepo,
 		cacheRepo:     cacheRepo,
 		flagReader:    flagReader,
+		traceLogger:   traceLogger,
+		command:       command,
 	}, nil
 }
 
@@ -214,6 +220,9 @@ func (f *Factory) NewGenerationGateway(
 		gateway = newCachingGenerationGateway(gateway, f.cacheRepo, updateCache)
 	}
 
+	// Wrap with logging (outermost layer to log actual requests/responses)
+	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, f.command, profile.Name, string(profile.Provider))
+
 	return gateway, nil
 }
 
@@ -282,6 +291,9 @@ func (f *Factory) NewEmbeddingsGateway(
 		updateCache := f.shouldUpdateCache()
 		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)
 	}
+
+	// Wrap with logging (outermost layer to log actual requests/responses)
+	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, f.command, profile.Name, string(profile.Provider))
 
 	return gateway, nil
 }
