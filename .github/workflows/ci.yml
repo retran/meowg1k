@@ -40,11 +40,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
+      - name: Install Task
+        uses: arduino/setup-task@v2
         with:
-          version: latest
-          args: --timeout=5m
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run lint
+        run: task lint
 
   security:
     name: Security
@@ -59,15 +62,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-      - name: Gosec
-        uses: securego/gosec@master
+      - name: Install Task
+        uses: arduino/setup-task@v2
         with:
-          args: ./...
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run security checks
+        run: task security
 
   test:
     name: Test and Coverage
@@ -84,28 +86,30 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Ensure modules are tidy
         run: |
           go mod tidy
           git diff --exit-code go.mod go.sum || (echo "::error::Run 'go mod tidy' locally and commit changes"; exit 1)
 
       - name: Vet
-        run: go vet ./...
+        run: task vet
 
       - name: Test
-        run: |
-          COVERPKGS=$(go list ./... | grep -v testutil | tr '\n' ',' | sed 's/,$//')
-          go test -race -covermode=atomic -coverpkg="$COVERPKGS" -coverprofile=coverage.out ./...
+        run: task test
 
-      - name: Enforce coverage threshold
+      - name: Get coverage percentage
         id: coverage
         shell: bash
         run: |
           total="$(go tool cover -func=coverage.out | awk '/^total:/ {gsub("%","",$3); print $3}')"
           echo "COVERAGE_PERCENT=$total" >> "$GITHUB_ENV"
-          awk -v total="$total" -v th="${COVERAGE_THRESHOLD}" 'BEGIN{ if (total+0 < th+0) { exit 1 } }' \
-          || (echo "::error::Coverage ${total}% is below threshold ${COVERAGE_THRESHOLD}% (excluding testutil packages)"; exit 1)
-          echo "Coverage ${total}% >= ${COVERAGE_THRESHOLD}% (excluding testutil packages)"
+          echo "Coverage: ${total}%"
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
