@@ -49,6 +49,15 @@ AI generate a more focused and accurate description. Can be provided via
 this flag or piped through stdin. Example: "This PR adds complete Stripe
 payment integration" or "Refactor authentication system to use JWT".
 .TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file.
+.TP
+.BR \-\-silent
+Enable silent mode for scripting.
+.TP
 .BR \-h ", " \-\-help
 Show command help and usage information.
 
@@ -344,6 +353,7 @@ alias mprd='meow pullrequest \-\-base dev'
 
 .SH SEE ALSO
 .BR meow (1),
+.BR meow\-init (1),
 .BR meow\-generate (1),
 .BR meow\-commit (1),
 .BR meow\-config (5),

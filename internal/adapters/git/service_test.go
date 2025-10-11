@@ -566,3 +566,67 @@ func TestServiceImpl_GetBranchDiff(t *testing.T) {
 		t.Logf("Expected diff to contain modifications, got: %s", diff)
 	}
 }
+
+type customWorkspaceService struct {
+	dir string
+}
+
+func (c *customWorkspaceService) Get() (string, error) {
+	return c.dir, nil
+}
+
+func TestServiceWithCustomWorkspace(t *testing.T) {
+	// Test that git service uses the workspace directory provided by the service
+	tmpDir := t.TempDir()
+
+	// Initialize a git repo in temp directory
+	initCmd := exec.Command("git", "init", tmpDir)
+	if err := initCmd.Run(); err != nil {
+		t.Skipf("Cannot init git repo: %v", err)
+	}
+
+	// Configure git
+	exec.Command("git", "-C", tmpDir, "config", "user.name", "Test User").Run()
+	exec.Command("git", "-C", tmpDir, "config", "user.email", "test@example.com").Run()
+
+	// Create a test file and commit it
+	testFile := tmpDir + "/test.txt"
+	if err := os.WriteFile(testFile, []byte("initial content\n"), 0o644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	exec.Command("git", "-C", tmpDir, "add", "test.txt").Run()
+	exec.Command("git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
+
+	// Create mock workspace service that returns our temp directory
+	mockWS := &customWorkspaceService{dir: tmpDir}
+
+	// Create git service with custom workspace
+	service, err := NewService(mockWS)
+	if err != nil {
+		t.Fatalf("NewService() failed: %v", err)
+	}
+
+	// Verify that service has the correct workspace
+	if service.workspaceDir != tmpDir {
+		t.Errorf("Expected workspace dir %s, got %s", tmpDir, service.workspaceDir)
+	}
+
+	// Modify the file and stage it
+	if err := os.WriteFile(testFile, []byte("modified content\n"), 0o644); err != nil {
+		t.Fatalf("Failed to modify test file: %v", err)
+	}
+	exec.Command("git", "-C", tmpDir, "add", "test.txt").Run()
+
+	// Read staged files - should work from the custom workspace
+	files, err := service.ReadStagedFiles()
+	if err != nil {
+		t.Fatalf("ReadStagedFiles() failed: %v", err)
+	}
+
+	if len(files) != 1 || files[0] != "test.txt" {
+		t.Errorf("Expected staged files [test.txt], got %v", files)
+	}
+
+	t.Logf("Successfully tested git service with custom workspace: %s", tmpDir)
+}
