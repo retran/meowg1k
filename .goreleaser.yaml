@@ -131,7 +131,7 @@ homebrew_casks:
 
       📂 Config files (override order)
       --------------------------------
-        1) Project: ./.meowg1k/config.yaml
+        1) Project: ./.meowg1k.yaml
         2) User:    ~/.config/meowg1k/config.yaml
 
       📖 Man pages

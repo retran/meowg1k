@@ -86,7 +86,7 @@ Configuration files are read with hierarchical precedence:
 .IP "1." 3
 User config: \fB~/.config/meowg1k/config.yaml\fR
 .IP "2."
-Project config: \fB./.meowg1k/config.yaml\fR
+Project config: \fB./.meowg1k.yaml\fR
 .IP "3."
 Explicit config via \fB\-\-config\fR flag
 .SH EXAMPLES
@@ -135,7 +135,7 @@ With Gemini (free tier):
 With local llama.cpp server:
 .PP
 .nf
-# Ensure profile configured in .meowg1k/config.yaml:
+# Ensure profile configured in .meowg1k.yaml:
 # profiles:
 #   local:
 #     provider: "llama"

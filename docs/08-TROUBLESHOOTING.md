@@ -67,7 +67,7 @@ export MEOW_GEMINI_API_KEY="your-key-here"
 **Solution:**
 
 - Your usage is exceeding your provider's limits.
-- The best solution is to configure rate limiting in your `.meowg1k/config.yaml` model definition to stay within the allowed budget.
+- The best solution is to configure rate limiting in your `.meowg1k.yaml` model definition to stay within the allowed budget.
 
 ```yaml
 models:
@@ -85,7 +85,7 @@ models:
 
 **Solution:**
 
-- Make sure a config file exists at one of the default locations: `./.meowg1k/config.yaml` or `~/.config/meowg1k/config.yaml`.
+- Make sure a config file exists at one of the default locations: `./.meowg1k.yaml` or `~/.config/meowg1k/config.yaml`.
 - If using the `--config` flag, verify that the path is correct.
 - Check file permissions to ensure the file is readable.
 
