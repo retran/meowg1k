@@ -190,6 +190,17 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 		}
 	})
 
+	t.Run("Skip app initialization for init command", func(t *testing.T) {
+		initCmd := &cobra.Command{
+			Use: "init",
+		}
+
+		err := rootCmd.PersistentPreRunE(initCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPreRunE should not return error for init command: %v", err)
+		}
+	})
+
 	t.Run("App initialization for other commands", func(t *testing.T) {
 		generateCmd := &cobra.Command{
 			Use: "generate",
@@ -363,6 +374,17 @@ func TestRootCmdPersistentPostRunE(t *testing.T) {
 		err := rootCmd.PersistentPostRunE(completionCmd, []string{})
 		if err != nil {
 			t.Errorf("PersistentPostRunE should not return error for completion command: %v", err)
+		}
+	})
+
+	t.Run("Skip shutdown for init command", func(t *testing.T) {
+		initCmd := &cobra.Command{
+			Use: "init",
+		}
+
+		err := rootCmd.PersistentPostRunE(initCmd, []string{})
+		if err != nil {
+			t.Errorf("PersistentPostRunE should not return error for init command: %v", err)
 		}
 	})
 

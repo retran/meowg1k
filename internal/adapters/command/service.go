@@ -95,6 +95,19 @@ func (s *Service) GetConfigPath() (string, error) {
 	return s.cmd.Flags().GetString("config")
 }
 
+// GetWorkspacePath retrieves the workspace path from command flags.
+func (s *Service) GetWorkspacePath() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetString("workspace")
+}
+
 // GetTaskName retrieves the task name from command flags.
 func (s *Service) GetTaskName() (string, error) {
 	if s == nil {

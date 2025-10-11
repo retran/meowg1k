@@ -32,15 +32,17 @@ The cost depends entirely on the provider and model you choose.
 
 ### Q: Where should I put my configuration file?
 
-`meowg1k` looks for `config.yaml` in this order of precedence:
+`meowg1k` loads configuration in a layered way. Here’s how it works:
 
-1. **Explicit Path:** A path passed via `--config /path/to/config.yaml`. This overrides everything.
-2. **Project Config:** `./.meowg1k/config.yaml`. This is the recommended way to share configuration with your team by committing it to your repository.
-3. **User Config:** `~/.config/meowg1k/config.yaml`. Use this for your personal defaults.
+1.  **User Config (Base):** It first loads a global config from `~/.config/meowg1k/config.yaml`. This is for your personal, machine-wide settings.
+
+2.  **Project or Explicit Config (Overrides):** Then, it merges settings from **one** of the following sources, which will override the user config:
+    - **Explicit Path (Highest Priority):** A file path passed via the `--config` flag. If you use this, the project-level `.meowg1k.yaml` will be **ignored**.
+    - **Project Config:** If no `--config` flag is given, it looks for a `.meowg1k.yaml` (or `.yml`) in your project's root. This is for team-shared settings.
 
 ### Q: How do I share a configuration with my team?
 
-Create a file at `.meowg1k/config.yaml` in the root of your project and commit it to your Git repository. Team members can still override specific settings locally in their user-level config if needed.
+Create a file at `.meowg1k.yaml` in the root of your project and commit it to your Git repository. Team members can still have their own personal defaults in `~/.config/meowg1k/config.yaml`, but the project-specific settings will take precedence.
 
 ### Q: What happens if a profile isn't found in the config?
 

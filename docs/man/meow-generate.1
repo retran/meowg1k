@@ -43,6 +43,15 @@ Specify the user prompt (instruction) for generation. This tells the AI
 what to do with the provided context. Can be combined with stdin to
 provide both context and instruction.
 .TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file.
+.TP
+.BR \-\-silent
+Enable silent mode for scripting.
+.TP
 .BR \-h ", " \-\-help
 Show command help and usage information.
 
@@ -175,6 +184,7 @@ Returns 0 on success, non-zero on error.
 
 .SH SEE ALSO
 .BR meow (1),
+.BR meow\-init (1),
 .BR meow\-version (1),
 .BR meow\-config (5),
 .BR meow\-security (7)
