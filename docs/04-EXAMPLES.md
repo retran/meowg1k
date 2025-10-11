@@ -31,7 +31,7 @@ For tasks you perform often, like code reviews or security checks, defining a ta
 
 **Goal:** Run a security review on a Go source file using a predefined task.
 
-**Configuration (`.meowg1k/config.yaml`):**
+**Configuration (`.meowg1k.yaml`):**
 
 ```yaml
 models:
@@ -71,7 +71,7 @@ This example shows the power of the `summarize` and `commit` workflow.
 
 **Goal:** Generate a Conventional Commit message based on staged changes, using a fast model for file analysis and a smart model for the final message to optimize cost.
 
-**Configuration (`.meowg1k/config.yaml`):**
+**Configuration (`.meowg1k.yaml`):**
 
 ```yaml
 models:
@@ -122,7 +122,7 @@ For quick, small commits (single file changes or minor tweaks), the full Map-Red
 
 **Goal:** Generate commit messages quickly for small, incremental changes during development.
 
-**Configuration (`.meowg1k/config.yaml`):**
+**Configuration (`.meowg1k.yaml`):**
 
 ```yaml
 models:
@@ -178,7 +178,7 @@ This recipe demonstrates how to use advanced `summarize` rules to generate a hig
 
 **Goal:** Generate a PR description, but skip documentation changes and use a more powerful model for critical business logic.
 
-**Configuration (`.meowg1k/config.yaml`):**
+**Configuration (`.meowg1k.yaml`):**
 
 ```yaml
 # ... (models and profiles defined as above) ...
@@ -232,7 +232,7 @@ When working with proprietary or highly sensitive code, you can use a local LLM 
 
 **Goal:** Analyze a sensitive file using a local `llama.cpp` server.
 
-**Configuration (`.meowg1k/config.yaml`):**
+**Configuration (`.meowg1k.yaml`):**
 
 ```yaml
 models:

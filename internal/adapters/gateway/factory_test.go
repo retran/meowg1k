@@ -54,14 +54,14 @@ func TestNewGatewayFactory(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil)
+	factory, err := NewFactory(repo, nil, nil, nil, "test")
 	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
 }
 
 func TestNewGatewayFactoryNilRepo(t *testing.T) {
-	factory, err := NewFactory(nil, nil, nil)
+	factory, err := NewFactory(nil, nil, nil, nil, "test")
 	assert.Error(t, err)
 	assert.Nil(t, factory)
 	assert.Contains(t, err.Error(), "rate limit repository is nil")
@@ -71,7 +71,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil)
+	factory, err := NewFactory(repo, nil, nil, nil, "test")
 	assert.NoError(t, err)
 	ctx := context.Background()
 
@@ -497,7 +497,7 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil)
+	factory, err := NewFactory(repo, nil, nil, nil, "test")
 	assert.NoError(t, err)
 
 	// Create a profile with rate limits enabled
@@ -533,7 +533,7 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil)
+	factory, err := NewFactory(repo, nil, nil, nil, "test")
 	assert.NoError(t, err)
 
 	// Create a profile with NO rate limits - should use no-op limiter without touching DB
