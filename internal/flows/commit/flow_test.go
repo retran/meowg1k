@@ -24,6 +24,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/composeflatcommit"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
@@ -103,6 +104,7 @@ func TestNewFactory(t *testing.T) {
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 		composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+		composeFlatCommitFactory   executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
 		commitConfigProvider       CommitConfigProvider
 		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
@@ -118,6 +120,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -133,6 +136,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -148,6 +152,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -163,6 +168,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -178,6 +184,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: nil,
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -193,6 +200,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        nil,
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -208,11 +216,28 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       nil,
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
 			expectedErrMsg:             "composeCommitFactory is nil",
+		},
+		{
+			name:                       "nil composeFlatCommitFactory",
+			listStagedFactory:          &mockActivityFactory[*liststaged.Input, *liststaged.Output]{},
+			listBranchFilesFactory:     &mockActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]{},
+			applyFiltersFactory:        &mockActivityFactory[*applyfilters.Input, *applyfilters.Output]{},
+			fetchAllDiffsFactory:       &mockActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]{},
+			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
+			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
+			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   nil,
+			commitConfigProvider:       &mockCommitConfigProvider{},
+			commandParametersReader:    &mockCommandParametersReader{},
+			outputWriter:               &mockOutputWriter{},
+			wantErr:                    true,
+			expectedErrMsg:             "composeFlatCommitFactory is nil",
 		},
 		{
 			name:                       "nil commitConfigProvider",
@@ -223,6 +248,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       nil,
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -238,6 +264,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    nil,
 			outputWriter:               &mockOutputWriter{},
@@ -253,6 +280,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               nil,
@@ -268,6 +296,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 			commitConfigProvider:       &mockCommitConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -285,6 +314,7 @@ func TestNewFactory(t *testing.T) {
 				tt.fetchAllBranchDiffsFactory,
 				tt.summarizeAllFactory,
 				tt.composeCommitFactory,
+				tt.composeFlatCommitFactory,
 				tt.commitConfigProvider,
 				tt.commandParametersReader,
 				tt.outputWriter,
@@ -342,6 +372,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 					&mockCommitConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
@@ -365,6 +396,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 					&mockCommitConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
@@ -392,6 +424,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
+					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 					&mockCommitConfigProvider{},
 					mockReader,
 					&mockOutputWriter{},
@@ -464,6 +497,7 @@ func TestFactory_NewFlow(t *testing.T) {
 							}
 						},
 					},
+					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 					mockConfig,
 					mockReader,
 					&mockOutputWriter{},
@@ -536,6 +570,7 @@ func TestFactory_NewFlow(t *testing.T) {
 							}
 						},
 					},
+					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
 					mockConfig,
 					mockReader,
 					&mockOutputWriter{},

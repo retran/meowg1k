@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
+	"github.com/retran/meowg1k/internal/activities/composeflatpr"
 	"github.com/retran/meowg1k/internal/activities/composepr"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
@@ -51,6 +52,7 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
+	composeFlatPRFactory       executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
 	prConfigProvider           PullRequestConfigProvider
 	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
@@ -63,6 +65,7 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composePRFactory executor.ActivityFactory[*composepr.Input, *composepr.Output],
+	composeFlatPRFactory executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output],
 	prConfigProvider PullRequestConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
@@ -87,6 +90,10 @@ func NewFactory(
 		return nil, fmt.Errorf("composePRFactory is nil")
 	}
 
+	if composeFlatPRFactory == nil {
+		return nil, fmt.Errorf("composeFlatPRFactory is nil")
+	}
+
 	if prConfigProvider == nil {
 		return nil, fmt.Errorf("prConfigProvider is nil")
 	}
@@ -105,6 +112,7 @@ func NewFactory(
 		fetchAllBranchDiffsFactory: fetchAllBranchDiffsFactory,
 		summarizeAllFactory:        summarizeAllFactory,
 		composePRFactory:           composePRFactory,
+		composeFlatPRFactory:       composeFlatPRFactory,
 		prConfigProvider:           prConfigProvider,
 		commandParametersReader:    commandParametersReader,
 		outputWriter:               outputWriter,
@@ -196,25 +204,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		var changes []*git.FileChange
 		changes = append(changes, fetchAllBranchDiffsOutput.Changes...)
 
-		// Phase 4: Summarize changes for all files
-		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
-			ctx,
-			flowCtx,
-			"SummarizeAll",
-			summarizeAll,
-			&summarizeall.Input{
-				Changes: changes,
-			},
-		)
-
-		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to summarize changes: %w", err)
-		}
-
-		// Phase 5: Compose PR description
+		// Get configuration
 		cfg, err := f.prConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to resolve PR configuration: %w", err)
@@ -234,29 +224,77 @@ func (f *Factory) NewFlow() executor.Flow {
 			intent = stdin
 		}
 
-		composePR := f.composePRFactory.NewActivity()
-		prFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
-			ctx,
-			flowCtx,
-			"ComposePR",
-			composePR,
-			&composepr.Input{
-				Profile:      cfg.Profile,
-				SystemPrompt: cfg.SystemPrompt,
-				Summaries:    summarizeAllOutput.Summaries,
-				Intent:       intent,
-			},
-		)
+		var prDescription string
 
-		prResult, err := prFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to compose PR description: %w", err)
+		// Phase 4 & 5: Compose PR description based on strategy
+		if cfg.Strategy == "flat" {
+			// Flat strategy: send full diff directly to LLM
+			composeFlatPR := f.composeFlatPRFactory.NewActivity()
+			flatPRFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ComposeFlatPR",
+				composeFlatPR,
+				&composeflatpr.Input{
+					Profile:      cfg.Profile,
+					SystemPrompt: cfg.SystemPrompt,
+					Changes:      changes,
+					Intent:       intent,
+				},
+			)
+
+			flatPRResult, err := flatPRFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to compose PR description using flat strategy: %w", err)
+			}
+
+			prDescription = flatPRResult.Description
+		} else {
+			// Summarize strategy (default): use map-reduce approach
+			summarizeAll := f.summarizeAllFactory.NewActivity()
+			summarizeAllFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"SummarizeAll",
+				summarizeAll,
+				&summarizeall.Input{
+					Changes: changes,
+				},
+			)
+
+			summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to summarize changes: %w", err)
+			}
+
+			composePR := f.composePRFactory.NewActivity()
+			prFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ComposePR",
+				composePR,
+				&composepr.Input{
+					Profile:      cfg.Profile,
+					SystemPrompt: cfg.SystemPrompt,
+					Summaries:    summarizeAllOutput.Summaries,
+					Intent:       intent,
+				},
+			)
+
+			prResult, err := prFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to compose PR description: %w", err)
+			}
+
+			prDescription = prResult.PRDescription
 		}
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(prResult.PRDescription); err != nil {
+		if err := f.outputWriter.PrintLine(prDescription); err != nil {
 			return fmt.Errorf("failed to print PR description: %w", err)
 		}
 

@@ -161,6 +161,19 @@ Fields:
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt that guides commit message generation.
 Should include format instructions (e.g., Conventional Commits format).
+.IP \[bu]
+\fBstrategy\fR: Execution strategy (optional). One of:
+.RS
+.IP \[bu] 2
+\fB"summarize"\fR (default): Uses the Map-Reduce approach. Each file is
+analyzed individually, then summaries are combined to create the commit message.
+Best for large commits with many files.
+.IP \[bu]
+\fB"flat"\fR: Sends the entire git diff directly to the model without
+intermediate summarization. Faster and more efficient for small commits
+(e.g., single file or a few lines). Will fail if diff exceeds model's
+token limit.
+.RE
 
 .SS pullRequest
 Configuration for the "Reduce" phase of the pullrequest command. Individual file
@@ -172,6 +185,19 @@ Fields:
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt that guides PR description generation.
 Should include template and format instructions.
+.IP \[bu]
+\fBstrategy\fR: Execution strategy (optional). One of:
+.RS
+.IP \[bu] 2
+\fB"summarize"\fR (default): Uses the Map-Reduce approach. Each file is
+analyzed individually, then summaries are combined to create the PR description.
+Best for large PRs with many files.
+.IP \[bu]
+\fB"flat"\fR: Sends the entire git diff directly to the model without
+intermediate summarization. Faster and more efficient for small PRs
+(e.g., a few files or simple changes). Will fail if diff exceeds model's
+token limit.
+.RE
 
 .SH PROVIDER DEFAULTS
 Each provider has smart defaults for model selection and API key environment
@@ -258,7 +284,7 @@ profiles:
 
   claude-smart:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
     maxInputTokens: 180000
     timeout: "10m"
     requestsPerMinute: 20
@@ -400,7 +426,7 @@ profiles:
 
   quality:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
 
   embeddings:
     provider: "voyage"
