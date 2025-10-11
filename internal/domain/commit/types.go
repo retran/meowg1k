@@ -23,5 +23,6 @@ import (
 // ResolvedConfig represents the resolved configuration for generating a commit message.
 type ResolvedConfig struct {
 	Profile      *profile.ResolvedProfile
+	Strategy     string // "summarize" or "flat"
 	SystemPrompt string
 }

@@ -162,7 +162,7 @@ meow commit --target-branch main
 profiles:
     slow-model:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
     timeout: "15m" # Increase timeout to 15 minutes
 ```
 

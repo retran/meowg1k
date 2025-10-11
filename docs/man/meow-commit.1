@@ -25,15 +25,20 @@ flag is provided, analyzes the diff between the current branch and the
 specified target branch. This is useful for generating a single commit message
 that summarizes all changes before merging.
 .PP
-The command uses a two-phase "Map-Reduce" approach:
+The command supports two execution strategies (configured in the
+.B commit
+section):
+.PP
+.B Summarize Strategy (default):
+Uses a two-phase "Map-Reduce" approach:
 .IP "1." 3
-\fBMap Phase (Summarize):\fR Each changed file is analyzed individually using
+\fBMap Phase:\fR Each changed file is analyzed individually using
 the configuration from the
 .B summarize
 section. Different files can use different profiles and prompts based on
 pattern-matching rules.
 .IP "2."
-\fBReduce Phase (Commit):\fR The individual file summaries are combined and
+\fBReduce Phase:\fR The individual file summaries are combined and
 sent to the AI to generate the final commit message using the configuration
 from the
 .B commit
@@ -41,6 +46,13 @@ section.
 .PP
 This approach optimizes for both quality (using powerful models where needed)
 and cost (using fast, cheap models for routine analysis).
+.PP
+.B Flat Strategy:
+Sends the entire git diff directly to the model in a single request. This is
+faster and more efficient for small commits (e.g., a single file or a few
+lines of changes), as it eliminates the overhead of the Map-Reduce pipeline.
+However, if the diff size exceeds the model's token limit, the command will
+fail with an error suggesting you switch to the "summarize" strategy.
 
 .SH OPTIONS
 .TP
@@ -94,15 +106,27 @@ summarize:
 .PP
 .B commit
 (required): Configure the Reduce phase where file summaries are combined
-into the final commit message:
+into the final commit message. Also controls the execution strategy:
 .PP
 .nf
 commit:
   profile: "smart"
+  strategy: "summarize"  # or "flat" for small commits
   systemPrompt: |
     You are an expert software engineer. Write a commit message
     in Conventional Commits format based on the file summaries.
 .fi
+.PP
+The
+.B strategy
+field (optional, default: "summarize") determines how the commit message
+is generated:
+.IP \[bu] 2
+\fB"summarize"\fR: Uses the full Map-Reduce workflow. Best for commits
+with many files or complex changes.
+.IP \[bu]
+\fB"flat"\fR: Sends the raw git diff directly to the model. Faster for
+small commits (single file or minor changes). Fails if diff is too large.
 .PP
 See
 .BR meow\-config (5)
