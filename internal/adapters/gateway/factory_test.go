@@ -27,12 +27,59 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/model"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	"github.com/retran/meowg1k/pkg/migrations"
 	"github.com/retran/meowg1k/pkg/ratelimit"
 )
+
+// mockCommandNameReader is a mock implementation of CommandNameReader for testing
+type mockCommandNameReader struct {
+	commandName string
+	err         error
+}
+
+func (m *mockCommandNameReader) GetCommandName() (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.commandName, nil
+}
+
+// mockCacheRepo is a mock implementation of CacheRepository for testing
+type mockCacheRepo struct{}
+
+func (m *mockCacheRepo) Get(ctx context.Context, key string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (m *mockCacheRepo) Set(ctx context.Context, key, value string) error {
+	return nil
+}
+
+func (m *mockCacheRepo) Purge(ctx context.Context, ttl time.Duration) error {
+	return nil
+}
+
+// mockFlagReader is a mock implementation of FlagReader for testing
+type mockFlagReader struct{}
+
+func (m *mockFlagReader) GetNoCacheFlag() (bool, error) {
+	return false, nil
+}
+
+func (m *mockFlagReader) GetUpdateCacheFlag() (bool, error) {
+	return false, nil
+}
+
+// mockFactoryTraceLogger is a simple mock implementation of TraceLogger for factory testing
+type mockFactoryTraceLogger struct{}
+
+func (m *mockFactoryTraceLogger) LogAPIInteraction(entry *tracelog.APIInteractionEntry) error {
+	return nil
+}
 
 // setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
 func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
@@ -54,14 +101,19 @@ func TestNewGatewayFactory(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil, nil, "test")
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	mockCache := &mockCacheRepo{}
+	mockFlags := &mockFlagReader{}
+	mockTrace := &mockFactoryTraceLogger{}
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
 	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
 }
 
 func TestNewGatewayFactoryNilRepo(t *testing.T) {
-	factory, err := NewFactory(nil, nil, nil, nil, "test")
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	factory, err := NewFactory(nil, nil, nil, nil, mockCmdReader)
 	assert.Error(t, err)
 	assert.Nil(t, factory)
 	assert.Contains(t, err.Error(), "rate limit repository is nil")
@@ -71,7 +123,11 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil, nil, "test")
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	mockCache := &mockCacheRepo{}
+	mockFlags := &mockFlagReader{}
+	mockTrace := &mockFactoryTraceLogger{}
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
 	assert.NoError(t, err)
 	ctx := context.Background()
 
@@ -308,10 +364,12 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory := &Factory{
-		limiters:      make(map[string]ratelimit.Limiter),
-		rateLimitRepo: repo,
-	}
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	mockCache := &mockCacheRepo{}
+	mockFlags := &mockFlagReader{}
+	mockTrace := &mockFactoryTraceLogger{}
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -497,7 +555,11 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil, nil, "test")
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	mockCache := &mockCacheRepo{}
+	mockFlags := &mockFlagReader{}
+	mockTrace := &mockFactoryTraceLogger{}
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
 	assert.NoError(t, err)
 
 	// Create a profile with rate limits enabled
@@ -533,7 +595,11 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
 
-	factory, err := NewFactory(repo, nil, nil, nil, "test")
+	mockCmdReader := &mockCommandNameReader{commandName: "test"}
+	mockCache := &mockCacheRepo{}
+	mockFlags := &mockFlagReader{}
+	mockTrace := &mockFactoryTraceLogger{}
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
 	assert.NoError(t, err)
 
 	// Create a profile with NO rate limits - should use no-op limiter without touching DB
