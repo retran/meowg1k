@@ -28,35 +28,45 @@ import (
 )
 
 type Factory struct {
-	mu            sync.Mutex
-	limiters      map[string]ratelimit.Limiter // key is profile name
-	rateLimitRepo ratelimit.Repository         // rate limit repository
-	cacheRepo     ports.CacheRepository        // cache repository for LLM responses
-	flagReader    ports.FlagReader             // command-line flag reader
-	traceLogger   TraceLogger                  // trace logger for API interactions
-	command       string                       // current command name
+	mu                sync.Mutex
+	limiters          map[string]ratelimit.Limiter // key is profile name
+	rateLimitRepo     ratelimit.Repository         // rate limit repository
+	cacheRepo         ports.CacheRepository        // cache repository for LLM responses
+	flagReader        ports.FlagReader             // command-line flag reader
+	traceLogger       TraceLogger                  // trace logger for API interactions
+	commandNameReader ports.CommandNameReader      // command name reader
 }
 
 // NewFactory creates a new gateway factory with dependencies.
-// rateLimitRepo is required for rate limiting functionality.
-// cacheRepo, flagReader, and traceLogger can be nil if not needed.
 func NewFactory(
 	rateLimitRepo ratelimit.Repository,
 	cacheRepo ports.CacheRepository,
 	flagReader ports.FlagReader,
 	traceLogger TraceLogger,
-	command string,
+	commandNameReader ports.CommandNameReader,
 ) (*Factory, error) {
 	if rateLimitRepo == nil {
 		return nil, fmt.Errorf("rate limit repository is nil")
 	}
+	if cacheRepo == nil {
+		return nil, fmt.Errorf("cache repository is nil")
+	}
+	if flagReader == nil {
+		return nil, fmt.Errorf("flag reader is nil")
+	}
+	if traceLogger == nil {
+		return nil, fmt.Errorf("trace logger is nil")
+	}
+	if commandNameReader == nil {
+		return nil, fmt.Errorf("command name reader is nil")
+	}
 	return &Factory{
-		limiters:      make(map[string]ratelimit.Limiter),
-		rateLimitRepo: rateLimitRepo,
-		cacheRepo:     cacheRepo,
-		flagReader:    flagReader,
-		traceLogger:   traceLogger,
-		command:       command,
+		limiters:          make(map[string]ratelimit.Limiter),
+		rateLimitRepo:     rateLimitRepo,
+		cacheRepo:         cacheRepo,
+		flagReader:        flagReader,
+		traceLogger:       traceLogger,
+		commandNameReader: commandNameReader,
 	}, nil
 }
 
@@ -221,7 +231,11 @@ func (f *Factory) NewGenerationGateway(
 	}
 
 	// Wrap with logging (outermost layer to log actual requests/responses)
-	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, f.command, profile.Name, string(profile.Provider))
+	commandName, err := f.commandNameReader.GetCommandName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get command name: %w", err)
+	}
+	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, commandName, profile.Name, string(profile.Provider))
 
 	return gateway, nil
 }
@@ -293,7 +307,11 @@ func (f *Factory) NewEmbeddingsGateway(
 	}
 
 	// Wrap with logging (outermost layer to log actual requests/responses)
-	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, f.command, profile.Name, string(profile.Provider))
+	commandName, err := f.commandNameReader.GetCommandName()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get command name: %w", err)
+	}
+	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, commandName, profile.Name, string(profile.Provider))
 
 	return gateway, nil
 }
