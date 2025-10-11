@@ -290,6 +290,57 @@ User-level configuration file for personal defaults.
 .B ./.meowg1k/config.yaml
 Project-level configuration file. Recommended for team-shared settings.
 Should be committed to version control.
+.TP
+.B ./.meowg1k/logs/
+Directory containing trace logs for debugging and auditing. Each command
+execution creates a unique timestamped JSON Lines (.jsonl) file with
+detailed information about LLM API calls, execution events, and errors.
+Should be excluded from version control (already in .gitignore).
+
+.SH DEBUGGING
+.B meow
+automatically logs detailed trace information for every command execution
+to assist with debugging and auditing. These logs are stored in
+.B .meowg1k/logs/
+within the workspace root.
+.PP
+Each command creates a new log file with a unique timestamp:
+.br
+.B YYYYMMDD_HHMMSS_xxxxx.log.jsonl
+.PP
+The logs are in JSON Lines format, where each line is a complete JSON object
+that can be parsed independently. Three types of log entries are recorded:
+.IP \[bu] 2
+.B api_interaction:
+Complete LLM API calls including request prompts, responses,
+timing, and token usage.
+.IP \[bu]
+.B execution_event:
+Flow and activity lifecycle events (running, completed, failed, retry attempts).
+.IP \[bu]
+.B application_error:
+Critical application-level errors with stack traces.
+.PP
+Example queries using jq:
+.PP
+.nf
+# View the latest log
+.B cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq '.'
+
+# Extract all API interactions
+.B cat .meowg1k/logs/*.jsonl | jq 'select(.log_entry_type == "api_interaction")'
+
+# Count execution events by status
+.B cat .meowg1k/logs/*.jsonl | jq -r 'select(.log_entry_type == "execution_event") | .status' | sort | uniq -c
+.fi
+.PP
+The workspace root is automatically detected by searching upward from the
+current directory for
+.BR .meowg1k.yaml ,
+.BR .meowg1k.yml ,
+or
+.B .git
+directory. Trace logs are never committed to version control by default.
 
 .SH EXIT STATUS
 Returns 0 on success, non-zero on error.

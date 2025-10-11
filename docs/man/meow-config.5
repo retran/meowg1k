@@ -475,6 +475,19 @@ variables:
 .PP
 Custom variables can be specified using the \fBapiKeyEnv\fR field in profiles.
 
+.SH FILES
+.TP
+.B ~/.config/meowg1k/config.yaml
+User-level configuration file for personal defaults.
+.TP
+.B ./.meowg1k/config.yaml
+Project-level configuration file. Recommended for team-shared settings.
+.TP
+.B ./.meowg1k/logs/
+Trace logs directory containing detailed execution logs in JSON Lines format.
+Each command creates a unique timestamped .jsonl file. Should be excluded
+from version control.
+
 .SH BEST PRACTICES
 .IP \[bu] 2
 \fBCommit project configs:\fR Add .meowg1k/config.yaml to version control

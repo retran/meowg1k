@@ -292,5 +292,8 @@ func (f *Factory) NewEmbeddingsGateway(
 		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)
 	}
 
+	// Wrap with logging (outermost layer to log actual requests/responses)
+	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, f.command, profile.Name, string(profile.Provider))
+
 	return gateway, nil
 }
