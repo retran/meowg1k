@@ -37,7 +37,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command is nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
 			return nil
 		}
 
@@ -53,7 +53,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command is nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
 			return nil
 		}
 

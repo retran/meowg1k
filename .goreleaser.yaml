@@ -31,7 +31,10 @@ archives:
       - LICENSE
       - README*.md
       - docs/man/meow.1
+      - docs/man/meow-init.1
       - docs/man/meow-generate.1
+      - docs/man/meow-commit.1
+      - docs/man/meow-pullrequest.1
       - docs/man/meow-version.1
       - docs/man/meow-config.5
       - docs/man/meow-security.7
@@ -70,7 +73,10 @@ homebrew_casks:
     binary: "meow"
     manpages:
       - "docs/man/meow.1"
+      - "docs/man/meow-init.1"
       - "docs/man/meow-generate.1"
+      - "docs/man/meow-commit.1"
+      - "docs/man/meow-pullrequest.1"
       - "docs/man/meow-version.1"
       - "docs/man/meow-config.5"
       - "docs/man/meow-security.7"
@@ -164,8 +170,14 @@ nfpms:
     contents:
       - src: docs/man/meow.1
         dst: /usr/share/man/man1/meow.1
+      - src: docs/man/meow-init.1
+        dst: /usr/share/man/man1/meow-init.1
       - src: docs/man/meow-generate.1
         dst: /usr/share/man/man1/meow-generate.1
+      - src: docs/man/meow-commit.1
+        dst: /usr/share/man/man1/meow-commit.1
+      - src: docs/man/meow-pullrequest.1
+        dst: /usr/share/man/man1/meow-pullrequest.1
       - src: docs/man/meow-version.1
         dst: /usr/share/man/man1/meow-version.1
       - src: docs/man/meow-config.5
