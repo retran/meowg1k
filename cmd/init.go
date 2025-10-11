@@ -77,7 +77,7 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 			}
 		}
 
-		if err := os.WriteFile(configPath, []byte(defaultConfig), 0o644); err != nil {
+		if err := os.WriteFile(configPath, []byte(defaultConfig), 0o600); err != nil {
 			return fmt.Errorf("failed to create configuration file: %w", err)
 		}
 
