@@ -1,0 +1,221 @@
+.\" docs/man/meow-init.1
+.TH MEOW-INIT 1 "2025-10-11" "meowg1k" "User Commands"
+.SH NAME
+meow-init \- initialize a new meowg1k project configuration
+.SH SYNOPSIS
+.B meow init
+[\fB\-f\fR|\fB\-\-force\fR]
+[\fB\-\-workspace\fR \fIDIR\fR]
+[\fB\-\-silent\fR]
+.SH DESCRIPTION
+The
+.B meow init
+command creates a new
+.B .meowg1k.yaml
+configuration file in the current directory (or in the directory specified
+by \fB\-\-workspace\fR). This file defines models, profiles, and settings
+for all meowg1k commands.
+.PP
+The generated configuration uses Google Gemini as the default LLM provider
+with sensible defaults for all commands. After initialization, you must
+obtain an API key from Google AI Studio and set the
+.B MEOW_GEMINI_API_KEY
+environment variable.
+.PP
+If a configuration file already exists, the command will fail unless the
+.B \-\-force
+flag is used.
+
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-force
+Overwrite an existing
+.B .meowg1k.yaml
+configuration file if present. Without this flag, the command fails if
+the configuration file already exists.
+.TP
+.BR \-\-workspace " " \fIDIR\fR
+Create the configuration file in directory
+.I DIR
+instead of the current directory. The directory must exist.
+.TP
+.BR \-\-silent
+Enable silent mode. Only outputs the path to the created configuration
+file, suppressing all other messages and instructions.
+.TP
+.BR \-\-config " " \fIFILE\fR
+This global flag has no effect on
+.B meow init
+as the command creates a new configuration file.
+.TP
+.BR \-\-no\-cache
+This global flag has no effect on
+.B meow init
+as the command does not use LLM services.
+.TP
+.BR \-\-update\-cache
+This global flag has no effect on
+.B meow init
+as the command does not use LLM services.
+
+.SH DEFAULT CONFIGURATION
+The generated configuration includes:
+.TP
+.B Models
+Two Gemini models are pre-configured:
+.RS
+.IP \[bu] 2
+.B gemini-flash
+\- Fast, efficient model (gemini-2.5-flash) with rate limits of 10 requests/min,
+250K tokens/min, 250 requests/day
+.IP \[bu]
+.B gemini-pro
+\- Smart, capable model (gemini-2.5-pro) with rate limits of 5 requests/min,
+125K tokens/min, 100 requests/day
+.RE
+.TP
+.B Profiles
+Two profiles reference the models above:
+.RS
+.IP \[bu] 2
+.B fast
+\- Uses gemini-flash, 24h cache TTL
+.IP \[bu]
+.B smart
+\- Uses gemini-pro, 10m timeout, 72h cache TTL
+.RE
+.TP
+.B Commands
+Default profiles and prompts for:
+.BR generate ,
+.BR commit ,
+.BR pullRequest ,
+.BR summarize ,
+and
+.BR filter
+commands.
+.TP
+.B Caching
+Enabled globally with 24-hour TTL for LLM responses.
+
+.SH EXAMPLES
+Initialize a new project in the current directory:
+.PP
+.nf
+.B cd /path/to/project
+.B meow init
+.fi
+.PP
+Overwrite an existing configuration:
+.PP
+.nf
+.B meow init --force
+.fi
+.PP
+Create configuration in a specific directory:
+.PP
+.nf
+.B meow init --workspace /path/to/project
+.fi
+.PP
+Silent mode for scripting:
+.PP
+.nf
+.B CONFIG=$(meow init --silent)
+.B echo "Created: $CONFIG"
+.fi
+
+.SH AFTER INITIALIZATION
+After running
+.B meow init
+, complete these steps:
+.PP
+.B 1. Get an API key
+.RS
+Visit https://aistudio.google.com/app/apikey to obtain a free Google Gemini
+API key.
+.RE
+.PP
+.B 2. Set environment variable
+.RS
+Add to your shell profile (~/.bashrc, ~/.zshrc):
+.PP
+.nf
+.B export MEOW_GEMINI_API_KEY="your-api-key-here"
+.fi
+.PP
+Then restart your shell or run:
+.PP
+.nf
+.B source ~/.bashrc
+.fi
+.RE
+.PP
+.B 3. Test the setup
+.RS
+.nf
+.B echo "Create a hello world function" | meow generate
+.fi
+.RE
+
+.SH FILES
+.TP
+.B .meowg1k.yaml
+The project configuration file created by this command. This file should be
+committed to version control to share settings across the team.
+.TP
+.B ~/.config/meowg1k/config.yaml
+User-level configuration (not created by
+.BR init ).
+Settings in the project-level
+.B .meowg1k.yaml
+override user-level settings.
+
+.SH EXIT STATUS
+Returns 0 on success. Returns non-zero on error with one of the following:
+.TP
+.B 1
+Configuration file already exists (use
+.B \-\-force
+to overwrite)
+.TP
+.B 1
+Failed to create configuration file (e.g., permission denied)
+.TP
+.B 1
+Invalid directory specified with
+.B \-\-workspace
+
+.SH NOTES
+The
+.B meow init
+command does not require an existing configuration or API keys. It can be
+run before setting up any credentials.
+.PP
+The generated configuration file is a standard YAML file and can be manually
+edited to customize models, profiles, prompts, and rate limits.
+.PP
+The default configuration uses Google Gemini because it offers a generous
+free tier. You can edit the configuration to use other providers such as
+OpenAI, Anthropic, OpenRouter, or local models via llama.cpp.
+
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-generate (1),
+.BR meow\-commit (1),
+.BR meow\-pullrequest (1),
+.BR meow\-config (5),
+.BR meow\-security (7)
+.PP
+Configuration guide:
+.br
+https://github.com/retran/meowg1k/blob/main/docs/02-CONFIGURATION.md
+
+.SH AUTHORS
+Andrew Vasilyev <me@retran.me>
+
+.SH COPYRIGHT
+Copyright (c) 2025 Andrew Vasilyev.
+Licensed under the Apache License, Version 2.0.
+.PP
+Project page: https://github.com/retran/meowg1k

@@ -27,6 +27,16 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/command"
 )
 
+// mockWorkspaceDirResolver is a mock implementation of WorkspaceDirResolver for testing.
+type mockWorkspaceDirResolver struct {
+	dir string
+	err error
+}
+
+func (m *mockWorkspaceDirResolver) Get() (string, error) {
+	return m.dir, m.err
+}
+
 func TestNewServiceWithSpecificConfig(t *testing.T) {
 	// Create a temporary config file
 	tempDir := t.TempDir()
@@ -59,7 +69,7 @@ generate:
 	}
 
 	// Test NewService
-	configSvc, err := NewService(commandSvc)
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -130,7 +140,7 @@ func TestNewServiceWithNonExistentConfig(t *testing.T) {
 	}
 
 	// Test NewService with non-existent config
-	_, err = NewService(commandSvc)
+	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err == nil {
 		t.Error("Expected error when config file doesn't exist")
 	}
@@ -158,7 +168,7 @@ func TestNewServiceWithInvalidConfig(t *testing.T) {
 	}
 
 	// Test NewService with invalid config
-	_, err = NewService(commandSvc)
+	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err == nil {
 		t.Error("Expected error when config file is invalid")
 	}
@@ -175,30 +185,28 @@ func TestNewServiceWithoutConfig(t *testing.T) {
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	// Test NewService without specific config (should look for standard locations)
-	_, err = NewService(commandSvc)
-	// This should fail because we don't have config files in standard locations
+	// Test NewService without specific config (should look for standard locations and workspace)
+	// Since we don't have config files anywhere, it should fail
+	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err == nil {
 		t.Error("Expected error when no configuration file found")
 	}
 
 	// Check that error message is appropriate
-	expectedMsg := "no configuration file found in standard locations"
+	expectedMsg := "no configuration file found"
 	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
 		t.Errorf("Expected error message to contain %q, got: %v", expectedMsg, err)
 	}
 }
 
-func TestNewServiceWithSystemConfigDirs(t *testing.T) {
-	// Test with various XDG_CONFIG_DIRS and XDG_CONFIG_HOME scenarios
+func TestNewServiceWithConfigHome(t *testing.T) {
+	// Test with XDG_CONFIG_HOME
 
 	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
 
 	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
 		os.Setenv("HOME", originalHome)
 	}()
@@ -225,9 +233,8 @@ generate:
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
-	// Test with custom XDG_CONFIG_DIRS
-	os.Setenv("XDG_CONFIG_DIRS", tempDir)
-	os.Setenv("XDG_CONFIG_HOME", "")
+	// Test with custom XDG_CONFIG_HOME
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
 	os.Setenv("HOME", "")
 
 	cmd := &cobra.Command{Use: "test"}
@@ -239,9 +246,9 @@ generate:
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	configSvc, err := NewService(commandSvc)
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err != nil {
-		t.Fatalf("NewService failed with XDG_CONFIG_DIRS: %v", err)
+		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
 	}
 
 	if configSvc == nil {
@@ -254,7 +261,7 @@ generate:
 	}
 
 	if config.Profiles["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
-		t.Error("Failed to load config from XDG_CONFIG_DIRS location")
+		t.Error("Failed to load config from XDG_CONFIG_HOME location")
 	}
 }
 
@@ -305,7 +312,7 @@ generate:
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	configSvc, err := NewService(commandSvc)
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err != nil {
 		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
 	}
@@ -367,7 +374,7 @@ generate:
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	configSvc, err := NewService(commandSvc)
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err != nil {
 		t.Fatalf("NewService failed with HOME fallback: %v", err)
 	}
@@ -382,13 +389,12 @@ generate:
 	}
 }
 
-func TestNewServiceWithCurrentDirectoryConfig(t *testing.T) {
-	// Create temporary current directory with config
+func TestNewServiceWithWorkspaceConfig(t *testing.T) {
+	// Create temporary workspace directory with config
 	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, ".meowg1k")
-	os.MkdirAll(configDir, 0o755)
 
-	configPath := filepath.Join(configDir, "config.yaml")
+	// Create workspace config file (.meowg1k.yaml in root)
+	configPath := filepath.Join(tempDir, ".meowg1k.yaml")
 	configContent := `models:
   llama-local:
     provider: "local"
@@ -405,23 +411,15 @@ generate:
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
-	// Change to temp directory
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	os.Chdir(tempDir)
-
 	// Save and reset environment variables to avoid other config locations
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
 
 	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
 		os.Setenv("HOME", originalHome)
 	}()
 
-	os.Setenv("XDG_CONFIG_DIRS", "/nonexistent")
 	os.Setenv("XDG_CONFIG_HOME", "/nonexistent")
 	os.Setenv("HOME", "/nonexistent")
 
@@ -433,9 +431,12 @@ generate:
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	configSvc, err := NewService(commandSvc)
+	// Create mock workspace resolver that returns our temp directory
+	workspaceResolver := &mockWorkspaceDirResolver{dir: tempDir}
+
+	configSvc, err := NewService(commandSvc, workspaceResolver)
 	if err != nil {
-		t.Fatalf("NewService failed with current directory config: %v", err)
+		t.Fatalf("NewService failed with workspace config: %v", err)
 	}
 
 	config, err := configSvc.Get()
@@ -444,20 +445,18 @@ generate:
 	}
 
 	if config.Profiles["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
-		t.Error("Failed to load config from current directory")
+		t.Error("Failed to load config from workspace directory")
 	}
 }
 
 func TestNewServiceConfigMerging(t *testing.T) {
-	// Test configuration merging when multiple config files exist
+	// Test configuration merging between user config and workspace config
 
 	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
 
 	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
 		os.Setenv("HOME", originalHome)
 	}()
@@ -465,36 +464,43 @@ func TestNewServiceConfigMerging(t *testing.T) {
 	// Create temporary directories
 	tempDir := t.TempDir()
 
-	// Create system config
-	systemConfigDir := filepath.Join(tempDir, "system", "meowg1k")
-	os.MkdirAll(systemConfigDir, 0o755)
-	systemConfigPath := filepath.Join(systemConfigDir, "config.yaml")
-	systemConfigContent := `profiles:
-  system:
-    provider: "system"
-    model: "system-model"
-generate:
-  default:
-    profile: "system"
-`
-	os.WriteFile(systemConfigPath, []byte(systemConfigContent), 0o644)
-
 	// Create user config
 	userConfigDir := filepath.Join(tempDir, "user", "meowg1k")
 	os.MkdirAll(userConfigDir, 0o755)
 	userConfigPath := filepath.Join(userConfigDir, "config.yaml")
-	userConfigContent := `profiles:
+	userConfigContent := `models:
+  base-model:
+    provider: "openai"
+    model: "gpt-4"
+profiles:
   user:
-    provider: "user"
-    model: "user-model"
-  system:
-    # Override system config
-    model: "user-override-model"
+    model: "base-model"
+  shared:
+    model: "base-model"
+generate:
+  default:
+    profile: "user"
 `
 	os.WriteFile(userConfigPath, []byte(userConfigContent), 0o644)
 
-	// Set environment to use both configs
-	os.Setenv("XDG_CONFIG_DIRS", filepath.Join(tempDir, "system"))
+	// Create workspace config
+	workspaceDir := filepath.Join(tempDir, "workspace")
+	os.MkdirAll(workspaceDir, 0o755)
+	workspaceConfigPath := filepath.Join(workspaceDir, ".meowg1k.yaml")
+	workspaceConfigContent := `models:
+  workspace-model:
+    provider: "anthropic"
+    model: "claude-3"
+profiles:
+  workspace:
+    model: "workspace-model"
+  shared:
+    # Override user config
+    model: "workspace-model"
+`
+	os.WriteFile(workspaceConfigPath, []byte(workspaceConfigContent), 0o644)
+
+	// Set environment to use user config
 	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
 	os.Setenv("HOME", "")
 
@@ -506,7 +512,10 @@ generate:
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	configSvc, err := NewService(commandSvc)
+	// Use workspace resolver pointing to workspace dir
+	workspaceResolver := &mockWorkspaceDirResolver{dir: workspaceDir}
+
+	configSvc, err := NewService(commandSvc, workspaceResolver)
 	if err != nil {
 		t.Fatalf("NewService failed with config merging: %v", err)
 	}
@@ -516,30 +525,39 @@ generate:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	// Should have both system and user profiles
-	if _, exists := config.Profiles["system"]; !exists {
-		t.Error("System profile should exist")
-	}
+	// Should have profiles from both user and workspace configs
 	if _, exists := config.Profiles["user"]; !exists {
 		t.Error("User profile should exist")
 	}
+	if _, exists := config.Profiles["workspace"]; !exists {
+		t.Error("Workspace profile should exist")
+	}
+	if _, exists := config.Profiles["shared"]; !exists {
+		t.Error("Shared profile should exist")
+	}
 
-	// User config should override system config
-	if config.Profiles["system"].Model != "user-override-model" {
-		t.Errorf("Expected user override, got %s", config.Profiles["system"].Model)
+	// Workspace config should override user config for shared profile
+	if config.Profiles["shared"].Model != "workspace-model" {
+		t.Errorf("Expected workspace override, got %s", config.Profiles["shared"].Model)
+	}
+
+	// Should have models from both configs
+	if _, exists := config.Models["base-model"]; !exists {
+		t.Error("Base model from user config should exist")
+	}
+	if _, exists := config.Models["workspace-model"]; !exists {
+		t.Error("Workspace model should exist")
 	}
 }
 
-func TestNewServiceWithInvalidYAMLInPrimaryConfig(t *testing.T) {
-	// Test handling of invalid YAML in primary config location
+func TestNewServiceWithInvalidYAMLInUserConfig(t *testing.T) {
+	// Test handling of invalid YAML in user config location
 
 	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
 
 	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
 		os.Setenv("HOME", originalHome)
 	}()
@@ -558,8 +576,7 @@ func TestNewServiceWithInvalidYAMLInPrimaryConfig(t *testing.T) {
 	os.WriteFile(configPath, []byte(invalidContent), 0o644)
 
 	// Set environment to use this config
-	os.Setenv("XDG_CONFIG_DIRS", tempDir)
-	os.Setenv("XDG_CONFIG_HOME", "/nonexistent")
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
 	os.Setenv("HOME", "/nonexistent")
 
 	cmd := &cobra.Command{Use: "test"}
@@ -570,22 +587,20 @@ func TestNewServiceWithInvalidYAMLInPrimaryConfig(t *testing.T) {
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	_, err = NewService(commandSvc)
+	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
 	if err == nil {
-		t.Error("Expected error when primary config has invalid YAML")
+		t.Error("Expected error when user config has invalid YAML")
 	}
 }
 
-func TestNewServiceWithInvalidYAMLInSecondaryConfig(t *testing.T) {
-	// Test handling of invalid YAML in secondary config (merge scenario)
+func TestNewServiceWithInvalidYAMLInWorkspaceConfig(t *testing.T) {
+	// Test handling of invalid YAML in workspace config (merge scenario)
 
 	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
 	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
 	originalHome := os.Getenv("HOME")
 
 	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
 		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
 		os.Setenv("HOME", originalHome)
 	}()
@@ -593,31 +608,30 @@ func TestNewServiceWithInvalidYAMLInSecondaryConfig(t *testing.T) {
 	// Create temporary directories
 	tempDir := t.TempDir()
 
-	// Create valid primary config
-	primaryDir := filepath.Join(tempDir, "primary", "meowg1k")
-	os.MkdirAll(primaryDir, 0o755)
-	primaryPath := filepath.Join(primaryDir, "config.yaml")
-	primaryContent := `profiles:
-  primary:
+	// Create valid user config
+	userDir := filepath.Join(tempDir, "user", "meowg1k")
+	os.MkdirAll(userDir, 0o755)
+	userPath := filepath.Join(userDir, "config.yaml")
+	userContent := `profiles:
+  user:
     provider: "openai"
     model: "gpt-4"
 `
-	os.WriteFile(primaryPath, []byte(primaryContent), 0o644)
+	os.WriteFile(userPath, []byte(userContent), 0o644)
 
-	// Create invalid secondary config
-	secondaryDir := filepath.Join(tempDir, "secondary", "meowg1k")
-	os.MkdirAll(secondaryDir, 0o755)
-	secondaryPath := filepath.Join(secondaryDir, "config.yaml")
+	// Create invalid workspace config
+	workspaceDir := filepath.Join(tempDir, "workspace")
+	os.MkdirAll(workspaceDir, 0o755)
+	workspacePath := filepath.Join(workspaceDir, ".meowg1k.yaml")
 	invalidContent := `profiles:
-  secondary:
+  workspace:
     provider: "anthropic"
 	bad_indentation: "broken"
 `
-	os.WriteFile(secondaryPath, []byte(invalidContent), 0o644)
+	os.WriteFile(workspacePath, []byte(invalidContent), 0o644)
 
-	// Set environment to load primary first, then try to merge secondary
-	os.Setenv("XDG_CONFIG_DIRS", filepath.Join(tempDir, "primary"))
-	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "secondary"))
+	// Set environment to load user config
+	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
 	os.Setenv("HOME", "")
 
 	cmd := &cobra.Command{Use: "test"}
@@ -628,8 +642,11 @@ func TestNewServiceWithInvalidYAMLInSecondaryConfig(t *testing.T) {
 		t.Fatalf("Failed to create command service: %v", err)
 	}
 
-	_, err = NewService(commandSvc)
+	// Use workspace resolver that points to workspace with invalid config
+	workspaceResolver := &mockWorkspaceDirResolver{dir: workspaceDir}
+
+	_, err = NewService(commandSvc, workspaceResolver)
 	if err == nil {
-		t.Error("Expected error when secondary config has invalid YAML")
+		t.Error("Expected error when workspace config has invalid YAML")
 	}
 }

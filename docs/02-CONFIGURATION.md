@@ -29,19 +29,68 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 
 ## 2. Configuration File Hierarchy
 
-`meowg1k` loads configuration from up to three locations, with each subsequent location overriding the previous ones:
+`meowg1k` builds its configuration by merging settings from multiple files. This allows for a flexible setup where you can have global defaults, project-specific settings, and command-line overrides.
 
-1. **User Config (Lowest priority):** `~/.config/meowg1k/config.yaml`
+The configuration is loaded and merged in the following order:
 
-    - Use this for your personal defaults, like your preferred provider or model.
+1.  **User Config (Base):** `~/.config/meowg1k/config.yaml`
+    - This file is loaded first. It's the ideal place for your personal defaults, like your preferred provider, model, or global rate limits. If this file doesn't exist, it's silently ignored.
 
-2. **Project Config:** `./.meowg1k/config.yaml`
+2.  **Project or Explicit Config (Merge & Override):** After loading the user config, `meowg1k` merges settings from **one** additional source:
+    - **If the `--config` flag is used:** The specified file is loaded. Its settings override the user config. The project config (`.meowg1k.yaml`) is **ignored**. If the specified file is not found, the program will exit with an error.
+    - **If the `--config` flag is NOT used:** The tool looks for a project config file (`.meowg1k.yaml` or `.yml`) in the root of your project. If found, its settings override the user config. If not found, it's silently ignored.
 
-    - This is the recommended location for project-specific settings. Commit this file to your repository to share the configuration with your team.
+This layered approach means that settings from the project/explicit config will override any settings defined in the user config.
 
-3. **Explicit Config (Highest priority):** `--config /path/to/your/config.yaml`
+### 2.1. Workspace Root Detection
 
-    - A path specified with the global `--config` flag will override all other configuration files.
+`meowg1k` automatically detects the workspace (project) root directory by walking up the directory tree from your current working directory. This workspace root is used for multiple purposes:
+
+- Finding the project configuration file (`.meowg1k.yaml` or `.yml`) when `--config` flag is not used
+- Setting the working context for various commands (such as `commit`, `pullrequest`, etc.)
+- Determining the scope of file operations and git operations
+
+The tool looks for the following markers in each directory, stopping at the first match:
+
+1. `.meowg1k.yaml` — Project-specific configuration file
+2. `.meowg1k.yml` — Alternative extension for project configuration
+3. `.git` — Git repository root directory
+
+The search starts from the current directory and continues upward through parent directories until one of these markers is found or the filesystem root is reached.
+
+**Examples:**
+
+```text
+/home/user/projects/myapp/src/feature
+                          └── .meowg1k.yaml  ← Found here
+```
+
+Running `meow commit` from `/home/user/projects/myapp/src/feature/subdir` will detect `/home/user/projects/myapp/src/feature/` as the workspace root.
+
+```text
+/home/user/projects/myapp/
+                    └── .git/  ← Git repository root
+```
+
+If no `.meowg1k.yaml` file exists, the tool will use the `.git` directory as a marker for the project root.
+
+If no markers are found, the current working directory is used as the workspace root.
+
+**Explicit Workspace Root:**
+
+You can override the automatic detection by using the `--workspace` flag:
+
+```bash
+meow commit --workspace /path/to/project
+```
+
+This is useful when:
+
+- Working from a directory outside your project
+- Testing configurations for different projects
+- Running commands in CI/CD environments where automatic detection may not work as expected
+
+> **Note:** The workspace root is detected independently of configuration loading. Even when using the `--config` flag to specify an explicit configuration file, the workspace root is still determined and used for other operations. Use `--workspace` to explicitly set the workspace root when automatic detection is not suitable.
 
 ---
 
