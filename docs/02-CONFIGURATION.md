@@ -318,7 +318,7 @@ pullRequest:
 For a quick start, you only need to define a default model and profile.
 
 ```yaml
-# .meowg1k/config.yaml
+# .meowg1k.yaml
 models:
   default:
     provider: "gemini"
@@ -343,7 +343,7 @@ pullRequest:
 This example showcases multiple features working together.
 
 ```yaml
-# .meowg1k/config.yaml
+# .meowg1k.yaml
 models:
   gemini-flash:
     provider: "gemini"
