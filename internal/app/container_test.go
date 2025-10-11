@@ -34,6 +34,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/output"
+	"github.com/retran/meowg1k/internal/adapters/workspace"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/cache"
@@ -85,7 +86,9 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	configService, err := config.NewService(commandService)
+	workspaceService := workspace.NewService()
+
+	configService, err := config.NewService(commandService, workspaceService)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +337,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				return cmd
 			},
 			expectError: true,
-			errorMsg:    "failed to read config file",
+			errorMsg:    "failed to merge specified config file",
 		},
 		{
 			name: "Config service creation error - no config found",

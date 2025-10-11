@@ -29,19 +29,18 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 
 ## 2. Configuration File Hierarchy
 
-`meowg1k` loads configuration from up to three locations, with each subsequent location overriding the previous ones:
+`meowg1k` builds its configuration by merging settings from multiple files. This allows for a flexible setup where you can have global defaults, project-specific settings, and command-line overrides.
 
-1. **User Config (Lowest priority):** `~/.config/meowg1k/config.yaml`
+The configuration is loaded and merged in the following order:
 
-    - Use this for your personal defaults, like your preferred provider or model.
+1.  **User Config (Base):** `~/.config/meowg1k/config.yaml`
+    - This file is loaded first. It's the ideal place for your personal defaults, like your preferred provider, model, or global rate limits. If this file doesn't exist, it's silently ignored.
 
-2. **Project Config:** `./.meowg1k/config.yaml`
+2.  **Project or Explicit Config (Merge & Override):** After loading the user config, `meowg1k` merges settings from **one** additional source:
+    - **If the `--config` flag is used:** The specified file is loaded. Its settings override the user config. The project config (`.meowg1k.yaml`) is **ignored**. If the specified file is not found, the program will exit with an error.
+    - **If the `--config` flag is NOT used:** The tool looks for a project config file (`.meowg1k.yaml` or `.yml`) in the root of your project. If found, its settings override the user config. If not found, it's silently ignored.
 
-    - This is the recommended location for project-specific settings. Commit this file to your repository to share the configuration with your team.
-
-3. **Explicit Config (Highest priority):** `--config /path/to/your/config.yaml`
-
-    - A path specified with the global `--config` flag will override all other configuration files.
+This layered approach means that settings from the project/explicit config will override any settings defined in the user config.
 
 ---
 
