@@ -9,6 +9,7 @@ This document provides a detailed reference for all available `meowg1k` commands
 These flags can be used with any command.
 
 - `--config <path>`: Specify a path to a configuration file. This overrides any project-level or user-level configs.
+- `--workspace <path>`: Specify the workspace root directory. This overrides automatic workspace detection.
 - `--silent`: Enables silent mode, which suppresses progress indicators and other non-essential output. Ideal for scripting.
 - `--no-cache`: Disables LLM response caching for the current command.
 - `--update-cache`: Forces a cache refresh by making a fresh request to the LLM and updating the cache entry.

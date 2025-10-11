@@ -42,6 +42,56 @@ The configuration is loaded and merged in the following order:
 
 This layered approach means that settings from the project/explicit config will override any settings defined in the user config.
 
+### 2.1. Workspace Root Detection
+
+`meowg1k` automatically detects the workspace (project) root directory by walking up the directory tree from your current working directory. This workspace root is used for multiple purposes:
+
+- Finding the project configuration file (`.meowg1k.yaml` or `.yml`) when `--config` flag is not used
+- Setting the working context for various commands (such as `commit`, `pullrequest`, etc.)
+- Determining the scope of file operations and git operations
+
+The tool looks for the following markers in each directory, stopping at the first match:
+
+1. `.meowg1k.yaml` — Project-specific configuration file
+2. `.meowg1k.yml` — Alternative extension for project configuration
+3. `.git` — Git repository root directory
+
+The search starts from the current directory and continues upward through parent directories until one of these markers is found or the filesystem root is reached.
+
+**Examples:**
+
+```text
+/home/user/projects/myapp/src/feature
+                          └── .meowg1k.yaml  ← Found here
+```
+
+Running `meow commit` from `/home/user/projects/myapp/src/feature/subdir` will detect `/home/user/projects/myapp/src/feature/` as the workspace root.
+
+```text
+/home/user/projects/myapp/
+                    └── .git/  ← Git repository root
+```
+
+If no `.meowg1k.yaml` file exists, the tool will use the `.git` directory as a marker for the project root.
+
+If no markers are found, the current working directory is used as the workspace root.
+
+**Explicit Workspace Root:**
+
+You can override the automatic detection by using the `--workspace` flag:
+
+```bash
+meow commit --workspace /path/to/project
+```
+
+This is useful when:
+
+- Working from a directory outside your project
+- Testing configurations for different projects
+- Running commands in CI/CD environments where automatic detection may not work as expected
+
+> **Note:** The workspace root is detected independently of configuration loading. Even when using the `--config` flag to specify an explicit configuration file, the workspace root is still determined and used for other operations. Use `--workspace` to explicitly set the workspace root when automatic detection is not suitable.
+
 ---
 
 ## 3. Configuration File Structure

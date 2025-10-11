@@ -53,6 +53,11 @@ Global options available for all commands:
 Use a specific configuration file. When specified, ignores project and user
 configuration files completely. This overrides all other configuration sources.
 .TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+Useful for running commands from outside the project directory or in CI/CD
+environments.
+.TP
 .BR \-\-silent
 Enable silent mode. Suppresses progress indicators and non-essential output.
 Ideal for scripting and CI/CD pipelines where only the final result is needed.

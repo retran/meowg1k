@@ -175,7 +175,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create command service: %w", err)
 	}
 
-	workspaceService := workspace.NewService()
+	workspaceService := workspace.NewService(commandService)
 
 	configService, err := config.NewService(commandService, workspaceService)
 	if err != nil {

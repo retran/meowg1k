@@ -86,7 +86,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	workspaceService := workspace.NewService()
+	workspaceService := workspace.NewService(commandService)
 
 	configService, err := config.NewService(commandService, workspaceService)
 	if err != nil {
@@ -342,6 +342,30 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 		{
 			name: "Config service creation error - no config found",
 			setupCmd: func() *cobra.Command {
+				// Save current directory and environment
+				origDir, _ := os.Getwd()
+				origHome := os.Getenv("HOME")
+				origXDG := os.Getenv("XDG_CONFIG_HOME")
+
+				// Change to a temporary directory with no config files
+				tmpDir := t.TempDir()
+				os.Chdir(tmpDir)
+
+				// Clear HOME and XDG_CONFIG_HOME to ensure no user configs are found
+				os.Setenv("HOME", tmpDir)
+				os.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+				// Restore after test
+				t.Cleanup(func() {
+					os.Chdir(origDir)
+					os.Setenv("HOME", origHome)
+					if origXDG != "" {
+						os.Setenv("XDG_CONFIG_HOME", origXDG)
+					} else {
+						os.Unsetenv("XDG_CONFIG_HOME")
+					}
+				})
+
 				cmd := &cobra.Command{Use: "test"}
 				cmd.Flags().String("config", "", "config file path")
 				cmd.Flags().String("task", "", "task name")
