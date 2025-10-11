@@ -40,6 +40,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: --version
+          skip-cache: false
+
       - name: Install Task
         uses: arduino/setup-task@v2
         with:
@@ -71,6 +78,25 @@ jobs:
       - name: Run security checks
         run: task security
 
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install mandoc
+        run: sudo apt-get update && sudo apt-get install -y mandoc
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate man pages
+        run: task man:check
+
   test:
     name: Test and Coverage
     runs-on: ubuntu-latest
@@ -85,6 +111,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Install bc (required for coverage threshold check)
+        run: sudo apt-get update && sudo apt-get install -y bc
 
       - name: Install Task
         uses: arduino/setup-task@v2
