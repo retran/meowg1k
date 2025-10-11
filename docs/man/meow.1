@@ -26,6 +26,11 @@ is controlled through version-controlled YAML configuration files.
 
 .SH COMMANDS
 .TP
+.B init
+Initialize a new meowg1k project configuration by creating a
+.B .meowg1k.yaml
+file with sensible defaults. Uses Google Gemini as the default provider.
+.TP
 .B generate
 Generate content based on a prompt and/or context provided via stdin.
 Supports predefined tasks and custom prompts. Works with all supported
@@ -52,6 +57,11 @@ Global options available for all commands:
 .BR \-\-config " " \fIFILE\fR
 Use a specific configuration file. When specified, ignores project and user
 configuration files completely. This overrides all other configuration sources.
+.TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+Useful for running commands from outside the project directory or in CI/CD
+environments.
 .TP
 .BR \-\-silent
 Enable silent mode. Suppresses progress indicators and non-essential output.
@@ -169,6 +179,21 @@ See
 for detailed configuration syntax and comprehensive examples.
 
 .SH EXAMPLES
+.SS Project Initialization
+Initialize a new project with default configuration:
+.PP
+.nf
+.B cd /path/to/project
+.B meow init
+.B export MEOW_GEMINI_API_KEY="your-api-key"
+.fi
+.PP
+Force overwrite existing configuration:
+.PP
+.nf
+.B meow init \-\-force
+.fi
+
 .SS Basic Generation
 Use a predefined task:
 .PP
@@ -294,6 +319,7 @@ cryptographically signed.
 \fBRadically Open:\fR All code including dependencies is open source.
 
 .SH SEE ALSO
+.BR meow\-init (1),
 .BR meow\-generate (1),
 .BR meow\-commit (1),
 .BR meow\-pullrequest (1),

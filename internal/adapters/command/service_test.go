@@ -122,6 +122,44 @@ func TestGetConfigPathUndefined(t *testing.T) {
 	}
 }
 
+func TestGetWorkspacePath(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("workspace", "", "workspace root path")
+	cmd.Flags().Set("workspace", "/path/to/workspace")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	workspacePath, err := service.GetWorkspacePath()
+	if err != nil {
+		t.Fatalf("GetWorkspacePath failed: %v", err)
+	}
+
+	if workspacePath != "/path/to/workspace" {
+		t.Errorf("Expected workspace path '/path/to/workspace', got '%s'", workspacePath)
+	}
+}
+
+func TestGetWorkspacePathUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetWorkspacePath()
+	if err == nil {
+		t.Error("Expected error when workspace flag is not defined")
+	}
+}
+
 func TestGetTaskName(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",

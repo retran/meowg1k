@@ -52,7 +52,7 @@ import (
 
 // CreateCommitFlow creates a complete commit flow with all dependencies.
 func (c *Container) CreateCommitFlow() (executor.Flow, error) {
-	workspaceService := workspace.NewService()
+	workspaceService := workspace.NewService(c.CommandService)
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create git service: %w", err)
@@ -220,7 +220,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 
 // CreatePullRequestFlow creates a complete pull request flow with all dependencies.
 func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
-	workspaceService := workspace.NewService()
+	workspaceService := workspace.NewService(c.CommandService)
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create git service: %w", err)

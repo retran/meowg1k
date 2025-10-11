@@ -4,11 +4,59 @@ This document provides a detailed reference for all available `meowg1k` commands
 
 ---
 
+## `meow init`
+
+Initializes a new `meowg1k` project by creating a `.meowg1k.yaml` configuration file in the current directory.
+
+### Usage
+
+```bash
+meow init [flags]
+```
+
+### Flags
+
+- `-f, --force`: Overwrites an existing configuration file if present.
+
+### Description
+
+The `init` command helps you get started with `meowg1k` by creating a project-level configuration file with sensible defaults. The generated configuration uses Google Gemini as the default LLM provider.
+
+If a `.meowg1k.yaml` file already exists in the current directory, the command will fail unless you use the `--force` flag to overwrite it.
+
+### Examples
+
+```bash
+# Initialize a new project configuration
+meow init
+
+# Force overwrite an existing configuration
+meow init --force
+```
+
+### After Initialization
+
+After running `meow init`, you need to:
+
+1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Set the environment variable in your shell profile (`~/.bashrc`, `~/.zshrc`):
+   ```bash
+   export MEOW_GEMINI_API_KEY="your-api-key-here"
+   ```
+3. Restart your shell or run `source ~/.bashrc` (or `~/.zshrc`)
+4. Try it out:
+   ```bash
+   echo "Create a hello world function" | meow generate
+   ```
+
+---
+
 ## Global Flags
 
 These flags can be used with any command.
 
 - `--config <path>`: Specify a path to a configuration file. This overrides any project-level or user-level configs.
+- `--workspace <path>`: Specify the workspace root directory. This overrides automatic workspace detection.
 - `--silent`: Enables silent mode, which suppresses progress indicators and other non-essential output. Ideal for scripting.
 - `--no-cache`: Disables LLM response caching for the current command.
 - `--update-cache`: Forces a cache refresh by making a fresh request to the LLM and updating the cache entry.

@@ -66,7 +66,18 @@ brew install retran/homebrew-meow-tap/meow
 
 > 👉 For other installation methods (Scoop, .deb, .rpm), see the [**full installation guide**](./docs/01-INSTALLATION.md).
 
-### 2. Set up API Key
+### 2. Initialize Your Project
+
+Create a project configuration file with sensible defaults:
+
+```bash
+cd your-project
+meow init
+```
+
+This creates a `.meowg1k.yaml` file with Google Gemini configured as the default provider.
+
+### 3. Set up API Key
 
 Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to your shell profile (`~/.bashrc`, `~/.zshrc`):
 
@@ -76,7 +87,7 @@ export MEOW_GEMINI_API_KEY="your-api-key-here"
 
 Remember to restart your shell or run `source ~/.bashrc`.
 
-### 3. Try It Out
+### 4. Try It Out
 
 ```bash
 # Generate code from a prompt

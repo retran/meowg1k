@@ -1,0 +1,109 @@
+# meowg1k Configuration File
+# This file defines models, profiles, and command-specific settings.
+# Learn more: https://github.com/retran/meowg1k/blob/main/docs/02-CONFIGURATION.md
+
+models:
+  gemini-flash:
+    provider: "gemini"
+    model: "gemini-2.5-flash"
+    rateLimit:
+      requestsPerMinute: 10
+      tokensPerMinute: 250000
+      requestsPerDay: 250
+
+  gemini-pro:
+    provider: "gemini"
+    model: "gemini-2.5-pro"
+    rateLimit:
+      requestsPerMinute: 5
+      tokensPerMinute: 125000
+      requestsPerDay: 100
+
+profiles:
+  fast:
+    model: "gemini-flash"
+    cache:
+      enabled: true
+      ttl: "24h"
+
+  smart:
+    model: "gemini-pro"
+    timeout: "10m"
+    cache:
+      enabled: true
+      ttl: "72h"
+
+cache:
+  enabled: true
+  ttl: "24h"
+
+generate:
+  default:
+    profile: "fast"
+    systemPrompt: >-
+      You are a helpful software developer and code reviewer.
+      Provide clear, concise, and actionable feedback.
+      When suggesting code, write clean, idiomatic, production-ready code.
+
+  tasks:
+    review:
+      profile: "smart"
+      userPrompt: >-
+        Perform a thorough code review of the following code.
+        Focus on correctness, maintainability, readability, and performance.
+        Provide actionable suggestions with references to specific lines when possible.
+
+    doc:
+      profile: "smart"
+      userPrompt: >-
+        Write a complete documentation comment for the following exported function or type.
+        Requirements:
+          - Start with the identifier's name.
+          - Be concise, precise, and helpful.
+          - Mention side effects, error cases, and concurrency expectations if relevant.
+          - Do NOT include code; only the comment block.
+
+    test:
+      profile: "smart"
+      userPrompt: >-
+        Write comprehensive unit tests using the standard testing package.
+        Requirements:
+          - Use subtests with t.Run.
+          - Cover happy path, edge cases, and error scenarios.
+          - Ensure tests are deterministic and parallelizable where safe.
+          - Return only compilable test code.
+
+filter:
+  ignorePatterns:
+    - "*.lock"
+    - "*.min.js"
+    - "*.min.css"
+    - "vendor/"
+    - "node_modules/"
+    - ".git/"
+
+summarize:
+  default:
+    profile: "fast"
+    systemPrompt: >-
+      You are a code analysis assistant.
+      Analyze the provided file and create a concise summary of changes.
+      Focus on what was modified, added, or removed.
+
+commit:
+  default:
+    profile: "smart"
+    systemPrompt: >-
+      You are a Git commit message expert.
+      Generate clear, concise commit messages following conventional commits format.
+      Focus on the "why" and "what" of changes.
+
+pullRequest:
+  default:
+    profile: "smart"
+    systemPrompt: >-
+      You are a technical writer specializing in pull request descriptions.
+      Generate comprehensive PR descriptions that explain:
+      - What changes were made and why
+      - Impact on the codebase
+      - Any breaking changes or migrations needed
