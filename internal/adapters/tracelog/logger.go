@@ -91,6 +91,7 @@ func (l *Logger) ensureLogFile() error {
 	filename := fmt.Sprintf("%s_%s.log.jsonl", timestamp, randomSuffix)
 	logPath := filepath.Join(logsDir, filename)
 
+	// #nosec G304 -- logPath is constructed from workspace dir (validated), fixed subdir, timestamp, and random suffix
 	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %w", err)

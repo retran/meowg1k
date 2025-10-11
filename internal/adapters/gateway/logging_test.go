@@ -92,7 +92,6 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 
 	ctx := context.Background()
 	content, err := wrapped.GenerateContent(ctx, req)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -186,7 +185,6 @@ func TestLoggingEmbeddingsGateway_Success(t *testing.T) {
 
 	ctx := context.Background()
 	embeddings, err := wrapped.ComputeEmbeddings(ctx, req)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -255,7 +253,6 @@ func TestLoggingEmbeddingsGateway_ComputeDistance(t *testing.T) {
 	emb2 := gateway.Embedding{0.4, 0.5, 0.6}
 
 	distance, err := wrapped.ComputeDistance(emb1, emb2)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
