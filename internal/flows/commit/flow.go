@@ -23,6 +23,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/composeflatcommit"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
@@ -55,6 +56,7 @@ type Factory struct {
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+	composeFlatCommitFactory   executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
 	commitConfigProvider       CommitConfigProvider
 	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
@@ -69,6 +71,7 @@ func NewFactory(
 	fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output],
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composeCommitFactory executor.ActivityFactory[*composecommit.Input, *composecommit.Output],
+	composeFlatCommitFactory executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output],
 	commitConfigProvider CommitConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
@@ -101,6 +104,10 @@ func NewFactory(
 		return nil, fmt.Errorf("composeCommitFactory is nil")
 	}
 
+	if composeFlatCommitFactory == nil {
+		return nil, fmt.Errorf("composeFlatCommitFactory is nil")
+	}
+
 	if commitConfigProvider == nil {
 		return nil, fmt.Errorf("commitConfigProvider is nil")
 	}
@@ -121,6 +128,7 @@ func NewFactory(
 		fetchAllBranchDiffsFactory: fetchAllBranchDiffsFactory,
 		summarizeAllFactory:        summarizeAllFactory,
 		composeCommitFactory:       composeCommitFactory,
+		composeFlatCommitFactory:   composeFlatCommitFactory,
 		commitConfigProvider:       commitConfigProvider,
 		commandParametersReader:    commandParametersReader,
 		outputWriter:               outputWriter,
@@ -255,25 +263,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			changes = append(changes, fetchAllDiffsOutput.Changes...)
 		}
 
-		// Phase 4: Summarize changes for all files
-		summarizeAll := f.summarizeAllFactory.NewActivity()
-		summarizeAllFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
-			ctx,
-			flowCtx,
-			"SummarizeAll",
-			summarizeAll,
-			&summarizeall.Input{
-				Changes: changes,
-			},
-		)
-
-		summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to summarize changes: %w", err)
-		}
-
-		// Phase 5: Compose commit message
+		// Get configuration
 		cfg, err := f.commitConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to resolve commit configuration: %w", err)
@@ -293,29 +283,77 @@ func (f *Factory) NewFlow() executor.Flow {
 			intent = stdin
 		}
 
-		composeCommit := f.composeCommitFactory.NewActivity()
-		commitFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
-			ctx,
-			flowCtx,
-			"ComposeCommit",
-			composeCommit,
-			&composecommit.Input{
-				Profile:      cfg.Profile,
-				SystemPrompt: cfg.SystemPrompt,
-				Summaries:    summarizeAllOutput.Summaries,
-				Intent:       intent,
-			},
-		)
+		var commitMessage string
 
-		commitResult, err := commitFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to compose commit message: %w", err)
+		// Phase 4 & 5: Compose commit message based on strategy
+		if cfg.Strategy == "flat" {
+			// Flat strategy: send full diff directly to LLM
+			composeFlatCommit := f.composeFlatCommitFactory.NewActivity()
+			flatCommitFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ComposeFlatCommit",
+				composeFlatCommit,
+				&composeflatcommit.Input{
+					Profile:      cfg.Profile,
+					SystemPrompt: cfg.SystemPrompt,
+					Changes:      changes,
+					Intent:       intent,
+				},
+			)
+
+			flatCommitResult, err := flatCommitFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to compose commit message using flat strategy: %w", err)
+			}
+
+			commitMessage = flatCommitResult.CommitMessage
+		} else {
+			// Summarize strategy (default): use map-reduce approach
+			summarizeAll := f.summarizeAllFactory.NewActivity()
+			summarizeAllFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"SummarizeAll",
+				summarizeAll,
+				&summarizeall.Input{
+					Changes: changes,
+				},
+			)
+
+			summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to summarize changes: %w", err)
+			}
+
+			composeCommit := f.composeCommitFactory.NewActivity()
+			commitFuture := executor.ExecuteActivity(
+				flowCtx.GetExecutor(),
+				ctx,
+				flowCtx,
+				"ComposeCommit",
+				composeCommit,
+				&composecommit.Input{
+					Profile:      cfg.Profile,
+					SystemPrompt: cfg.SystemPrompt,
+					Summaries:    summarizeAllOutput.Summaries,
+					Intent:       intent,
+				},
+			)
+
+			commitResult, err := commitFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("failed to compose commit message: %w", err)
+			}
+
+			commitMessage = commitResult.CommitMessage
 		}
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(commitResult.CommitMessage); err != nil {
+		if err := f.outputWriter.PrintLine(commitMessage); err != nil {
 			return fmt.Errorf("failed to print commit message: %w", err)
 		}
 

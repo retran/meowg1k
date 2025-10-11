@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
+	"github.com/retran/meowg1k/internal/activities/composeflatpr"
 	"github.com/retran/meowg1k/internal/activities/composepr"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
@@ -97,6 +98,7 @@ func TestNewFactory(t *testing.T) {
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 		composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
+		composeFlatPRFactory       executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
 		prConfigProvider           PullRequestConfigProvider
 		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
@@ -110,6 +112,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -123,6 +126,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -136,6 +140,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: nil,
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -149,6 +154,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        nil,
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -162,11 +168,26 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           nil,
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
 			expectedErrMsg:             "composePRFactory is nil",
+		},
+		{
+			name:                       "nil composeFlatPRFactory",
+			listBranchFilesFactory:     &mockActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]{},
+			applyFiltersFactory:        &mockActivityFactory[*applyfilters.Input, *applyfilters.Output]{},
+			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
+			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
+			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       nil,
+			prConfigProvider:           &mockPRConfigProvider{},
+			commandParametersReader:    &mockCommandParametersReader{},
+			outputWriter:               &mockOutputWriter{},
+			wantErr:                    true,
+			expectedErrMsg:             "composeFlatPRFactory is nil",
 		},
 		{
 			name:                       "nil prConfigProvider",
@@ -175,6 +196,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           nil,
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -188,6 +210,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    nil,
 			outputWriter:               &mockOutputWriter{},
@@ -201,6 +224,7 @@ func TestNewFactory(t *testing.T) {
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               nil,
@@ -208,12 +232,13 @@ func TestNewFactory(t *testing.T) {
 			expectedErrMsg:             "outputWriter is nil",
 		},
 		{
-			name:                       "all valid dependencies",
+			name:                       "all factories provided",
 			listBranchFilesFactory:     &mockActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]{},
 			applyFiltersFactory:        &mockActivityFactory[*applyfilters.Input, *applyfilters.Output]{},
 			fetchAllBranchDiffsFactory: &mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composePRFactory:           &mockActivityFactory[*composepr.Input, *composepr.Output]{},
+			composeFlatPRFactory:       &mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 			prConfigProvider:           &mockPRConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
@@ -229,6 +254,7 @@ func TestNewFactory(t *testing.T) {
 				tt.fetchAllBranchDiffsFactory,
 				tt.summarizeAllFactory,
 				tt.composePRFactory,
+				tt.composeFlatPRFactory,
 				tt.prConfigProvider,
 				tt.commandParametersReader,
 				tt.outputWriter,
@@ -284,6 +310,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composepr.Input, *composepr.Output]{},
+					&mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 					&mockPRConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
@@ -305,6 +332,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composepr.Input, *composepr.Output]{},
+					&mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 					&mockPRConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
@@ -330,6 +358,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]{},
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composepr.Input, *composepr.Output]{},
+					&mockActivityFactory[*composeflatpr.Input, *composeflatpr.Output]{},
 					&mockPRConfigProvider{},
 					mockReader,
 					&mockOutputWriter{},

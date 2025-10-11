@@ -60,10 +60,17 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 
 	var profileName string
 	var systemPrompt string
+	var strategy string
 
 	if config.PullRequest != nil {
 		profileName = config.PullRequest.Profile
 		systemPrompt = config.PullRequest.SystemPrompt
+		strategy = config.PullRequest.Strategy
+	}
+
+	// Default to "summarize" if strategy is not specified
+	if strategy == "" {
+		strategy = "summarize"
 	}
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
@@ -77,6 +84,7 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 
 	return &pullrequest2.ResolvedConfig{
 		Profile:      resolvedProfile,
+		Strategy:     strategy,
 		SystemPrompt: systemPrompt,
 	}, nil
 }

@@ -219,6 +219,11 @@ type CommandConfig struct {
 	// Profile references a profile defined in the profiles section
 	Profile string `yaml:"profile" mapstructure:"profile"`
 
+	// Strategy determines how changes are processed:
+	// - "summarize" (default): uses Map-Reduce approach to summarize each file then compose the final message
+	// - "flat": sends the entire diff directly to the model without summarization
+	Strategy string `yaml:"strategy" mapstructure:"strategy"`
+
 	// SystemPrompt sets the system prompt for the command
 	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 }

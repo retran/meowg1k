@@ -112,7 +112,7 @@ models:
   # A powerful model for complex reasoning
   claude-sonnet:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
     maxInputTokens: 180000
 
   # A model for a local llama.cpp server
@@ -230,6 +230,19 @@ These top-level sections configure the specific commands.
 - **`generate`**: Define pre-set tasks for the `meow generate -t <task-name>` command.
 - **`commit` / `pullrequest`**: Configure the final "Reduce" phase, where individual file summaries are combined into a single commit message or PR description.
 
+#### Strategy Field
+
+Both `commit` and `pullrequest` commands support a `strategy` field that determines how changes are processed:
+
+- **`"summarize"` (default)**: Uses a Map-Reduce approach. Each changed file is summarized individually (the "Map" phase), then all summaries are combined to generate the final commit message or PR description (the "Reduce" phase). This strategy is ideal for large commits with many files, as it allows the model to focus on each file separately before synthesizing the overall message.
+
+- **`"flat"`**: Sends the entire git diff directly to the model without any intermediate summarization. This is faster and more efficient for small commits (e.g., a single file or a few lines of changes), as it eliminates the overhead of the Map-Reduce pipeline. However, if the diff size exceeds the model's `maxInputTokens` limit, the command will fail with an error suggesting you switch to the `"summarize"` strategy.
+
+**When to use each strategy:**
+
+- Use `"flat"` for quick, small commits (< 5 files, simple changes)
+- Use `"summarize"` (default) for larger changesets, complex refactorings, or when you need detailed per-file analysis
+
 ```yaml
 generate:
   default:
@@ -244,6 +257,7 @@ generate:
 
 commit:
   profile: "smart"
+  strategy: "summarize"  # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer reviewing code changes. Your task is to write a high-quality commit message in the Conventional Commits format based on the provided summaries of file changes.
 
@@ -256,6 +270,7 @@ commit:
 
 pullRequest:
   profile: "smart"
+  strategy: "summarize"  # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer tasked with writing a Pull Request description. Based on the summaries of file changes, generate a complete PR description in Markdown format.
 
@@ -337,7 +352,7 @@ models:
       requestsPerMinute: 30
   claude-sonnet:
     provider: "anthropic"
-    model: "claude-3-5-sonnet-20240620"
+    model: "claude-sonnet-4-5-20250929"
 
 profiles:
   fast:

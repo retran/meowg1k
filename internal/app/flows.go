@@ -22,6 +22,8 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
+	"github.com/retran/meowg1k/internal/activities/composeflatcommit"
+	"github.com/retran/meowg1k/internal/activities/composeflatpr"
 	"github.com/retran/meowg1k/internal/activities/composepr"
 	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
@@ -144,6 +146,11 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
 	}
 
+	composeFlatCommitFactory, err := composeflatcommit.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compose flat commit factory: %w", err)
+	}
+
 	flowFactory, err := commitFlow.NewFactory(
 		listStagedActivityFactory,
 		listBranchFilesActivityFactory,
@@ -152,6 +159,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		fetchAllBranchDiffsFactory,
 		summarizeAllFactory,
 		composeCommitFactory,
+		composeFlatCommitFactory,
 		commitConfigService,
 		c.CommandService,
 		c.OutputService,
@@ -300,12 +308,18 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create compose pullrequest factory: %w", err)
 	}
 
+	composeFlatPRFactory, err := composeflatpr.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create compose flat pullrequest factory: %w", err)
+	}
+
 	flowFactory, err := pr.NewFactory(
 		listBranchFilesActivityFactory,
 		applyFiltersActivityFactory,
 		fetchAllBranchDiffsFactory,
 		summarizeAllFactory,
 		composePRFactory,
+		composeFlatPRFactory,
 		prConfigService,
 		c.CommandService,
 		c.OutputService,
