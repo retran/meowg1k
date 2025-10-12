@@ -84,7 +84,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			input.Profile.MaxOutputTokens,
 		).WithTemperature(input.Profile.Temperature).
 			WithTopP(input.Profile.TopP).
-			WithTopK(input.Profile.TopK)
+			WithTopK(input.Profile.TopK).
+			WithFrequencyPenalty(input.Profile.FrequencyPenalty).
+			WithPresencePenalty(input.Profile.PresencePenalty).
+			WithSeed(input.Profile.Seed).
+			WithStop(input.Profile.Stop)
 
 		content, err := generationGateway.GenerateContent(ctx, request)
 		if err != nil {

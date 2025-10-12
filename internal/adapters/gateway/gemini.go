@@ -100,6 +100,25 @@ func (g *geminiGateway) GenerateContent(
 		generationConfig.MaxOutputTokens = int32(maxTokens)
 	}
 
+	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
+		fp := float32(*frequencyPenalty)
+		generationConfig.FrequencyPenalty = &fp
+	}
+
+	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
+		pp := float32(*presencePenalty)
+		generationConfig.PresencePenalty = &pp
+	}
+
+	if seed := request.Seed(); seed != nil {
+		s := int32(*seed)
+		generationConfig.Seed = &s
+	}
+
+	if stop := request.Stop(); len(stop) > 0 {
+		generationConfig.StopSequences = stop
+	}
+
 	userPrompt := genai.Text(request.UserPrompt())
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)

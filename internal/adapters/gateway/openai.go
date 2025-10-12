@@ -87,6 +87,24 @@ func (g *openaiGateway) GenerateContent(
 		params.TopP = openai.Float(*topP)
 	}
 
+	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
+		params.FrequencyPenalty = openai.Float(*frequencyPenalty)
+	}
+
+	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
+		params.PresencePenalty = openai.Float(*presencePenalty)
+	}
+
+	if seed := request.Seed(); seed != nil {
+		params.Seed = openai.Int(int64(*seed))
+	}
+
+	if stop := request.Stop(); len(stop) > 0 {
+		params.Stop = openai.ChatCompletionNewParamsStopUnion{
+			OfStringArray: stop,
+		}
+	}
+
 	response, err := g.client.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)

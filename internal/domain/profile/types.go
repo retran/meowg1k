@@ -44,10 +44,14 @@ type ResolvedProfile struct {
 	RateLimit       model.RateLimitConfig // Rate limiting config
 
 	// Request-specific parameters (from profile config)
-	Timeout     time.Duration // Request timeout
-	Temperature *float64      // Temperature parameter (optional)
-	TopP        *float64      // TopP parameter (optional)
-	TopK        *int          // TopK parameter (optional)
+	Timeout          time.Duration // Request timeout
+	Temperature      *float64      // Temperature parameter (optional)
+	TopP             *float64      // TopP parameter (optional)
+	TopK             *int          // TopK parameter (optional)
+	FrequencyPenalty *float64      // Frequency penalty parameter (optional)
+	PresencePenalty  *float64      // Presence penalty parameter (optional)
+	Seed             *int          // Random seed for deterministic sampling (optional)
+	Stop             []string      // Stop sequences (optional)
 
 	// Cache configuration (merged from global and profile-specific settings)
 	CacheEnabled bool          // Whether caching is enabled for this profile

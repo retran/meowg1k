@@ -101,6 +101,10 @@ func (g *anthropicGateway) GenerateContent(
 		params.TopK = anthropic.Int(int64(*topK))
 	}
 
+	if stop := request.Stop(); len(stop) > 0 {
+		params.StopSequences = stop
+	}
+
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from Anthropic for model %q: %w", model, err)

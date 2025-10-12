@@ -159,6 +159,15 @@ profiles:
     model: "claude-sonnet"
     temperature: 0.1
     maxTokens: 2048
+    seed: 42  # For reproducible results
+    stop: ["```", "END"]  # Stop at code blocks or END marker
+  
+  # A profile to reduce repetition
+  no-repeat:
+    model: "gpt-4"
+    temperature: 0.5
+    frequencyPenalty: 0.8  # Discourage repeating tokens
+    presencePenalty: 0.6   # Encourage topic diversity
 ```
 
 #### Profile Parameters
@@ -169,13 +178,24 @@ profiles:
 - **`topP`** (optional): Controls nucleus sampling (0.0-1.0). The model considers only tokens with cumulative probability up to this threshold.
 - **`topK`** (optional): Limits sampling to the top K most probable tokens. Use for additional control over randomness.
 - **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this profile.
+- **`frequencyPenalty`** (optional): Penalizes tokens based on their frequency in the response (-2.0 to 2.0). Positive values discourage repetition.
+- **`presencePenalty`** (optional): Penalizes tokens based on their presence in the response (-2.0 to 2.0). Positive values encourage topic diversity.
+- **`seed`** (optional): Sets a random seed for deterministic sampling. Use the same seed to get reproducible results.
+- **`stop`** (optional): List of sequences where the model will stop generating. E.g., `["END", "STOP"]`.
 - **`cache`** (optional): Override global cache settings for this profile (see Cache section).
 
-**Note:** The availability and exact behavior of `temperature`, `topP`, and `topK` parameters may vary by provider:
-- **Gemini**: Supports `temperature`, `topP`, `topK`
-- **Anthropic**: Supports `temperature`, `topP`, `topK`
-- **OpenAI/OpenRouter**: Supports `temperature`, `topP` (topK not available)
-- **Llama.cpp**: Supports `temperature`, `topP`, `topK`
+**Note:** The availability and exact behavior of parameters may vary by provider:
+
+| Parameter | Gemini | Anthropic | OpenAI/OpenRouter | Llama.cpp |
+|-----------|--------|-----------|-------------------|-----------|
+| `temperature` | ✅ | ✅ | ✅ | ✅ |
+| `topP` | ✅ | ✅ | ✅ | ✅ |
+| `topK` | ✅ | ✅ | ❌ | ✅ |
+| `maxTokens` | ✅ | ✅ | ✅ | ✅ |
+| `frequencyPenalty` | ✅ | ❌ | ✅ | ✅ |
+| `presencePenalty` | ✅ | ❌ | ✅ | ✅ |
+| `seed` | ✅ | ❌ | ✅ | ✅ |
+| `stop` | ✅ | ✅ | ✅ | ✅ |
 
 ### `cache`
 

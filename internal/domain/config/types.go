@@ -118,6 +118,18 @@ type ProfileDefinition struct {
 	// MaxTokens overrides the model's default max output tokens for this profile (optional)
 	MaxTokens *int `yaml:"maxTokens" mapstructure:"maxTokens"`
 
+	// FrequencyPenalty penalizes tokens based on their frequency in the response (optional, -2.0 to 2.0)
+	FrequencyPenalty *float64 `yaml:"frequencyPenalty" mapstructure:"frequencyPenalty"`
+
+	// PresencePenalty penalizes tokens based on their presence in the response (optional, -2.0 to 2.0)
+	PresencePenalty *float64 `yaml:"presencePenalty" mapstructure:"presencePenalty"`
+
+	// Seed sets a random seed for deterministic sampling (optional)
+	Seed *int `yaml:"seed" mapstructure:"seed"`
+
+	// Stop specifies sequences where the model will stop generating (optional)
+	Stop []string `yaml:"stop" mapstructure:"stop"`
+
 	// Cache overrides global cache settings for this profile (optional)
 	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
 }

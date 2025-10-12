@@ -23,13 +23,17 @@ import (
 
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
-	model           string
-	systemPrompt    string
-	userPrompt      string
-	maxOutputTokens int
-	temperature     *float64
-	topP            *float64
-	topK            *int
+	model            string
+	systemPrompt     string
+	userPrompt       string
+	maxOutputTokens  int
+	temperature      *float64
+	topP             *float64
+	topK             *int
+	frequencyPenalty *float64
+	presencePenalty  *float64
+	seed             *int
+	stop             []string
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -57,6 +61,30 @@ func (r *GenerateContentRequest) WithTopP(topP *float64) *GenerateContentRequest
 // WithTopK sets the topK parameter and returns the request.
 func (r *GenerateContentRequest) WithTopK(topK *int) *GenerateContentRequest {
 	r.topK = topK
+	return r
+}
+
+// WithFrequencyPenalty sets the frequencyPenalty parameter and returns the request.
+func (r *GenerateContentRequest) WithFrequencyPenalty(frequencyPenalty *float64) *GenerateContentRequest {
+	r.frequencyPenalty = frequencyPenalty
+	return r
+}
+
+// WithPresencePenalty sets the presencePenalty parameter and returns the request.
+func (r *GenerateContentRequest) WithPresencePenalty(presencePenalty *float64) *GenerateContentRequest {
+	r.presencePenalty = presencePenalty
+	return r
+}
+
+// WithSeed sets the seed parameter and returns the request.
+func (r *GenerateContentRequest) WithSeed(seed *int) *GenerateContentRequest {
+	r.seed = seed
+	return r
+}
+
+// WithStop sets the stop sequences and returns the request.
+func (r *GenerateContentRequest) WithStop(stop []string) *GenerateContentRequest {
+	r.stop = stop
 	return r
 }
 
@@ -93,6 +121,26 @@ func (r *GenerateContentRequest) TopP() *float64 {
 // TopK returns the topK parameter for the content generation request.
 func (r *GenerateContentRequest) TopK() *int {
 	return r.topK
+}
+
+// FrequencyPenalty returns the frequencyPenalty parameter for the content generation request.
+func (r *GenerateContentRequest) FrequencyPenalty() *float64 {
+	return r.frequencyPenalty
+}
+
+// PresencePenalty returns the presencePenalty parameter for the content generation request.
+func (r *GenerateContentRequest) PresencePenalty() *float64 {
+	return r.presencePenalty
+}
+
+// Seed returns the seed parameter for the content generation request.
+func (r *GenerateContentRequest) Seed() *int {
+	return r.seed
+}
+
+// Stop returns the stop sequences for the content generation request.
+func (r *GenerateContentRequest) Stop() []string {
+	return r.stop
 }
 
 // Embedding represents a text embedding as a vector of floating-point numbers.

@@ -93,7 +93,14 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	req := &llama.CompletionRequest{
 		Prompt:   prompt,
 		NPredict: -1,
-		Stop:     []string{"<|endoftext|>", "<|im_end|>"},
+	}
+
+	// Set stop sequences - merge defaults with user-provided ones
+	defaultStops := []string{"<|endoftext|>", "<|im_end|>"}
+	if stop := request.Stop(); len(stop) > 0 {
+		req.Stop = append(defaultStops, stop...)
+	} else {
+		req.Stop = defaultStops
 	}
 
 	// Set generation parameters if provided, otherwise use defaults
@@ -113,6 +120,18 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 		req.TopP = *topP
 	} else {
 		req.TopP = 0.95 // default
+	}
+
+	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
+		req.FrequencyPenalty = *frequencyPenalty
+	}
+
+	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
+		req.PresencePenalty = *presencePenalty
+	}
+
+	if seed := request.Seed(); seed != nil {
+		req.Seed = *seed
 	}
 
 	resp, err := g.client.Complete(ctx, req)
