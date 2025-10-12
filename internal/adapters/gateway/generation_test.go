@@ -206,6 +206,126 @@ func TestNewGenerateContentRequestGetters(t *testing.T) {
 	assert.Equal(t, systemPrompt, req.SystemPrompt())
 	assert.Equal(t, userPrompt, req.UserPrompt())
 	assert.Equal(t, maxTokens, req.MaxOutputTokens())
+	// Parameters should be nil by default
+	assert.Nil(t, req.Temperature())
+	assert.Nil(t, req.TopP())
+	assert.Nil(t, req.TopK())
+}
+
+func TestGenerateContentRequestWithParameters(t *testing.T) {
+	model := "gpt-4"
+	systemPrompt := "You are a helpful assistant"
+	userPrompt := "Hello, world!"
+	maxTokens := 100
+	temperature := 0.7
+	topP := 0.9
+	topK := 40
+
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens).
+		WithTemperature(&temperature).
+		WithTopP(&topP).
+		WithTopK(&topK)
+
+	// Test all getter methods including parameters
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, systemPrompt, req.SystemPrompt())
+	assert.Equal(t, userPrompt, req.UserPrompt())
+	assert.Equal(t, maxTokens, req.MaxOutputTokens())
+	assert.NotNil(t, req.Temperature())
+	assert.Equal(t, temperature, *req.Temperature())
+	assert.NotNil(t, req.TopP())
+	assert.Equal(t, topP, *req.TopP())
+	assert.NotNil(t, req.TopK())
+	assert.Equal(t, topK, *req.TopK())
+}
+
+func TestGenerateContentRequestWithPartialParameters(t *testing.T) {
+	model := "claude-3"
+	systemPrompt := "System instructions"
+	userPrompt := "User question"
+	maxTokens := 500
+	temperature := 0.5
+
+	// Test with only temperature set
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens).
+		WithTemperature(&temperature)
+
+	assert.Equal(t, model, req.Model())
+	assert.NotNil(t, req.Temperature())
+	assert.Equal(t, temperature, *req.Temperature())
+	assert.Nil(t, req.TopP())
+	assert.Nil(t, req.TopK())
+}
+
+func TestGenerateContentRequestWithAllParameters(t *testing.T) {
+	model := "gpt-4"
+	systemPrompt := "You are a helpful assistant"
+	userPrompt := "Hello, world!"
+	maxTokens := 100
+	temperature := 0.7
+	topP := 0.9
+	topK := 40
+	frequencyPenalty := 0.5
+	presencePenalty := 0.3
+	seed := 12345
+	stop := []string{"STOP", "END"}
+
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens).
+		WithTemperature(&temperature).
+		WithTopP(&topP).
+		WithTopK(&topK).
+		WithFrequencyPenalty(&frequencyPenalty).
+		WithPresencePenalty(&presencePenalty).
+		WithSeed(&seed).
+		WithStop(stop)
+
+	// Test all getter methods including new parameters
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, systemPrompt, req.SystemPrompt())
+	assert.Equal(t, userPrompt, req.UserPrompt())
+	assert.Equal(t, maxTokens, req.MaxOutputTokens())
+
+	assert.NotNil(t, req.Temperature())
+	assert.Equal(t, temperature, *req.Temperature())
+
+	assert.NotNil(t, req.TopP())
+	assert.Equal(t, topP, *req.TopP())
+
+	assert.NotNil(t, req.TopK())
+	assert.Equal(t, topK, *req.TopK())
+
+	assert.NotNil(t, req.FrequencyPenalty())
+	assert.Equal(t, frequencyPenalty, *req.FrequencyPenalty())
+
+	assert.NotNil(t, req.PresencePenalty())
+	assert.Equal(t, presencePenalty, *req.PresencePenalty())
+
+	assert.NotNil(t, req.Seed())
+	assert.Equal(t, seed, *req.Seed())
+
+	assert.Equal(t, stop, req.Stop())
+}
+
+func TestGenerateContentRequestWithPenaltyParameters(t *testing.T) {
+	model := "gpt-4"
+	systemPrompt := "System"
+	userPrompt := "User"
+	maxTokens := 100
+	frequencyPenalty := 1.5
+	presencePenalty := -0.5
+
+	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens).
+		WithFrequencyPenalty(&frequencyPenalty).
+		WithPresencePenalty(&presencePenalty)
+
+	assert.NotNil(t, req.FrequencyPenalty())
+	assert.Equal(t, frequencyPenalty, *req.FrequencyPenalty())
+	assert.NotNil(t, req.PresencePenalty())
+	assert.Equal(t, presencePenalty, *req.PresencePenalty())
+	// Other parameters should be nil
+	assert.Nil(t, req.Temperature())
+	assert.Nil(t, req.TopP())
+	assert.Nil(t, req.Seed())
 }
 
 func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {

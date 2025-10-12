@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"testing"
 	"time"
 
@@ -81,6 +82,29 @@ func (m *mockFactoryTraceLogger) LogAPIInteraction(entry *tracelog.APIInteractio
 	return nil
 }
 
+// mockHTTPClientService is a mock implementation of HTTPClientService for testing
+type mockHTTPClientService struct {
+	client *http.Client
+}
+
+func newMockHTTPClientService() *mockHTTPClientService {
+	return &mockHTTPClientService{
+		client: &http.Client{Timeout: 10 * time.Minute},
+	}
+}
+
+func (m *mockHTTPClientService) Get() *http.Client {
+	return m.client
+}
+
+func (m *mockHTTPClientService) Close() error {
+	return nil
+}
+
+func (m *mockHTTPClientService) Validate() error {
+	return nil
+}
+
 // setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
 func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -105,7 +129,8 @@ func TestNewGatewayFactory(t *testing.T) {
 	mockCache := &mockCacheRepo{}
 	mockFlags := &mockFlagReader{}
 	mockTrace := &mockFactoryTraceLogger{}
-	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	mockHTTPClient := newMockHTTPClientService()
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, mockHTTPClient)
 	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	assert.IsType(t, &Factory{}, factory)
@@ -113,7 +138,8 @@ func TestNewGatewayFactory(t *testing.T) {
 
 func TestNewGatewayFactoryNilRepo(t *testing.T) {
 	mockCmdReader := &mockCommandNameReader{commandName: "test"}
-	factory, err := NewFactory(nil, nil, nil, nil, mockCmdReader)
+	mockHTTPClient := newMockHTTPClientService()
+	factory, err := NewFactory(nil, nil, nil, nil, mockCmdReader, mockHTTPClient)
 	assert.Error(t, err)
 	assert.Nil(t, factory)
 	assert.Contains(t, err.Error(), "rate limit repository is nil")
@@ -127,7 +153,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	mockCache := &mockCacheRepo{}
 	mockFlags := &mockFlagReader{}
 	mockTrace := &mockFactoryTraceLogger{}
-	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	assert.NoError(t, err)
 	ctx := context.Background()
 
@@ -304,7 +330,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 2000,
 				Timeout:         30 * time.Second,
-				BaseURL:         "",
+				BaseURL:         "https://openrouter.ai/api/v1",
 				APIKey:          "test-key",
 				TokenizerType:   model.TokenizerCL100K,
 			},
@@ -368,7 +394,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	mockCache := &mockCacheRepo{}
 	mockFlags := &mockFlagReader{}
 	mockTrace := &mockFactoryTraceLogger{}
-	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -473,7 +499,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 0,
 				Timeout:         30 * time.Second,
-				BaseURL:         "",
+				BaseURL:         "https://openrouter.ai/api/v1",
 				APIKey:          "test-key",
 				TokenizerType:   model.TokenizerCL100K,
 			},
@@ -559,7 +585,7 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	mockCache := &mockCacheRepo{}
 	mockFlags := &mockFlagReader{}
 	mockTrace := &mockFactoryTraceLogger{}
-	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	assert.NoError(t, err)
 
 	// Create a profile with rate limits enabled
@@ -599,7 +625,7 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	mockCache := &mockCacheRepo{}
 	mockFlags := &mockFlagReader{}
 	mockTrace := &mockFactoryTraceLogger{}
-	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader)
+	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	assert.NoError(t, err)
 
 	// Create a profile with NO rate limits - should use no-op limiter without touching DB

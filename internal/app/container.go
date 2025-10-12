@@ -35,6 +35,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/dbpath"
+	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
@@ -85,6 +86,9 @@ type Container struct {
 
 	// cacheRepo is the repository for LLM response caching (lazy initialized)
 	cacheRepo ports.CacheRepository
+
+	// httpClientService provides shared HTTP client for all gateways
+	httpClientService ports.HTTPClientService
 
 	// dbInitOnce ensures database is initialized only once
 	dbInitOnce sync.Once
@@ -208,6 +212,20 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create database path service: %w", err)
 	}
 
+	// Initialize HTTP client service
+	httpClientService, err := httpclient.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP client service: %w", err)
+	}
+
+	// Register HTTP client cleanup on shutdown
+	err = shutdownService.Register(func(ctx context.Context) error {
+		return httpClientService.Close()
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register HTTP client service shutdown callback: %w", err)
+	}
+
 	container.Logger = logger
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
@@ -215,6 +233,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	container.OutputService = outputService
 	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
+	container.httpClientService = httpClientService
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
 	cmd.SetContext(shutdownCtx)
@@ -293,6 +312,11 @@ func (c *Container) GetCacheRepo() ports.CacheRepository {
 		return nil
 	}
 	return c.cacheRepo
+}
+
+// GetHTTPClientService returns the HTTP client service.
+func (c *Container) GetHTTPClientService() ports.HTTPClientService {
+	return c.httpClientService
 }
 
 // getLogDir returns the appropriate log directory for the current OS.

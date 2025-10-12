@@ -22,6 +22,7 @@ models:
 profiles:
   fast:
     model: "gemini-flash"
+    temperature: 0.3  # Lower temperature for more focused, deterministic responses
     cache:
       enabled: true
       ttl: "24h"
@@ -29,6 +30,8 @@ profiles:
   smart:
     model: "gemini-pro"
     timeout: "10m"
+    temperature: 0.2  # Low temperature for analytical tasks
+    topP: 0.95
     cache:
       enabled: true
       ttl: "72h"

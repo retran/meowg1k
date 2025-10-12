@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -27,7 +28,7 @@ import (
 
 func TestNewLlamaGateway(t *testing.T) {
 	t.Run("Valid parameters", func(t *testing.T) {
-		gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key")
+		gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -41,7 +42,7 @@ func TestNewLlamaGateway(t *testing.T) {
 	})
 
 	t.Run("Empty base URL", func(t *testing.T) {
-		gateway, err := newLlamaGateway("", "test-api-key")
+		gateway, err := newLlamaGateway("", "test-api-key", &http.Client{})
 		if err == nil && gateway != nil {
 			t.Log("Llama allows empty base URL on creation")
 		} else if err != nil {
@@ -52,7 +53,7 @@ func TestNewLlamaGateway(t *testing.T) {
 	})
 
 	t.Run("Empty API key", func(t *testing.T) {
-		gateway, err := newLlamaGateway("http://localhost:11434", "")
+		gateway, err := newLlamaGateway("http://localhost:11434", "", &http.Client{})
 		if err == nil && gateway != nil {
 			t.Log("Llama allows empty API key on creation")
 		} else if err != nil {
@@ -63,7 +64,7 @@ func TestNewLlamaGateway(t *testing.T) {
 	})
 
 	t.Run("Invalid URL format", func(t *testing.T) {
-		gateway, err := newLlamaGateway("not-a-valid-url", "test-api-key")
+		gateway, err := newLlamaGateway("not-a-valid-url", "test-api-key", &http.Client{})
 		if err == nil && gateway != nil {
 			t.Log("Llama allows invalid URL format on creation")
 		} else if err != nil {
@@ -83,7 +84,7 @@ func TestNewLlamaGateway(t *testing.T) {
 
 		for _, url := range testURLs {
 			t.Run("URL_"+url, func(t *testing.T) {
-				gateway, err := newLlamaGateway(url, "test-api-key")
+				gateway, err := newLlamaGateway(url, "test-api-key", &http.Client{})
 				if err != nil {
 					t.Logf("Gateway creation failed for URL %s: %v", url, err)
 				} else if gateway == nil {
@@ -96,7 +97,7 @@ func TestNewLlamaGateway(t *testing.T) {
 
 func TestLlamaGateway_GenerateContent(t *testing.T) {
 	// Try to create a gateway for testing
-	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key")
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
 	if err != nil {
 		t.Skipf("Cannot create Llama gateway for testing: %v", err)
 		return
@@ -221,7 +222,7 @@ func TestLlamaGateway_GenerateContent(t *testing.T) {
 }
 
 func TestLlamaGateway_ContentTypes(t *testing.T) {
-	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key")
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
 	if err != nil {
 		t.Skipf("Cannot create Llama gateway for content testing: %v", err)
 		return
@@ -355,7 +356,7 @@ func TestLlamaGateway_ContentTypes(t *testing.T) {
 }
 
 func TestLlamaGateway_EdgeCases(t *testing.T) {
-	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key")
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
 	if err != nil {
 		t.Skipf("Cannot create Llama gateway for edge case testing: %v", err)
 		return
@@ -457,7 +458,7 @@ func TestLlamaGateway_EdgeCases(t *testing.T) {
 }
 
 func TestLlamaGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key")
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
 	if err != nil {
 		t.Skipf("Cannot create Llama gateway for interface testing: %v", err)
 		return

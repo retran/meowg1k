@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 const (
@@ -42,7 +41,9 @@ type Client struct {
 }
 
 // NewClient creates a new Voyage AI client with the given configuration.
-func NewClient(baseURL, apiKey string, timeout time.Duration) (*Client, error) {
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple client instances.
+func NewClient(baseURL, apiKey string, httpClient *http.Client) (*Client, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("voyage API key is required")
 	}
@@ -51,16 +52,14 @@ func NewClient(baseURL, apiKey string, timeout time.Duration) (*Client, error) {
 		baseURL = DefaultBaseURL
 	}
 
-	if timeout == 0 {
-		timeout = 30 * time.Second
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client cannot be nil")
 	}
 
 	return &Client{
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		httpClient: &http.Client{
-			Timeout: timeout,
-		},
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		httpClient: httpClient,
 	}, nil
 }
 

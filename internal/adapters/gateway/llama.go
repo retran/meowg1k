@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -44,13 +45,19 @@ const (
 	assistantStart    = "<|im_start|>assistant\n"
 )
 
-// NewLlamaGateway creates and initializes a new LlamaGateway.
-func newLlamaGateway(baseURL, apiKey string) (ports.GenerationGateway, error) {
+// newLlamaGateway creates and initializes a new LlamaGateway with a shared HTTP client.
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple gateway instances.
+func newLlamaGateway(baseURL, apiKey string, httpClient *http.Client) (ports.GenerationGateway, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL is required for llama gateway")
 	}
 
-	client, err := llama.NewClient(baseURL, apiKey)
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client is required for llama gateway")
+	}
+
+	client, err := llama.NewClient(baseURL, apiKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create llama client with base URL %q: %w", baseURL, err)
 	}
@@ -91,18 +98,108 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	prompt := promptBuilder.String()
 
 	req := &llama.CompletionRequest{
-		Prompt:      prompt,
-		Temperature: 0.8,
-		TopK:        40,
-		TopP:        0.95,
-		NPredict:    -1,
-		Stop:        []string{"<|endoftext|>", "<|im_end|>"},
+		Prompt:   prompt,
+		NPredict: -1,
 	}
 
-	resp, err := g.client.Complete(ctx, req)
+	// Set stop sequences - merge defaults with user-provided ones
+	defaultStops := []string{"<|endoftext|>", "<|im_end|>"}
+	if stop := request.Stop(); len(stop) > 0 {
+		req.Stop = append(defaultStops, stop...)
+	} else {
+		req.Stop = defaultStops
+	}
+
+	// Set generation parameters if provided, otherwise use defaults
+	if temperature := request.Temperature(); temperature != nil {
+		req.Temperature = *temperature
+	} else {
+		req.Temperature = 0.8 // default
+	}
+
+	if topK := request.TopK(); topK != nil {
+		req.TopK = *topK
+	} else {
+		req.TopK = 40 // default
+	}
+
+	if topP := request.TopP(); topP != nil {
+		req.TopP = *topP
+	} else {
+		req.TopP = 0.95 // default
+	}
+
+	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
+		req.FrequencyPenalty = *frequencyPenalty
+	}
+
+	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
+		req.PresencePenalty = *presencePenalty
+	}
+
+	if seed := request.Seed(); seed != nil {
+		req.Seed = *seed
+	}
+
+	// OpenRouter/Llama.cpp specific parameters
+	if repetitionPenalty := request.RepetitionPenalty(); repetitionPenalty != nil {
+		req.RepeatPenalty = *repetitionPenalty
+	}
+
+	if minP := request.MinP(); minP != nil {
+		req.MinP = *minP
+	}
+
+	if typicalP := request.TypicalP(); typicalP != nil {
+		req.TypicalP = *typicalP
+	}
+
+	if mirostat := request.Mirostat(); mirostat != nil {
+		req.Mirostat = *mirostat
+	}
+
+	if mirostatTau := request.MirostatTau(); mirostatTau != nil {
+		req.MirostatTau = *mirostatTau
+	}
+
+	if mirostatEta := request.MirostatEta(); mirostatEta != nil {
+		req.MirostatEta = *mirostatEta
+	}
+
+	if grammar := request.Grammar(); grammar != nil {
+		req.Grammar = *grammar
+	}
+
+	// Use JSONSchema if ResponseSchema is provided
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		req.JSONSchema = responseSchema
+	}
+
+	// Use LogitBias if provided
+	if logitBias := request.LogitBias(); len(logitBias) > 0 {
+		req.LogitBias = logitBias
+	}
+
+	// Use NProbs for log probabilities if requested
+	if logProbs := request.LogProbs(); logProbs != nil && *logProbs {
+		if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
+			req.NProbs = *topLogProbs
+		} else {
+			req.NProbs = 5 // default
+		}
+	}
+
+	// Note: Some parameters are not supported by llama.cpp completion API:
+	// - TopA: Not directly supported by llama.cpp
+	// - ResponseFormat: Would need custom implementation (but JSONSchema is supported)
+	// - CandidateCount: llama.cpp returns single completion
+	// - ServiceTier: Not applicable for local models
+	// - User: Not applicable for local models
+
+	response, err := g.client.Complete(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
 	}
 
-	return resp.Content, nil
+	return response.Content, nil
 }

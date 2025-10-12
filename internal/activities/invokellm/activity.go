@@ -82,7 +82,29 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			input.SystemPrompt,
 			input.UserPrompt,
 			input.Profile.MaxOutputTokens,
-		)
+		).WithTemperature(input.Profile.Temperature).
+			WithTopP(input.Profile.TopP).
+			WithTopK(input.Profile.TopK).
+			WithFrequencyPenalty(input.Profile.FrequencyPenalty).
+			WithPresencePenalty(input.Profile.PresencePenalty).
+			WithSeed(input.Profile.Seed).
+			WithStop(input.Profile.Stop).
+			WithResponseFormat(input.Profile.ResponseFormat).
+			WithResponseSchema(input.Profile.ResponseSchema).
+			WithCandidateCount(input.Profile.CandidateCount).
+			WithLogProbs(input.Profile.LogProbs).
+			WithTopLogProbs(input.Profile.TopLogProbs).
+			WithLogitBias(input.Profile.LogitBias).
+			WithServiceTier(input.Profile.ServiceTier).
+			WithUser(input.Profile.User).
+			WithRepetitionPenalty(input.Profile.RepetitionPenalty).
+			WithMinP(input.Profile.MinP).
+			WithTopA(input.Profile.TopA).
+			WithTypicalP(input.Profile.TypicalP).
+			WithMirostat(input.Profile.Mirostat).
+			WithMirostatTau(input.Profile.MirostatTau).
+			WithMirostatEta(input.Profile.MirostatEta).
+			WithGrammar(input.Profile.Grammar)
 
 		content, err := generationGateway.GenerateContent(ctx, request)
 		if err != nil {
