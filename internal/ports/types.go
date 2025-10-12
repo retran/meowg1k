@@ -19,6 +19,7 @@ package ports
 import (
 	"context"
 	"database/sql"
+	"net/http"
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/config"
@@ -93,4 +94,18 @@ type FlagReader interface {
 // CommandNameReader defines the contract for reading the current command name.
 type CommandNameReader interface {
 	GetCommandName() (string, error)
+}
+
+// HTTPClientService defines the contract for providing HTTP client instances.
+// This service manages a shared HTTP client that can be reused across multiple gateways,
+// which is more efficient than creating new clients for each gateway instance.
+type HTTPClientService interface {
+	// Get returns the shared HTTP client instance.
+	Get() *http.Client
+
+	// Close cleans up any resources held by the HTTP client.
+	Close() error
+
+	// Validate checks if the service is properly initialized.
+	Validate() error
 }

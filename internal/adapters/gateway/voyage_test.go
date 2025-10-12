@@ -30,7 +30,7 @@ import (
 
 func TestNewVoyageGateway(t *testing.T) {
 	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -42,7 +42,7 @@ func TestNewVoyageGateway(t *testing.T) {
 	t.Run("Empty API key", func(t *testing.T) {
 		// The Voyage service might allow empty API key during creation
 		// but fail during actual API calls
-		gateway, err := newVoyageGateway("")
+		gateway, err := newVoyageGateway("", &http.Client{})
 		// Test based on actual behavior - some adapters validate on creation, others on use
 		if err != nil {
 			t.Logf("Service validates API key on creation: %v", err)
@@ -153,7 +153,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 	defer server.Close()
 
 	t.Run("Compute embeddings with valid request", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -181,7 +181,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 	})
 
 	t.Run("Compute embeddings with different task types", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -222,7 +222,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 	})
 
 	t.Run("Compute embeddings with large chunks", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -250,7 +250,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 	})
 
 	t.Run("Compute embeddings with empty chunks", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -273,7 +273,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 	})
 
 	t.Run("Compute embeddings with canceled context", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key")
+		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -299,7 +299,7 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 }
 
 func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key")
+	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -324,7 +324,7 @@ func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
 }
 
 func TestVoyageGateway_EdgeCases(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key")
+	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
