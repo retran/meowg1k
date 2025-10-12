@@ -35,11 +35,14 @@ type openrouterGateway struct {
 	client  *http.Client
 }
 
-// NewOpenRouterGateway creates a new OpenRouter gateway with direct HTTP client
+// NewOpenRouterGateway creates a new OpenRouter gateway with a shared HTTP client.
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple gateway instances.
 func NewOpenRouterGateway(
 	_ context.Context,
 	baseURL string,
 	apiKey string,
+	httpClient *http.Client,
 ) (ports.GenerationGateway, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL is required for OpenRouter gateway")
@@ -49,10 +52,14 @@ func NewOpenRouterGateway(
 		return nil, fmt.Errorf("API key is required for OpenRouter gateway")
 	}
 
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client is required for OpenRouter gateway")
+	}
+
 	return &openrouterGateway{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		client:  &http.Client{},
+		client:  httpClient,
 	}, nil
 }
 

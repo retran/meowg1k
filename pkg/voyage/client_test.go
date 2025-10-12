@@ -33,7 +33,6 @@ func TestNewService(t *testing.T) {
 		name        string
 		apiKey      string
 		baseURL     string
-		timeout     time.Duration
 		expectError bool
 		errorMsg    string
 	}{
@@ -41,7 +40,6 @@ func TestNewService(t *testing.T) {
 			name:        "Valid service creation",
 			apiKey:      "test-api-key",
 			baseURL:     "https://api.voyageai.com/v1",
-			timeout:     30 * time.Second,
 			expectError: false,
 		},
 		{
@@ -50,7 +48,7 @@ func TestNewService(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:        "Client creation with default timeout",
+			name:        "Client creation with default base URL 2",
 			apiKey:      "test-api-key",
 			baseURL:     "https://custom.api.com",
 			expectError: false,
@@ -63,9 +61,11 @@ func TestNewService(t *testing.T) {
 		},
 	}
 
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewClient(tt.baseURL, tt.apiKey, tt.timeout)
+			service, err := NewClient(tt.baseURL, tt.apiKey, httpClient)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -85,11 +85,9 @@ func TestNewService(t *testing.T) {
 				}
 				assert.Equal(t, expectedbaseURL, service.baseURL)
 
-				expectedTimeout := tt.timeout
-				if expectedTimeout == 0 {
-					expectedTimeout = 30 * time.Second
-				}
-				assert.Equal(t, expectedTimeout, service.httpClient.Timeout)
+				// Verify that httpClient was set
+				assert.NotNil(t, service.httpClient)
+				assert.Equal(t, httpClient, service.httpClient)
 			}
 		})
 	}
@@ -237,10 +235,11 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			defer server.Close()
 
 			// Create service with test server URL
+			testHTTPClient := &http.Client{Timeout: 5 * time.Second}
 			service, err := NewClient(
 				server.URL,
 				"test-api-key",
-				5*time.Second,
+				testHTTPClient,
 			)
 			require.NoError(t, err)
 
@@ -282,10 +281,11 @@ func TestServiceImpl_CreateEmbeddingsWithContext(t *testing.T) {
 	}))
 	defer server.Close()
 
+	testHTTPClient := &http.Client{Timeout: 5 * time.Second}
 	service, err := NewClient(
 		server.URL,
 		"test-api-key",
-		5*time.Second,
+		testHTTPClient,
 	)
 	require.NoError(t, err)
 

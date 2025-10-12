@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 )
 
 // CompletionRequest represents the request body for /completion endpoint
@@ -120,15 +119,21 @@ type Client struct {
 }
 
 // NewClient creates a new client for interacting with the LLM completion endpoint.
-func NewClient(baseURL, apiKey string) (*Client, error) {
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple client instances.
+func NewClient(baseURL, apiKey string, httpClient *http.Client) (*Client, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL cannot be empty")
+	}
+
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client cannot be nil")
 	}
 
 	return &Client{
 		baseURL:    baseURL,
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 10 * time.Minute},
+		httpClient: httpClient,
 	}, nil
 }
 

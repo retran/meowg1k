@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -44,13 +45,19 @@ const (
 	assistantStart    = "<|im_start|>assistant\n"
 )
 
-// NewLlamaGateway creates and initializes a new LlamaGateway.
-func newLlamaGateway(baseURL, apiKey string) (ports.GenerationGateway, error) {
+// newLlamaGateway creates and initializes a new LlamaGateway with a shared HTTP client.
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple gateway instances.
+func newLlamaGateway(baseURL, apiKey string, httpClient *http.Client) (ports.GenerationGateway, error) {
 	if baseURL == "" {
 		return nil, fmt.Errorf("base URL is required for llama gateway")
 	}
 
-	client, err := llama.NewClient(baseURL, apiKey)
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client is required for llama gateway")
+	}
+
+	client, err := llama.NewClient(baseURL, apiKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create llama client with base URL %q: %w", baseURL, err)
 	}
