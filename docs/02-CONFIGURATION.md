@@ -133,7 +133,7 @@ models:
 
 ### `profiles`
 
-Profiles define a reusable set of parameters for an LLM request, such as timeout or temperature. Each profile must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
+Profiles define a reusable set of parameters for an LLM request, such as timeout, temperature, and sampling parameters. Each profile must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
 
 ```yaml
 profiles:
@@ -151,8 +151,31 @@ profiles:
   creative:
     model: "claude-sonnet"
     temperature: 0.8
+    topP: 0.95
     topK: 50
+
+  # A profile for deterministic code generation
+  deterministic-code:
+    model: "claude-sonnet"
+    temperature: 0.1
+    maxTokens: 2048
 ```
+
+#### Profile Parameters
+
+- **`model`** (required): Reference to a model defined in the `models` section.
+- **`timeout`** (optional): Request timeout duration (e.g., "5m", "10m"). Defaults to 5 minutes.
+- **`temperature`** (optional): Controls randomness in generation (0.0-2.0 for most providers). Lower values make output more focused and deterministic, higher values make it more creative.
+- **`topP`** (optional): Controls nucleus sampling (0.0-1.0). The model considers only tokens with cumulative probability up to this threshold.
+- **`topK`** (optional): Limits sampling to the top K most probable tokens. Use for additional control over randomness.
+- **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this profile.
+- **`cache`** (optional): Override global cache settings for this profile (see Cache section).
+
+**Note:** The availability and exact behavior of `temperature`, `topP`, and `topK` parameters may vary by provider:
+- **Gemini**: Supports `temperature`, `topP`, `topK`
+- **Anthropic**: Supports `temperature`, `topP`, `topK`
+- **OpenAI/OpenRouter**: Supports `temperature`, `topP` (topK not available)
+- **Llama.cpp**: Supports `temperature`, `topP`, `topK`
 
 ### `cache`
 
