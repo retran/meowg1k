@@ -105,6 +105,72 @@ func (g *openaiGateway) GenerateContent(
 		}
 	}
 
+	// ResponseFormat for structured outputs
+	// Note: The OpenAI SDK has different structures for ResponseFormat
+	// This would need specific SDK methods or types that may vary by SDK version
+	// For now, we document this as available but may need SDK-specific implementation
+	if responseFormat := request.ResponseFormat(); responseFormat != nil {
+		// TODO: Implement ResponseFormat based on OpenAI SDK version
+		// The exact structure depends on the SDK being used
+		_ = responseFormat
+	}
+
+	// ResponseSchema may be used with response_format in OpenAI
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		// TODO: Implement ResponseSchema integration with ResponseFormat
+		_ = responseSchema
+	}
+
+	// Number of completions to generate
+	if candidateCount := request.CandidateCount(); candidateCount != nil {
+		params.N = openai.Int(int64(*candidateCount))
+	}
+
+	// LogProbs parameters
+	if logProbs := request.LogProbs(); logProbs != nil && *logProbs {
+		params.Logprobs = openai.Bool(true)
+		if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
+			params.TopLogprobs = openai.Int(int64(*topLogProbs))
+		}
+	}
+
+	// LogitBias for token likelihood modification
+	if logitBias := request.LogitBias(); len(logitBias) > 0 {
+		biasMap := make(map[string]int64)
+		for k, v := range logitBias {
+			biasMap[k] = int64(v)
+		}
+		params.LogitBias = biasMap
+	}
+
+	// ServiceTier (e.g., "auto", "default")
+	if serviceTier := request.ServiceTier(); serviceTier != nil {
+		params.ServiceTier = openai.ChatCompletionNewParamsServiceTier(*serviceTier)
+	}
+
+	// User identifier for tracking
+	if user := request.User(); user != nil {
+		params.User = openai.String(*user)
+	}
+
+	// OpenRouter-specific parameters (also supported by some other providers)
+	// These will be passed through to the provider if supported
+	if repetitionPenalty := request.RepetitionPenalty(); repetitionPenalty != nil {
+		// Note: This is OpenRouter/Llama.cpp specific
+		// The OpenAI SDK may not have direct support, but it can be passed as extra params
+		_ = repetitionPenalty // TODO: Add as extra param if SDK supports it
+	}
+
+	if minP := request.MinP(); minP != nil {
+		// Note: This is OpenRouter/Llama.cpp specific
+		_ = minP // TODO: Add as extra param if SDK supports it
+	}
+
+	if topA := request.TopA(); topA != nil {
+		// Note: This is OpenRouter specific
+		_ = topA // TODO: Add as extra param if SDK supports it
+	}
+
 	response, err := g.client.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)

@@ -92,6 +92,67 @@ provider-specific defaults if omitted.
 \fBrequestsPerDay\fR (optional): Rate limit, requests per day. 0 = unlimited.
 .IP \[bu]
 \fBtokensPerMinute\fR (optional): Rate limit, tokens per minute. 0 = unlimited.
+.IP \[bu]
+\fBtemperature\fR (optional): Sampling temperature (0.0-2.0). Higher values
+increase randomness. Default varies by provider.
+.IP \[bu]
+\fBtopP\fR (optional): Nucleus sampling parameter (0.0-1.0). Limits token
+selection to top probability mass.
+.IP \[bu]
+\fBtopK\fR (optional): Top-K sampling parameter. Limits token selection to
+K most likely tokens.
+.IP \[bu]
+\fBmaxTokens\fR (optional): Maximum tokens to generate. Overrides maxOutputTokens.
+.IP \[bu]
+\fBfrequencyPenalty\fR (optional): Penalty for token frequency (-2.0 to 2.0).
+Reduces repetition by penalizing tokens that appear frequently.
+.IP \[bu]
+\fBpresencePenalty\fR (optional): Penalty for token presence (-2.0 to 2.0).
+Encourages topic diversity.
+.IP \[bu]
+\fBrepetitionPenalty\fR (optional): Penalty for repetition (0.0-2.0).
+OpenRouter and llama.cpp only.
+.IP \[bu]
+\fBseed\fR (optional): Random seed for deterministic generation.
+.IP \[bu]
+\fBstop\fR (optional): Stop sequences. Array of strings or single string.
+.IP \[bu]
+\fBresponseFormat\fR (optional): Response format. Values: "text",
+"json_object", "json_schema".
+.IP \[bu]
+\fBresponseSchema\fR (optional): JSON schema for structured output.
+Used with responseFormat: "json_schema".
+.IP \[bu]
+\fBcandidateCount\fR (optional): Number of response candidates to generate.
+Gemini and OpenAI (as 'n') only.
+.IP \[bu]
+\fBlogProbs\fR (optional): Enable log probabilities (boolean).
+.IP \[bu]
+\fBtopLogProbs\fR (optional): Number of top log probabilities per token (0-20).
+.IP \[bu]
+\fBlogitBias\fR (optional): Map of token IDs to bias values (-100 to 100).
+.IP \[bu]
+\fBserviceTier\fR (optional): OpenAI service tier (e.g., "auto", "default").
+.IP \[bu]
+\fBuser\fR (optional): End-user identifier. OpenAI only.
+.IP \[bu]
+\fBminP\fR (optional): Minimum probability threshold (0.0-1.0).
+OpenRouter and llama.cpp only.
+.IP \[bu]
+\fBtopA\fR (optional): Top-A filtering (0.0-1.0). OpenRouter only.
+.IP \[bu]
+\fBtypicalP\fR (optional): Locally typical sampling (0.0-1.0). Llama.cpp only.
+.IP \[bu]
+\fBmirostat\fR (optional): Mirostat mode (0, 1, or 2). Llama.cpp only.
+.IP \[bu]
+\fBmirostatTau\fR (optional): Mirostat target entropy. Llama.cpp only.
+.IP \[bu]
+\fBmirostatEta\fR (optional): Mirostat learning rate. Llama.cpp only.
+.IP \[bu]
+\fBgrammar\fR (optional): GBNF grammar string. Llama.cpp only.
+.PP
+See \fBmeow-config\fR(5) CONFIGURATION.md for detailed parameter descriptions
+and provider support matrix.
 
 .SS filter
 File filtering configuration using gitignore-style patterns. Essential for

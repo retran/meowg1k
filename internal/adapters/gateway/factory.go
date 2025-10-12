@@ -184,7 +184,8 @@ func (f *Factory) NewGenerationGateway(
 			return nil, fmt.Errorf("openrouter provider requires an API key for model %q", profile.Model)
 		}
 
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		// Use dedicated OpenRouter gateway to support all OpenRouter-specific parameters
+		gateway, err = NewOpenRouterGateway(ctx, profile.BaseURL, profile.APIKey)
 	case provider.Anthropic:
 		if profile.APIKey == "" {
 			return nil, fmt.Errorf("anthropic provider requires an API key for model %q", profile.Model)

@@ -134,10 +134,65 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 		req.Seed = *seed
 	}
 
-	resp, err := g.client.Complete(ctx, req)
+	// OpenRouter/Llama.cpp specific parameters
+	if repetitionPenalty := request.RepetitionPenalty(); repetitionPenalty != nil {
+		req.RepeatPenalty = *repetitionPenalty
+	}
+
+	if minP := request.MinP(); minP != nil {
+		req.MinP = *minP
+	}
+
+	if typicalP := request.TypicalP(); typicalP != nil {
+		req.TypicalP = *typicalP
+	}
+
+	if mirostat := request.Mirostat(); mirostat != nil {
+		req.Mirostat = *mirostat
+	}
+
+	if mirostatTau := request.MirostatTau(); mirostatTau != nil {
+		req.MirostatTau = *mirostatTau
+	}
+
+	if mirostatEta := request.MirostatEta(); mirostatEta != nil {
+		req.MirostatEta = *mirostatEta
+	}
+
+	if grammar := request.Grammar(); grammar != nil {
+		req.Grammar = *grammar
+	}
+
+	// Use JSONSchema if ResponseSchema is provided
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		req.JSONSchema = responseSchema
+	}
+
+	// Use LogitBias if provided
+	if logitBias := request.LogitBias(); len(logitBias) > 0 {
+		req.LogitBias = logitBias
+	}
+
+	// Use NProbs for log probabilities if requested
+	if logProbs := request.LogProbs(); logProbs != nil && *logProbs {
+		if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
+			req.NProbs = *topLogProbs
+		} else {
+			req.NProbs = 5 // default
+		}
+	}
+
+	// Note: Some parameters are not supported by llama.cpp completion API:
+	// - TopA: Not directly supported by llama.cpp
+	// - ResponseFormat: Would need custom implementation (but JSONSchema is supported)
+	// - CandidateCount: llama.cpp returns single completion
+	// - ServiceTier: Not applicable for local models
+	// - User: Not applicable for local models
+
+	response, err := g.client.Complete(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
 	}
 
-	return resp.Content, nil
+	return response.Content, nil
 }

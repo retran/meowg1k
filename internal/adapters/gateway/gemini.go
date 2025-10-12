@@ -119,6 +119,41 @@ func (g *geminiGateway) GenerateContent(
 		generationConfig.StopSequences = stop
 	}
 
+	// ResponseFormat maps to ResponseMIMEType in Gemini API
+	if responseFormat := request.ResponseFormat(); responseFormat != nil {
+		switch *responseFormat {
+		case "json_object", "json_schema":
+			generationConfig.ResponseMIMEType = "application/json"
+		case "text":
+			generationConfig.ResponseMIMEType = "text/plain"
+		}
+	}
+
+	// ResponseSchema is directly supported by Gemini
+	// Note: Would need type conversion from map[string]interface{} to *genai.Schema
+	// This is complex and may require additional helper functions
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		// TODO: Convert map[string]interface{} to *genai.Schema
+		// For now, this parameter will need to be set manually or through a helper
+		_ = responseSchema
+	}
+
+	// CandidateCount controls number of responses
+	if candidateCount := request.CandidateCount(); candidateCount != nil {
+		generationConfig.CandidateCount = int32(*candidateCount)
+	}
+
+	// LogProbs control
+	if logProbs := request.LogProbs(); logProbs != nil {
+		generationConfig.ResponseLogprobs = *logProbs
+	}
+
+	// TopLogProbs maps to Logprobs in Gemini
+	if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
+		lp := int32(*topLogProbs)
+		generationConfig.Logprobs = &lp
+	}
+
 	userPrompt := genai.Text(request.UserPrompt())
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)

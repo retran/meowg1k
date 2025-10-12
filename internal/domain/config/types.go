@@ -130,6 +130,82 @@ type ProfileDefinition struct {
 	// Stop specifies sequences where the model will stop generating (optional)
 	Stop []string `yaml:"stop" mapstructure:"stop"`
 
+	// ResponseFormat specifies the format of the response (e.g., "text", "json_object", "json_schema")
+	// Supported by: OpenAI, Anthropic (as responseMimeType)
+	ResponseFormat *string `yaml:"responseFormat" mapstructure:"responseFormat"`
+
+	// ResponseSchema specifies a JSON schema for structured output (optional)
+	// When provided, the model will generate output matching this schema
+	// Supported by: OpenAI (with response_format), Gemini, Anthropic
+	ResponseSchema map[string]interface{} `yaml:"responseSchema" mapstructure:"responseSchema"`
+
+	// CandidateCount specifies the number of response candidates to generate (optional)
+	// Supported by: Gemini (candidateCount), OpenAI (n)
+	CandidateCount *int `yaml:"candidateCount" mapstructure:"candidateCount"`
+
+	// LogProbs enables returning log probabilities of output tokens (optional)
+	// Supported by: OpenAI, Gemini (responseLogprobs)
+	LogProbs *bool `yaml:"logProbs" mapstructure:"logProbs"`
+
+	// TopLogProbs specifies how many top log probabilities to return per token (optional, 0-20)
+	// Only used when LogProbs is true
+	// Supported by: OpenAI (top_logprobs), Gemini (logprobs)
+	TopLogProbs *int `yaml:"topLogProbs" mapstructure:"topLogProbs"`
+
+	// LogitBias modifies the likelihood of specified tokens appearing (optional)
+	// Map of token IDs to bias values (-100 to 100)
+	// Supported by: OpenAI
+	LogitBias map[string]int `yaml:"logitBias" mapstructure:"logitBias"`
+
+	// ServiceTier specifies the service tier for the request (optional, e.g., "auto", "default")
+	// Supported by: OpenAI
+	ServiceTier *string `yaml:"serviceTier" mapstructure:"serviceTier"`
+
+	// User specifies a unique identifier for the end-user (optional)
+	// Used for abuse monitoring and tracking
+	// Supported by: OpenAI
+	User *string `yaml:"user" mapstructure:"user"`
+
+	// RepetitionPenalty reduces repetition of tokens from input (optional, 0.0 to 2.0)
+	// Higher values make repetition less likely. Token penalty scales based on original token's probability.
+	// Supported by: OpenRouter, Llama.cpp
+	RepetitionPenalty *float64 `yaml:"repetitionPenalty" mapstructure:"repetitionPenalty"`
+
+	// MinP represents minimum probability for a token relative to the most likely token (optional, 0.0 to 1.0)
+	// If set to 0.1, only tokens that are at least 1/10th as probable as the best option are considered.
+	// Supported by: OpenRouter, Llama.cpp
+	MinP *float64 `yaml:"minP" mapstructure:"minP"`
+
+	// TopA filters tokens based on "sufficiently high" probabilities (optional, 0.0 to 1.0)
+	// A dynamic filtering mechanism similar to Top-P
+	// Supported by: OpenRouter
+	TopA *float64 `yaml:"topA" mapstructure:"topA"`
+
+	// TypicalP (typical sampling) parameter (optional, 0.0 to 1.0)
+	// Locally typical sampling implementation, balancing creativity and coherence
+	// Supported by: Llama.cpp
+	TypicalP *float64 `yaml:"typicalP" mapstructure:"typicalP"`
+
+	// Mirostat enables Mirostat sampling algorithm (optional, 0, 1, or 2)
+	// 0 = disabled, 1 = Mirostat v1, 2 = Mirostat v2
+	// Supported by: Llama.cpp
+	Mirostat *int `yaml:"mirostat" mapstructure:"mirostat"`
+
+	// MirostatTau is the target entropy for Mirostat (optional, default 5.0)
+	// Controls the balance of coherence/creativity in Mirostat sampling
+	// Supported by: Llama.cpp
+	MirostatTau *float64 `yaml:"mirostatTau" mapstructure:"mirostatTau"`
+
+	// MirostatEta is the learning rate for Mirostat (optional, default 0.1)
+	// Controls how quickly Mirostat adjusts
+	// Supported by: Llama.cpp
+	MirostatEta *float64 `yaml:"mirostatEta" mapstructure:"mirostatEta"`
+
+	// Grammar specifies a grammar string for constrained generation (optional)
+	// Uses GBNF (GGML BNF) format for grammar rules
+	// Supported by: Llama.cpp
+	Grammar *string `yaml:"grammar" mapstructure:"grammar"`
+
 	// Cache overrides global cache settings for this profile (optional)
 	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
 }

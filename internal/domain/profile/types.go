@@ -44,14 +44,30 @@ type ResolvedProfile struct {
 	RateLimit       model.RateLimitConfig // Rate limiting config
 
 	// Request-specific parameters (from profile config)
-	Timeout          time.Duration // Request timeout
-	Temperature      *float64      // Temperature parameter (optional)
-	TopP             *float64      // TopP parameter (optional)
-	TopK             *int          // TopK parameter (optional)
-	FrequencyPenalty *float64      // Frequency penalty parameter (optional)
-	PresencePenalty  *float64      // Presence penalty parameter (optional)
-	Seed             *int          // Random seed for deterministic sampling (optional)
-	Stop             []string      // Stop sequences (optional)
+	Timeout           time.Duration          // Request timeout
+	Temperature       *float64               // Temperature parameter (optional)
+	TopP              *float64               // TopP parameter (optional)
+	TopK              *int                   // TopK parameter (optional)
+	FrequencyPenalty  *float64               // Frequency penalty parameter (optional)
+	PresencePenalty   *float64               // Presence penalty parameter (optional)
+	Seed              *int                   // Random seed for deterministic sampling (optional)
+	Stop              []string               // Stop sequences (optional)
+	ResponseFormat    *string                // Response format (e.g., "text", "json_object", "json_schema")
+	ResponseSchema    map[string]interface{} // JSON schema for structured output (optional)
+	CandidateCount    *int                   // Number of response candidates to generate (optional)
+	LogProbs          *bool                  // Enable log probabilities (optional)
+	TopLogProbs       *int                   // Number of top log probabilities per token (optional)
+	LogitBias         map[string]int         // Token likelihood modifiers (optional)
+	ServiceTier       *string                // Service tier for the request (optional)
+	User              *string                // End-user identifier (optional)
+	RepetitionPenalty *float64               // Repetition penalty (OpenRouter, Llama.cpp)
+	MinP              *float64               // Minimum probability threshold (OpenRouter, Llama.cpp)
+	TopA              *float64               // Top-A filtering (OpenRouter)
+	TypicalP          *float64               // Typical sampling parameter (Llama.cpp)
+	Mirostat          *int                   // Mirostat sampling mode (Llama.cpp)
+	MirostatTau       *float64               // Mirostat target entropy (Llama.cpp)
+	MirostatEta       *float64               // Mirostat learning rate (Llama.cpp)
+	Grammar           *string                // Grammar constraints (Llama.cpp)
 
 	// Cache configuration (merged from global and profile-specific settings)
 	CacheEnabled bool          // Whether caching is enabled for this profile

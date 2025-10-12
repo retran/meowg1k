@@ -23,17 +23,33 @@ import (
 
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
-	model            string
-	systemPrompt     string
-	userPrompt       string
-	maxOutputTokens  int
-	temperature      *float64
-	topP             *float64
-	topK             *int
-	frequencyPenalty *float64
-	presencePenalty  *float64
-	seed             *int
-	stop             []string
+	model             string
+	systemPrompt      string
+	userPrompt        string
+	maxOutputTokens   int
+	temperature       *float64
+	topP              *float64
+	topK              *int
+	frequencyPenalty  *float64
+	presencePenalty   *float64
+	seed              *int
+	stop              []string
+	responseFormat    *string
+	responseSchema    map[string]interface{}
+	candidateCount    *int
+	logProbs          *bool
+	topLogProbs       *int
+	logitBias         map[string]int
+	serviceTier       *string
+	user              *string
+	repetitionPenalty *float64
+	minP              *float64
+	topA              *float64
+	typicalP          *float64
+	mirostat          *int
+	mirostatTau       *float64
+	mirostatEta       *float64
+	grammar           *string
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -85,6 +101,102 @@ func (r *GenerateContentRequest) WithSeed(seed *int) *GenerateContentRequest {
 // WithStop sets the stop sequences and returns the request.
 func (r *GenerateContentRequest) WithStop(stop []string) *GenerateContentRequest {
 	r.stop = stop
+	return r
+}
+
+// WithResponseFormat sets the response format and returns the request.
+func (r *GenerateContentRequest) WithResponseFormat(responseFormat *string) *GenerateContentRequest {
+	r.responseFormat = responseFormat
+	return r
+}
+
+// WithResponseSchema sets the response schema and returns the request.
+func (r *GenerateContentRequest) WithResponseSchema(responseSchema map[string]interface{}) *GenerateContentRequest {
+	r.responseSchema = responseSchema
+	return r
+}
+
+// WithCandidateCount sets the number of candidates to generate and returns the request.
+func (r *GenerateContentRequest) WithCandidateCount(candidateCount *int) *GenerateContentRequest {
+	r.candidateCount = candidateCount
+	return r
+}
+
+// WithLogProbs sets whether to return log probabilities and returns the request.
+func (r *GenerateContentRequest) WithLogProbs(logProbs *bool) *GenerateContentRequest {
+	r.logProbs = logProbs
+	return r
+}
+
+// WithTopLogProbs sets the number of top log probabilities to return and returns the request.
+func (r *GenerateContentRequest) WithTopLogProbs(topLogProbs *int) *GenerateContentRequest {
+	r.topLogProbs = topLogProbs
+	return r
+}
+
+// WithLogitBias sets the logit bias map and returns the request.
+func (r *GenerateContentRequest) WithLogitBias(logitBias map[string]int) *GenerateContentRequest {
+	r.logitBias = logitBias
+	return r
+}
+
+// WithServiceTier sets the service tier and returns the request.
+func (r *GenerateContentRequest) WithServiceTier(serviceTier *string) *GenerateContentRequest {
+	r.serviceTier = serviceTier
+	return r
+}
+
+// WithUser sets the user identifier and returns the request.
+func (r *GenerateContentRequest) WithUser(user *string) *GenerateContentRequest {
+	r.user = user
+	return r
+}
+
+// WithRepetitionPenalty sets the repetition penalty and returns the request.
+func (r *GenerateContentRequest) WithRepetitionPenalty(repetitionPenalty *float64) *GenerateContentRequest {
+	r.repetitionPenalty = repetitionPenalty
+	return r
+}
+
+// WithMinP sets the minimum probability threshold and returns the request.
+func (r *GenerateContentRequest) WithMinP(minP *float64) *GenerateContentRequest {
+	r.minP = minP
+	return r
+}
+
+// WithTopA sets the top-A filtering parameter and returns the request.
+func (r *GenerateContentRequest) WithTopA(topA *float64) *GenerateContentRequest {
+	r.topA = topA
+	return r
+}
+
+// WithTypicalP sets the typical sampling parameter and returns the request.
+func (r *GenerateContentRequest) WithTypicalP(typicalP *float64) *GenerateContentRequest {
+	r.typicalP = typicalP
+	return r
+}
+
+// WithMirostat sets the Mirostat sampling mode and returns the request.
+func (r *GenerateContentRequest) WithMirostat(mirostat *int) *GenerateContentRequest {
+	r.mirostat = mirostat
+	return r
+}
+
+// WithMirostatTau sets the Mirostat target entropy and returns the request.
+func (r *GenerateContentRequest) WithMirostatTau(mirostatTau *float64) *GenerateContentRequest {
+	r.mirostatTau = mirostatTau
+	return r
+}
+
+// WithMirostatEta sets the Mirostat learning rate and returns the request.
+func (r *GenerateContentRequest) WithMirostatEta(mirostatEta *float64) *GenerateContentRequest {
+	r.mirostatEta = mirostatEta
+	return r
+}
+
+// WithGrammar sets the grammar constraints and returns the request.
+func (r *GenerateContentRequest) WithGrammar(grammar *string) *GenerateContentRequest {
+	r.grammar = grammar
 	return r
 }
 
@@ -141,6 +253,86 @@ func (r *GenerateContentRequest) Seed() *int {
 // Stop returns the stop sequences for the content generation request.
 func (r *GenerateContentRequest) Stop() []string {
 	return r.stop
+}
+
+// ResponseFormat returns the response format for the content generation request.
+func (r *GenerateContentRequest) ResponseFormat() *string {
+	return r.responseFormat
+}
+
+// ResponseSchema returns the response schema for the content generation request.
+func (r *GenerateContentRequest) ResponseSchema() map[string]interface{} {
+	return r.responseSchema
+}
+
+// CandidateCount returns the number of candidates to generate for the content generation request.
+func (r *GenerateContentRequest) CandidateCount() *int {
+	return r.candidateCount
+}
+
+// LogProbs returns whether to return log probabilities for the content generation request.
+func (r *GenerateContentRequest) LogProbs() *bool {
+	return r.logProbs
+}
+
+// TopLogProbs returns the number of top log probabilities to return for the content generation request.
+func (r *GenerateContentRequest) TopLogProbs() *int {
+	return r.topLogProbs
+}
+
+// LogitBias returns the logit bias map for the content generation request.
+func (r *GenerateContentRequest) LogitBias() map[string]int {
+	return r.logitBias
+}
+
+// ServiceTier returns the service tier for the content generation request.
+func (r *GenerateContentRequest) ServiceTier() *string {
+	return r.serviceTier
+}
+
+// User returns the user identifier for the content generation request.
+func (r *GenerateContentRequest) User() *string {
+	return r.user
+}
+
+// RepetitionPenalty returns the repetition penalty for the content generation request.
+func (r *GenerateContentRequest) RepetitionPenalty() *float64 {
+	return r.repetitionPenalty
+}
+
+// MinP returns the minimum probability threshold for the content generation request.
+func (r *GenerateContentRequest) MinP() *float64 {
+	return r.minP
+}
+
+// TopA returns the top-A filtering parameter for the content generation request.
+func (r *GenerateContentRequest) TopA() *float64 {
+	return r.topA
+}
+
+// TypicalP returns the typical sampling parameter for the content generation request.
+func (r *GenerateContentRequest) TypicalP() *float64 {
+	return r.typicalP
+}
+
+// Mirostat returns the Mirostat sampling mode for the content generation request.
+func (r *GenerateContentRequest) Mirostat() *int {
+	return r.mirostat
+}
+
+// MirostatTau returns the Mirostat target entropy for the content generation request.
+func (r *GenerateContentRequest) MirostatTau() *float64 {
+	return r.mirostatTau
+}
+
+// MirostatEta returns the Mirostat learning rate for the content generation request.
+func (r *GenerateContentRequest) MirostatEta() *float64 {
+	return r.mirostatEta
+}
+
+// Grammar returns the grammar constraints for the content generation request.
+func (r *GenerateContentRequest) Grammar() *string {
+	return r.grammar
 }
 
 // Embedding represents a text embedding as a vector of floating-point numbers.

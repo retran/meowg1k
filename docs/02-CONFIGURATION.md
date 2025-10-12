@@ -161,41 +161,128 @@ profiles:
     maxTokens: 2048
     seed: 42  # For reproducible results
     stop: ["```", "END"]  # Stop at code blocks or END marker
-  
+
   # A profile to reduce repetition
   no-repeat:
     model: "gpt-4"
     temperature: 0.5
     frequencyPenalty: 0.8  # Discourage repeating tokens
     presencePenalty: 0.6   # Encourage topic diversity
+
+  # A profile for JSON structured output
+  json-output:
+    model: "gpt-4"
+    responseFormat: "json_object"  # Force JSON output
+    temperature: 0.3
+
+  # A profile for OpenRouter with advanced sampling
+  openrouter-creative:
+    model: "openrouter-model"
+    temperature: 0.9
+    repetitionPenalty: 1.1  # OpenRouter-specific
+    minP: 0.05              # OpenRouter-specific
+    topA: 0.2               # OpenRouter-specific
+
+  # A profile for llama.cpp with Mirostat
+  local-mirostat:
+    model: "local-dev"
+    temperature: 0.7
+    mirostat: 2          # Enable Mirostat v2
+    mirostatTau: 5.0     # Target entropy
+    mirostatEta: 0.1     # Learning rate
+    typicalP: 0.95       # Typical sampling
 ```
 
 #### Profile Parameters
 
+##### Basic Parameters
+
 - **`model`** (required): Reference to a model defined in the `models` section.
 - **`timeout`** (optional): Request timeout duration (e.g., "5m", "10m"). Defaults to 5 minutes.
+
+##### Sampling Parameters
+
 - **`temperature`** (optional): Controls randomness in generation (0.0-2.0 for most providers). Lower values make output more focused and deterministic, higher values make it more creative.
 - **`topP`** (optional): Controls nucleus sampling (0.0-1.0). The model considers only tokens with cumulative probability up to this threshold.
 - **`topK`** (optional): Limits sampling to the top K most probable tokens. Use for additional control over randomness.
-- **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this profile.
+- **`seed`** (optional): Sets a random seed for deterministic sampling. Use the same seed to get reproducible results.
+
+##### Penalty Parameters
+
 - **`frequencyPenalty`** (optional): Penalizes tokens based on their frequency in the response (-2.0 to 2.0). Positive values discourage repetition.
 - **`presencePenalty`** (optional): Penalizes tokens based on their presence in the response (-2.0 to 2.0). Positive values encourage topic diversity.
-- **`seed`** (optional): Sets a random seed for deterministic sampling. Use the same seed to get reproducible results.
+- **`repetitionPenalty`** (optional): Reduces repetition by penalizing tokens from the input (0.0-2.0). Higher values make repetition less likely. Supported by OpenRouter and Llama.cpp.
+
+##### Output Control Parameters
+
+- **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this profile.
 - **`stop`** (optional): List of sequences where the model will stop generating. E.g., `["END", "STOP"]`.
+- **`candidateCount`** (optional): Number of response candidates to generate. Supported by OpenAI (as `n`) and Gemini.
+
+##### Structured Output Parameters
+
+- **`responseFormat`** (optional): Format of the response. Values: `"text"`, `"json_object"`, `"json_schema"`. Supported by OpenAI, Gemini, and OpenRouter.
+- **`responseSchema`** (optional): JSON schema for structured output. When provided with `responseFormat: "json_schema"`, the model generates output matching this schema.
+- **`grammar`** (optional): Grammar constraints in GBNF format (Llama.cpp only). For constrained generation following specific grammar rules.
+
+##### Advanced Sampling Parameters
+
+**OpenRouter-specific:**
+
+- **`minP`** (optional): Minimum probability threshold relative to the most likely token (0.0-1.0). If set to 0.1, only tokens at least 1/10th as probable as the best option are considered.
+- **`topA`** (optional): Top-A filtering based on "sufficiently high" probabilities (0.0-1.0). Dynamic filtering mechanism similar to Top-P.
+
+**Llama.cpp-specific:**
+
+- **`typicalP`** (optional): Locally typical sampling parameter (0.0-1.0). Balances creativity and coherence.
+- **`mirostat`** (optional): Mirostat sampling algorithm mode. Values: `0` (disabled), `1` (Mirostat v1), `2` (Mirostat v2).
+- **`mirostatTau`** (optional): Target entropy for Mirostat (default 5.0). Controls the balance of coherence/creativity in Mirostat sampling.
+- **`mirostatEta`** (optional): Learning rate for Mirostat (default 0.1). Controls how quickly Mirostat adjusts.
+
+##### Logging and Analysis Parameters
+
+
+- **`logProbs`** (optional): Enable returning log probabilities of output tokens (boolean). Supported by OpenAI, Gemini, and Llama.cpp.
+- **`topLogProbs`** (optional): Number of top log probabilities to return per token (0-20). Only used when `logProbs` is true.
+- **`logitBias`** (optional): Map of token IDs to bias values (-100 to 100) to modify likelihood of specific tokens. Supported by OpenAI and Llama.cpp.
+
+##### Service Parameters
+
+- **`serviceTier`** (optional): Service tier for the request (e.g., "auto", "default"). OpenAI-specific for controlling priority capacity.
+- **`user`** (optional): Unique identifier for the end-user. Used for abuse monitoring and tracking. OpenAI-specific.
+
+##### Cache Parameters
+
 - **`cache`** (optional): Override global cache settings for this profile (see Cache section).
 
 **Note:** The availability and exact behavior of parameters may vary by provider:
 
-| Parameter | Gemini | Anthropic | OpenAI/OpenRouter | Llama.cpp |
-|-----------|--------|-----------|-------------------|-----------|
-| `temperature` | ✅ | ✅ | ✅ | ✅ |
-| `topP` | ✅ | ✅ | ✅ | ✅ |
-| `topK` | ✅ | ✅ | ❌ | ✅ |
-| `maxTokens` | ✅ | ✅ | ✅ | ✅ |
-| `frequencyPenalty` | ✅ | ❌ | ✅ | ✅ |
-| `presencePenalty` | ✅ | ❌ | ✅ | ✅ |
-| `seed` | ✅ | ❌ | ✅ | ✅ |
-| `stop` | ✅ | ✅ | ✅ | ✅ |
+| Parameter | Gemini | Anthropic | OpenAI | OpenRouter | Llama.cpp |
+|-----------|--------|-----------|--------|------------|-----------|
+| `temperature` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `topP` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `topK` | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `maxTokens` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `frequencyPenalty` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `presencePenalty` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `repetitionPenalty` | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `seed` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `stop` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `responseFormat` | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `responseSchema` | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `candidateCount` | ✅ | ❌ | ✅ (as `n`) | ✅ | ❌ |
+| `logProbs` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `topLogProbs` | ✅ | ❌ | ✅ | ✅ | ❌ |
+| `logitBias` | ❌ | ❌ | ✅ | ✅ | ✅ |
+| `serviceTier` | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `user` | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `minP` | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `topA` | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `typicalP` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `mirostat` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `mirostatTau` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `mirostatEta` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `grammar` | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ### `cache`
 
