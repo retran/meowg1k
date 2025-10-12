@@ -27,6 +27,9 @@ type GenerateContentRequest struct {
 	systemPrompt    string
 	userPrompt      string
 	maxOutputTokens int
+	temperature     *float64
+	topP            *float64
+	topK            *int
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -37,6 +40,24 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutput
 		userPrompt:      userPrompt,
 		maxOutputTokens: maxOutputTokens,
 	}
+}
+
+// WithTemperature sets the temperature parameter and returns the request.
+func (r *GenerateContentRequest) WithTemperature(temperature *float64) *GenerateContentRequest {
+	r.temperature = temperature
+	return r
+}
+
+// WithTopP sets the topP parameter and returns the request.
+func (r *GenerateContentRequest) WithTopP(topP *float64) *GenerateContentRequest {
+	r.topP = topP
+	return r
+}
+
+// WithTopK sets the topK parameter and returns the request.
+func (r *GenerateContentRequest) WithTopK(topK *int) *GenerateContentRequest {
+	r.topK = topK
+	return r
 }
 
 // Model returns the model name for the content generation request.
@@ -57,6 +78,21 @@ func (r *GenerateContentRequest) UserPrompt() string {
 // MaxOutputTokens returns the maximum output tokens for the content generation request.
 func (r *GenerateContentRequest) MaxOutputTokens() int {
 	return r.maxOutputTokens
+}
+
+// Temperature returns the temperature parameter for the content generation request.
+func (r *GenerateContentRequest) Temperature() *float64 {
+	return r.temperature
+}
+
+// TopP returns the topP parameter for the content generation request.
+func (r *GenerateContentRequest) TopP() *float64 {
+	return r.topP
+}
+
+// TopK returns the topK parameter for the content generation request.
+func (r *GenerateContentRequest) TopK() *int {
+	return r.topK
 }
 
 // Embedding represents a text embedding as a vector of floating-point numbers.

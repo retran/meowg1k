@@ -91,12 +91,28 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	prompt := promptBuilder.String()
 
 	req := &llama.CompletionRequest{
-		Prompt:      prompt,
-		Temperature: 0.8,
-		TopK:        40,
-		TopP:        0.95,
-		NPredict:    -1,
-		Stop:        []string{"<|endoftext|>", "<|im_end|>"},
+		Prompt:   prompt,
+		NPredict: -1,
+		Stop:     []string{"<|endoftext|>", "<|im_end|>"},
+	}
+
+	// Set generation parameters if provided, otherwise use defaults
+	if temperature := request.Temperature(); temperature != nil {
+		req.Temperature = *temperature
+	} else {
+		req.Temperature = 0.8 // default
+	}
+
+	if topK := request.TopK(); topK != nil {
+		req.TopK = *topK
+	} else {
+		req.TopK = 40 // default
+	}
+
+	if topP := request.TopP(); topP != nil {
+		req.TopP = *topP
+	} else {
+		req.TopP = 0.95 // default
 	}
 
 	resp, err := g.client.Complete(ctx, req)

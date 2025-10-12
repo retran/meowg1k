@@ -80,6 +80,26 @@ func (g *geminiGateway) GenerateContent(
 		}
 	}
 
+	// Set generation parameters if provided
+	if temperature := request.Temperature(); temperature != nil {
+		temp := float32(*temperature)
+		generationConfig.Temperature = &temp
+	}
+
+	if topP := request.TopP(); topP != nil {
+		p := float32(*topP)
+		generationConfig.TopP = &p
+	}
+
+	if topK := request.TopK(); topK != nil {
+		k := float32(*topK)
+		generationConfig.TopK = &k
+	}
+
+	if maxTokens := request.MaxOutputTokens(); maxTokens > 0 {
+		generationConfig.MaxOutputTokens = int32(maxTokens)
+	}
+
 	userPrompt := genai.Text(request.UserPrompt())
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)

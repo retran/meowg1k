@@ -82,7 +82,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			input.SystemPrompt,
 			input.UserPrompt,
 			input.Profile.MaxOutputTokens,
-		)
+		).WithTemperature(input.Profile.Temperature).
+			WithTopP(input.Profile.TopP).
+			WithTopK(input.Profile.TopK)
 
 		content, err := generationGateway.GenerateContent(ctx, request)
 		if err != nil {

@@ -88,6 +88,19 @@ func (g *anthropicGateway) GenerateContent(
 		}
 	}
 
+	// Set generation parameters if provided
+	if temperature := request.Temperature(); temperature != nil {
+		params.Temperature = anthropic.Float(*temperature)
+	}
+
+	if topP := request.TopP(); topP != nil {
+		params.TopP = anthropic.Float(*topP)
+	}
+
+	if topK := request.TopK(); topK != nil {
+		params.TopK = anthropic.Int(int64(*topK))
+	}
+
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from Anthropic for model %q: %w", model, err)

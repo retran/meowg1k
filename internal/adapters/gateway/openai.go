@@ -69,14 +69,25 @@ func (g *openaiGateway) GenerateContent(
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
-	response, err := g.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+	params := openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
 			openai.UserMessage(request.UserPrompt()),
 		},
 		Model:     request.Model(),
 		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
-	})
+	}
+
+	// Set generation parameters if provided
+	if temperature := request.Temperature(); temperature != nil {
+		params.Temperature = openai.Float(*temperature)
+	}
+
+	if topP := request.TopP(); topP != nil {
+		params.TopP = openai.Float(*topP)
+	}
+
+	response, err := g.client.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)
 	}
