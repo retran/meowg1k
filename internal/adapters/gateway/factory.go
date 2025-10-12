@@ -35,6 +35,7 @@ type Factory struct {
 	flagReader        ports.FlagReader             // command-line flag reader
 	traceLogger       TraceLogger                  // trace logger for API interactions
 	commandNameReader ports.CommandNameReader      // command name reader
+	httpClientService ports.HTTPClientService      // shared HTTP client service for all gateways
 }
 
 // NewFactory creates a new gateway factory with dependencies.
@@ -44,6 +45,7 @@ func NewFactory(
 	flagReader ports.FlagReader,
 	traceLogger TraceLogger,
 	commandNameReader ports.CommandNameReader,
+	httpClientService ports.HTTPClientService,
 ) (*Factory, error) {
 	if rateLimitRepo == nil {
 		return nil, fmt.Errorf("rate limit repository is nil")
@@ -60,6 +62,10 @@ func NewFactory(
 	if commandNameReader == nil {
 		return nil, fmt.Errorf("command name reader is nil")
 	}
+	if httpClientService == nil {
+		return nil, fmt.Errorf("http client service is nil")
+	}
+
 	return &Factory{
 		limiters:          make(map[string]ratelimit.Limiter),
 		rateLimitRepo:     rateLimitRepo,
@@ -67,6 +73,7 @@ func NewFactory(
 		flagReader:        flagReader,
 		traceLogger:       traceLogger,
 		commandNameReader: commandNameReader,
+		httpClientService: httpClientService,
 	}, nil
 }
 
@@ -172,7 +179,7 @@ func (f *Factory) NewGenerationGateway(
 			return nil, fmt.Errorf("llama provider requires a base URL for model %q", profile.Model)
 		}
 
-		gateway, err = newLlamaGateway(profile.BaseURL, profile.APIKey)
+		gateway, err = newLlamaGateway(profile.BaseURL, profile.APIKey, f.httpClientService.Get())
 	case provider.OpenAI:
 		if profile.APIKey == "" {
 			return nil, fmt.Errorf("openai provider requires an API key for model %q", profile.Model)
@@ -184,7 +191,8 @@ func (f *Factory) NewGenerationGateway(
 			return nil, fmt.Errorf("openrouter provider requires an API key for model %q", profile.Model)
 		}
 
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey)
+		// Use dedicated OpenRouter gateway to support all OpenRouter-specific parameters
+		gateway, err = NewOpenRouterGateway(ctx, profile.BaseURL, profile.APIKey, f.httpClientService.Get())
 	case provider.Anthropic:
 		if profile.APIKey == "" {
 			return nil, fmt.Errorf("anthropic provider requires an API key for model %q", profile.Model)
@@ -284,7 +292,7 @@ func (f *Factory) NewEmbeddingsGateway(
 			return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", profile.Model)
 		}
 
-		gateway, err = newVoyageGateway(profile.APIKey)
+		gateway, err = newVoyageGateway(profile.APIKey, f.httpClientService.Get())
 	default:
 		return nil, fmt.Errorf("provider must be specified for embeddings model %q", profile.Model)
 	}

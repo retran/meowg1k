@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
@@ -33,9 +34,15 @@ type voyageGateway struct {
 	client *voyage.Client
 }
 
-// NewVoyageGateway creates and initializes a new VoyageGateway.
-func newVoyageGateway(apiKey string) (ports.EmbeddingsGateway, error) {
-	client, err := voyage.NewClient("", apiKey, 0)
+// newVoyageGateway creates and initializes a new VoyageGateway with a shared HTTP client.
+// The HTTP client is provided via dependency injection to allow for better resource management
+// and connection pooling across multiple gateway instances.
+func newVoyageGateway(apiKey string, httpClient *http.Client) (ports.EmbeddingsGateway, error) {
+	if httpClient == nil {
+		return nil, fmt.Errorf("HTTP client is required for voyage gateway")
+	}
+
+	client, err := voyage.NewClient("", apiKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}

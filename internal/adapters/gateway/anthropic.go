@@ -88,6 +88,33 @@ func (g *anthropicGateway) GenerateContent(
 		}
 	}
 
+	// Set generation parameters if provided
+	if temperature := request.Temperature(); temperature != nil {
+		params.Temperature = anthropic.Float(*temperature)
+	}
+
+	if topP := request.TopP(); topP != nil {
+		params.TopP = anthropic.Float(*topP)
+	}
+
+	if topK := request.TopK(); topK != nil {
+		params.TopK = anthropic.Int(int64(*topK))
+	}
+
+	if stop := request.Stop(); len(stop) > 0 {
+		params.StopSequences = stop
+	}
+
+	// Anthropic doesn't directly support all parameters like logprobs, logit_bias, etc.
+	// They are primarily OpenAI-specific features
+	// However, we can document which parameters are not supported
+
+	// User identifier (not directly supported by Anthropic Messages API as of current version)
+	// ServiceTier (OpenAI-specific)
+	// LogitBias (OpenAI-specific)
+	// CandidateCount/N (OpenAI-specific, Anthropic returns single response)
+	// LogProbs (OpenAI/Gemini-specific)
+
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate content from Anthropic for model %q: %w", model, err)
