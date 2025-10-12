@@ -97,7 +97,10 @@ func (g *geminiGateway) GenerateContent(
 	}
 
 	if maxTokens := request.MaxOutputTokens(); maxTokens > 0 {
-		generationConfig.MaxOutputTokens = int32(maxTokens)
+		if maxTokens > 2147483647 { // int32 max value
+			maxTokens = 2147483647
+		}
+		generationConfig.MaxOutputTokens = int32(maxTokens) // #nosec G115 -- range checked above
 	}
 
 	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
@@ -111,7 +114,14 @@ func (g *geminiGateway) GenerateContent(
 	}
 
 	if seed := request.Seed(); seed != nil {
-		s := int32(*seed)
+		seedVal := *seed
+		if seedVal > 2147483647 { // int32 max value
+			seedVal = 2147483647
+		}
+		if seedVal < -2147483648 { // int32 min value
+			seedVal = -2147483648
+		}
+		s := int32(seedVal) // #nosec G115 -- range checked above
 		generationConfig.Seed = &s
 	}
 
@@ -140,7 +150,14 @@ func (g *geminiGateway) GenerateContent(
 
 	// CandidateCount controls number of responses
 	if candidateCount := request.CandidateCount(); candidateCount != nil {
-		generationConfig.CandidateCount = int32(*candidateCount)
+		count := *candidateCount
+		if count > 2147483647 { // int32 max value
+			count = 2147483647
+		}
+		if count < 0 {
+			count = 0
+		}
+		generationConfig.CandidateCount = int32(count) // #nosec G115 -- range checked above
 	}
 
 	// LogProbs control
@@ -150,7 +167,14 @@ func (g *geminiGateway) GenerateContent(
 
 	// TopLogProbs maps to Logprobs in Gemini
 	if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
-		lp := int32(*topLogProbs)
+		logProbs := *topLogProbs
+		if logProbs > 2147483647 { // int32 max value
+			logProbs = 2147483647
+		}
+		if logProbs < 0 {
+			logProbs = 0
+		}
+		lp := int32(logProbs) // #nosec G115 -- range checked above
 		generationConfig.Logprobs = &lp
 	}
 

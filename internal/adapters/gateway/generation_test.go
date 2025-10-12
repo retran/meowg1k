@@ -284,25 +284,25 @@ func TestGenerateContentRequestWithAllParameters(t *testing.T) {
 	assert.Equal(t, systemPrompt, req.SystemPrompt())
 	assert.Equal(t, userPrompt, req.UserPrompt())
 	assert.Equal(t, maxTokens, req.MaxOutputTokens())
-	
+
 	assert.NotNil(t, req.Temperature())
 	assert.Equal(t, temperature, *req.Temperature())
-	
+
 	assert.NotNil(t, req.TopP())
 	assert.Equal(t, topP, *req.TopP())
-	
+
 	assert.NotNil(t, req.TopK())
 	assert.Equal(t, topK, *req.TopK())
-	
+
 	assert.NotNil(t, req.FrequencyPenalty())
 	assert.Equal(t, frequencyPenalty, *req.FrequencyPenalty())
-	
+
 	assert.NotNil(t, req.PresencePenalty())
 	assert.Equal(t, presencePenalty, *req.PresencePenalty())
-	
+
 	assert.NotNil(t, req.Seed())
 	assert.Equal(t, seed, *req.Seed())
-	
+
 	assert.Equal(t, stop, req.Stop())
 }
 
