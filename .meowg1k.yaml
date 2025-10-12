@@ -18,6 +18,7 @@ models:
 profiles:
   fast:
     model: "qwen-flash"
+    temperature: 0.3  # Lower temperature for more focused responses
     cache:
       enabled: true
       ttl: "24h"  # Cache fast completions for 1 day
@@ -25,6 +26,8 @@ profiles:
   smart:
     model: "qwen-plus"
     timeout: "10m"
+    temperature: 0.2  # Very low temperature for analytical, deterministic output
+    topP: 0.95
     cache:
       enabled: true
       ttl: "72h"  # Cache smart completions longer (3 days)

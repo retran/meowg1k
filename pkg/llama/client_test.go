@@ -59,7 +59,7 @@ func TestNewService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewClient(tt.baseURL, tt.apiKey)
+			service, err := NewClient(tt.baseURL, tt.apiKey, &http.Client{})
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -73,7 +73,6 @@ func TestNewService(t *testing.T) {
 				assert.Equal(t, tt.baseURL, service.baseURL)
 				assert.Equal(t, tt.apiKey, service.apiKey)
 				assert.NotNil(t, service.httpClient)
-				assert.Equal(t, 10*time.Minute, service.httpClient.Timeout)
 			}
 		})
 	}
@@ -149,7 +148,7 @@ func TestServiceImpl_Complete(t *testing.T) {
 			defer server.Close()
 
 			// Create service with test server URL
-			service, err := NewClient(server.URL, "test-api-key")
+			service, err := NewClient(server.URL, "test-api-key", &http.Client{})
 			require.NoError(t, err)
 
 			// Call Complete method
@@ -190,7 +189,7 @@ func TestServiceImpl_CompleteWithAuthHeader(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewClient(server.URL, "test-api-key")
+	service, err := NewClient(server.URL, "test-api-key", &http.Client{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -217,7 +216,7 @@ func TestServiceImpl_CompleteWithoutAPIKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewClient(server.URL, "")
+	service, err := NewClient(server.URL, "", &http.Client{})
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -241,7 +240,7 @@ func TestServiceImpl_CompleteWithContext(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service, err := NewClient(server.URL, "test-key")
+	service, err := NewClient(server.URL, "test-key", &http.Client{})
 	require.NoError(t, err)
 
 	// Create a context that will be canceled
@@ -394,7 +393,7 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 
 			if tt.name == "HTTP request creation with invalid URL characters" {
 				// Test with service that has invalid URL
-				service, err = NewClient("ht tp://invalid url with spaces", "key")
+				service, err = NewClient("ht tp://invalid url with spaces", "key", &http.Client{})
 				require.NoError(t, err) // Client creation succeeds
 
 				ctx := context.Background()
@@ -405,9 +404,9 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				server := tt.setupServer()
 				if server != nil {
 					defer server.Close()
-					service, err = NewClient(server.URL, "test-key")
+					service, err = NewClient(server.URL, "test-key", &http.Client{})
 				} else {
-					service, err = NewClient("http://localhost:8080", "test-key")
+					service, err = NewClient("http://localhost:8080", "test-key", &http.Client{})
 				}
 				require.NoError(t, err)
 

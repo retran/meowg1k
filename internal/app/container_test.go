@@ -33,6 +33,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
+	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
@@ -117,11 +118,23 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
+	httpClientService, err := httpclient.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http client service: %w", err)
+	}
+	if err := shutdownService.Register(func(ctx context.Context) error {
+		httpClientService.Close()
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	container.Logger = logger
 	container.ShutdownService = shutdownService
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
+	container.httpClientService = httpClientService
 	container.dbHost = dbHost
 	container.rateLimitRepo = rateLimitRepo
 	container.cacheRepo = cacheRepo
