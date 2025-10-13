@@ -4,13 +4,11 @@ First off, thank you for considering contributing to `meowg1k`! We welcome contr
 
 This document provides guidelines for contributing to the project.
 
----
 
 ## Code of Conduct
 
 By participating in this project, you are expected to uphold our [Code of Conduct](./CODE_OF_CONDUCT.md). Please report any unacceptable behavior.
 
----
 
 ## How Can I Contribute?
 
@@ -21,7 +19,6 @@ There are many ways to contribute to the project:
 - **Improving Documentation:** If you find a typo or think a section could be clearer, feel free to open an issue or a pull request.
 - **Pull Requests:** If you're ready to contribute code or documentation, we'd love to review your work!
 
----
 
 ## Development Workflow
 
@@ -36,10 +33,11 @@ This project uses **Go Task** to automate common development tasks. All commands
 ### 2. Set Up Your Environment
 
 Fork the repository to your own GitHub account, then clone it locally.
+
 ```bash
 git clone git@github.com:retran/meowg1k.git
 cd meowg1k
-````
+```
 
 Install dependencies and set up your environment by running:
 
@@ -111,7 +109,7 @@ Your commit message should be structured like this:
 >
 > ```bash
 > meow commit -i "Refactor database logic to use a connection pool"
-> ````
+> ```
 
 ### 7. Submit a Pull Request
 
@@ -140,7 +138,6 @@ Push your branch to your fork and [open a pull request](https://github.com/retra
 >
 > Copy the generated output to use in your Pull Request.
 
----
 
 ## Continuous Integration (CI)
 

@@ -20,7 +20,6 @@
 
 </div>
 
----
 
 ## 🎯 Overview
 
@@ -28,19 +27,24 @@
 
 ### Who Should Use This?
 
-| Role | Use Case |
-|------|----------|
-| **Developers** | Integrate AI into shell workflows and boost productivity |
-| **DevOps Engineers** | Automate PR descriptions and code analysis in CI/CD pipelines |
-| **Security Engineers** | Run automated code checks using local, private models |
+<table style="border: none;">
+<tr style="border: none;">
+<td style="border: none;">
 
----
+- **Developers** — Integrate AI into shell workflows and boost productivity
+- **DevOps Engineers** — Automate PR descriptions and code analysis in CI/CD pipelines
+- **Security Engineers** — Run automated code checks using local, private models
+
+</td>
+</tr>
+</table>
+
 
 ## ✨ Features
 
-<table>
-<tr>
-<td width="50%">
+<table style="border: none;">
+<tr style="border: none;">
+<td width="50%" style="border: none;">
 
 ### 🤖 **Multi-Provider Support**
 Works seamlessly with Gemini, OpenAI, Anthropic, OpenRouter, and more. Switch providers anytime.
@@ -52,7 +56,7 @@ Run local LLMs via `llama.cpp` for complete privacy and offline access.
 Single native binary. Fast, lightweight, and ready to go.
 
 </td>
-<td width="50%">
+<td width="50%" style="border: none;">
 
 ### 🎯 **Built for Automation**
 Perfect for CI/CD pipelines, Git hooks, and batch processing — not conversations.
@@ -67,7 +71,6 @@ Manage all behavior through version-controlled `.yaml` files.
 </tr>
 </table>
 
----
 
 ## 📦 Installation
 
@@ -108,7 +111,6 @@ sudo rpm -i meowg1k_*.rpm
 
 > 📚 For detailed installation instructions, see the [**Installation Guide**](./docs/01-INSTALLATION.md)
 
----
 
 ## 🚀 Quick Start
 
@@ -147,13 +149,12 @@ meow commit
 meow pullrequest --base main
 ```
 
----
 
 ## 📖 Documentation
 
-<table>
-<tr>
-<td width="33%">
+<table style="border: none;">
+<tr style="border: none;">
+<td width="33%" style="border: none;">
 
 ### 🛠️ **Getting Started**
 - [Installation Guide](./docs/01-INSTALLATION.md)
@@ -161,7 +162,7 @@ meow pullrequest --base main
 - [Command Reference](./docs/03-COMMAND-REFERENCE.md)
 
 </td>
-<td width="33%">
+<td width="33%" style="border: none;">
 
 ### 📚 **Learn More**
 - [Examples & Recipes](./docs/04-EXAMPLES.md)
@@ -169,7 +170,7 @@ meow pullrequest --base main
 - [Core Principles](./docs/06-PRINCIPLES.md)
 
 </td>
-<td width="33%">
+<td width="33%" style="border: none;">
 
 ### 🔧 **Support**
 - [FAQ](./docs/07-FAQ.md)
@@ -182,7 +183,6 @@ meow pullrequest --base main
 
 For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
----
 
 ## 🤝 Contributing
 
@@ -192,7 +192,6 @@ We welcome contributions! Whether it's bug reports, feature requests, or code co
 - Follow our [**Code of Conduct**](./CODE_OF_CONDUCT.md)
 - Check the [**Project Roadmap**](./ROADMAP.md)
 
----
 
 ## 🔐 Security
 
@@ -202,13 +201,11 @@ Security is a top priority. If you discover a security vulnerability:
 2. Follow our [**Security Policy**](./SECURITY.md)
 3. Report privately to the maintainers
 
----
 
 ## 📄 License
 
 This project is licensed under the [**Apache License 2.0**](./LICENSE).
 
----
 
 <div align="center">
 

@@ -1,11 +1,9 @@
----
 name: Feature Request
 about: Have an idea to make meowg1k better? Suggest it here.
 title: "[FEAT] <A brief, descriptive title>"
 labels: enhancement
 assignees: ''
 
----
 
 ### Is your feature request related to a problem? Please describe
 
@@ -23,6 +21,5 @@ A clear and concise description of any alternative solutions or features you've 
 
 Add any other context, mockups, or screenshots about the feature request here.
 
----
 
 - [ ] I have searched the existing [issues](https://github.com/retran/meowg1k/issues) and have not found a similar feature request.
