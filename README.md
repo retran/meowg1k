@@ -2,8 +2,6 @@
 
 # meowg1k
 
-### A purr-fectly scriptable CLI that brings AI superpowers to your terminal—automate commits, reviews, and workflows with feline precision
-
 [![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/network/members)
 [![Latest Release](https://img.shields.io/github/v/release/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/releases/latest)
@@ -14,7 +12,9 @@
 
 <img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="280">
 
-[Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
+### A purr-fectly scriptable CLI that brings AI superpowers to your terminal—automate commits, reviews, and workflows with feline precision
+
+[Overview](#-overview) • [Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [Security](#-security) • [License](#-license)
 
 <img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%">
 
@@ -174,7 +174,7 @@ For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
 We welcome contributions! Whether it's bug reports, feature requests, or code contributions — we'd love your help.
 
-- Read our [**Contributing Guidelines**](./CONTRIBUTING.md)
+- Read our [**Contributing Guideline**](./CONTRIBUTING.md)
 - Follow our [**Code of Conduct**](./CODE_OF_CONDUCT.md)
 - Check the [**Project Roadmap**](./ROADMAP.md)
 
