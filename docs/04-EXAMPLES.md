@@ -2,7 +2,6 @@
 
 This guide provides practical examples and recipes to showcase how `meowg1k` can be used to solve common development tasks. These examples build on the concepts from the [Configuration Guide](./02-CONFIGURATION.md) and the [Command Reference](./03-COMMAND-REFERENCE.md).
 
----
 
 ## 1. Basic Code Refactoring
 
@@ -23,7 +22,6 @@ echo "function getUser(id) { return fetch('/api/users/' + id).then(res => res.js
 - The `-u` flag provides the user prompt, telling the AI what to do with the provided code.
 - `meowg1k` combines the context (the code) and the prompt into a single request to the default LLM provider.
 
----
 
 ## 2. Using Predefined Tasks for Recurring Reviews
 
@@ -63,7 +61,6 @@ cat ./internal/handlers/auth.go | meow g -t security-review
 - The `-t security-review` flag tells `meowg1k` to use the complex `systemPrompt` and `userPrompt` defined under `generate.tasks.security-review` in the config file.
 - This allows you to encapsulate detailed, expert-level prompts into simple, reusable commands.
 
----
 
 ## 3. Fully Automated Commit Messages
 
@@ -114,7 +111,6 @@ meow commit -i "Fix the user login bug and refactor token handling"
 - `meowg1k` first uses the `gemini-fast` profile to analyze each staged file change individually (the "Map" step).
 - Then, it collects all these individual summaries and sends them to the `claude-smart` profile, guided by the powerful `commit` system prompt, to generate the final, high-quality commit message (the "Reduce" step).
 
----
 
 ## 4. Fast Commit Messages for Small Changes
 
@@ -170,7 +166,6 @@ meow commit
   - Large feature implementations
   - Complex changes that benefit from per-file analysis
 
----
 
 ## 5. Advanced PR Descriptions with File-Specific Rules
 
@@ -224,7 +219,6 @@ meow pullrequest --base main
 - All other files are summarized using the default `gemini-fast` profile.
 - Finally, the collected summaries are used by the `pullRequest` configuration to generate a well-structured Markdown description.
 
----
 
 ## 5. Using Local Models for Privacy
 
@@ -265,7 +259,6 @@ cat ./internal/billing/core.go | meow g -t local-analysis
 - The `local-secure` profile directs all API traffic to your local server instead of a cloud provider.
 - This allows you to leverage the power of LLMs in air-gapped or high-security environments.
 
----
 
 ## Next Steps
 
