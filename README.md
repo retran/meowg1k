@@ -1,7 +1,5 @@
 # meowg1k
 
-<div align="center">
-
 [![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/network/members)
 [![Latest Release](https://img.shields.io/github/v/release/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/releases/latest)
@@ -9,6 +7,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/retran/meowg1k?style=flat-square)](https://goreportcard.com/report/github.com/retran/meowg1k)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/blob/main/go.mod)
 [![License](https://img.shields.io/github/license/retran/meowg1k?style=flat-square)](./LICENSE)
+
+<div align="center">
 
 <img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="280">
 
