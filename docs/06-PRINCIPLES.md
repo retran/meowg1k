@@ -2,7 +2,6 @@
 
 These are the fundamental, non-negotiable principles that guide the architecture and development of `meowg1k`. Every future decision must adhere to these rules.
 
----
 
 ## 1. A Composable Engine, Not an Application
 

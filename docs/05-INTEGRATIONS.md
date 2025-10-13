@@ -2,7 +2,6 @@
 
 `meowg1k` is built for automation. Its scriptable, non-interactive design makes it a perfect component for Git hooks, CI/CD pipelines, and custom scripts. This guide provides practical examples for integrating `meowg1k` into your development workflow.
 
----
 
 ## 1. Git Hooks
 
@@ -74,7 +73,6 @@ done
 exit 0
 ```
 
----
 
 ## 2. CI/CD Pipelines
 
@@ -137,7 +135,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
----
 
 ## 3. Custom Shell Scripts
 
@@ -180,7 +177,6 @@ echo "Batch analysis complete!"
 
 ```
 
----
 
 ## Next Steps
 
