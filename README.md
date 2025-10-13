@@ -1,60 +1,77 @@
 <div align="center">
 
-  <img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="300">
+# meowg1k
 
-  <h1>meowg1k</h1>
+### Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal
 
-  <p>Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal.</p>
+[![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/network/members)
+[![Latest Release](https://img.shields.io/github/v/release/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/releases/latest)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/retran/meowg1k/release.yml?branch=dev&style=flat-square)](https://github.com/retran/meowg1k/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/retran/meowg1k?style=flat-square)](https://goreportcard.com/report/github.com/retran/meowg1k)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/blob/main/go.mod)
+[![License](https://img.shields.io/github/license/retran/meowg1k?style=flat-square)](./LICENSE)
 
-  <p>
-    <a href="https://github.com/retran/meowg1k/stargazers"><img src="https://img.shields.io/github/stars/retran/meowg1k?style=for-the-badge" alt="GitHub stars"></a>
-    <a href="https://github.com/retran/meowg1k/network/members"><img src="https://img.shields.io/github/forks/retran/meowg1k?style=for-the-badge" alt="GitHub forks"></a>
-    <a href="https://github.com/retran/meowg1k/releases/latest"><img src="https://img.shields.io/github/v/release/retran/meowg1k?style=for-the-badge" alt="Latest Release"></a>
-  </p>
+<img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="280">
 
-  <p>
-    <a href="https://github.com/retran/meowg1k/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/retran/meowg1k/release.yml?branch=dev&style=for-the-badge" alt="Build Status"></a>
-    <a href="https://goreportcard.com/report/github.com/retran/meowg1k"><img src="https://goreportcard.com/badge/github.com/retran/meowg1k?style=for-the-badge" alt="Go Report Card"></a>
-    <a href="https://github.com/retran/meowg1k/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/retran/meowg1k?style=for-the-badge" alt="Go Version"></a>
-    <a href="./LICENSE"><img src="https://img.shields.io/github/license/retran/meowg1k?style=for-the-badge" alt="License"></a>
-  </p>
+[Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
+
+<img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%">
 
 </div>
 
 ---
 
-`meowg1k` is a command-line interface that brings the power of modern LLMs (Large Language Models) into your terminal. Unlike interactive assistants (like GitHub Copilot or ChatGPT), `meowg1k` is designed for automation and scripting. It's a Unix-philosophy tool that predictably transforms code into an AI-enhanced result.
+## 🎯 Overview
 
-<div align="center">
-  <img src="./assets/demo_commit.gif" alt="meowg1k demo" width="800">
-</div>
+**meowg1k** is a command-line interface that brings the power of modern LLMs (Large Language Models) into your terminal. Unlike interactive assistants, meowg1k is designed for **automation and scripting** — a Unix-philosophy tool that predictably transforms code into AI-enhanced results.
 
----
+### Who Should Use This?
 
-## Who is this for?
-
-`meowg1k` is perfect for:
-
-- **Any developer** who loves the power of the command line and wants to integrate AI into their existing shell workflows.
-- **DevOps & Platform Engineers** who want to automate PR descriptions and code analysis in CI/CD pipelines.
-- **Security Engineers** who want to run automated code checks using local, private models.
+| Role | Use Case |
+|------|----------|
+| **Developers** | Integrate AI into shell workflows and boost productivity |
+| **DevOps Engineers** | Automate PR descriptions and code analysis in CI/CD pipelines |
+| **Security Engineers** | Run automated code checks using local, private models |
 
 ---
 
-## Key Features
+## ✨ Features
 
-- **Built for Automation, Not Conversation:** Perfect for CI/CD, Git hooks, and batch processing.
-- **Multi-Provider Support:** Works with Gemini, OpenAI, Anthropic, OpenRouter, and more. Switch between them at any time.
-- **Local-First:** Operates with local LLMs (via `llama.cpp`) for complete privacy and offline access.
-- **Cost Control:** Built-in token and request rate limiting for predictable spending.
-- **Configuration as Code:** Manage all behavior through version-controlled `.yaml` files.
-- **Zero Dependencies:** Shipped as a single, native binary. Fast and lightweight.
+<table>
+<tr>
+<td width="50%">
+
+### 🤖 **Multi-Provider Support**
+Works seamlessly with Gemini, OpenAI, Anthropic, OpenRouter, and more. Switch providers anytime.
+
+### 🔒 **Local-First**
+Run local LLMs via `llama.cpp` for complete privacy and offline access.
+
+### ⚡ **Zero Dependencies**
+Single native binary. Fast, lightweight, and ready to go.
+
+</td>
+<td width="50%">
+
+### 🎯 **Built for Automation**
+Perfect for CI/CD pipelines, Git hooks, and batch processing — not conversations.
+
+### 💰 **Cost Control**
+Built-in token and request rate limiting for predictable spending.
+
+### 📝 **Configuration as Code**
+Manage all behavior through version-controlled `.yaml` files.
+
+</td>
+</tr>
+</table>
 
 ---
 
-## Quick Start
+## 📦 Installation
 
-### 1. Installation
+### Quick Install
 
 ```bash
 # Using Go (requires Go 1.25.1+)
@@ -62,38 +79,67 @@ go install github.com/retran/meowg1k@latest
 
 # Using Homebrew (macOS/Linux)
 brew install retran/homebrew-meow-tap/meow
-````
+```
 
-> 👉 For other installation methods (Scoop, .deb, .rpm), see the [**full installation guide**](./docs/01-INSTALLATION.md).
+### Other Methods
 
-### 2. Initialize Your Project
+<details>
+<summary><b>Windows (Scoop)</b></summary>
 
-Create a project configuration file with sensible defaults:
+```powershell
+scoop bucket add meow-tap https://github.com/retran/homebrew-meow-tap
+scoop install meow
+```
+</details>
+
+<details>
+<summary><b>Linux (.deb / .rpm)</b></summary>
+
+Download from [releases page](https://github.com/retran/meowg1k/releases/latest)
+
+```bash
+# Debian/Ubuntu
+sudo dpkg -i meowg1k_*.deb
+
+# Fedora/RHEL
+sudo rpm -i meowg1k_*.rpm
+```
+</details>
+
+> 📚 For detailed installation instructions, see the [**Installation Guide**](./docs/01-INSTALLATION.md)
+
+---
+
+## 🚀 Quick Start
+
+### 1️⃣ Initialize Your Project
 
 ```bash
 cd your-project
 meow init
 ```
 
-This creates a `.meowg1k.yaml` file with Google Gemini configured as the default provider.
+This creates a `.meowg1k.yaml` file with sensible defaults.
 
-### 3. Set up API Key
+### 2️⃣ Configure API Key
 
-Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey) and add it to your shell profile (`~/.bashrc`, `~/.zshrc`):
+Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey):
 
 ```bash
+# Add to ~/.bashrc or ~/.zshrc
 export MEOW_GEMINI_API_KEY="your-api-key-here"
+
+# Reload your shell
+source ~/.bashrc  # or ~/.zshrc
 ```
 
-Remember to restart your shell or run `source ~/.bashrc`.
-
-### 4. Try It Out
+### 3️⃣ Start Using meowg1k
 
 ```bash
 # Generate code from a prompt
 echo "Create a hello world function in Python" | meow g
 
-# Generate a commit message (after staging files)
+# Generate a commit message
 git add .
 meow commit
 
@@ -103,65 +149,62 @@ meow pullrequest --base main
 
 ---
 
-## Documentation
+## 📖 Documentation
 
-Explore the full documentation to master `meowg1k`. For a complete overview, jump to our [**Documentation Index**](./docs/README.md).
+<table>
+<tr>
+<td width="33%">
 
-- [**Installation Guide**](./docs/01-INSTALLATION.md)
+### 🛠️ **Getting Started**
+- [Installation Guide](./docs/01-INSTALLATION.md)
+- [Configuration Guide](./docs/02-CONFIGURATION.md)
+- [Command Reference](./docs/03-COMMAND-REFERENCE.md)
 
-  *Get `meowg1k` set up on your system.*
+</td>
+<td width="33%">
 
-- [**Configuration Guide**](./docs/02-CONFIGURATION.md)
+### 📚 **Learn More**
+- [Examples & Recipes](./docs/04-EXAMPLES.md)
+- [Integrations Guide](./docs/05-INTEGRATIONS.md)
+- [Core Principles](./docs/06-PRINCIPLES.md)
 
-  *Learn how to configure profiles, providers, rate limits, and rules.*
+</td>
+<td width="33%">
 
-- [**Command Reference**](./docs/03-COMMAND-REFERENCE.md)
+### 🔧 **Support**
+- [FAQ](./docs/07-FAQ.md)
+- [Troubleshooting](./docs/08-TROUBLESHOOTING.md)
+- [Report Issues](https://github.com/retran/meowg1k/issues)
 
-  *A detailed reference for all commands and their flags.*
+</td>
+</tr>
+</table>
 
-- [**Examples & Recipes**](./docs/04-EXAMPLES.md)
-
-  *Practical examples for solving real-world problems.*
-
-- [**Integrations Guide**](./docs/05-INTEGRATIONS.md)
-
-  *Automate your workflow with Git hooks and CI/CD pipelines.*
-
-- [**Project Philosophy & Core Principles**](./docs/06-PRINCIPLES.md)
-
-  *Understand the philosophy and vision behind the project.*
-
-- [**Frequently Asked Questions (FAQ)**](./docs/07-FAQ.md)
-
-  *Find answers to common questions.*
-
-- [**Troubleshooting Guide**](./docs/08-TROUBLESHOOTING.md)
-
-  *Solve common installation and configuration issues.*
+For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
-We welcome all contributions! This project thrives on community input. Before you get started, please read our [**Contributing Guidelines**](./CONTRIBUTING.md).
+We welcome contributions! Whether it's bug reports, feature requests, or code contributions — we'd love your help.
 
-All participants are expected to uphold our [**Code of Conduct**](./CODE_OF_CONDUCT.md).
-
----
-
-## Project Roadmap
-
-Interested in the future of `meowg1k`? Check out our [**Project Roadmap**](./ROADMAP.md) to see what features are planned and where you can help.
+- Read our [**Contributing Guidelines**](./CONTRIBUTING.md)
+- Follow our [**Code of Conduct**](./CODE_OF_CONDUCT.md)
+- Check the [**Project Roadmap**](./ROADMAP.md)
 
 ---
 
-## Security Policy
+## 🔐 Security
 
-Security is a top priority. If you believe you have found a security vulnerability, please follow the responsible disclosure procedure outlined in our [**Security Policy**](./SECURITY.md).
+Security is a top priority. If you discover a security vulnerability:
+
+1. **Do not** open a public issue
+2. Follow our [**Security Policy**](./SECURITY.md)
+3. Report privately to the maintainers
 
 ---
 
-## License
+## 📄 License
 
 This project is licensed under the [**Apache License 2.0**](./LICENSE).
 
@@ -169,10 +212,10 @@ This project is licensed under the [**Apache License 2.0**](./LICENSE).
 
 <div align="center">
 
-<b>Happy coding with `project meow`! 🐱</b>
+### Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix
 
-<p>Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix.</p>
+**Happy coding with project meow! 🐱**
 
-[Report Bug](https://github.com/retran/meowg1k/issues) · [Request Feature](https://github.com/retran/meowg1k/issues) · [Contribute](https://github.com/retran/meowg1k/pulls)
+[⭐ Star us on GitHub](https://github.com/retran/meowg1k) • [🐛 Report Bug](https://github.com/retran/meowg1k/issues) • [💡 Request Feature](https://github.com/retran/meowg1k/issues) • [🔀 Contribute](https://github.com/retran/meowg1k/pulls)
 
 </div>
