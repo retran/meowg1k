@@ -79,7 +79,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		// For branch diff, we get content from target branch (base) and current HEAD
 		originalFileContent, err := f.branchDiffReader.ReadOriginalFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
+			if strings.Contains(err.Error(), "does not exist") ||
+				strings.Contains(err.Error(), "not in 'HEAD'") ||
+				strings.Contains(err.Error(), "path not in the working tree") {
 				originalFileContent = "" // File is new
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
@@ -89,7 +91,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		// For branch diff, "staged" content is actually current HEAD content
 		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") {
+			if strings.Contains(err.Error(), "does not exist") ||
+				strings.Contains(err.Error(), "path not in the working tree") {
 				// File was deleted - return with empty staged content
 				executorCtx.SendCompleted("Deleted")
 				return &git.FileChange{
