@@ -4,7 +4,6 @@ This page provides a complete index of the `meowg1k` documentation.
 
 [Back to the main project README](../README.md)
 
----
 
 ## Getting Started
 

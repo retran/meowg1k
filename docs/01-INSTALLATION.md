@@ -2,7 +2,6 @@
 
 This guide provides instructions for installing `meowg1k` on various operating systems.
 
----
 
 ## Prerequisites
 
@@ -12,7 +11,6 @@ Before you begin, ensure you have the following:
 - **API Key**: You will need an API key from at least one supported LLM provider (e.g., Gemini, OpenAI, Anthropic) to use the tool with cloud-based models.
 - **Internet Connection**: Required for downloading the tool and for using cloud-based models.
 
----
 
 ## Installation Methods
 
@@ -68,7 +66,6 @@ Download the appropriate `.rpm` file (`x86_64` or `aarch64`) and install it usin
 sudo rpm -i meow-<version>-1.x86_64.rpm
 ```
 
----
 
 ## Verifying the Installation
 
@@ -90,7 +87,6 @@ Git Commit: 85f0b68
 
 If you see a "command not found" error, ensure that the installation directory (e.g., `$GOPATH/bin` for Go installs) is included in your shell's `PATH` environment variable.
 
----
 
 ## Next Steps
 

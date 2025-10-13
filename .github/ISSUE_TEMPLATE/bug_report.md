@@ -1,11 +1,9 @@
----
 name: Bug Report
 about: Something isn't working as expected? Report the issue here.
 title: "[BUG] <A brief, descriptive title>"
 labels: bug
 assignees: ''
 
----
 
 ### Describe the bug
 
