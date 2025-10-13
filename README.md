@@ -2,7 +2,7 @@
 
 # meowg1k
 
-### Your purr-sonal AI sidekick for coding, writing, and automating anything — right from your terminal
+### A purr-fectly scriptable CLI that brings AI superpowers to your terminal—automate commits, reviews, and workflows with feline precision
 
 [![GitHub stars](https://img.shields.io/github/stars/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/stargazers)
 [![GitHub forks](https://img.shields.io/github/forks/retran/meowg1k?style=flat-square)](https://github.com/retran/meowg1k/network/members)
@@ -14,12 +14,11 @@
 
 <img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="280">
 
-[Features](#-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
+[Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
 <img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%">
 
 </div>
-
 
 ## 🎯 Overview
 
@@ -27,43 +26,43 @@
 
 ### Who Should Use This?
 
-<div>
+**meowg1k** is built for professionals who value automation, reproducibility, and control:
 
-- **Developers** — Integrate AI into shell workflows and boost productivity
-- **DevOps Engineers** — Automate PR descriptions and code analysis in CI/CD pipelines
-- **Security Engineers** — Run automated code checks using local, private models
+- **Software Engineers** who want to integrate AI into their development workflow through shell scripts, editor integrations, and command-line tools
+- **DevOps & Platform Engineers** who need to automate code quality checks, generate documentation, and standardize commit/PR descriptions across teams in CI/CD pipelines
+- **Security Professionals** who require complete data privacy by running AI analysis on sensitive codebases using local models that never leave their infrastructure
+- **Open Source Maintainers** who need consistent, high-quality automated documentation and review processes that can be version-controlled and shared with contributors
 
-</div>
 
+## ✨ Key Features
 
-## ✨ Features
+### 🔌 **Provider-Agnostic Architecture**
 
-<div style="display: flex; gap: 2rem;">
-<div style="flex: 1;">
+Switch between Gemini, OpenAI, Anthropic, OpenRouter, or self-hosted models with a simple configuration change. No vendor lock-in—your workflows remain portable across any AI provider.
 
-### 🤖 **Multi-Provider Support**
-Works seamlessly with Gemini, OpenAI, Anthropic, OpenRouter, and more. Switch providers anytime.
+### 🔒 **Privacy-First Design**
 
-### 🔒 **Local-First**
-Run local LLMs via `llama.cpp` for complete privacy and offline access.
+Run completely offline using local LLMs via `llama.cpp`. Your proprietary code never leaves your machine unless you explicitly configure a cloud provider. All API keys are held only in memory and never persisted.
 
-### ⚡ **Zero Dependencies**
-Single native binary. Fast, lightweight, and ready to go.
+### ⚡ **Native Performance, Zero Overhead**
 
-</div>
-<div style="flex: 1;">
+Single statically-linked binary with no runtime dependencies. Starts instantly, uses minimal resources, and runs anywhere—from Docker containers to air-gapped servers.
 
-### 🎯 **Built for Automation**
-Perfect for CI/CD pipelines, Git hooks, and batch processing — not conversations.
+### 🤖 **Automation-Native**
 
-### 💰 **Cost Control**
-Built-in token and request rate limiting for predictable spending.
+Built for scripting and CI/CD, not conversations. Predictable input/output model makes it perfect for Git hooks, pre-commit checks, automated reviews, and batch processing.
+
+### 💰 **Transparent Cost Control**
+
+Fine-grained rate limiting and token caps prevent unexpected bills. Configure request quotas, set spending limits per profile, and monitor usage—all in code.
 
 ### 📝 **Configuration as Code**
-Manage all behavior through version-controlled `.yaml` files.
 
-</div>
-</div>
+Every aspect of behavior is defined in version-controlled YAML files. Share configurations across teams, reproduce workflows exactly, and audit every decision.
+
+### 🎯 **Intelligent Context Engineering**
+
+Automatically enriches prompts with relevant context from your codebase. Future versions will include semantic search, RAG-powered completions, and workspace-aware analysis.
 
 
 ## 📦 Installation
@@ -81,15 +80,18 @@ brew install retran/homebrew-meow-tap/meow
 ### Other Methods
 
 <details>
+
 <summary><b>Windows (Scoop)</b></summary>
 
 ```powershell
 scoop bucket add meow-tap https://github.com/retran/homebrew-meow-tap
 scoop install meow
 ```
+
 </details>
 
 <details>
+
 <summary><b>Linux (.deb / .rpm)</b></summary>
 
 Download from [releases page](https://github.com/retran/meowg1k/releases/latest)
@@ -101,6 +103,7 @@ sudo dpkg -i meowg1k_*.deb
 # Fedora/RHEL
 sudo rpm -i meowg1k_*.rpm
 ```
+
 </details>
 
 > 📚 For detailed installation instructions, see the [**Installation Guide**](./docs/01-INSTALLATION.md)
@@ -146,32 +149,23 @@ meow pullrequest --base main
 
 ## 📖 Documentation
 
-<div style="display: flex; gap: 2rem;">
-<div style="flex: 1;">
-
 ### 🛠️ **Getting Started**
+
 - [Installation Guide](./docs/01-INSTALLATION.md)
 - [Configuration Guide](./docs/02-CONFIGURATION.md)
 - [Command Reference](./docs/03-COMMAND-REFERENCE.md)
 
-</div>
-<div style="flex: 1;">
-
 ### 📚 **Learn More**
+
 - [Examples & Recipes](./docs/04-EXAMPLES.md)
 - [Integrations Guide](./docs/05-INTEGRATIONS.md)
 - [Core Principles](./docs/06-PRINCIPLES.md)
 
-</div>
-<div style="flex: 1;">
-
 ### 🔧 **Support**
+
 - [FAQ](./docs/07-FAQ.md)
 - [Troubleshooting](./docs/08-TROUBLESHOOTING.md)
 - [Report Issues](https://github.com/retran/meowg1k/issues)
-
-</div>
-</div>
 
 For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
