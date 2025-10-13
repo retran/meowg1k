@@ -27,24 +27,19 @@
 
 ### Who Should Use This?
 
-<table style="border: none;">
-<tr style="border: none;">
-<td style="border: none;">
+<div>
 
 - **Developers** — Integrate AI into shell workflows and boost productivity
 - **DevOps Engineers** — Automate PR descriptions and code analysis in CI/CD pipelines
 - **Security Engineers** — Run automated code checks using local, private models
 
-</td>
-</tr>
-</table>
+</div>
 
 
 ## ✨ Features
 
-<table style="border: none;">
-<tr style="border: none;">
-<td width="50%" style="border: none;">
+<div style="display: flex; gap: 2rem;">
+<div style="flex: 1;">
 
 ### 🤖 **Multi-Provider Support**
 Works seamlessly with Gemini, OpenAI, Anthropic, OpenRouter, and more. Switch providers anytime.
@@ -55,8 +50,8 @@ Run local LLMs via `llama.cpp` for complete privacy and offline access.
 ### ⚡ **Zero Dependencies**
 Single native binary. Fast, lightweight, and ready to go.
 
-</td>
-<td width="50%" style="border: none;">
+</div>
+<div style="flex: 1;">
 
 ### 🎯 **Built for Automation**
 Perfect for CI/CD pipelines, Git hooks, and batch processing — not conversations.
@@ -67,9 +62,8 @@ Built-in token and request rate limiting for predictable spending.
 ### 📝 **Configuration as Code**
 Manage all behavior through version-controlled `.yaml` files.
 
-</td>
-</tr>
-</table>
+</div>
+</div>
 
 
 ## 📦 Installation
@@ -152,34 +146,32 @@ meow pullrequest --base main
 
 ## 📖 Documentation
 
-<table style="border: none;">
-<tr style="border: none;">
-<td width="33%" style="border: none;">
+<div style="display: flex; gap: 2rem;">
+<div style="flex: 1;">
 
 ### 🛠️ **Getting Started**
 - [Installation Guide](./docs/01-INSTALLATION.md)
 - [Configuration Guide](./docs/02-CONFIGURATION.md)
 - [Command Reference](./docs/03-COMMAND-REFERENCE.md)
 
-</td>
-<td width="33%" style="border: none;">
+</div>
+<div style="flex: 1;">
 
 ### 📚 **Learn More**
 - [Examples & Recipes](./docs/04-EXAMPLES.md)
 - [Integrations Guide](./docs/05-INTEGRATIONS.md)
 - [Core Principles](./docs/06-PRINCIPLES.md)
 
-</td>
-<td width="33%" style="border: none;">
+</div>
+<div style="flex: 1;">
 
 ### 🔧 **Support**
 - [FAQ](./docs/07-FAQ.md)
 - [Troubleshooting](./docs/08-TROUBLESHOOTING.md)
 - [Report Issues](https://github.com/retran/meowg1k/issues)
 
-</td>
-</tr>
-</table>
+</div>
+</div>
 
 For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
