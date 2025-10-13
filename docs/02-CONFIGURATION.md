@@ -4,7 +4,6 @@
 
 This guide covers everything from setting your API keys to creating complex, rule-based workflows.
 
----
 
 ## 1. Setting API Keys
 
@@ -25,7 +24,6 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 
 > **Note:** You can specify a custom environment variable name within a profile using the `apiKeyEnv` field if needed.
 
----
 
 ## 2. Configuration File Hierarchy
 
@@ -92,7 +90,6 @@ This is useful when:
 
 > **Note:** The workspace root is detected independently of configuration loading. Even when using the `--config` flag to specify an explicit configuration file, the workspace root is still determined and used for other operations. Use `--workspace` to explicitly set the workspace root when automatic detection is not suitable.
 
----
 
 ## 3. Configuration File Structure
 
@@ -425,7 +422,6 @@ pullRequest:
     3. Check that `...` works as expected.
 ```
 
----
 
 ## 4. Supported Providers
 
@@ -439,7 +435,6 @@ pullRequest:
 | OpenAI Compatible | `openai-compatible` | `MEOW_OPENAI_COMPATIBLE_API_KEY` |
 | Voyage AI         | `voyage`            | `MEOW_VOYAGE_API_KEY`            |
 
----
 
 ## 5. Complete Examples
 
@@ -524,8 +519,6 @@ pullRequest:
   profile: "smart"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
-
----
 
 ## Next Steps
 
