@@ -2,7 +2,6 @@
 
 This document answers common questions about `meowg1k`.
 
----
 
 ## General
 
@@ -26,7 +25,6 @@ The cost depends entirely on the provider and model you choose.
 - Using a local `llama.cpp` model is completely free, limited only by your hardware.
 - To control costs with paid providers, use the rate limiting and token cap features in your profiles.
 
----
 
 ## Configuration
 
@@ -50,7 +48,6 @@ If you reference a profile that doesn't exist in your configuration file, `meowg
 
 However, `meowg1k` will fall back to smart defaults for the chosen provider when a profile exists but certain optional fields are missing. For example, if you specify `provider: "gemini"` but don't provide a model, it will default to `gemini-2.5-flash`.
 
----
 
 ## Usage
 
@@ -118,7 +115,6 @@ DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remote
 meow pr --base "$DEFAULT_BRANCH"
 ```
 
----
 
 ## Security & Privacy
 

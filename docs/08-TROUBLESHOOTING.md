@@ -2,7 +2,6 @@
 
 This guide helps you solve common problems you might encounter while using `meowg1k`.
 
----
 
 ## Installation Issues
 
@@ -37,7 +36,6 @@ sudo dpkg -i meow_<version>_amd64.deb
 sudo dnf install ./meow-<version>-1.x86_64.rpm
 ```
 
----
 
 ## API & Authentication
 
@@ -77,7 +75,7 @@ models:
     rateLimit:
       requestsPerMinute: 20
       tokensPerMinute: 40000
-```---
+```
 
 ## Configuration
 
@@ -97,7 +95,6 @@ models:
 - Use an online YAML validator to check your file for syntax errors.
 - Strings containing special characters (like `:`) may need to be enclosed in quotes.
 
----
 
 ## Command Usage
 
@@ -166,7 +163,6 @@ profiles:
     timeout: "15m" # Increase timeout to 15 minutes
 ```
 
----
 
 ## Network & Proxy Issues
 
@@ -183,7 +179,6 @@ export HTTPS_PROXY="[http://proxy.example.com:8080](http://proxy.example.com:808
 
 - **For local models:** Ensure your `llama.cpp` server is running and that the `baseURL` in your profile matches the server's address and port (e.g., `http://localhost:8080`).
 
----
 
 ## Debugging & Trace Logs
 
@@ -228,7 +223,6 @@ cat .meowg1k/logs/$(ls -t .meowg1k/logs/ | head -1) | jq 'select(.log_entry_type
 
 **Note:** Trace log files are excluded from version control by default (via `.gitignore`). These logs may contain sensitive information from your prompts and code, so be careful when sharing them.
 
----
 
 ## Getting Further Help
 

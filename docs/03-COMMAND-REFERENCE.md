@@ -2,7 +2,6 @@
 
 This document provides a detailed reference for all available `meowg1k` commands and their options.
 
----
 
 ## `meow init`
 
@@ -49,7 +48,6 @@ After running `meow init`, you need to:
    echo "Create a hello world function" | meow generate
    ```
 
----
 
 ## Global Flags
 
@@ -62,7 +60,6 @@ These flags can be used with any command.
 - `--update-cache`: Forces a cache refresh by making a fresh request to the LLM and updating the cache entry.
 - `--help`: Shows help information for any command.
 
----
 
 ## `meow generate` (aliases: `gen`, `g`)
 
@@ -73,7 +70,7 @@ Generates content based on a prompt and/or context provided via standard input (
 ```bash
 cat [file] | meow generate [flags]
 echo "[text]" | meow g [flags]
-````
+```
 
 ### Flags
 
@@ -96,7 +93,6 @@ echo "function add(a, b) { return a + b; }" | meow g \
   -u "Convert this JavaScript function to TypeScript with type hints"
 ```
 
----
 
 ## `meow commit` (alias: `c`)
 
@@ -149,7 +145,6 @@ meow commit --target-branch main
 meow commit -t dev -i "Implement the entire user profile feature"
 ```
 
----
 
 ## `meow pullrequest` (aliases: `pr`)
 
@@ -186,7 +181,6 @@ meow pullrequest -b dev -i "Add a complete Stripe payment integration"
 echo "This PR adds a new caching layer using Redis" | meow pullrequest -b main
 ```
 
----
 
 ## `meow version`
 
