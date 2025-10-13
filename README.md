@@ -14,9 +14,7 @@
 
 ### A purr-fectly scriptable CLI that brings AI superpowers to your terminal—automate commits, reviews, and workflows with feline precision
 
-[Overview](#-overview) • [Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [Security](#-security) • [License](#-license)
-
-<img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%">
+[Overview](#-overview) • [See It in Action](#-see-it-in-action) • [Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [Security](#-security) • [License](#-license)
 
 </div>
 
@@ -33,6 +31,13 @@
 - **Security Professionals** who require complete data privacy by running AI analysis on sensitive codebases using local models that never leave their infrastructure
 - **Open Source Maintainers** who need consistent, high-quality automated documentation and review processes that can be version-controlled and shared with contributors
 
+## 🎬 See It in Action
+
+<div align="center">
+
+<img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%" />
+
+</div>
 
 ## ✨ Key Features
 
@@ -67,7 +72,7 @@ Automatically enriches prompts with relevant context from your codebase. Future 
 
 ## 📦 Installation
 
-### Quick Install
+### ⚡ Quick Install
 
 ```bash
 # Using Go (requires Go 1.25.1+)
@@ -77,7 +82,7 @@ go install github.com/retran/meowg1k@latest
 brew install retran/homebrew-meow-tap/meow
 ```
 
-### Other Methods
+### 🔧 Platform-Specific Installation
 
 <details>
 
@@ -174,7 +179,7 @@ For a complete overview, visit our [**Documentation Index**](./docs/README.md).
 
 We welcome contributions! Whether it's bug reports, feature requests, or code contributions — we'd love your help.
 
-- Read our [**Contributing Guideline**](./CONTRIBUTING.md)
+- Read our [**Contributing Guidelines**](./CONTRIBUTING.md)
 - Follow our [**Code of Conduct**](./CODE_OF_CONDUCT.md)
 - Check the [**Project Roadmap**](./ROADMAP.md)
 
