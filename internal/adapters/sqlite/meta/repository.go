@@ -40,7 +40,7 @@ func NewRepository(host ports.Host) *Repository {
 // SetValue stores a metadata value with the given key.
 // If the key already exists, the value is updated.
 func (r *Repository) SetValue(ctx context.Context, key string, value []byte) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -58,7 +58,7 @@ func (r *Repository) SetValue(ctx context.Context, key string, value []byte) err
 // GetValue retrieves a metadata value by key.
 // Returns nil if the key does not exist.
 func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -77,7 +77,7 @@ func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
 // DeleteValue deletes a metadata value by key.
 // Does not return an error if the key does not exist.
 func (r *Repository) DeleteValue(ctx context.Context, key string) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}

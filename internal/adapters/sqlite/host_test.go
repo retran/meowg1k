@@ -103,7 +103,7 @@ func TestNewLocalHost_Success(t *testing.T) {
 	}
 
 	// Test GetDB
-	db, err := host.GetDB()
+	db, err := host.GetMainDB()
 	if err != nil {
 		t.Fatalf("unexpected error getting db: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestNewLocalHost_Success(t *testing.T) {
 
 func TestLocalHostImpl_GetDB_NilHost(t *testing.T) {
 	var host *localHostImpl
-	_, err := host.GetDB()
+	_, err := host.GetMainDB()
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}

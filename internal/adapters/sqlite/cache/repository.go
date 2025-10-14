@@ -46,7 +46,7 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 		return "", false, fmt.Errorf("key cannot be empty")
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return "", false, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -80,7 +80,7 @@ func (r *Repository) Set(ctx context.Context, key, value string) error {
 		return fmt.Errorf("key cannot be empty")
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -110,7 +110,7 @@ func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 		return fmt.Errorf("TTL must be positive")
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}

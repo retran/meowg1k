@@ -79,7 +79,7 @@ func NewLocalHost(dbPathService DBPathService) (ports.Host, error) {
 	return host, nil
 }
 
-func (h *localHostImpl) GetDB() (*sql.DB, error) {
+func (h *localHostImpl) GetMainDB() (*sql.DB, error) {
 	if h == nil {
 		return nil, fmt.Errorf("host is nil")
 	}

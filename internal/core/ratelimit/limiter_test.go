@@ -38,7 +38,7 @@ func newMockHost(db *sql.DB) ports.Host {
 	return &mockHost{db: db}
 }
 
-func (m *mockHost) GetDB() (*sql.DB, error) {
+func (m *mockHost) GetMainDB() (*sql.DB, error) {
 	return m.db, nil
 }
 

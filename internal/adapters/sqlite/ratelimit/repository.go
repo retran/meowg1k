@@ -60,7 +60,7 @@ func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery 
 
 // AcquireTokens attempts to acquire the specified number of tokens from the given buckets.
 func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -141,7 +141,7 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 
 // InitializeBuckets initializes the rate limit buckets in the database.
 func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -173,7 +173,7 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 
 // ResetBuckets resets the tokens in the specified buckets to their full capacity.
 func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetMainDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}

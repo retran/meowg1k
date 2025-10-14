@@ -46,7 +46,7 @@ import (
 // testMockDBHost is a simple mock implementation for testing nil validation
 type testMockDBHost struct{}
 
-func (h *testMockDBHost) GetDB() (*sql.DB, error) {
+func (h *testMockDBHost) GetMainDB() (*sql.DB, error) {
 	return nil, nil
 }
 

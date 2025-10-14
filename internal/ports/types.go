@@ -69,7 +69,7 @@ type GenerationGatewayFactory interface {
 
 // Host provides access to database connections.
 type Host interface {
-	GetDB() (*sql.DB, error)
+	GetMainDB() (*sql.DB, error)
 	GetProjectDB() (*sql.DB, error)
 	Close() error
 }

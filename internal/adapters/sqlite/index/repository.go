@@ -41,7 +41,7 @@ func NewRepository(host ports.Host) *Repository {
 }
 
 func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -81,7 +81,7 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 }
 
 func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -126,7 +126,7 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 // GetAllEmbeddings retrieves all embeddings from the index.
 // Returns a map of chunk ID to embedding vector.
 func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Embedding, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -162,7 +162,7 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 // FindVersionByContentHash finds a document version by content hash and file path.
 // Returns nil if no matching version is found.
 func (r *Repository) FindVersionByContentHash(ctx context.Context, filePath, contentHash string) (*domainindex.DocumentVersion, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -194,7 +194,7 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 		return make(map[string]*domainindex.DocumentVersion), nil
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -239,7 +239,7 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 // FindContentBlob checks if a content blob exists by its hash.
 // Returns true if the blob exists, false otherwise.
 func (r *Repository) FindContentBlob(ctx context.Context, contentHash string) (bool, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return false, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -259,7 +259,7 @@ func (r *Repository) FindContentBlob(ctx context.Context, contentHash string) (b
 // GetContentBlob retrieves the content of a blob by its hash.
 // Returns nil if the blob does not exist.
 func (r *Repository) GetContentBlob(ctx context.Context, contentHash string) ([]byte, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -282,7 +282,7 @@ func (r *Repository) GetContentBlob(ctx context.Context, contentHash string) ([]
 
 // FindVersionsByFilePath finds all versions of a document by file path.
 func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string) ([]domainindex.DocumentVersion, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -317,7 +317,7 @@ func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string
 
 // GetChunksByVersionID retrieves all chunks for a given document version.
 func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) ([]domainindex.Chunk, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -369,7 +369,7 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 		return []domainindex.Chunk{}, nil
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -425,7 +425,7 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 
 // LinkVersionToSnapshot links a document version to a commit snapshot.
 func (r *Repository) LinkVersionToSnapshot(ctx context.Context, commitHash string, versionID int64) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -444,7 +444,7 @@ func (r *Repository) LinkVersionToSnapshot(ctx context.Context, commitHash strin
 
 // UnlinkVersionFromSnapshot removes a link between a document version and a snapshot.
 func (r *Repository) UnlinkVersionFromSnapshot(ctx context.Context, commitHash string, versionID int64) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -462,7 +462,7 @@ func (r *Repository) UnlinkVersionFromSnapshot(ctx context.Context, commitHash s
 
 // GetVersionIDsForSnapshot retrieves all document version IDs for a given snapshot.
 func (r *Repository) GetVersionIDsForSnapshot(ctx context.Context, commitHash string) ([]int64, error) {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
@@ -494,7 +494,7 @@ func (r *Repository) GetVersionIDsForSnapshot(ctx context.Context, commitHash st
 
 // ClearSnapshotLinks removes all links for a given snapshot.
 func (r *Repository) ClearSnapshotLinks(ctx context.Context, commitHash string) error {
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return fmt.Errorf("failed to get database: %w", err)
 	}
@@ -515,7 +515,7 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 		return []domainindex.DocumentVersion{}, nil
 	}
 
-	db, err := r.host.GetDB()
+	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}

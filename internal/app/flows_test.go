@@ -38,7 +38,7 @@ type mockDBHost struct {
 	projectDB *sql.DB
 }
 
-func (h *mockDBHost) GetDB() (*sql.DB, error) {
+func (h *mockDBHost) GetMainDB() (*sql.DB, error) {
 	return h.mainDB, nil
 }
 
