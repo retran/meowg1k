@@ -194,6 +194,65 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 	return files, nil
 }
 
+// ListFiles returns a list of all files in the specified commit/ref.
+func (g *Service) ListFiles(ref string) ([]string, error) {
+	if g == nil {
+		return nil, fmt.Errorf("git service is nil")
+	}
+
+	if strings.TrimSpace(ref) == "" {
+		return nil, fmt.Errorf("ref cannot be empty")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("ls-tree", "-r", "--name-only", ref)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list files at ref %s: %w", ref, err)
+	}
+
+	if output == "" {
+		return []string{}, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	files := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			files = append(files, trimmed)
+		}
+	}
+
+	return files, nil
+}
+
+// ReadFileAtCommit reads the content of a file at a specific commit/ref.
+func (g *Service) ReadFileAtCommit(ref, filePath string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	if strings.TrimSpace(ref) == "" {
+		return "", fmt.Errorf("ref cannot be empty")
+	}
+
+	if strings.TrimSpace(filePath) == "" {
+		return "", fmt.Errorf("file path cannot be empty")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	content, err := g.runGitCommand("show", ref+":"+filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s at ref %s: %w", filePath, ref, err)
+	}
+
+	return content, nil
+}
+
 // GetBranchDiff returns the diff of a specific file between the current branch and the target branch.
 func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 	if g == nil {

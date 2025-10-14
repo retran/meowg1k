@@ -43,6 +43,12 @@ type Config struct {
 	// PullRequest command configuration ("Reduce" phase)
 	PullRequest *CommandConfig `yaml:"pullRequest" mapstructure:"pullRequest"`
 
+	// Index configuration for document indexing
+	Index *IndexConfig `yaml:"index" mapstructure:"index"`
+
+	// Ask configuration for RAG-based question answering
+	Ask *AskConfig `yaml:"ask" mapstructure:"ask"`
+
 	// Cache configuration for LLM response caching
 	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
 }
@@ -313,5 +319,38 @@ type CommandConfig struct {
 	Strategy string `yaml:"strategy" mapstructure:"strategy"`
 
 	// SystemPrompt sets the system prompt for the command
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+}
+
+// IndexConfig defines configuration for document indexing.
+type IndexConfig struct {
+	// Profile references a profile defined in the profiles section for computing embeddings
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// Chunker defines chunking parameters for document processing
+	Chunker *ChunkerConfig `yaml:"chunker" mapstructure:"chunker"`
+}
+
+// ChunkerConfig defines parameters for text chunking.
+type ChunkerConfig struct {
+	// MaxRunes is the maximum number of runes per chunk
+	MaxRunes int `yaml:"maxRunes" mapstructure:"maxRunes"`
+
+	// OverlapRunes is the number of runes to overlap between chunks
+	OverlapRunes int `yaml:"overlapRunes" mapstructure:"overlapRunes"`
+}
+
+// AskConfig defines configuration for RAG-based question answering.
+type AskConfig struct {
+	// Profile references a profile defined in the profiles section for generating answers
+	Profile string `yaml:"profile" mapstructure:"profile"`
+
+	// TopK is the number of top results to retrieve from vector search
+	TopK int `yaml:"topK" mapstructure:"topK"`
+
+	// MinScore is the minimum similarity score for retrieved chunks (0.0 to 1.0)
+	MinScore float32 `yaml:"minScore" mapstructure:"minScore"`
+
+	// SystemPrompt is the system prompt for the answer generation
 	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 }

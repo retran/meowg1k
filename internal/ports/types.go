@@ -206,19 +206,19 @@ type GitService interface {
 	ListFiles(ref string) ([]string, error)
 
 	// ReadFileAtCommit reads the content of a file at a specific commit/ref.
-	ReadFileAtCommit(ref, filePath string) ([]byte, error)
+	ReadFileAtCommit(ref, filePath string) (string, error)
 
 	// ReadStagedFiles returns a list of files that are currently staged.
 	ReadStagedFiles() ([]string, error)
 
 	// ReadStagedFileContent reads the content of a staged file from Git index.
-	ReadStagedFileContent(filePath string) ([]byte, error)
+	ReadStagedFileContent(filePath string) (string, error)
 }
 
 // FilterService defines the interface for file filtering operations.
 type FilterService interface {
 	// IsIgnoredFile checks if a file should be ignored (e.g., based on .gitignore).
-	IsIgnoredFile(filePath string) (bool, error)
+	IsIgnoredFile(filePath string) bool
 }
 
 // ChunkerService defines the interface for text chunking.

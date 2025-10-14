@@ -58,12 +58,15 @@ func (s *StateService) GetHeadState() (map[string]domainindex.FileState, error) 
 			return nil, fmt.Errorf("failed to read file %s from HEAD: %w", filePath, err)
 		}
 
+		// Convert string to []byte for hash computation
+		contentBytes := []byte(content)
+
 		// Compute content hash
-		hash := computeContentHash(content)
+		hash := computeContentHash(contentBytes)
 
 		state[filePath] = domainindex.FileState{
 			ContentHash: hash,
-			Content:     content,
+			Content:     contentBytes,
 		}
 	}
 
@@ -87,12 +90,15 @@ func (s *StateService) GetStagingState() (map[string]domainindex.FileState, erro
 			return nil, fmt.Errorf("failed to read staged file %s: %w", filePath, err)
 		}
 
+		// Convert string to []byte for hash computation
+		contentBytes := []byte(content)
+
 		// Compute content hash
-		hash := computeContentHash(content)
+		hash := computeContentHash(contentBytes)
 
 		state[filePath] = domainindex.FileState{
 			ContentHash: hash,
-			Content:     content,
+			Content:     contentBytes,
 		}
 	}
 
@@ -127,10 +133,7 @@ func (s *StateService) GetWorkdirState() (map[string]domainindex.FileState, erro
 		}
 
 		// Check if file should be ignored
-		ignored, err := s.filterService.IsIgnoredFile(relPath)
-		if err != nil {
-			return fmt.Errorf("failed to check if file %s is ignored: %w", relPath, err)
-		}
+		ignored := s.filterService.IsIgnoredFile(relPath)
 
 		if ignored {
 			return nil

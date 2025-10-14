@@ -15,6 +15,14 @@ models:
       tokensPerMinute: 1000000
       requestsPerDay: 10000
 
+  gemini-embeddings:
+    provider: "gemini"
+    model: "gemini-embedding-001"
+    rateLimit:
+      requestsPerMinute: 3000
+      tokensPerMinute: 1000000
+      requestsPerDay: 1000000
+
 profiles:
   fast:
     model: "qwen-flash"
@@ -32,10 +40,16 @@ profiles:
       enabled: true
       ttl: "72h"  # Cache smart completions longer (3 days)
 
-# Global cache configuration (can be overridden per profile)
+  embeddings:
+    model: "gemini-embeddings"
+    timeout: "10m"
+    cache:
+      enabled: true
+      ttl: "72h"
+
 cache:
   enabled: true
-  ttl: "24h"  # Default: cache entries expire after 24 hours
+  ttl: "24h"
 
 generate:
   default:
@@ -107,6 +121,22 @@ filter:
     - "dist/**"
     - "bin/**"
     - ".git/**"
+
+index:
+  profile: "embeddings"
+  chunker:
+    maxRunes: 1024
+    overlapRunes: 128
+
+ask:
+  profile: "smart"
+  topK: 20
+  minScore: 0.7
+  systemPrompt: >-
+    You are an expert AI assistant helping developers understand their codebase.
+    Answer questions based ONLY on the provided code context.
+    Be precise, concise, and reference specific code elements when relevant.
+    If the context doesn't contain enough information, clearly state that.
 
 summarize:
   default:
