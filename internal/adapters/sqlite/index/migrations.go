@@ -55,6 +55,13 @@ var Migrations = []migrations.Migration{
 					embedding BLOB NOT NULL,
 					FOREIGN KEY (document_version_id) REFERENCES document_versions(id) ON DELETE CASCADE
 				);
+
+				CREATE TABLE commit_snapshots (
+					commit_hash TEXT NOT NULL,
+					document_version_id INTEGER NOT NULL,
+					PRIMARY KEY (commit_hash, document_version_id),
+					FOREIGN KEY (document_version_id) REFERENCES document_versions(id) ON DELETE CASCADE
+				);
 			`)
 			if err != nil {
 				return fmt.Errorf("failed to create RAG schema tables: %w", err)
@@ -64,6 +71,7 @@ var Migrations = []migrations.Migration{
 				CREATE INDEX idx_document_versions_path ON document_versions (file_path);
 				CREATE INDEX idx_document_versions_path_commit ON document_versions (file_path, git_commit_hash);
 				CREATE INDEX idx_chunks_document_version_id ON chunks (document_version_id);
+				CREATE INDEX idx_commit_snapshots_commit_hash ON commit_snapshots (commit_hash);
 			`)
 			if err != nil {
 				return fmt.Errorf("failed to create indexes for RAG schema: %w", err)

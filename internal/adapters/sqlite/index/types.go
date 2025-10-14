@@ -50,3 +50,10 @@ type Chunk struct {
 	EndLine           int               `db:"end_line"`
 	Embedding         gateway.Embedding `db:"embedding"`
 }
+
+// CommitSnapshot represents a link between a git commit and a document version.
+// It tracks which document versions existed at a specific commit.
+type CommitSnapshot struct {
+	CommitHash        string `db:"commit_hash"`
+	DocumentVersionID int64  `db:"document_version_id"`
+}
