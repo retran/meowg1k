@@ -21,17 +21,22 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/ensureversionsexist"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
-	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// VersionMaps contains the version mappings for all three states.
+type VersionMaps struct {
+	HeadVersions    map[string]int64
+	StageVersions   map[string]int64
+	WorkdirVersions map[string]int64
+}
+
 // Input contains the data needed to build SQL snapshots.
 type Input struct {
 	WorkspaceState *scanworkspacestate.Output
-	Versions       *ensureversionsexist.Output
+	Versions       *VersionMaps
 }
 
 // Factory creates instances of the BuildSqlSnapshots activity with injected dependencies.
@@ -58,32 +63,18 @@ func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (struct{}, error) {
 		executorCtx.SendRunning("Building SQL snapshots...")
 
-		// Helper function to prepare version map for a specific state
-		prepareVersionMap := func(state map[string]domainindex.FileState) map[string]int64 {
-			result := make(map[string]int64, len(state))
-			for path := range state {
-				if versionID, exists := input.Versions.VersionMap[path]; exists {
-					result[path] = versionID
-				}
-			}
-			return result
-		}
-
 		// Build snapshot for HEAD
-		headVersions := prepareVersionMap(input.WorkspaceState.HeadState)
-		if err := f.indexSvc.BuildSnapshot("_head_", headVersions); err != nil {
+		if err := f.indexSvc.BuildSnapshot("_head_", input.Versions.HeadVersions); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _head_ snapshot: %w", err)
 		}
 
 		// Build snapshot for staging area
-		stageVersions := prepareVersionMap(input.WorkspaceState.StageState)
-		if err := f.indexSvc.BuildSnapshot("_stage_", stageVersions); err != nil {
+		if err := f.indexSvc.BuildSnapshot("_stage_", input.Versions.StageVersions); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _stage_ snapshot: %w", err)
 		}
 
 		// Build snapshot for working directory
-		workdirVersions := prepareVersionMap(input.WorkspaceState.WorkdirState)
-		if err := f.indexSvc.BuildSnapshot("_workdir_", workdirVersions); err != nil {
+		if err := f.indexSvc.BuildSnapshot("_workdir_", input.Versions.WorkdirVersions); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _workdir_ snapshot: %w", err)
 		}
 
