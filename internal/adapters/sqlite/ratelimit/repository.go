@@ -27,12 +27,10 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Repository is a concrete implementation of the RateLimitRepository interface using SQLite.
 type Repository struct {
 	host ports.Host
 }
 
-// NewRepository creates a new Repository with the given database connection.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{
 		host: host,

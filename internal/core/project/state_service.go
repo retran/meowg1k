@@ -28,14 +28,12 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// StateService implements ProjectStateService.
 type StateService struct {
 	gitService       ports.GitService
 	filterService    ports.FilterService
 	workspaceService ports.WorkspaceService
 }
 
-// NewStateService creates a new project state service.
 func NewStateService(gitService ports.GitService, filterService ports.FilterService, workspaceService ports.WorkspaceService) *StateService {
 	return &StateService{
 		gitService:       gitService,
@@ -44,7 +42,6 @@ func NewStateService(gitService ports.GitService, filterService ports.FilterServ
 	}
 }
 
-// GetHeadState returns the state of files in HEAD commit.
 func (s *StateService) GetHeadState() (map[string]domainindex.FileState, error) {
 	// Get list of files in HEAD
 	files, err := s.gitService.ListFiles("HEAD")

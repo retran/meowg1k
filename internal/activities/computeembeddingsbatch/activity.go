@@ -26,25 +26,20 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Input contains a batch of chunk texts to compute embeddings for.
 type Input struct {
 	ChunkTexts []string
 }
 
-// Output contains the computed embeddings.
 type Output struct {
 	Embeddings []gateway.Embedding
 }
 
-// Factory creates instances of the ComputeEmbeddingsBatch activity with injected dependencies.
 type Factory struct {
 	embeddingGW ports.EmbeddingsGateway
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new ComputeEmbeddingsBatch activity factory.
 func NewFactory(embeddingGW ports.EmbeddingsGateway) (executor.ActivityFactory[*Input, *Output], error) {
 	if embeddingGW == nil {
 		return nil, fmt.Errorf("computeembeddingsbatch.NewFactory: embeddingGW cannot be nil")
@@ -55,7 +50,6 @@ func NewFactory(embeddingGW ports.EmbeddingsGateway) (executor.ActivityFactory[*
 	}, nil
 }
 
-// NewActivity creates and returns the ComputeEmbeddingsBatch activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings for %d chunks...", len(input.ChunkTexts)))

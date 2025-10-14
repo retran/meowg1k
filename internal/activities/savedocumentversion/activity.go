@@ -19,16 +19,14 @@ package savedocumentversion
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/core/index"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Input contains the document data with chunks and embeddings.
 type Input struct {
 	FilePath    string
 	Content     []byte
@@ -37,81 +35,48 @@ type Input struct {
 	Embeddings  []gateway.Embedding
 }
 
-// Output contains the created document version ID.
 type Output struct {
 	FilePath  string
 	VersionID int64
 }
 
-// Factory creates instances of the SaveDocumentVersion activity with injected dependencies.
 type Factory struct {
-	indexRepo ports.IndexRepository
+	indexService *index.Service
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new SaveDocumentVersion activity factory.
-func NewFactory(indexRepo ports.IndexRepository) (executor.ActivityFactory[*Input, *Output], error) {
-	if indexRepo == nil {
-		return nil, fmt.Errorf("savedocumentversion.NewFactory: indexRepo cannot be nil")
+func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, *Output], error) {
+	if indexService == nil {
+		return nil, fmt.Errorf("savedocumentversion.NewFactory: indexService cannot be nil")
 	}
 
 	return &Factory{
-		indexRepo: indexRepo,
+		indexService: indexService,
 	}, nil
 }
 
-// NewActivity creates and returns the SaveDocumentVersion activity function.
-// Note: This activity assumes that deduplication has already been performed by the flow.
-// It will unconditionally create a new document version.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Saving document: %s", input.FilePath))
 
-		// Validate input
-		if len(input.Chunks) != len(input.Embeddings) {
-			return nil, fmt.Errorf("chunk count (%d) does not match embedding count (%d)", len(input.Chunks), len(input.Embeddings))
+		serviceInput := &index.SaveVersionInput{
+			FilePath:    input.FilePath,
+			Content:     input.Content,
+			ContentHash: input.ContentHash,
+			Chunks:      input.Chunks,
+			Embeddings:  input.Embeddings,
 		}
 
-		// Create document version
-		docVersion := domainindex.DocumentVersion{
-			FilePath:               input.FilePath,
-			GitCommitHashFirstSeen: sql.NullString{Valid: false}, // Will be set later if needed
-			ContentHash:            input.ContentHash,
-		}
-
-		versionID, err := f.indexRepo.AddDocumentVersion(ctx, docVersion, input.Content)
+		result, err := f.indexService.SaveNewVersion(ctx, serviceInput)
 		if err != nil {
-			return nil, fmt.Errorf("failed to add document version for %s: %w", input.FilePath, err)
-		}
-
-		// Create chunks with embeddings
-		var chunksWithEmbeddings []domainindex.Chunk
-		for i, chunkData := range input.Chunks {
-			chunksWithEmbeddings = append(chunksWithEmbeddings, domainindex.Chunk{
-				DocumentVersionID: versionID,
-				ChunkType:         "text", // Default chunk type
-				TextContent:       chunkData.TextContent,
-				StartByte:         chunkData.StartByte,
-				EndByte:           chunkData.EndByte,
-				StartRune:         chunkData.StartRune,
-				EndRune:           chunkData.EndRune,
-				StartLine:         chunkData.StartLine,
-				EndLine:           chunkData.EndLine,
-				Embedding:         input.Embeddings[i],
-			})
-		}
-
-		// Add chunks to repository
-		if err := f.indexRepo.AddChunks(ctx, chunksWithEmbeddings); err != nil {
-			return nil, fmt.Errorf("failed to add chunks for %s: %w", input.FilePath, err)
+			return nil, fmt.Errorf("failed to save document version: %w", err)
 		}
 
 		executorCtx.SendCompleted(fmt.Sprintf("Document saved: %s (%d chunks)", input.FilePath, len(input.Chunks)))
 		return &Output{
-			FilePath:  input.FilePath,
-			VersionID: versionID,
+			FilePath:  result.FilePath,
+			VersionID: result.VersionID,
 		}, nil
 	}
 }

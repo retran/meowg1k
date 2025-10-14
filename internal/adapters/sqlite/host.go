@@ -28,7 +28,6 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// DBPathService defines the interface for determining database paths.
 type DBPathService interface {
 	GetMainDBPath() (string, error)
 	GetProjectDBPath() (string, error)
@@ -39,7 +38,6 @@ type localHostImpl struct {
 	projectDB *sql.DB
 }
 
-// NewLocalHost creates a new local host with databases using the provided path service.
 func NewLocalHost(dbPathService DBPathService) (ports.Host, error) {
 	if dbPathService == nil {
 		return nil, fmt.Errorf("db path service is nil")

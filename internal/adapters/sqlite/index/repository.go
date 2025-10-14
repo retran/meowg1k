@@ -27,24 +27,19 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Repository implements index storage using SQLite.
 type Repository struct {
 	host ports.Host
 }
 
-// Compile-time interface compliance checks.
 var (
 	_ ports.IndexRepository    = (*Repository)(nil)
 	_ ports.SnapshotRepository = (*Repository)(nil)
 )
 
-// NewRepository creates a new index repository.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{host: host}
 }
 
-// AddDocumentVersion adds a new document version to the index.
-// Returns the ID of the newly created document version.
 func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
 	db, err := r.host.GetDB()
 	if err != nil {
@@ -85,7 +80,6 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 	return id, nil
 }
 
-// AddChunks adds multiple chunks to the index in a single transaction.
 func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) error {
 	db, err := r.host.GetDB()
 	if err != nil {

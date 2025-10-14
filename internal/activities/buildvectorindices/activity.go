@@ -26,15 +26,12 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the BuildVectorIndices activity with injected dependencies.
 type Factory struct {
 	vectorIndexSvc ports.VectorIndexService
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[struct{}, struct{}] = (*Factory)(nil)
 
-// NewFactory creates a new BuildVectorIndices activity factory.
 func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFactory[struct{}, struct{}], error) {
 	if vectorIndexSvc == nil {
 		return nil, fmt.Errorf("buildvectorindices.NewFactory: vectorIndexSvc cannot be nil")
@@ -45,7 +42,6 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 	}, nil
 }
 
-// NewActivity creates and returns the BuildVectorIndices activity function.
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
 		executorCtx.SendRunning("Building vector indices...")

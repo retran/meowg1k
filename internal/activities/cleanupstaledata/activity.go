@@ -25,16 +25,13 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the CleanupStaleData activity with injected dependencies.
 type Factory struct {
 	snapshotRepo ports.SnapshotRepository
 	metaRepo     ports.MetaRepository
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[struct{}, struct{}] = (*Factory)(nil)
 
-// NewFactory creates a new CleanupStaleData activity factory.
 func NewFactory(snapshotRepo ports.SnapshotRepository, metaRepo ports.MetaRepository) (executor.ActivityFactory[struct{}, struct{}], error) {
 	if snapshotRepo == nil {
 		return nil, fmt.Errorf("cleanupstaledata.NewFactory: snapshotRepo cannot be nil")
@@ -49,7 +46,6 @@ func NewFactory(snapshotRepo ports.SnapshotRepository, metaRepo ports.MetaReposi
 	}, nil
 }
 
-// NewActivity creates and returns the CleanupStaleData activity function.
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
 		executorCtx.SendRunning("Cleaning up stale data...")

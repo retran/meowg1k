@@ -26,19 +26,16 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Limiter defines the interface for rate limiting.
 type Limiter interface {
 	Wait(ctx context.Context, tokenCount int) error
 	TryAcquire(ctx context.Context, tokenCount int) bool
 }
 
-// dbLimiter implements Limiter using a database-backed Repository.
 type dbLimiter struct {
 	repo    ports.RateLimitRepository
 	configs []ratelimit.BucketConfig
 }
 
-// Config defines the rate limiting configuration.
 type Config struct {
 	ID                string
 	RequestsPerMinute int
@@ -46,7 +43,6 @@ type Config struct {
 	RequestsPerDay    int
 }
 
-// Unlimited is a predefined configuration that imposes no rate limits.
 var Unlimited = Config{
 	ID:                "unlimited",
 	RequestsPerMinute: 0,
@@ -54,7 +50,6 @@ var Unlimited = Config{
 	RequestsPerDay:    0,
 }
 
-// NewLimiter creates a new Limiter based on the provided configuration and repository.
 func NewLimiter(ctx context.Context, config Config, repo ports.RateLimitRepository) (Limiter, error) {
 	if config.ID == "" {
 		return nil, fmt.Errorf("config ID is empty")

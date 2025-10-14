@@ -27,13 +27,11 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// Input contains the files to chunk.
 type Input struct {
 	StateName string
 	Files     map[string]domainindex.FileState
 }
 
-// FileChunkResult represents chunking result for a single file.
 type FileChunkResult struct {
 	FilePath    string
 	ContentHash string
@@ -41,7 +39,6 @@ type FileChunkResult struct {
 	Chunks      []domainindex.ChunkData
 }
 
-// Output contains all chunk results.
 type Output struct {
 	StateName        string
 	FileChunks       []FileChunkResult
@@ -49,15 +46,12 @@ type Output struct {
 	ChunkToFileIndex []int // Maps chunk index to file index in FileChunks
 }
 
-// Factory creates instances of the ChunkAllFiles activity with injected dependencies.
 type Factory struct {
 	chunkFileFactory executor.ActivityFactory[*chunkfile.Input, *chunkfile.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new ChunkAllFiles activity factory.
 func NewFactory(
 	chunkFileFactory executor.ActivityFactory[*chunkfile.Input, *chunkfile.Output],
 ) (executor.ActivityFactory[*Input, *Output], error) {
@@ -70,7 +64,6 @@ func NewFactory(
 	}, nil
 }
 
-// NewActivity creates and returns the ChunkAllFiles activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Chunking %d files for %s...", len(input.Files), input.StateName))

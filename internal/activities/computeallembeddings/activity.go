@@ -28,29 +28,24 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// Input contains chunk texts to compute embeddings for.
 type Input struct {
 	StateName    string
 	ChunkResults *chunkallfiles.Output
 	BatchSize    int // Maximum chunks per batch (0 = single batch)
 }
 
-// Output contains all computed embeddings.
 type Output struct {
 	StateName    string
 	ChunkResults *chunkallfiles.Output
 	Embeddings   []gateway.Embedding
 }
 
-// Factory creates instances of the ComputeAllEmbeddings activity with injected dependencies.
 type Factory struct {
 	computeBatchFactory executor.ActivityFactory[*computeembeddingsbatch.Input, *computeembeddingsbatch.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new ComputeAllEmbeddings activity factory.
 func NewFactory(
 	computeBatchFactory executor.ActivityFactory[*computeembeddingsbatch.Input, *computeembeddingsbatch.Output],
 ) (executor.ActivityFactory[*Input, *Output], error) {
@@ -63,7 +58,6 @@ func NewFactory(
 	}, nil
 }
 
-// NewActivity creates and returns the ComputeAllEmbeddings activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings for %d chunks (%s)...", len(input.ChunkResults.AllChunkTexts), input.StateName))

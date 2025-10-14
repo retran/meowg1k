@@ -27,21 +27,18 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// IndexDump contains the serialized HNSW graph and mapping data.
 type IndexDump struct {
 	HNSWData    []byte
 	IDToChunkID map[uint32]int64
 	ChunkIDToID map[int64]uint32
 }
 
-// Service implements VectorIndexService.
 type Service struct {
 	indexRepo    ports.IndexRepository
 	snapshotRepo ports.SnapshotRepository
 	metaRepo     ports.MetaRepository
 }
 
-// NewService creates a new vector index service.
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,
@@ -54,7 +51,6 @@ func NewService(
 	}
 }
 
-// BuildAndSave builds a vector index for the given snapshot and saves it.
 func (s *Service) BuildAndSave(snapshotName string) error {
 	ctx := context.Background()
 

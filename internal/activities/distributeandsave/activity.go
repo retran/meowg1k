@@ -28,27 +28,22 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
-// Input contains embeddings to distribute and save.
 type Input struct {
 	StateName        string
 	EmbeddingResults *computeallembeddings.Output
 }
 
-// Output contains the version map.
 type Output struct {
 	StateName  string
 	VersionMap map[string]int64 // contentHash -> version_id
 }
 
-// Factory creates instances of the DistributeAndSave activity with injected dependencies.
 type Factory struct {
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new DistributeAndSave activity factory.
 func NewFactory(
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output],
 ) (executor.ActivityFactory[*Input, *Output], error) {
@@ -61,7 +56,6 @@ func NewFactory(
 	}, nil
 }
 
-// NewActivity creates and returns the DistributeAndSave activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Distributing embeddings and saving %d documents (%s)...", len(input.EmbeddingResults.ChunkResults.FileChunks), input.StateName))

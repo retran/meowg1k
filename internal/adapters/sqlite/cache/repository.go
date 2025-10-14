@@ -25,18 +25,14 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Repository implements the CacheRepository interface using SQLite.
 type Repository struct {
 	host ports.Host
 }
 
-// NewRepository creates a new cache repository.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{host: host}
 }
 
-// Get retrieves a cached value by key.
-// Returns the value, whether it was found, and any error.
 func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) {
 	if r == nil {
 		return "", false, fmt.Errorf("repository is nil")
@@ -71,7 +67,6 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 	return value, true, nil
 }
 
-// Set stores a value in the cache with the given key.
 func (r *Repository) Set(ctx context.Context, key, value string) error {
 	if r == nil {
 		return fmt.Errorf("repository is nil")
@@ -102,7 +97,6 @@ func (r *Repository) Set(ctx context.Context, key, value string) error {
 	return nil
 }
 
-// Purge removes cache entries older than the specified TTL.
 func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 	if r == nil {
 		return fmt.Errorf("repository is nil")

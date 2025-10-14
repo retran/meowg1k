@@ -30,7 +30,6 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the reconcile live context flow with injected dependencies.
 type Factory struct {
 	cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
 	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
@@ -42,7 +41,6 @@ type Factory struct {
 	buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
 }
 
-// NewFactory creates a new reconcile live context flow factory with injected activity factories.
 func NewFactory(
 	cleanupFactory executor.ActivityFactory[struct{}, struct{}],
 	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],

@@ -25,15 +25,12 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Factory creates instances of the BuildSingleVectorIndex activity with injected dependencies.
 type Factory struct {
 	vectorIndexSvc ports.VectorIndexService
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
 var _ executor.ActivityFactory[string, struct{}] = (*Factory)(nil)
 
-// NewFactory creates a new BuildSingleVectorIndex activity factory.
 func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFactory[string, struct{}], error) {
 	if vectorIndexSvc == nil {
 		return nil, fmt.Errorf("buildsinglevectorindex.NewFactory: vectorIndexSvc cannot be nil")
@@ -44,7 +41,6 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 	}, nil
 }
 
-// NewActivity creates and returns the BuildSingleVectorIndex activity function.
 func (f *Factory) NewActivity() executor.Activity[string, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, snapshotName string) (struct{}, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Building index for %s...", snapshotName))
