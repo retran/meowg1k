@@ -22,12 +22,20 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	domainindex "github.com/retran/meowg1k/internal/domain/index"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // Repository implements index storage using SQLite.
 type Repository struct {
 	db *sql.DB
 }
+
+// Compile-time interface compliance checks.
+var (
+	_ ports.IndexRepository    = (*Repository)(nil)
+	_ ports.SnapshotRepository = (*Repository)(nil)
+)
 
 // NewRepository creates a new index repository.
 func NewRepository(db *sql.DB) *Repository {
@@ -36,7 +44,7 @@ func NewRepository(db *sql.DB) *Repository {
 
 // AddDocumentVersion adds a new document version to the index.
 // Returns the ID of the newly created document version.
-func (r *Repository) AddDocumentVersion(ctx context.Context, doc DocumentVersion, content []byte) (int64, error) {
+func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("could not begin transaction: %w", err)
@@ -72,7 +80,7 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc DocumentVersion
 }
 
 // AddChunks adds multiple chunks to the index in a single transaction.
-func (r *Repository) AddChunks(ctx context.Context, chunks []Chunk) error {
+func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("could not begin transaction: %w", err)
@@ -82,7 +90,7 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []Chunk) error {
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO chunks (
 			document_version_id, chunk_type, text_content,
-			start_byte, end_byte, start_line, end_line, embedding
+			start, end, start_line, end_line, embedding
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
@@ -138,4 +146,248 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 	}
 
 	return embeddings, nil
+}
+
+// FindVersionByContentHash finds a document version by content hash and file path.
+// Returns nil if no matching version is found.
+func (r *Repository) FindVersionByContentHash(ctx context.Context, filePath, contentHash string) (*domainindex.DocumentVersion, error) {
+	var doc domainindex.DocumentVersion
+	err := r.db.QueryRowContext(ctx,
+		`SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+		FROM document_versions
+		WHERE file_path = ? AND content_hash = ?`,
+		filePath, contentHash,
+	).Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find version by content hash: %w", err)
+	}
+
+	return &doc, nil
+}
+
+// FindContentBlob checks if a content blob exists by its hash.
+// Returns true if the blob exists, false otherwise.
+func (r *Repository) FindContentBlob(ctx context.Context, contentHash string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM content_blobs WHERE content_hash = ?)`,
+		contentHash,
+	).Scan(&exists)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to check content blob existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+// GetContentBlob retrieves the content of a blob by its hash.
+// Returns nil if the blob does not exist.
+func (r *Repository) GetContentBlob(ctx context.Context, contentHash string) ([]byte, error) {
+	var content []byte
+	err := r.db.QueryRowContext(ctx,
+		`SELECT content FROM content_blobs WHERE content_hash = ?`,
+		contentHash,
+	).Scan(&content)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get content blob: %w", err)
+	}
+
+	return content, nil
+}
+
+// FindVersionsByFilePath finds all versions of a document by file path.
+func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string) ([]domainindex.DocumentVersion, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+		FROM document_versions
+		WHERE file_path = ?
+		ORDER BY indexed_at DESC`,
+		filePath,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query versions by file path: %w", err)
+	}
+	defer rows.Close()
+
+	var versions []domainindex.DocumentVersion
+	for rows.Next() {
+		var doc domainindex.DocumentVersion
+		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan document version: %w", err)
+		}
+		versions = append(versions, doc)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return versions, nil
+}
+
+// GetChunksByVersionID retrieves all chunks for a given document version.
+func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) ([]domainindex.Chunk, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, document_version_id, chunk_type, text_content,
+		start, end, start_line, end_line, embedding
+		FROM chunks
+		WHERE document_version_id = ?`,
+		versionID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chunks by version ID: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []domainindex.Chunk
+	for rows.Next() {
+		var chunk domainindex.Chunk
+		var embeddingBytes []byte
+		if err := rows.Scan(
+			&chunk.ID, &chunk.DocumentVersionID, &chunk.ChunkType, &chunk.TextContent,
+			&chunk.Start, &chunk.End, &chunk.StartLine, &chunk.EndLine, &embeddingBytes,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan chunk: %w", err)
+		}
+
+		embedding, err := decodeEmbedding(embeddingBytes)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode embedding for chunk id %d: %w", chunk.ID, err)
+		}
+		chunk.Embedding = embedding
+
+		chunks = append(chunks, chunk)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return chunks, nil
+}
+
+// LinkVersionToSnapshot links a document version to a commit snapshot.
+func (r *Repository) LinkVersionToSnapshot(ctx context.Context, commitHash string, versionID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO commit_snapshots (commit_hash, document_version_id)
+		VALUES (?, ?)
+		ON CONFLICT(commit_hash, document_version_id) DO NOTHING`,
+		commitHash, versionID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to link version %d to snapshot %s: %w", versionID, commitHash, err)
+	}
+	return nil
+}
+
+// UnlinkVersionFromSnapshot removes a link between a document version and a snapshot.
+func (r *Repository) UnlinkVersionFromSnapshot(ctx context.Context, commitHash string, versionID int64) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM commit_snapshots
+		WHERE commit_hash = ? AND document_version_id = ?`,
+		commitHash, versionID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to unlink version %d from snapshot %s: %w", versionID, commitHash, err)
+	}
+	return nil
+}
+
+// GetVersionIDsForSnapshot retrieves all document version IDs for a given snapshot.
+func (r *Repository) GetVersionIDsForSnapshot(ctx context.Context, commitHash string) ([]int64, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT document_version_id FROM commit_snapshots WHERE commit_hash = ?`,
+		commitHash,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query version IDs for snapshot %s: %w", commitHash, err)
+	}
+	defer rows.Close()
+
+	var versionIDs []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan version ID: %w", err)
+		}
+		versionIDs = append(versionIDs, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return versionIDs, nil
+}
+
+// ClearSnapshotLinks removes all links for a given snapshot.
+func (r *Repository) ClearSnapshotLinks(ctx context.Context, commitHash string) error {
+	_, err := r.db.ExecContext(ctx,
+		`DELETE FROM commit_snapshots WHERE commit_hash = ?`,
+		commitHash,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to clear snapshot links for %s: %w", commitHash, err)
+	}
+	return nil
+}
+
+// GetVersionsByIDs retrieves document versions by their IDs.
+func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) ([]domainindex.DocumentVersion, error) {
+	if len(versionIDs) == 0 {
+		return []domainindex.DocumentVersion{}, nil
+	}
+
+	// Build placeholders for IN clause
+	query := `SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+		FROM document_versions
+		WHERE id IN (?` + repeatPlaceholder(len(versionIDs)-1) + `)`
+
+	// Convert []int64 to []interface{} for QueryContext
+	args := make([]interface{}, len(versionIDs))
+	for i, id := range versionIDs {
+		args[i] = id
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query versions by IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var versions []domainindex.DocumentVersion
+	for rows.Next() {
+		var doc domainindex.DocumentVersion
+		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan document version: %w", err)
+		}
+		versions = append(versions, doc)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return versions, nil
+}
+
+// repeatPlaceholder generates repeated ", ?" placeholders for SQL IN clause.
+func repeatPlaceholder(count int) string {
+	if count <= 0 {
+		return ""
+	}
+	result := ""
+	for i := 0; i < count; i++ {
+		result += ", ?"
+	}
+	return result
 }

@@ -20,12 +20,17 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // MetaRepository implements metadata storage using SQLite.
 type MetaRepository struct {
 	db *sql.DB
 }
+
+// Compile-time interface compliance check.
+var _ ports.MetaRepository = (*MetaRepository)(nil)
 
 // NewMetaRepository creates a new metadata repository.
 func NewMetaRepository(db *sql.DB) *MetaRepository {

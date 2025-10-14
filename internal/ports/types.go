@@ -24,6 +24,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
@@ -121,4 +122,67 @@ type RateLimitRepository interface {
 
 	// ResetBuckets resets the tokens in the specified buckets to their full capacity.
 	ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error
+}
+
+// MetaRepository defines the interface for metadata key-value storage.
+type MetaRepository interface {
+	// GetValue retrieves a metadata value by key.
+	// Returns nil if the key does not exist.
+	GetValue(ctx context.Context, key string) ([]byte, error)
+
+	// SetValue stores a metadata value with the given key.
+	// If the key already exists, the value is updated.
+	SetValue(ctx context.Context, key string, value []byte) error
+}
+
+// IndexRepository defines the interface for document indexing operations.
+// It manages document versions, content blobs, and chunks with embeddings.
+type IndexRepository interface {
+	// AddDocumentVersion adds a new document version with its content to the index.
+	// Returns the ID of the newly created document version.
+	AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error)
+
+	// AddChunks adds multiple chunks to the index in a single transaction.
+	AddChunks(ctx context.Context, chunks []domainindex.Chunk) error
+
+	// FindVersionByContentHash finds a document version by content hash and file path.
+	// Returns nil if no matching version is found.
+	FindVersionByContentHash(ctx context.Context, filePath, contentHash string) (*domainindex.DocumentVersion, error)
+
+	// FindContentBlob checks if a content blob exists by its hash.
+	// Returns true if the blob exists, false otherwise.
+	FindContentBlob(ctx context.Context, contentHash string) (bool, error)
+
+	// GetContentBlob retrieves the content of a blob by its hash.
+	// Returns nil if the blob does not exist.
+	GetContentBlob(ctx context.Context, contentHash string) ([]byte, error)
+
+	// FindVersionsByFilePath finds all versions of a document by file path.
+	FindVersionsByFilePath(ctx context.Context, filePath string) ([]domainindex.DocumentVersion, error)
+
+	// GetChunksByVersionID retrieves all chunks for a given document version.
+	GetChunksByVersionID(ctx context.Context, versionID int64) ([]domainindex.Chunk, error)
+
+	// GetAllEmbeddings retrieves all embeddings from the index.
+	// Returns a map of chunk ID to embedding vector.
+	GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Embedding, error)
+
+	// GetVersionsByIDs retrieves document versions by their IDs.
+	GetVersionsByIDs(ctx context.Context, versionIDs []int64) ([]domainindex.DocumentVersion, error)
+}
+
+// SnapshotRepository defines the interface for managing commit snapshots.
+// A snapshot represents the state of all document versions at a specific commit.
+type SnapshotRepository interface {
+	// LinkVersionToSnapshot links a document version to a commit snapshot.
+	LinkVersionToSnapshot(ctx context.Context, commitHash string, versionID int64) error
+
+	// UnlinkVersionFromSnapshot removes a link between a document version and a snapshot.
+	UnlinkVersionFromSnapshot(ctx context.Context, commitHash string, versionID int64) error
+
+	// GetVersionIDsForSnapshot retrieves all document version IDs for a given snapshot.
+	GetVersionIDsForSnapshot(ctx context.Context, commitHash string) ([]int64, error)
+
+	// ClearSnapshotLinks removes all links for a given snapshot.
+	ClearSnapshotLinks(ctx context.Context, commitHash string) error
 }
