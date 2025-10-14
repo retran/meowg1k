@@ -37,7 +37,7 @@ var Migrations = []migrations.Migration{
 				CREATE TABLE document_versions (
 					id INTEGER PRIMARY KEY AUTOINCREMENT,
 					file_path TEXT NOT NULL,
-					git_commit_hash TEXT,
+					git_commit_hash_first_seen TEXT,
 					content_hash TEXT NOT NULL,
 					indexed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 					FOREIGN KEY (content_hash) REFERENCES content_blobs(content_hash)
@@ -48,8 +48,10 @@ var Migrations = []migrations.Migration{
 					document_version_id INTEGER NOT NULL,
 					chunk_type TEXT NOT NULL,
 					text_content TEXT NOT NULL,
-					start INTEGER NOT NULL,
-					end INTEGER NOT NULL,
+					start_byte INTEGER NOT NULL,
+					end_byte INTEGER NOT NULL,
+					start_rune INTEGER NOT NULL,
+					end_rune INTEGER NOT NULL,
 					start_line INTEGER NOT NULL,
 					end_line INTEGER NOT NULL,
 					embedding BLOB NOT NULL,
@@ -69,7 +71,7 @@ var Migrations = []migrations.Migration{
 
 			_, err = tx.Exec(`
 				CREATE INDEX idx_document_versions_path ON document_versions (file_path);
-				CREATE INDEX idx_document_versions_path_commit ON document_versions (file_path, git_commit_hash);
+				CREATE INDEX idx_document_versions_path_commit ON document_versions (file_path, git_commit_hash_first_seen);
 				CREATE INDEX idx_chunks_document_version_id ON chunks (document_version_id);
 				CREATE INDEX idx_commit_snapshots_commit_hash ON commit_snapshots (commit_hash);
 			`)

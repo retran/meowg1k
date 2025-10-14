@@ -23,6 +23,7 @@ import (
 
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
+
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
@@ -62,9 +63,9 @@ func TestRepository_AddDocumentVersion(t *testing.T) {
 	ctx := context.Background()
 
 	doc := domainindex.DocumentVersion{
-		FilePath:      "main.go",
-		GitCommitHash: sql.NullString{String: "abc123", Valid: true},
-		ContentHash:   "hash1",
+		FilePath:               "main.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "abc123", Valid: true},
+		ContentHash:            "hash1",
 	}
 	content := []byte("package main")
 
@@ -107,9 +108,9 @@ func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
 
 	// Add first version
 	doc1 := domainindex.DocumentVersion{
-		FilePath:      "main.go",
-		GitCommitHash: sql.NullString{String: "abc123", Valid: true},
-		ContentHash:   "hash1",
+		FilePath:               "main.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "abc123", Valid: true},
+		ContentHash:            "hash1",
 	}
 	_, err := repo.AddDocumentVersion(ctx, doc1, content)
 	if err != nil {
@@ -118,9 +119,9 @@ func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
 
 	// Add second version with same content hash (should not fail)
 	doc2 := domainindex.DocumentVersion{
-		FilePath:      "main2.go",
-		GitCommitHash: sql.NullString{String: "def456", Valid: true},
-		ContentHash:   "hash1",
+		FilePath:               "main2.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "def456", Valid: true},
+		ContentHash:            "hash1",
 	}
 	_, err = repo.AddDocumentVersion(ctx, doc2, content)
 	if err != nil {
@@ -137,9 +138,9 @@ func TestRepository_AddChunks(t *testing.T) {
 
 	// First add a document version
 	doc := domainindex.DocumentVersion{
-		FilePath:      "test.go",
-		GitCommitHash: sql.NullString{String: "abc", Valid: true},
-		ContentHash:   "hash1",
+		FilePath:               "test.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "abc", Valid: true},
+		ContentHash:            "hash1",
 	}
 	versionID, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
 	if err != nil {
@@ -152,8 +153,10 @@ func TestRepository_AddChunks(t *testing.T) {
 			DocumentVersionID: versionID,
 			ChunkType:         "function",
 			TextContent:       "func main() {}",
-			Start:             0,
-			End:               14,
+			StartByte:         0,
+			EndByte:           14,
+			StartRune:         0,
+			EndRune:           14,
 			StartLine:         1,
 			EndLine:           1,
 			Embedding:         gateway.Embedding{0.1, 0.2, 0.3},
@@ -162,8 +165,10 @@ func TestRepository_AddChunks(t *testing.T) {
 			DocumentVersionID: versionID,
 			ChunkType:         "comment",
 			TextContent:       "// Comment",
-			Start:             15,
-			End:               25,
+			StartByte:         15,
+			EndByte:           25,
+			StartRune:         15,
+			EndRune:           25,
 			StartLine:         2,
 			EndLine:           2,
 			Embedding:         gateway.Embedding{0.4, 0.5, 0.6},
@@ -202,9 +207,9 @@ func TestRepository_FindVersionByContentHash(t *testing.T) {
 	ctx := context.Background()
 
 	doc := domainindex.DocumentVersion{
-		FilePath:      "test.go",
-		GitCommitHash: sql.NullString{String: "abc", Valid: true},
-		ContentHash:   "hash1",
+		FilePath:               "test.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "abc", Valid: true},
+		ContentHash:            "hash1",
 	}
 	id, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
 	if err != nil {
@@ -243,19 +248,19 @@ func TestRepository_FindVersionsByFilePath(t *testing.T) {
 	// Add multiple versions of the same file
 	versions := []domainindex.DocumentVersion{
 		{
-			FilePath:      "test.go",
-			GitCommitHash: sql.NullString{String: "v1", Valid: true},
-			ContentHash:   "hash1",
+			FilePath:               "test.go",
+			GitCommitHashFirstSeen: sql.NullString{String: "v1", Valid: true},
+			ContentHash:            "hash1",
 		},
 		{
-			FilePath:      "test.go",
-			GitCommitHash: sql.NullString{String: "v2", Valid: true},
-			ContentHash:   "hash2",
+			FilePath:               "test.go",
+			GitCommitHashFirstSeen: sql.NullString{String: "v2", Valid: true},
+			ContentHash:            "hash2",
 		},
 		{
-			FilePath:      "other.go",
-			GitCommitHash: sql.NullString{String: "v1", Valid: true},
-			ContentHash:   "hash3",
+			FilePath:               "other.go",
+			GitCommitHashFirstSeen: sql.NullString{String: "v1", Valid: true},
+			ContentHash:            "hash3",
 		},
 	}
 
@@ -438,7 +443,6 @@ func TestRepository_ClearSnapshotLinks(t *testing.T) {
 	ctx := context.Background()
 
 	// Add multiple document versions
-	var versionIDs []int64
 	for i := 0; i < 3; i++ {
 		doc := domainindex.DocumentVersion{
 			FilePath:    "test.go",
@@ -448,7 +452,6 @@ func TestRepository_ClearSnapshotLinks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("AddDocumentVersion() error = %v", err)
 		}
-		versionIDs = append(versionIDs, id)
 
 		// Link all to same snapshot
 		err = repo.LinkVersionToSnapshot(ctx, "commit123", id)

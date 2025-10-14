@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
@@ -60,8 +61,8 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 	}
 
 	res, err := tx.ExecContext(ctx,
-		`INSERT INTO document_versions (file_path, git_commit_hash, content_hash) VALUES (?, ?, ?)`,
-		doc.FilePath, doc.GitCommitHash, doc.ContentHash,
+		`INSERT INTO document_versions (file_path, git_commit_hash_first_seen, content_hash) VALUES (?, ?, ?)`,
+		doc.FilePath, doc.GitCommitHashFirstSeen, doc.ContentHash,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert document version: %w", err)
@@ -90,8 +91,8 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO chunks (
 			document_version_id, chunk_type, text_content,
-			start, end, start_line, end_line, embedding
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare chunk insert statement: %w", err)
@@ -106,7 +107,8 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 
 		_, err = stmt.ExecContext(ctx,
 			chunk.DocumentVersionID, chunk.ChunkType, chunk.TextContent,
-			chunk.Start, chunk.End, chunk.StartLine, chunk.EndLine,
+			chunk.StartByte, chunk.EndByte, chunk.StartRune, chunk.EndRune,
+			chunk.StartLine, chunk.EndLine,
 			embeddingBytes,
 		)
 		if err != nil {
@@ -153,11 +155,11 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 func (r *Repository) FindVersionByContentHash(ctx context.Context, filePath, contentHash string) (*domainindex.DocumentVersion, error) {
 	var doc domainindex.DocumentVersion
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+		`SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
 		WHERE file_path = ? AND content_hash = ?`,
 		filePath, contentHash,
-	).Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt)
+	).Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHashFirstSeen, &doc.ContentHash, &doc.IndexedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -177,7 +179,6 @@ func (r *Repository) FindContentBlob(ctx context.Context, contentHash string) (b
 		`SELECT EXISTS(SELECT 1 FROM content_blobs WHERE content_hash = ?)`,
 		contentHash,
 	).Scan(&exists)
-
 	if err != nil {
 		return false, fmt.Errorf("failed to check content blob existence: %w", err)
 	}
@@ -207,7 +208,7 @@ func (r *Repository) GetContentBlob(ctx context.Context, contentHash string) ([]
 // FindVersionsByFilePath finds all versions of a document by file path.
 func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string) ([]domainindex.DocumentVersion, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+		`SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
 		WHERE file_path = ?
 		ORDER BY indexed_at DESC`,
@@ -221,7 +222,7 @@ func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string
 	var versions []domainindex.DocumentVersion
 	for rows.Next() {
 		var doc domainindex.DocumentVersion
-		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt); err != nil {
+		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHashFirstSeen, &doc.ContentHash, &doc.IndexedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan document version: %w", err)
 		}
 		versions = append(versions, doc)
@@ -238,7 +239,7 @@ func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string
 func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) ([]domainindex.Chunk, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, document_version_id, chunk_type, text_content,
-		start, end, start_line, end_line, embedding
+		start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
 		FROM chunks
 		WHERE document_version_id = ?`,
 		versionID,
@@ -254,7 +255,8 @@ func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) 
 		var embeddingBytes []byte
 		if err := rows.Scan(
 			&chunk.ID, &chunk.DocumentVersionID, &chunk.ChunkType, &chunk.TextContent,
-			&chunk.Start, &chunk.End, &chunk.StartLine, &chunk.EndLine, &embeddingBytes,
+			&chunk.StartByte, &chunk.EndByte, &chunk.StartRune, &chunk.EndRune,
+			&chunk.StartLine, &chunk.EndLine, &embeddingBytes,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan chunk: %w", err)
 		}
@@ -348,9 +350,17 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 	}
 
 	// Build placeholders for IN clause
-	query := `SELECT id, file_path, git_commit_hash, content_hash, indexed_at
+	placeholders := make([]string, len(versionIDs))
+	for i := range versionIDs {
+		placeholders[i] = "?"
+	}
+
+	query := fmt.Sprintf(
+		`SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
-		WHERE id IN (?` + repeatPlaceholder(len(versionIDs)-1) + `)`
+		WHERE id IN (%s)`,
+		strings.Join(placeholders, ", "),
+	)
 
 	// Convert []int64 to []interface{} for QueryContext
 	args := make([]interface{}, len(versionIDs))
@@ -367,7 +377,7 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 	var versions []domainindex.DocumentVersion
 	for rows.Next() {
 		var doc domainindex.DocumentVersion
-		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHash, &doc.ContentHash, &doc.IndexedAt); err != nil {
+		if err := rows.Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHashFirstSeen, &doc.ContentHash, &doc.IndexedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan document version: %w", err)
 		}
 		versions = append(versions, doc)
@@ -378,16 +388,4 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 	}
 
 	return versions, nil
-}
-
-// repeatPlaceholder generates repeated ", ?" placeholders for SQL IN clause.
-func repeatPlaceholder(count int) string {
-	if count <= 0 {
-		return ""
-	}
-	result := ""
-	for i := 0; i < count; i++ {
-		result += ", ?"
-	}
-	return result
 }
