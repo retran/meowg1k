@@ -26,10 +26,35 @@ import (
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
+// mockHost is a simple mock implementation of ports.Host for testing.
+type mockHost struct {
+	db *sql.DB
+}
+
+func newMockHost(db *sql.DB) ports.Host {
+	return &mockHost{db: db}
+}
+
+func (m *mockHost) GetDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) GetProjectDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
+}
+
 // setupTestDB creates an in-memory SQLite database for testing.
-func setupTestDB(t *testing.T) *sql.DB {
+func setupTestDB(t *testing.T) (*sql.DB, ports.Host) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
@@ -52,14 +77,15 @@ func setupTestDB(t *testing.T) *sql.DB {
 		}
 	}
 
-	return db
+	host := newMockHost(db)
+	return db, host
 }
 
 func TestRepository_AddDocumentVersion(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	doc := domainindex.DocumentVersion{
@@ -98,10 +124,10 @@ func TestRepository_AddDocumentVersion(t *testing.T) {
 }
 
 func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	content := []byte("package main")
@@ -130,10 +156,10 @@ func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
 }
 
 func TestRepository_AddChunks(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// First add a document version
@@ -200,10 +226,10 @@ func TestRepository_AddChunks(t *testing.T) {
 }
 
 func TestRepository_FindVersionByContentHash(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	doc := domainindex.DocumentVersion{
@@ -239,10 +265,10 @@ func TestRepository_FindVersionByContentHash(t *testing.T) {
 }
 
 func TestRepository_FindVersionsByFilePath(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add multiple versions of the same file
@@ -299,10 +325,10 @@ func TestRepository_FindVersionsByFilePath(t *testing.T) {
 }
 
 func TestRepository_GetAllEmbeddings(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add document and chunks
@@ -354,10 +380,10 @@ func TestRepository_GetAllEmbeddings(t *testing.T) {
 }
 
 func TestRepository_LinkVersionToSnapshot(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add document version
@@ -397,10 +423,10 @@ func TestRepository_LinkVersionToSnapshot(t *testing.T) {
 }
 
 func TestRepository_UnlinkVersionFromSnapshot(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add document version and link
@@ -436,10 +462,10 @@ func TestRepository_UnlinkVersionFromSnapshot(t *testing.T) {
 }
 
 func TestRepository_ClearSnapshotLinks(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add multiple document versions
@@ -478,10 +504,10 @@ func TestRepository_ClearSnapshotLinks(t *testing.T) {
 }
 
 func TestRepository_GetVersionsByIDs(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	// Add multiple versions

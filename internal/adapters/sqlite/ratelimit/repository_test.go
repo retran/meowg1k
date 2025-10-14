@@ -29,9 +29,34 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
 	"github.com/retran/meowg1k/internal/domain/ratelimit"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
-func setupTestDB(t *testing.T) *sql.DB {
+// mockHost is a simple mock implementation of ports.Host for testing.
+type mockHost struct {
+	db *sql.DB
+}
+
+func newMockHost(db *sql.DB) ports.Host {
+	return &mockHost{db: db}
+}
+
+func (m *mockHost) GetDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) GetProjectDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
+}
+
+func setupTestDB(t *testing.T) (*sql.DB, ports.Host) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 	db, err := sql.Open("sqlite3", dbPath)
@@ -44,7 +69,8 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 
-	return db
+	host := newMockHost(db)
+	return db, host
 }
 
 func runMigrations(db *sql.DB) error {
@@ -52,10 +78,10 @@ func runMigrations(db *sql.DB) error {
 }
 
 func TestNewRepository(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	if repo == nil {
 		t.Fatal("NewRepository returned nil")
 	}
@@ -75,10 +101,10 @@ func TestNotEnoughTokensError_Error(t *testing.T) {
 }
 
 func TestInitializeBuckets(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -113,10 +139,10 @@ func TestInitializeBuckets(t *testing.T) {
 }
 
 func TestAcquireTokens_Success(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -156,10 +182,10 @@ func TestAcquireTokens_Success(t *testing.T) {
 }
 
 func TestAcquireTokens_NotEnoughTokens(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -194,10 +220,10 @@ func TestAcquireTokens_NotEnoughTokens(t *testing.T) {
 }
 
 func TestAcquireTokens_MultipleBuckets(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -246,10 +272,10 @@ func TestAcquireTokens_MultipleBuckets(t *testing.T) {
 }
 
 func TestResetBuckets(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -281,10 +307,10 @@ func TestResetBuckets(t *testing.T) {
 }
 
 func TestResetBuckets_NonExistentBucket(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{
@@ -304,10 +330,10 @@ func TestResetBuckets_NonExistentBucket(t *testing.T) {
 }
 
 func TestAcquireTokens_Refill(t *testing.T) {
-	db := setupTestDB(t)
+	db, host := setupTestDB(t)
 	defer db.Close()
 
-	repo := NewRepository(db)
+	repo := NewRepository(host)
 	ctx := context.Background()
 
 	configs := []ratelimit.BucketConfig{

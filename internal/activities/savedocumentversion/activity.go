@@ -63,6 +63,8 @@ func NewFactory(indexRepo ports.IndexRepository) (executor.ActivityFactory[*Inpu
 }
 
 // NewActivity creates and returns the SaveDocumentVersion activity function.
+// Note: This activity assumes that deduplication has already been performed by the flow.
+// It will unconditionally create a new document version.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Saving document: %s", input.FilePath))
@@ -70,20 +72,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		// Validate input
 		if len(input.Chunks) != len(input.Embeddings) {
 			return nil, fmt.Errorf("chunk count (%d) does not match embedding count (%d)", len(input.Chunks), len(input.Embeddings))
-		}
-
-		// Check if version already exists
-		existingVersion, err := f.indexRepo.FindVersionByContentHash(ctx, input.FilePath, input.ContentHash)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find version for %s: %w", input.FilePath, err)
-		}
-
-		if existingVersion != nil {
-			executorCtx.SendCompleted(fmt.Sprintf("Document already indexed: %s", input.FilePath))
-			return &Output{
-				FilePath:  input.FilePath,
-				VersionID: existingVersion.ID,
-			}, nil
 		}
 
 		// Create document version

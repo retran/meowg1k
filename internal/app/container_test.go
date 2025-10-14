@@ -101,13 +101,8 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	mainDB, err := dbHost.GetDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get main database: %w", err)
-	}
-
-	rateLimitRepo := ratelimit.NewRepository(mainDB)
-	cacheRepo := cache.NewRepository(mainDB)
+	rateLimitRepo := ratelimit.NewRepository(dbHost)
+	cacheRepo := cache.NewRepository(dbHost)
 
 	if err := shutdownService.Register(func(ctx context.Context) error {
 		if dbHost != nil {

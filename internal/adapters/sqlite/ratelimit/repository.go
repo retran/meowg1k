@@ -24,17 +24,18 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/ratelimit"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // Repository is a concrete implementation of the RateLimitRepository interface using SQLite.
 type Repository struct {
-	db *sql.DB
+	host ports.Host
 }
 
 // NewRepository creates a new Repository with the given database connection.
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(host ports.Host) *Repository {
 	return &Repository{
-		db: db,
+		host: host,
 	}
 }
 
@@ -61,7 +62,12 @@ func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery 
 
 // AcquireTokens attempts to acquire the specified number of tokens from the given buckets.
 func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -137,7 +143,12 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 
 // InitializeBuckets initializes the rate limit buckets in the database.
 func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for init: %w", err)
 	}
@@ -164,7 +175,12 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 
 // ResetBuckets resets the tokens in the specified buckets to their full capacity.
 func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for reset: %w", err)
 	}

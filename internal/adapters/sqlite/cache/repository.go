@@ -21,19 +21,18 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // Repository implements the CacheRepository interface using SQLite.
 type Repository struct {
-	db *sql.DB
+	host ports.Host
 }
 
 // NewRepository creates a new cache repository.
-func NewRepository(db *sql.DB) *Repository {
-	if db == nil {
-		panic("database connection is nil")
-	}
-	return &Repository{db: db}
+func NewRepository(host ports.Host) *Repository {
+	return &Repository{host: host}
 }
 
 // Get retrieves a cached value by key.
@@ -51,8 +50,13 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 		return "", false, fmt.Errorf("key cannot be empty")
 	}
 
+	db, err := r.host.GetDB()
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get database: %w", err)
+	}
+
 	var value string
-	err := r.db.QueryRowContext(ctx, `
+	err = db.QueryRowContext(ctx, `
 		SELECT value FROM llm_cache WHERE key = ?
 	`, key).Scan(&value)
 
@@ -81,8 +85,13 @@ func (r *Repository) Set(ctx context.Context, key, value string) error {
 		return fmt.Errorf("key cannot be empty")
 	}
 
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
 	now := time.Now().Unix()
-	_, err := r.db.ExecContext(ctx, `
+	_, err = db.ExecContext(ctx, `
 		INSERT OR REPLACE INTO llm_cache (key, value, created_at)
 		VALUES (?, ?, ?)
 	`, key, value, now)
@@ -107,8 +116,13 @@ func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 		return fmt.Errorf("TTL must be positive")
 	}
 
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
 	cutoff := time.Now().Add(-ttl).Unix()
-	result, err := r.db.ExecContext(ctx, `
+	result, err := db.ExecContext(ctx, `
 		DELETE FROM llm_cache WHERE created_at < ?
 	`, cutoff)
 	if err != nil {

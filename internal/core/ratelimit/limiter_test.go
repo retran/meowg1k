@@ -29,6 +29,30 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// mockHost is a simple mock implementation of ports.Host for testing.
+type mockHost struct {
+	db *sql.DB
+}
+
+func newMockHost(db *sql.DB) ports.Host {
+	return &mockHost{db: db}
+}
+
+func (m *mockHost) GetDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) GetProjectDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
+}
+
 // setupTestDBForLimiter creates an in-memory SQLite database for testing
 func setupTestDBForLimiter(t *testing.T) (*sql.DB, ports.RateLimitRepository) {
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -41,7 +65,8 @@ func setupTestDBForLimiter(t *testing.T) (*sql.DB, ports.RateLimitRepository) {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	repo := ratelimit.NewRepository(db)
+	host := newMockHost(db)
+	repo := ratelimit.NewRepository(host)
 	return db, repo
 }
 

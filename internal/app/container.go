@@ -252,14 +252,8 @@ func (c *Container) initDB() error {
 			return
 		}
 
-		mainDB, err := dbHost.GetDB()
-		if err != nil {
-			initErr = fmt.Errorf("failed to get main database: %w", err)
-			return
-		}
-
-		rateLimitRepo := ratelimit.NewRepository(mainDB)
-		cacheRepo := cache.NewRepository(mainDB)
+		rateLimitRepo := ratelimit.NewRepository(dbHost)
+		cacheRepo := cache.NewRepository(dbHost)
 
 		// Purge expired cache entries on startup if caching is configured
 		config, err := c.ConfigService.Get()

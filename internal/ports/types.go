@@ -153,6 +153,11 @@ type IndexRepository interface {
 	// Returns nil if no matching version is found.
 	FindVersionByContentHash(ctx context.Context, filePath, contentHash string) (*domainindex.DocumentVersion, error)
 
+	// FindVersionsByContentHashes finds document versions for multiple content hashes.
+	// Returns a map of contentHash to document version.
+	// Only returns entries for versions that exist in the database.
+	FindVersionsByContentHashes(ctx context.Context, contentHashes []string) (map[string]*domainindex.DocumentVersion, error)
+
 	// FindContentBlob checks if a content blob exists by its hash.
 	// Returns true if the blob exists, false otherwise.
 	FindContentBlob(ctx context.Context, contentHash string) (bool, error)
@@ -217,21 +222,17 @@ type ChunkerService interface {
 	Chunk(content []byte, filePath string) ([]domainindex.ChunkData, error)
 }
 
+// WorkspaceService defines the interface for workspace operations.
+type WorkspaceService interface {
+	// Get returns the workspace root directory.
+	Get() (string, error)
+}
+
 // ProjectStateService defines the interface for getting project file states.
 type ProjectStateService interface {
 	GetHeadState() (map[string]domainindex.FileState, error)
 	GetStagingState() (map[string]domainindex.FileState, error)
 	GetWorkdirState() (map[string]domainindex.FileState, error)
-}
-
-// IndexService defines the interface for document indexing operations.
-type IndexService interface {
-	// EnsureVersionsExist ensures that document versions exist for the given files.
-	// Returns a map of file path to document version ID.
-	EnsureVersionsExist(files map[string][]byte) (map[string]int64, error)
-
-	// BuildSnapshot creates or updates a snapshot with the given versions.
-	BuildSnapshot(snapshotName string, versions map[string]int64) error
 }
 
 // VectorIndexService defines the interface for vector index operations.

@@ -30,7 +30,32 @@ import (
 	ratelimit2 "github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/core/ratelimit"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/ports"
 )
+
+// mockHost is a simple mock implementation of ports.Host for testing.
+type mockHost struct {
+	db *sql.DB
+}
+
+func newMockHost(db *sql.DB) ports.Host {
+	return &mockHost{db: db}
+}
+
+func (m *mockHost) GetDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) GetProjectDB() (*sql.DB, error) {
+	return m.db, nil
+}
+
+func (m *mockHost) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+	return nil
+}
 
 // setupTestRepository creates an in-memory SQLite database and repository for testing
 func setupTestRepository(t *testing.T) (*sql.DB, *ratelimit2.Repository) {
@@ -44,7 +69,8 @@ func setupTestRepository(t *testing.T) (*sql.DB, *ratelimit2.Repository) {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	repo := ratelimit2.NewRepository(db)
+	host := newMockHost(db)
+	repo := ratelimit2.NewRepository(host)
 	return db, repo
 }
 

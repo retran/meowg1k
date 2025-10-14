@@ -30,17 +30,17 @@ import (
 
 // StateService implements ProjectStateService.
 type StateService struct {
-	gitService    ports.GitService
-	filterService ports.FilterService
-	workspaceRoot string
+	gitService       ports.GitService
+	filterService    ports.FilterService
+	workspaceService ports.WorkspaceService
 }
 
 // NewStateService creates a new project state service.
-func NewStateService(gitService ports.GitService, filterService ports.FilterService, workspaceRoot string) *StateService {
+func NewStateService(gitService ports.GitService, filterService ports.FilterService, workspaceService ports.WorkspaceService) *StateService {
 	return &StateService{
-		gitService:    gitService,
-		filterService: filterService,
-		workspaceRoot: workspaceRoot,
+		gitService:       gitService,
+		filterService:    filterService,
+		workspaceService: workspaceService,
 	}
 }
 
@@ -106,8 +106,14 @@ func (s *StateService) GetStagingState() (map[string]domainindex.FileState, erro
 func (s *StateService) GetWorkdirState() (map[string]domainindex.FileState, error) {
 	state := make(map[string]domainindex.FileState)
 
+	// Get workspace root
+	workspaceRoot, err := s.workspaceService.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workspace root: %w", err)
+	}
+
 	// Walk through workspace directory
-	err := filepath.WalkDir(s.workspaceRoot, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(workspaceRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -118,7 +124,7 @@ func (s *StateService) GetWorkdirState() (map[string]domainindex.FileState, erro
 		}
 
 		// Get relative path
-		relPath, err := filepath.Rel(s.workspaceRoot, path)
+		relPath, err := filepath.Rel(workspaceRoot, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path for %s: %w", path, err)
 		}

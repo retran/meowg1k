@@ -37,7 +37,7 @@ type Input struct {
 // Output contains the version map.
 type Output struct {
 	StateName  string
-	VersionMap map[string]int64
+	VersionMap map[string]int64 // contentHash -> version_id
 }
 
 // Factory creates instances of the DistributeAndSave activity with injected dependencies.
@@ -97,14 +97,20 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			saveFutures[fileResult.FilePath] = fut
 		}
 
-		// Collect version map
+		// Collect version map (contentHash -> version_id)
 		versionMap := make(map[string]int64)
 		for filePath, fut := range saveFutures {
 			result, err := fut.Get(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to save document %s: %w", filePath, err)
 			}
-			versionMap[filePath] = result.VersionID
+			// Find the corresponding content hash from FileChunks
+			for _, fileResult := range input.EmbeddingResults.ChunkResults.FileChunks {
+				if fileResult.FilePath == result.FilePath {
+					versionMap[fileResult.ContentHash] = result.VersionID
+					break
+				}
+			}
 		}
 
 		executorCtx.SendCompleted(fmt.Sprintf("Saved %d documents for %s", len(versionMap), input.StateName))

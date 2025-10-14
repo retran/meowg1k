@@ -24,23 +24,28 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// MetaRepository implements metadata storage using SQLite.
-type MetaRepository struct {
-	db *sql.DB
+// Repository implements metadata storage using SQLite.
+type Repository struct {
+	host ports.Host
 }
 
 // Compile-time interface compliance check.
-var _ ports.MetaRepository = (*MetaRepository)(nil)
+var _ ports.MetaRepository = (*Repository)(nil)
 
-// NewMetaRepository creates a new metadata repository.
-func NewMetaRepository(db *sql.DB) *MetaRepository {
-	return &MetaRepository{db: db}
+// NewRepository creates a new metadata repository.
+func NewRepository(host ports.Host) *Repository {
+	return &Repository{host: host}
 }
 
 // SetValue stores a metadata value with the given key.
 // If the key already exists, the value is updated.
-func (r *MetaRepository) SetValue(ctx context.Context, key string, value []byte) error {
-	_, err := r.db.ExecContext(ctx,
+func (r *Repository) SetValue(ctx context.Context, key string, value []byte) error {
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx,
 		`INSERT INTO meta_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, value,
 	)
@@ -52,9 +57,14 @@ func (r *MetaRepository) SetValue(ctx context.Context, key string, value []byte)
 
 // GetValue retrieves a metadata value by key.
 // Returns nil if the key does not exist.
-func (r *MetaRepository) GetValue(ctx context.Context, key string) ([]byte, error) {
+func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
+	db, err := r.host.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database: %w", err)
+	}
+
 	var value []byte
-	err := r.db.QueryRowContext(ctx, "SELECT value FROM meta_kv WHERE key = ?", key).Scan(&value)
+	err = db.QueryRowContext(ctx, "SELECT value FROM meta_kv WHERE key = ?", key).Scan(&value)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -66,8 +76,13 @@ func (r *MetaRepository) GetValue(ctx context.Context, key string) ([]byte, erro
 
 // DeleteValue deletes a metadata value by key.
 // Does not return an error if the key does not exist.
-func (r *MetaRepository) DeleteValue(ctx context.Context, key string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM meta_kv WHERE key = ?", key)
+func (r *Repository) DeleteValue(ctx context.Context, key string) error {
+	db, err := r.host.GetDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	_, err = db.ExecContext(ctx, "DELETE FROM meta_kv WHERE key = ?", key)
 	if err != nil {
 		return fmt.Errorf("failed to delete meta value for key '%s': %w", key, err)
 	}

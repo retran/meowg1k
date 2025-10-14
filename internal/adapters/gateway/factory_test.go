@@ -117,7 +117,8 @@ func setupTestRepoForFactory(t *testing.T) (*sql.DB, *ratelimit.Repository) {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	repo := ratelimit.NewRepository(db)
+	host := newMockHost(db)
+	repo := ratelimit.NewRepository(host)
 	return db, repo
 }
 

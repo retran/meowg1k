@@ -21,33 +21,36 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/buildsqlsnapshots"
 	"github.com/retran/meowg1k/internal/activities/chunkallfiles"
 	"github.com/retran/meowg1k/internal/activities/computeallembeddings"
+	"github.com/retran/meowg1k/internal/activities/deduplicateandprepare"
 	"github.com/retran/meowg1k/internal/activities/distributeandsave"
+	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Factory creates instances of the reconcile live context flow with injected dependencies.
 type Factory struct {
-	cleanupFactory              executor.ActivityFactory[struct{}, struct{}]
-	scanStateFactory            executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
-	chunkAllFilesFactory        executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
-	computeAllEmbeddingsFactory executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
-	distributeAndSaveFactory    executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
-	buildSqlSnapshotsFactory    executor.ActivityFactory[*buildsqlsnapshots.Input, struct{}]
-	buildVectorIndicesFactory   executor.ActivityFactory[struct{}, struct{}]
+	cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
+	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
+	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
+	chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
+	computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
+	distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
+	finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
+	buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
 }
 
 // NewFactory creates a new reconcile live context flow factory with injected activity factories.
 func NewFactory(
 	cleanupFactory executor.ActivityFactory[struct{}, struct{}],
 	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],
+	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output],
 	chunkAllFilesFactory executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output],
 	computeAllEmbeddingsFactory executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output],
 	distributeAndSaveFactory executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output],
-	buildSqlSnapshotsFactory executor.ActivityFactory[*buildsqlsnapshots.Input, struct{}],
+	finalizeSnapshotsFactory executor.ActivityFactory[*finalizesnapshots.Input, struct{}],
 	buildVectorIndicesFactory executor.ActivityFactory[struct{}, struct{}],
 ) (*Factory, error) {
 	if cleanupFactory == nil {
@@ -56,6 +59,10 @@ func NewFactory(
 
 	if scanStateFactory == nil {
 		return nil, fmt.Errorf("scanStateFactory is nil")
+	}
+
+	if deduplicateAndPrepareFactory == nil {
+		return nil, fmt.Errorf("deduplicateAndPrepareFactory is nil")
 	}
 
 	if chunkAllFilesFactory == nil {
@@ -70,8 +77,8 @@ func NewFactory(
 		return nil, fmt.Errorf("distributeAndSaveFactory is nil")
 	}
 
-	if buildSqlSnapshotsFactory == nil {
-		return nil, fmt.Errorf("buildSqlSnapshotsFactory is nil")
+	if finalizeSnapshotsFactory == nil {
+		return nil, fmt.Errorf("finalizeSnapshotsFactory is nil")
 	}
 
 	if buildVectorIndicesFactory == nil {
@@ -79,13 +86,14 @@ func NewFactory(
 	}
 
 	return &Factory{
-		cleanupFactory:              cleanupFactory,
-		scanStateFactory:            scanStateFactory,
-		chunkAllFilesFactory:        chunkAllFilesFactory,
-		computeAllEmbeddingsFactory: computeAllEmbeddingsFactory,
-		distributeAndSaveFactory:    distributeAndSaveFactory,
-		buildSqlSnapshotsFactory:    buildSqlSnapshotsFactory,
-		buildVectorIndicesFactory:   buildVectorIndicesFactory,
+		cleanupFactory:               cleanupFactory,
+		scanStateFactory:             scanStateFactory,
+		deduplicateAndPrepareFactory: deduplicateAndPrepareFactory,
+		chunkAllFilesFactory:         chunkAllFilesFactory,
+		computeAllEmbeddingsFactory:  computeAllEmbeddingsFactory,
+		distributeAndSaveFactory:     distributeAndSaveFactory,
+		finalizeSnapshotsFactory:     finalizeSnapshotsFactory,
+		buildVectorIndicesFactory:    buildVectorIndicesFactory,
 	}, nil
 }
 
@@ -132,140 +140,82 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("workspace scan failed: %w", err)
 		}
 
-		// Step 5.1.3: Process HEAD state through pipeline: chunk → embed → save
-		flowCtx.SendRunning("Processing HEAD state...")
-
-		// Phase 1: Chunk all HEAD files
-		chunkHeadActivity := f.chunkAllFilesFactory.NewActivity()
-		chunkHeadInput := &chunkallfiles.Input{
-			StateName: "HEAD",
-			Files:     scanResult.HeadState,
-		}
-		chunkHeadFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_HEAD", chunkHeadActivity, chunkHeadInput)
-		headChunkResults, err := chunkHeadFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("HEAD chunking failed: %w", err)
-		}
-
-		// Phase 2: Compute embeddings for all HEAD chunks
-		computeHeadActivity := f.computeAllEmbeddingsFactory.NewActivity()
-		computeHeadInput := &computeallembeddings.Input{
-			StateName:    "HEAD",
-			ChunkResults: headChunkResults,
-			BatchSize:    0, // Single batch for all chunks
-		}
-		computeHeadFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_HEAD", computeHeadActivity, computeHeadInput)
-		headEmbeddingResults, err := computeHeadFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("HEAD embedding computation failed: %w", err)
-		}
-
-		// Phase 3: Distribute embeddings and save HEAD documents
-		saveHeadActivity := f.distributeAndSaveFactory.NewActivity()
-		saveHeadInput := &distributeandsave.Input{
-			StateName:        "HEAD",
-			EmbeddingResults: headEmbeddingResults,
-		}
-		saveHeadFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_HEAD", saveHeadActivity, saveHeadInput)
-		headSaveResults, err := saveHeadFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("HEAD save failed: %w", err)
-		}
-
-		// Step 5.1.4: Process Stage state through pipeline: chunk → embed → save
-		flowCtx.SendRunning("Processing Stage state...")
-
-		// Phase 1: Chunk all Stage files
-		chunkStageActivity := f.chunkAllFilesFactory.NewActivity()
-		chunkStageInput := &chunkallfiles.Input{
-			StateName: "Stage",
-			Files:     scanResult.StageState,
-		}
-		chunkStageFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_Stage", chunkStageActivity, chunkStageInput)
-		stageChunkResults, err := chunkStageFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("stage chunking failed: %w", err)
-		}
-
-		// Phase 2: Compute embeddings for all Stage chunks
-		computeStageActivity := f.computeAllEmbeddingsFactory.NewActivity()
-		computeStageInput := &computeallembeddings.Input{
-			StateName:    "Stage",
-			ChunkResults: stageChunkResults,
-			BatchSize:    0, // Single batch for all chunks
-		}
-		computeStageFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Stage", computeStageActivity, computeStageInput)
-		stageEmbeddingResults, err := computeStageFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("stage embedding computation failed: %w", err)
-		}
-
-		// Phase 3: Distribute embeddings and save Stage documents
-		saveStageActivity := f.distributeAndSaveFactory.NewActivity()
-		saveStageInput := &distributeandsave.Input{
-			StateName:        "Stage",
-			EmbeddingResults: stageEmbeddingResults,
-		}
-		saveStageFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_Stage", saveStageActivity, saveStageInput)
-		stageSaveResults, err := saveStageFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("stage save failed: %w", err)
-		}
-
-		// Step 5.1.5: Process Workdir state through pipeline: chunk → embed → save
-		flowCtx.SendRunning("Processing Workdir state...")
-
-		// Phase 1: Chunk all Workdir files
-		chunkWorkdirActivity := f.chunkAllFilesFactory.NewActivity()
-		chunkWorkdirInput := &chunkallfiles.Input{
-			StateName: "Workdir",
-			Files:     scanResult.WorkdirState,
-		}
-		chunkWorkdirFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_Workdir", chunkWorkdirActivity, chunkWorkdirInput)
-		workdirChunkResults, err := chunkWorkdirFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("workdir chunking failed: %w", err)
-		}
-
-		// Phase 2: Compute embeddings for all Workdir chunks
-		computeWorkdirActivity := f.computeAllEmbeddingsFactory.NewActivity()
-		computeWorkdirInput := &computeallembeddings.Input{
-			StateName:    "Workdir",
-			ChunkResults: workdirChunkResults,
-			BatchSize:    0, // Single batch for all chunks
-		}
-		computeWorkdirFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Workdir", computeWorkdirActivity, computeWorkdirInput)
-		workdirEmbeddingResults, err := computeWorkdirFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("workdir embedding computation failed: %w", err)
-		}
-
-		// Phase 3: Distribute embeddings and save Workdir documents
-		saveWorkdirActivity := f.distributeAndSaveFactory.NewActivity()
-		saveWorkdirInput := &distributeandsave.Input{
-			StateName:        "Workdir",
-			EmbeddingResults: workdirEmbeddingResults,
-		}
-		saveWorkdirFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_Workdir", saveWorkdirActivity, saveWorkdirInput)
-		workdirSaveResults, err := saveWorkdirFuture.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("workdir save failed: %w", err)
-		}
-
-		// Step 5.1.6: Build SQL snapshots
-		// Create atomic snapshots for HEAD, staging, and working directory in the database
-		buildSqlSnapshotsActivity := f.buildSqlSnapshotsFactory.NewActivity()
-		sqlInput := &buildsqlsnapshots.Input{
+		// Step 5.1.3: Deduplicate and prepare files for processing
+		// This identifies files that already exist in the database and those that need processing
+		flowCtx.SendRunning("Deduplicating files across all states...")
+		deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
+		deduplicateInput := &deduplicateandprepare.Input{
 			WorkspaceState: scanResult,
-			Versions: &buildsqlsnapshots.VersionMaps{
-				HeadVersions:    headSaveResults.VersionMap,
-				StageVersions:   stageSaveResults.VersionMap,
-				WorkdirVersions: workdirSaveResults.VersionMap,
-			},
 		}
-		sqlSnapshotsFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "BuildSqlSnapshots", buildSqlSnapshotsActivity, sqlInput)
-		if _, err := sqlSnapshotsFuture.Get(ctx); err != nil {
-			return fmt.Errorf("SQL snapshots build failed: %w", err)
+		deduplicateFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
+		deduplicateResult, err := deduplicateFuture.Get(ctx)
+		if err != nil {
+			return fmt.Errorf("deduplication failed: %w", err)
+		}
+
+		// Step 5.1.4: Process unique files through pipeline: chunk → embed → save
+		// Only process files that are not already in the database
+		var newVersions map[string]int64
+		if len(deduplicateResult.FilesToProcess) > 0 {
+			flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files...", len(deduplicateResult.FilesToProcess)))
+
+			// Phase 1: Chunk all unique files
+			chunkActivity := f.chunkAllFilesFactory.NewActivity()
+			chunkInput := &chunkallfiles.Input{
+				StateName: "Deduplicated",
+				Files:     deduplicateResult.FilesToProcess,
+			}
+			chunkFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
+			chunkResults, err := chunkFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("chunking failed: %w", err)
+			}
+
+			// Phase 2: Compute embeddings for all chunks
+			computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
+			computeInput := &computeallembeddings.Input{
+				StateName:    "Deduplicated",
+				ChunkResults: chunkResults,
+				BatchSize:    0, // Single batch for all chunks
+			}
+			computeFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
+			embeddingResults, err := computeFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("embedding computation failed: %w", err)
+			}
+
+			// Phase 3: Distribute embeddings and save unique documents
+			saveActivity := f.distributeAndSaveFactory.NewActivity()
+			saveInput := &distributeandsave.Input{
+				StateName:        "Deduplicated",
+				EmbeddingResults: embeddingResults,
+			}
+			saveFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
+			saveResults, err := saveFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("save failed: %w", err)
+			}
+
+			newVersions = saveResults.VersionMap
+		} else {
+			// No new files to process
+			newVersions = make(map[string]int64)
+			flowCtx.SendRunning("No new files to process - all files already indexed")
+		}
+
+		// Step 5.1.5: Finalize snapshots
+		// Combine existing versions with newly created versions and build snapshots
+		flowCtx.SendRunning("Finalizing snapshots...")
+
+		finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
+		finalizeInput := &finalizesnapshots.Input{
+			ScanResult:       scanResult,
+			ExistingVersions: deduplicateResult.ExistingVersions,
+			NewVersions:      newVersions,
+		}
+		finalizeSnapshotsFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
+		if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
+			return fmt.Errorf("snapshots finalization failed: %w", err)
 		}
 
 		// Step 5.1.7: Build vector indices
