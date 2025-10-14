@@ -186,3 +186,52 @@ type SnapshotRepository interface {
 	// ClearSnapshotLinks removes all links for a given snapshot.
 	ClearSnapshotLinks(ctx context.Context, commitHash string) error
 }
+
+// GitService defines the interface for Git operations.
+type GitService interface {
+	// ListFiles returns a list of all files in the specified commit/ref.
+	ListFiles(ref string) ([]string, error)
+
+	// ReadFileAtCommit reads the content of a file at a specific commit/ref.
+	ReadFileAtCommit(ref, filePath string) ([]byte, error)
+
+	// ReadStagedFiles returns a list of files that are currently staged.
+	ReadStagedFiles() ([]string, error)
+
+	// ReadStagedFileContent reads the content of a staged file from Git index.
+	ReadStagedFileContent(filePath string) ([]byte, error)
+}
+
+// FilterService defines the interface for file filtering operations.
+type FilterService interface {
+	// IsIgnoredFile checks if a file should be ignored (e.g., based on .gitignore).
+	IsIgnoredFile(filePath string) (bool, error)
+}
+
+// ChunkerService defines the interface for text chunking.
+type ChunkerService interface {
+	Chunk(content []byte, filePath string) ([]domainindex.ChunkData, error)
+}
+
+// ProjectStateService defines the interface for getting project file states.
+type ProjectStateService interface {
+	GetHeadState() (map[string]domainindex.FileState, error)
+	GetStagingState() (map[string]domainindex.FileState, error)
+	GetWorkdirState() (map[string]domainindex.FileState, error)
+}
+
+// IndexService defines the interface for document indexing operations.
+type IndexService interface {
+	// EnsureVersionsExist ensures that document versions exist for the given files.
+	// Returns a map of file path to document version ID.
+	EnsureVersionsExist(files map[string][]byte) (map[string]int64, error)
+
+	// BuildSnapshot creates or updates a snapshot with the given versions.
+	BuildSnapshot(snapshotName string, versions map[string]int64) error
+}
+
+// VectorIndexService defines the interface for vector index operations.
+type VectorIndexService interface {
+	// BuildAndSave builds a vector index for the given snapshot and saves it.
+	BuildAndSave(snapshotName string) error
+}

@@ -54,6 +54,23 @@ type Chunk struct {
 	Embedding         gateway.Embedding `db:"embedding"`
 }
 
+// ChunkData represents a chunk of text with its position information (before saving to DB).
+type ChunkData struct {
+	TextContent string
+	StartByte   int
+	EndByte     int
+	StartRune   int
+	EndRune     int
+	StartLine   int
+	EndLine     int
+}
+
+// FileState represents the state of a file with its content and hash.
+type FileState struct {
+	ContentHash string
+	Content     []byte
+}
+
 // CommitSnapshot represents a link between a git commit and a document version.
 // It tracks which document versions existed at a specific commit.
 type CommitSnapshot struct {
