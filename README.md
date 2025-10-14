@@ -10,9 +10,9 @@
 
 <div align="center">
 
-<img src="./assets/meowg1k.svg" alt="meowg1k Logo" width="280">
-
 ### A purr-fectly scriptable CLI that brings AI superpowers to your terminal—automate commits, reviews, and workflows with feline precision
+
+<img src="./assets/meowg1k_repo_card.png" alt="meowg1k Logo" width="600">
 
 [Overview](#-overview) • [See It in Action](#-see-it-in-action) • [Key Features](#-key-features) • [Installation](#-installation) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Contributing](#-contributing) • [Security](#-security) • [License](#-license)
 
