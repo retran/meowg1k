@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package dbpath provides adapters for determining database file paths.
-package dbpath
+// Package path provides adapters for determining database file paths.
+package path
 
 import (
 	"fmt"
@@ -23,22 +23,29 @@ import (
 	"path/filepath"
 )
 
+// WorkspaceService defines the interface for getting workspace root.
+type WorkspaceService interface {
+	Get() (string, error)
+}
+
 // Service is the concrete implementation of the database path service.
 type Service struct {
-	mainDBPath string
+	mainDBPath       string
+	workspaceService WorkspaceService
 }
 
 // NewService creates a new database path service.
 // It determines the appropriate location for the main database file
 // based on XDG Base Directory specification or fallback to current directory.
 // Returns an error if database directory creation fails in all locations.
-func NewService() (*Service, error) {
+func NewService(workspaceService WorkspaceService) (*Service, error) {
 	mainDBPath, err := determineMainDBPath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine main database path: %w", err)
 	}
 	return &Service{
-		mainDBPath: mainDBPath,
+		mainDBPath:       mainDBPath,
+		workspaceService: workspaceService,
 	}, nil
 }
 
@@ -49,6 +56,30 @@ func (s *Service) GetMainDBPath() (string, error) {
 	}
 
 	return s.mainDBPath, nil
+}
+
+// GetProjectDBPath returns the path to the project database file.
+// The project database is stored in <workspace root>/.meowg1k/project.db
+func (s *Service) GetProjectDBPath() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("database path service is nil")
+	}
+
+	if s.workspaceService == nil {
+		return "", fmt.Errorf("workspace service is nil")
+	}
+
+	workspaceRoot, err := s.workspaceService.Get()
+	if err != nil {
+		return "", fmt.Errorf("failed to get workspace root: %w", err)
+	}
+
+	projectDBDir := filepath.Join(workspaceRoot, ".meowg1k")
+	if err := os.MkdirAll(projectDBDir, 0o750); err != nil {
+		return "", fmt.Errorf("failed to create project database directory: %w", err)
+	}
+
+	return filepath.Join(projectDBDir, "project.db"), nil
 }
 
 // determineMainDBPath determines the appropriate location for the main database file.

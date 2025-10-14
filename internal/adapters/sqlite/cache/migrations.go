@@ -21,7 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
 )
 
 // Migrations defines all database migrations for the cache subsystem.

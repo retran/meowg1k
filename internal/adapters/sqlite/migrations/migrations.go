@@ -23,11 +23,14 @@ import (
 	"sort"
 )
 
+// Migration represents a database migration with a version number and upgrade function.
 type Migration struct {
 	Version uint
 	Up      func(tx *sql.Tx) error
 }
 
+// RunMigrations applies all pending database migrations in order.
+// It creates a schema_versions table if it doesn't exist and tracks applied migrations.
 func RunMigrations(db *sql.DB, migrations []Migration) error {
 	if db == nil {
 		return fmt.Errorf("database connection is nil")

@@ -26,7 +26,7 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 
-	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {

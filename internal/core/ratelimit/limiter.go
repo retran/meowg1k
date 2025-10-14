@@ -21,6 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/retran/meowg1k/internal/domain/ratelimit"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // Limiter defines the interface for rate limiting.
@@ -31,8 +34,8 @@ type Limiter interface {
 
 // dbLimiter implements Limiter using a database-backed Repository.
 type dbLimiter struct {
-	repo    Repository
-	configs []BucketConfig
+	repo    ports.RateLimitRepository
+	configs []ratelimit.BucketConfig
 }
 
 // Config defines the rate limiting configuration.
@@ -52,7 +55,7 @@ var Unlimited = Config{
 }
 
 // NewLimiter creates a new Limiter based on the provided configuration and repository.
-func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, error) {
+func NewLimiter(ctx context.Context, config Config, repo ports.RateLimitRepository) (Limiter, error) {
 	if config.ID == "" {
 		return nil, fmt.Errorf("config ID is empty")
 	}
@@ -60,9 +63,9 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 		return nil, fmt.Errorf("repository is nil for config %q", config.ID)
 	}
 
-	var configs []BucketConfig
+	var configs []ratelimit.BucketConfig
 	if config.RequestsPerMinute > 0 {
-		configs = append(configs, BucketConfig{
+		configs = append(configs, ratelimit.BucketConfig{
 			ID:          config.ID + ":rpm",
 			Capacity:    config.RequestsPerMinute,
 			RefillRate:  config.RequestsPerMinute,
@@ -70,7 +73,7 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 		})
 	}
 	if config.TokensPerMinute > 0 {
-		configs = append(configs, BucketConfig{
+		configs = append(configs, ratelimit.BucketConfig{
 			ID:          config.ID + ":tpm",
 			Capacity:    config.TokensPerMinute,
 			RefillRate:  config.TokensPerMinute,
@@ -78,7 +81,7 @@ func NewLimiter(ctx context.Context, config Config, repo Repository) (Limiter, e
 		})
 	}
 	if config.RequestsPerDay > 0 {
-		configs = append(configs, BucketConfig{
+		configs = append(configs, ratelimit.BucketConfig{
 			ID:          config.ID + ":rpd",
 			Capacity:    config.RequestsPerDay,
 			RefillRate:  config.RequestsPerDay,
@@ -126,7 +129,7 @@ func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 		}
 
 		// Check if this is a "not enough tokens" error using type assertion
-		var notEnoughTokensErr *NotEnoughTokensError
+		var notEnoughTokensErr *ratelimit.NotEnoughTokensError
 		if !errors.As(err, &notEnoughTokensErr) {
 			// If it's not a token shortage error, return it immediately with context
 			return fmt.Errorf("failed to acquire tokens from rate limiter: %w", err)
@@ -143,18 +146,18 @@ func (l *dbLimiter) Wait(ctx context.Context, tokenCount int) error {
 }
 
 // buildRequests constructs the list of AcquisitionRequests based on the token count and configured buckets.
-func (l *dbLimiter) buildRequests(tokenCount int) []AcquisitionRequest {
-	var requests []AcquisitionRequest
+func (l *dbLimiter) buildRequests(tokenCount int) []ratelimit.AcquisitionRequest {
+	var requests []ratelimit.AcquisitionRequest
 	for _, config := range l.configs {
 		switch {
 		case config.RefillEvery == time.Minute && config.ID[len(config.ID)-4:] == ":rpm":
-			requests = append(requests, AcquisitionRequest{ID: config.ID, Count: 1})
+			requests = append(requests, ratelimit.AcquisitionRequest{ID: config.ID, Count: 1})
 		case config.RefillEvery == time.Minute && config.ID[len(config.ID)-4:] == ":tpm":
 			if tokenCount > 0 {
-				requests = append(requests, AcquisitionRequest{ID: config.ID, Count: tokenCount})
+				requests = append(requests, ratelimit.AcquisitionRequest{ID: config.ID, Count: tokenCount})
 			}
 		case config.RefillEvery == 24*time.Hour:
-			requests = append(requests, AcquisitionRequest{ID: config.ID, Count: 1})
+			requests = append(requests, ratelimit.AcquisitionRequest{ID: config.ID, Count: 1})
 		}
 	}
 	return requests

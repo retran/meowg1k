@@ -34,17 +34,17 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/command"
 	"github.com/retran/meowg1k/internal/adapters/config"
-	"github.com/retran/meowg1k/internal/adapters/dbpath"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/path"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
+	"github.com/retran/meowg1k/internal/core/shutdown"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/cache"
-	"github.com/retran/meowg1k/pkg/ratelimit"
-	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
 // Writer writes output to the user (used in activities).
@@ -79,10 +79,10 @@ type Container struct {
 	dbHost ports.Host
 
 	// dbPathService provides database path management
-	dbPathService *dbpath.Service
+	dbPathService *path.Service
 
 	// rateLimitRepo is the repository for rate limiting state (lazy initialized)
-	rateLimitRepo ratelimit.Repository
+	rateLimitRepo *ratelimit.Repository
 
 	// cacheRepo is the repository for LLM response caching (lazy initialized)
 	cacheRepo ports.CacheRepository
@@ -207,9 +207,9 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to register trace logger shutdown callback: %w", err)
 	}
 
-	dbPathService, err := dbpath.NewService()
+	dbPathService, err := path.NewService(workspaceService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create database path service: %w", err)
+		return nil, fmt.Errorf("failed to create db path service: %w", err)
 	}
 
 	// Initialize HTTP client service
@@ -289,7 +289,7 @@ func (c *Container) initDB() error {
 }
 
 // GetRateLimitRepo returns the rate limit repository, initializing the database if needed.
-func (c *Container) GetRateLimitRepo() ratelimit.Repository {
+func (c *Container) GetRateLimitRepo() *ratelimit.Repository {
 	// If already set (e.g., in tests), return it directly
 	if c.rateLimitRepo != nil {
 		return c.rateLimitRepo

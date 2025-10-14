@@ -27,7 +27,8 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 
-	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
 
 func setupTestDB(t *testing.T) *sql.DB {
@@ -61,7 +62,7 @@ func TestNewRepository(t *testing.T) {
 }
 
 func TestNotEnoughTokensError_Error(t *testing.T) {
-	err := &NotEnoughTokensError{
+	err := &ratelimit.NotEnoughTokensError{
 		BucketID: "test-bucket",
 		Need:     10,
 		Have:     5,
@@ -80,7 +81,7 @@ func TestInitializeBuckets(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "bucket1",
 			Capacity:    100,
@@ -118,7 +119,7 @@ func TestAcquireTokens_Success(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "test-bucket",
 			Capacity:    100,
@@ -134,7 +135,7 @@ func TestAcquireTokens_Success(t *testing.T) {
 	}
 
 	// Acquire tokens
-	requests := []AcquisitionRequest{
+	requests := []ratelimit.AcquisitionRequest{
 		{ID: "test-bucket", Count: 10},
 	}
 
@@ -161,7 +162,7 @@ func TestAcquireTokens_NotEnoughTokens(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "test-bucket",
 			Capacity:    100,
@@ -177,7 +178,7 @@ func TestAcquireTokens_NotEnoughTokens(t *testing.T) {
 	}
 
 	// Try to acquire more tokens than available
-	requests := []AcquisitionRequest{
+	requests := []ratelimit.AcquisitionRequest{
 		{ID: "test-bucket", Count: 150},
 	}
 
@@ -186,7 +187,7 @@ func TestAcquireTokens_NotEnoughTokens(t *testing.T) {
 		t.Fatal("expected error for insufficient tokens, got nil")
 	}
 
-	var notEnoughErr *NotEnoughTokensError
+	var notEnoughErr *ratelimit.NotEnoughTokensError
 	if !errors.As(err, &notEnoughErr) {
 		t.Errorf("expected NotEnoughTokensError, got %T", err)
 	}
@@ -199,7 +200,7 @@ func TestAcquireTokens_MultipleBuckets(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "bucket1",
 			Capacity:    100,
@@ -221,7 +222,7 @@ func TestAcquireTokens_MultipleBuckets(t *testing.T) {
 	}
 
 	// Acquire from both buckets
-	requests := []AcquisitionRequest{
+	requests := []ratelimit.AcquisitionRequest{
 		{ID: "bucket1", Count: 10},
 		{ID: "bucket2", Count: 5},
 	}
@@ -251,7 +252,7 @@ func TestResetBuckets(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "test-bucket",
 			Capacity:    100,
@@ -262,7 +263,7 @@ func TestResetBuckets(t *testing.T) {
 
 	// Initialize and acquire some tokens
 	repo.InitializeBuckets(ctx, configs)
-	requests := []AcquisitionRequest{{ID: "test-bucket", Count: 50}}
+	requests := []ratelimit.AcquisitionRequest{{ID: "test-bucket", Count: 50}}
 	repo.AcquireTokens(ctx, configs, requests)
 
 	// Reset bucket
@@ -286,7 +287,7 @@ func TestResetBuckets_NonExistentBucket(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "nonexistent",
 			Capacity:    100,
@@ -309,7 +310,7 @@ func TestAcquireTokens_Refill(t *testing.T) {
 	repo := NewRepository(db)
 	ctx := context.Background()
 
-	configs := []BucketConfig{
+	configs := []ratelimit.BucketConfig{
 		{
 			ID:          "test-bucket",
 			Capacity:    100,
@@ -322,14 +323,14 @@ func TestAcquireTokens_Refill(t *testing.T) {
 	repo.InitializeBuckets(ctx, configs)
 
 	// Acquire tokens
-	requests := []AcquisitionRequest{{ID: "test-bucket", Count: 60}}
+	requests := []ratelimit.AcquisitionRequest{{ID: "test-bucket", Count: 60}}
 	repo.AcquireTokens(ctx, configs, requests)
 
 	// Wait for refill
 	time.Sleep(150 * time.Millisecond)
 
 	// Acquire more tokens (should succeed because of refill)
-	requests = []AcquisitionRequest{{ID: "test-bucket", Count: 60}}
+	requests = []ratelimit.AcquisitionRequest{{ID: "test-bucket", Count: 60}}
 	err := repo.AcquireTokens(ctx, configs, requests)
 	if err != nil {
 		t.Fatalf("unexpected error after refill: %v", err)

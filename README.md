@@ -69,7 +69,6 @@ Every aspect of behavior is defined in version-controlled YAML files. Share conf
 
 Automatically enriches prompts with relevant context from your codebase. Future versions will include semantic search, RAG-powered completions, and workspace-aware analysis.
 
-
 ## 📦 Installation
 
 ### ⚡ Quick Install

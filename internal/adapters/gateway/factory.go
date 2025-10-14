@@ -21,16 +21,17 @@ import (
 	"fmt"
 	"sync"
 
+	ratelimit2 "github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
+	"github.com/retran/meowg1k/internal/core/ratelimit"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 type Factory struct {
 	mu                sync.Mutex
 	limiters          map[string]ratelimit.Limiter // key is profile name
-	rateLimitRepo     ratelimit.Repository         // rate limit repository
+	rateLimitRepo     *ratelimit2.Repository       // rate limit repository
 	cacheRepo         ports.CacheRepository        // cache repository for LLM responses
 	flagReader        ports.FlagReader             // command-line flag reader
 	traceLogger       TraceLogger                  // trace logger for API interactions
@@ -40,7 +41,7 @@ type Factory struct {
 
 // NewFactory creates a new gateway factory with dependencies.
 func NewFactory(
-	rateLimitRepo ratelimit.Repository,
+	rateLimitRepo *ratelimit2.Repository,
 	cacheRepo ports.CacheRepository,
 	flagReader ports.FlagReader,
 	traceLogger TraceLogger,

@@ -24,22 +24,24 @@ import (
 	_ "github.com/ncruces/go-sqlite3/driver"
 	_ "github.com/ncruces/go-sqlite3/embed"
 
-	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // setupTestDBForLimiter creates an in-memory SQLite database for testing
-func setupTestDBForLimiter(t *testing.T) (*sql.DB, Repository) {
+func setupTestDBForLimiter(t *testing.T) (*sql.DB, ports.RateLimitRepository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
 
 	// Run migrations
-	if err := migrations.RunMigrations(db, Migrations); err != nil {
+	if err := migrations.RunMigrations(db, ratelimit.Migrations); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	repo := NewRepository(db)
+	repo := ratelimit.NewRepository(db)
 	return db, repo
 }
 

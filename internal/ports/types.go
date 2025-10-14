@@ -25,6 +25,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
 
 // OutputWriter writes output to the user (used in flows).
@@ -108,4 +109,16 @@ type HTTPClientService interface {
 
 	// Validate checks if the service is properly initialized.
 	Validate() error
+}
+
+// Repository defines the interface for rate limit data storage.
+type RateLimitRepository interface {
+	// AcquireTokens attempts to acquire tokens from the specified buckets.
+	AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error
+
+	// InitializeBuckets initializes the rate limit buckets in the database.
+	InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error
+
+	// ResetBuckets resets the tokens in the specified buckets to their full capacity.
+	ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error
 }

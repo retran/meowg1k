@@ -28,12 +28,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/model"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
-	"github.com/retran/meowg1k/pkg/migrations"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 // mockCommandNameReader is a mock implementation of CommandNameReader for testing
@@ -106,7 +106,7 @@ func (m *mockHTTPClientService) Validate() error {
 }
 
 // setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
-func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
+func setupTestRepoForFactory(t *testing.T) (*sql.DB, *ratelimit.Repository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)

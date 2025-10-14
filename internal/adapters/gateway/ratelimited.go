@@ -20,9 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/core/ratelimit"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 // rateLimitedGenerationGateway wraps a ports.GenerationGateway with rate limiting.

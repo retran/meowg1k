@@ -20,15 +20,18 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/index"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/meta"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/cache"
-	"github.com/retran/meowg1k/pkg/migrations"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 // DBPathService defines the interface for determining database paths.
 type DBPathService interface {
 	GetMainDBPath() (string, error)
+	GetProjectDBPath() (string, error)
 }
 
 type localHostImpl struct {
@@ -47,26 +50,28 @@ func NewLocalHost(dbPathService DBPathService) (ports.Host, error) {
 		return nil, fmt.Errorf("failed to get main db path: %w", err)
 	}
 
-	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on", mainDBPath)
-	db, err := sql.Open("sqlite3", dbURL)
+	mainDB, err := getDB(mainDBPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open main db at %s: %w", mainDBPath, err)
+		return nil, fmt.Errorf("failed to get main db: %w", err)
 	}
 
-	// Enable Write-Ahead Logging for better concurrent access
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	projectDBPath, err := dbPathService.GetProjectDBPath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project db path: %w", err)
 	}
 
-	projectDB := db // TODO: For now, use the same DB for projects
+	projectDB, err := getDB(projectDBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project db: %w", err)
+	}
 
 	host := &localHostImpl{
-		mainDB:    db,
+		mainDB:    mainDB,
 		projectDB: projectDB,
 	}
 
-	if err := host.migrateDB(); err != nil {
-		return nil, fmt.Errorf("failed to migrate db: %w", err)
+	if err := host.migrateMainDB(); err != nil {
+		return nil, fmt.Errorf("failed to migrate main db: %w", err)
 	}
 
 	if err := host.migrateProjectDB(); err != nil {
@@ -92,6 +97,21 @@ func (h *localHostImpl) GetProjectDB() (*sql.DB, error) {
 	return h.projectDB, nil
 }
 
+func getDB(path string) (*sql.DB, error) {
+	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on", path)
+	db, err := sql.Open("sqlite3", dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open main db at %s: %w", path, err)
+	}
+
+	// Enable Write-Ahead Logging for better concurrent access
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	return db, nil
+}
+
 // getMainDBMigrations collects all migrations for the main database.
 func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 	if h == nil {
@@ -100,10 +120,7 @@ func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 
 	allMigrations := []migrations.Migration{}
 
-	// Add rate limiting migrations
 	allMigrations = append(allMigrations, ratelimit.Migrations...)
-
-	// Add cache migrations
 	allMigrations = append(allMigrations, cache.Migrations...)
 
 	// Future: add other subsystem migrations here
@@ -112,7 +129,23 @@ func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 	return allMigrations, nil
 }
 
-func (h *localHostImpl) migrateDB() error {
+func (h *localHostImpl) getProjectDBMigrations() ([]migrations.Migration, error) {
+	if h == nil {
+		return nil, fmt.Errorf("host is nil")
+	}
+
+	allMigrations := []migrations.Migration{}
+
+	allMigrations = append(allMigrations, meta.Migrations...)
+	allMigrations = append(allMigrations, index.Migrations...)
+
+	// Future: add other subsystem migrations here
+	// allMigrations = append(allMigrations, someother.Migrations...)
+
+	return allMigrations, nil
+}
+
+func (h *localHostImpl) migrateMainDB() error {
 	if h == nil {
 		return fmt.Errorf("host is nil")
 	}
@@ -133,7 +166,16 @@ func (h *localHostImpl) migrateProjectDB() error {
 	if h == nil {
 		return fmt.Errorf("host is nil")
 	}
-	// No migrations for project DB yet
+
+	allMigrations, err := h.getProjectDBMigrations()
+	if err != nil {
+		return fmt.Errorf("failed to get project db migrations: %w", err)
+	}
+
+	if err := migrations.RunMigrations(h.projectDB, allMigrations); err != nil {
+		return fmt.Errorf("failed to run project db migrations: %w", err)
+	}
+
 	return nil
 }
 

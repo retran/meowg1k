@@ -35,12 +35,12 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
+	"github.com/retran/meowg1k/internal/core/shutdown"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/cache"
-	"github.com/retran/meowg1k/pkg/ratelimit"
-	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
 // testMockDBHost is a simple mock implementation for testing nil validation

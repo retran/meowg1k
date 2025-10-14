@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dbpath
+package path
 
 import (
 	"os"
@@ -23,8 +23,25 @@ import (
 	"testing"
 )
 
+// mockWorkspaceService is a mock implementation of WorkspaceService for testing.
+type mockWorkspaceService struct {
+	getFunc func() (string, error)
+}
+
+func (m *mockWorkspaceService) Get() (string, error) {
+	if m.getFunc != nil {
+		return m.getFunc()
+	}
+	return "", nil
+}
+
 func TestNewService(t *testing.T) {
-	service, err := NewService()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return "/test/workspace", nil
+		},
+	}
+	service, err := NewService(mockWs)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -34,7 +51,12 @@ func TestNewService(t *testing.T) {
 }
 
 func TestGetMainDBPath(t *testing.T) {
-	service, err := NewService()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return "/test/workspace", nil
+		},
+	}
+	service, err := NewService(mockWs)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -64,7 +86,12 @@ func TestGetMainDBPathWithXDGDataHome(t *testing.T) {
 	// Set XDG_DATA_HOME to temp directory
 	os.Setenv("XDG_DATA_HOME", tempDir)
 
-	service, err := NewService()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return "/test/workspace", nil
+		},
+	}
+	service, err := NewService(mockWs)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -99,7 +126,12 @@ func TestGetMainDBPathWithHomeDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	os.Setenv("HOME", tempDir)
 
-	service, err := NewService()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return "/test/workspace", nil
+		},
+	}
+	service, err := NewService(mockWs)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -133,7 +165,12 @@ func TestGetMainDBPathFallbackToCurrentDirectory(t *testing.T) {
 	os.Setenv("XDG_DATA_HOME", "")
 	os.Setenv("HOME", "")
 
-	service, err := NewService()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return "/test/workspace", nil
+		},
+	}
+	service, err := NewService(mockWs)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -145,5 +182,43 @@ func TestGetMainDBPathFallbackToCurrentDirectory(t *testing.T) {
 	// Should fallback to current directory
 	if path != "meowg1k.db" {
 		t.Errorf("Expected fallback path meowg1k.db, got %s", path)
+	}
+}
+
+func TestGetProjectDBPath(t *testing.T) {
+	tempDir := t.TempDir()
+	mockWs := &mockWorkspaceService{
+		getFunc: func() (string, error) {
+			return tempDir, nil
+		},
+	}
+
+	service, err := NewService(mockWs)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	path, err := service.GetProjectDBPath()
+	if err != nil {
+		t.Fatalf("GetProjectDBPath failed: %v", err)
+	}
+
+	expectedPath := filepath.Join(tempDir, ".meowg1k", "project.db")
+	if path != expectedPath {
+		t.Errorf("Expected path %s, got %s", expectedPath, path)
+	}
+
+	// Verify directory was created
+	dbDir := filepath.Dir(path)
+	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
+		t.Errorf("DB directory was not created: %s", dbDir)
+	}
+}
+
+func TestGetProjectDBPathNilService(t *testing.T) {
+	var service *Service
+	_, err := service.GetProjectDBPath()
+	if err == nil {
+		t.Fatal("Expected error for nil service, got nil")
 	}
 }

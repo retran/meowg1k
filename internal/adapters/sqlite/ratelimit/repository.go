@@ -23,54 +23,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/retran/meowg1k/pkg/migrations"
+	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
 
-// NotEnoughTokensError is returned when there are not enough tokens in a bucket.
-type NotEnoughTokensError struct {
-	BucketID string
-	Need     int
-	Have     int
-}
-
-func (e *NotEnoughTokensError) Error() string {
-	return fmt.Sprintf("not enough tokens in bucket %q: need %d, have %d", e.BucketID, e.Need, e.Have)
-}
-
-// BucketConfig defines the configuration for a rate limit bucket.
-type BucketConfig struct {
-	ID          string
-	Capacity    int
-	RefillRate  int
-	RefillEvery time.Duration
-}
-
-// AcquisitionRequest represents a request to acquire tokens from a specific bucket.
-type AcquisitionRequest struct {
-	ID    string
-	Count int
-}
-
-// Repository defines the interface for rate limit data storage.
-type Repository interface {
-	// AcquireTokens attempts to acquire tokens from the specified buckets.
-	AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error
-
-	// InitializeBuckets initializes the rate limit buckets in the database.
-	InitializeBuckets(ctx context.Context, configs []BucketConfig) error
-
-	// ResetBuckets resets the tokens in the specified buckets to their full capacity.
-	ResetBuckets(ctx context.Context, configs []BucketConfig) error
-}
-
-// repositoryImpl is a concrete implementation of the Repository interface.
-type repositoryImpl struct {
+// Repository is a concrete implementation of the RateLimitRepository interface using SQLite.
+type Repository struct {
 	db *sql.DB
 }
 
 // NewRepository creates a new Repository with the given database connection.
-func NewRepository(db *sql.DB) Repository {
-	return &repositoryImpl{db: db}
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{
+		db: db,
+	}
 }
 
 func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery time.Duration) (int, time.Time) {
@@ -95,14 +60,14 @@ func refill(tokens, capacity, refillRate int, lastRefill time.Time, refillEvery 
 }
 
 // AcquireTokens attempts to acquire the specified number of tokens from the given buckets.
-func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConfig, requests []AcquisitionRequest) error {
+func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	configMap := make(map[string]BucketConfig)
+	configMap := make(map[string]ratelimit.BucketConfig)
 	for _, config := range configs {
 		configMap[config.ID] = config
 	}
@@ -137,7 +102,7 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, time.Unix(0, lastRefillNano), config.RefillEvery)
 
 		if refilledTokens < req.Count {
-			return &NotEnoughTokensError{
+			return &ratelimit.NotEnoughTokensError{
 				BucketID: req.ID,
 				Need:     req.Count,
 				Have:     refilledTokens,
@@ -171,7 +136,7 @@ func (r *repositoryImpl) AcquireTokens(ctx context.Context, configs []BucketConf
 }
 
 // InitializeBuckets initializes the rate limit buckets in the database.
-func (r *repositoryImpl) InitializeBuckets(ctx context.Context, configs []BucketConfig) error {
+func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for init: %w", err)
@@ -198,7 +163,7 @@ func (r *repositoryImpl) InitializeBuckets(ctx context.Context, configs []Bucket
 }
 
 // ResetBuckets resets the tokens in the specified buckets to their full capacity.
-func (r *repositoryImpl) ResetBuckets(ctx context.Context, configs []BucketConfig) error {
+func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for reset: %w", err)
@@ -221,24 +186,4 @@ func (r *repositoryImpl) ResetBuckets(ctx context.Context, configs []BucketConfi
 		return fmt.Errorf("failed to commit bucket reset transaction: %w", err)
 	}
 	return nil
-}
-
-// Migrations defines the database migrations for the rate limit repository.
-var Migrations = []migrations.Migration{
-	{
-		Version: 1,
-		Up: func(tx *sql.Tx) error {
-			_, err := tx.Exec(`
-				CREATE TABLE IF NOT EXISTS rate_limit_buckets (
-					id TEXT PRIMARY KEY,
-					tokens INTEGER NOT NULL,
-					last_refill INTEGER NOT NULL
-				)
-			`)
-			if err != nil {
-				return fmt.Errorf("failed to create rate_limit_buckets table: %w", err)
-			}
-			return nil
-		},
-	},
 }
