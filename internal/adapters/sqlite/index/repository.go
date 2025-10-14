@@ -362,6 +362,67 @@ func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) 
 	return chunks, nil
 }
 
+// GetChunksByIDs retrieves chunks by their IDs.
+// Returns chunks in the same order as they appear in the result set (not necessarily input order).
+func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]domainindex.Chunk, error) {
+	if len(chunkIDs) == 0 {
+		return []domainindex.Chunk{}, nil
+	}
+
+	db, err := r.host.GetDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get database: %w", err)
+	}
+
+	// Build query with placeholders for IN clause
+	placeholders := make([]string, len(chunkIDs))
+	args := make([]interface{}, len(chunkIDs))
+	for i, id := range chunkIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, document_version_id, chunk_type, text_content,
+		start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
+		FROM chunks
+		WHERE id IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query chunks by IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var chunks []domainindex.Chunk
+	for rows.Next() {
+		var chunk domainindex.Chunk
+		var embeddingBytes []byte
+		if err := rows.Scan(
+			&chunk.ID, &chunk.DocumentVersionID, &chunk.ChunkType, &chunk.TextContent,
+			&chunk.StartByte, &chunk.EndByte, &chunk.StartRune, &chunk.EndRune,
+			&chunk.StartLine, &chunk.EndLine, &embeddingBytes,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan chunk: %w", err)
+		}
+
+		embedding, err := decodeEmbedding(embeddingBytes)
+		if err != nil {
+			return nil, fmt.Errorf("could not decode embedding for chunk id %d: %w", chunk.ID, err)
+		}
+		chunk.Embedding = embedding
+
+		chunks = append(chunks, chunk)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	return chunks, nil
+}
+
 // LinkVersionToSnapshot links a document version to a commit snapshot.
 func (r *Repository) LinkVersionToSnapshot(ctx context.Context, commitHash string, versionID int64) error {
 	db, err := r.host.GetDB()

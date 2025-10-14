@@ -172,6 +172,10 @@ type IndexRepository interface {
 	// GetChunksByVersionID retrieves all chunks for a given document version.
 	GetChunksByVersionID(ctx context.Context, versionID int64) ([]domainindex.Chunk, error)
 
+	// GetChunksByIDs retrieves chunks by their IDs.
+	// This is useful for efficiently fetching multiple chunks for RAG context assembly.
+	GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]domainindex.Chunk, error)
+
 	// GetAllEmbeddings retrieves all embeddings from the index.
 	// Returns a map of chunk ID to embedding vector.
 	GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Embedding, error)
