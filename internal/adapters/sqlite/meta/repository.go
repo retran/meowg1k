@@ -63,3 +63,13 @@ func (r *MetaRepository) GetValue(ctx context.Context, key string) ([]byte, erro
 	}
 	return value, nil
 }
+
+// DeleteValue deletes a metadata value by key.
+// Does not return an error if the key does not exist.
+func (r *MetaRepository) DeleteValue(ctx context.Context, key string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM meta_kv WHERE key = ?", key)
+	if err != nil {
+		return fmt.Errorf("failed to delete meta value for key '%s': %w", key, err)
+	}
+	return nil
+}

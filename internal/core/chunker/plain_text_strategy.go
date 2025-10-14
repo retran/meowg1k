@@ -42,7 +42,6 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 
 	var chunks []domainindex.ChunkData
 
-	// Split text into paragraphs
 	paragraphs := strings.Split(text, "\n\n")
 
 	var currentChunkBuilder strings.Builder
@@ -60,9 +59,7 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 		paragraphRunes := []rune(paragraph)
 		paragraphRuneCount := len(paragraphRunes)
 
-		// Check if adding this paragraph would exceed max chunk size
 		if len(currentChunkRunes)+paragraphRuneCount > s.maxChunkRunes && currentChunkBuilder.Len() > 0 {
-			// Finalize current chunk
 			chunk := s.finalizeChunk(
 				currentChunkBuilder.String(),
 				currentChunkRunes,
@@ -75,19 +72,16 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 			)
 			chunks = append(chunks, chunk)
 
-			// Create new chunk with overlap
 			overlapText, overlapRunes := s.createOverlap(currentChunkRunes, currentChunkBuilder.String())
 			currentChunkBuilder.Reset()
 			currentChunkBuilder.WriteString(overlapText)
 			currentChunkRunes = overlapRunes
 
-			// Update start positions for new chunk
 			chunkStartByte = currentByte - len([]byte(overlapText))
 			chunkStartRune = currentRune - len(overlapRunes)
 			chunkStartLine = currentLine - countNewlines(overlapText)
 		}
 
-		// Add paragraph to current chunk
 		if currentChunkBuilder.Len() > 0 {
 			currentChunkBuilder.WriteString("\n\n")
 			currentChunkRunes = append(currentChunkRunes, []rune("\n\n")...)
@@ -99,13 +93,11 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 		currentChunkBuilder.WriteString(paragraph)
 		currentChunkRunes = append(currentChunkRunes, paragraphRunes...)
 
-		// Update positions
 		currentByte += len([]byte(paragraph))
 		currentRune += paragraphRuneCount
 		currentLine += countNewlines(paragraph)
 	}
 
-	// Finalize last chunk if there's content
 	if currentChunkBuilder.Len() > 0 {
 		chunk := s.finalizeChunk(
 			currentChunkBuilder.String(),

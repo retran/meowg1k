@@ -133,6 +133,10 @@ type MetaRepository interface {
 	// SetValue stores a metadata value with the given key.
 	// If the key already exists, the value is updated.
 	SetValue(ctx context.Context, key string, value []byte) error
+
+	// DeleteValue deletes a metadata value by key.
+	// Does not return an error if the key does not exist.
+	DeleteValue(ctx context.Context, key string) error
 }
 
 // IndexRepository defines the interface for document indexing operations.

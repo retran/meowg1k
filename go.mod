@@ -4,11 +4,13 @@ go 1.25.1
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.13.0
+	github.com/coder/hnsw v0.6.1
 	github.com/ncruces/go-sqlite3 v0.29.1
 	github.com/openai/openai-go/v2 v2.7.1
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/sync v0.17.0
 	google.golang.org/genai v1.30.0
 )
 
@@ -17,7 +19,6 @@ require (
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/chewxy/math32 v1.10.1 // indirect
-	github.com/coder/hnsw v0.6.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
