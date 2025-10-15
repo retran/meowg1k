@@ -105,6 +105,10 @@ type HTTPClientService interface {
 	// Get returns the shared HTTP client instance.
 	Get() *http.Client
 
+	// GetWithTimeout returns a new HTTP client with custom timeout settings.
+	// This is useful for operations that need different timeout characteristics.
+	GetWithTimeout(timeout time.Duration) *http.Client
+
 	// Close cleans up any resources held by the HTTP client.
 	Close() error
 

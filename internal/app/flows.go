@@ -499,6 +499,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		distributeAndSaveFactory,
 		finalizeSnapshotsFactory,
 		buildVectorIndicesFactory,
+		indexConfig.BatchSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index flow factory: %w", err)

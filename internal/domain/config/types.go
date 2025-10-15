@@ -329,6 +329,10 @@ type IndexConfig struct {
 
 	// Chunker defines chunking parameters for document processing
 	Chunker *ChunkerConfig `yaml:"chunker" mapstructure:"chunker"`
+
+	// BatchSize is the number of chunks to process in a single embedding API call
+	// Default is 0 (use provider's default, typically 1 for local models, higher for cloud APIs)
+	BatchSize int `yaml:"batchSize" mapstructure:"batchSize"`
 }
 
 // ChunkerConfig defines parameters for text chunking.

@@ -83,9 +83,16 @@ func (s *ConfigService) Get() (*domainindex.ResolvedConfig, error) {
 		return nil, fmt.Errorf("failed to resolve profile %q: %w", cfg.Index.Profile, err)
 	}
 
+	// Set default batch size if not specified
+	batchSize := cfg.Index.BatchSize
+	if batchSize <= 0 {
+		batchSize = 32 // Default batch size
+	}
+
 	return &domainindex.ResolvedConfig{
 		Profile:             resolvedProfile,
 		ChunkerMaxRunes:     cfg.Index.Chunker.MaxRunes,
 		ChunkerOverlapRunes: cfg.Index.Chunker.OverlapRunes,
+		BatchSize:           batchSize,
 	}, nil
 }

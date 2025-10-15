@@ -30,6 +30,7 @@ type ResolvedConfig struct {
 	Profile             *profile.ResolvedProfile
 	ChunkerMaxRunes     int
 	ChunkerOverlapRunes int
+	BatchSize           int
 }
 
 // ContentBlob represents a content blob stored in the database.

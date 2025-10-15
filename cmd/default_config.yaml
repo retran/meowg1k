@@ -107,6 +107,9 @@ index:
   chunker:
     maxRunes: 1024
     overlapRunes: 100
+  # Number of chunks to process in one embedding API call
+  # Default is 32. Increase for faster cloud APIs, decrease for local models
+  batchSize: 32
 
 ask:
   # Profile for generating answers

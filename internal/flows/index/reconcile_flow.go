@@ -41,6 +41,7 @@ type Factory struct {
 	distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
 	finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
 	buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
+	batchSize                    int
 }
 
 func NewFactory(
@@ -53,6 +54,7 @@ func NewFactory(
 	distributeAndSaveFactory executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output],
 	finalizeSnapshotsFactory executor.ActivityFactory[*finalizesnapshots.Input, struct{}],
 	buildVectorIndicesFactory executor.ActivityFactory[struct{}, struct{}],
+	batchSize int,
 ) (*Factory, error) {
 	if cleanupFactory == nil {
 		return nil, fmt.Errorf("cleanupFactory is nil")
@@ -90,6 +92,10 @@ func NewFactory(
 		return nil, fmt.Errorf("buildVectorIndicesFactory is nil")
 	}
 
+	if batchSize <= 0 {
+		return nil, fmt.Errorf("batchSize must be positive, got %d", batchSize)
+	}
+
 	return &Factory{
 		cleanupFactory:               cleanupFactory,
 		scanStateFactory:             scanStateFactory,
@@ -100,6 +106,7 @@ func NewFactory(
 		distributeAndSaveFactory:     distributeAndSaveFactory,
 		finalizeSnapshotsFactory:     finalizeSnapshotsFactory,
 		buildVectorIndicesFactory:    buildVectorIndicesFactory,
+		batchSize:                    batchSize,
 	}, nil
 }
 
@@ -182,7 +189,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			prepareBatchesInput := &preparebatches.Input{
 				StateName:    "Deduplicated",
 				ChunkResults: chunkResults,
-				BatchSize:    50, // Process in batches of 50 chunks
+				BatchSize:    f.batchSize,
 			}
 			prepareBatchesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
 			preparedBatches, err := prepareBatchesFuture.Get(ctx)

@@ -23,6 +23,15 @@ models:
       tokensPerMinute: 500000
       requestsPerDay: 100000
 
+  jina:
+    provider: "llama"
+    model: "jina-embeddings-v4-text-retrieval-F16"
+    baseURL: "http://localhost:8080"
+    rateLimit:
+      requestsPerMinute: 300
+      tokensPerMinute: 5000000
+      requestsPerDay: 1000000
+
 profiles:
   fast:
     model: "qwen-flash"
@@ -46,6 +55,13 @@ profiles:
     cache:
       enabled: true
       ttl: "72h"
+
+  jina:
+    model: "jina"
+    timeout: "10m"
+    cache:
+      enabled: true
+      ttl: "1h"
 
 cache:
   enabled: true
@@ -125,10 +141,11 @@ filter:
     - "assets/**"
 
 index:
-  profile: "embeddings"
+  profile: "jina"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
+  batchSize: 4
 
 ask:
   profile: "smart"

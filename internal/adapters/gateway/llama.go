@@ -28,12 +28,11 @@ import (
 )
 
 var _ ports.GenerationGateway = (*llamaGateway)(nil)
-
-// TODO Uncomment when implemented
-// var _ EmbeddingGateway = (*llamaGateway)(nil)
+var _ ports.EmbeddingsGateway = (*llamaGateway)(nil)
 
 // llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
 type llamaGateway struct {
+	gateway.ComputeDistanceMixin
 	client *llama.Client
 }
 
@@ -202,4 +201,43 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	}
 
 	return response.Content, nil
+}
+
+// ComputeEmbeddings computes embeddings for the provided chunks using the llama.cpp /embedding endpoint.
+// Uses batch processing to send all chunks in a single request.
+func (g *llamaGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if g == nil {
+		return nil, fmt.Errorf("llama gateway is nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	chunks := request.Chunks()
+	if len(chunks) == 0 {
+		return []gateway.Embedding{}, nil
+	}
+
+	// Use batch API to process all chunks at once
+	rawEmbeddings, err := g.client.EmbeddingBatch(ctx, chunks, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute embeddings from llama.cpp API for model %q: %w", request.Model(), err)
+	}
+
+	if len(rawEmbeddings) != len(chunks) {
+		return nil, fmt.Errorf("expected %d embeddings but got %d from llama.cpp API", len(chunks), len(rawEmbeddings))
+	}
+
+	// Convert [][]float64 to []gateway.Embedding
+	embeddings := make([]gateway.Embedding, len(rawEmbeddings))
+	for i, emb := range rawEmbeddings {
+		embeddings[i] = gateway.Embedding(emb)
+	}
+
+	return embeddings, nil
 }

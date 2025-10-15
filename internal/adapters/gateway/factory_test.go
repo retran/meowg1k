@@ -97,6 +97,11 @@ func (m *mockHTTPClientService) Get() *http.Client {
 	return m.client
 }
 
+func (m *mockHTTPClientService) GetWithTimeout(timeout time.Duration) *http.Client {
+	// Return a client with the specified timeout for testing
+	return &http.Client{Timeout: timeout}
+}
+
 func (m *mockHTTPClientService) Close() error {
 	return nil
 }

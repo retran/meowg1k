@@ -29,7 +29,7 @@ import (
 
 func TestNewAnthropicGateway(t *testing.T) {
 	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -39,7 +39,7 @@ func TestNewAnthropicGateway(t *testing.T) {
 	})
 
 	t.Run("Empty API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("")
+		gateway, err := newAnthropicGateway("", nil)
 		if err == nil {
 			t.Fatal("Expected error for empty API key")
 		}
@@ -107,7 +107,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	// For now, we'll test the gateway creation and basic error handling
 
 	t.Run("Generate content with valid request", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -136,7 +136,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with empty model", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -160,7 +160,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -183,7 +183,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with different max tokens", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -219,7 +219,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with canceled context", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -247,7 +247,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 }
 
 func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key")
+	gateway, err := newAnthropicGateway("test-api-key", nil)
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
 }
 
 func TestAnthropicGateway_ErrorHandling(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key")
+	gateway, err := newAnthropicGateway("test-api-key", nil)
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
