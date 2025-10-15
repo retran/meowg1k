@@ -664,12 +664,6 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
 
-	// Create query activity factory
-	queryActivityFactory, err := queryactivity.NewFactory(retrievalSvc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create query activity factory: %w", err)
-	}
-
 	// Create invoke LLM factory
 	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
 	if err != nil {
@@ -690,7 +684,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 
 	// Create ask flow factory with resolved parameters
 	askFlowFactory, err := askFlow.NewFactory(
-		queryActivityFactory,
+		retrievalSvc,
 		invokeLLMFactory,
 		c.CommandService,
 		profileService,

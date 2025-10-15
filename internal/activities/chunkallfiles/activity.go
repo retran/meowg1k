@@ -105,12 +105,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				Chunks:      result.Chunks,
 			})
 
-			// Build mapping and collect texts
+			// Build mapping and collect texts with metadata
 			for range result.Chunks {
 				chunkToFileIndex = append(chunkToFileIndex, fileIndex)
 			}
 			for _, chunk := range result.Chunks {
-				allChunkTexts = append(allChunkTexts, chunk.TextContent)
+				// Format chunk text with metadata for better embeddings
+				chunkText := formatChunkWithMetadata(chunk, filePath, input.StateName)
+				allChunkTexts = append(allChunkTexts, chunkText)
 			}
 		}
 
@@ -122,4 +124,31 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			ChunkToFileIndex: chunkToFileIndex,
 		}, nil
 	}
+}
+
+// formatChunkWithMetadata adds metadata to chunk text for better embedding quality.
+// Metadata includes: filename, line range, and source state (HEAD/staging/workspace).
+func formatChunkWithMetadata(chunk domainindex.ChunkData, filePath string, stateName string) string {
+	// Convert state name to human-readable description
+	var sourceDesc string
+	switch stateName {
+	case "head":
+		sourceDesc = "committed (HEAD)"
+	case "staging":
+		sourceDesc = "staged for commit"
+	case "workspace":
+		sourceDesc = "modified in workspace"
+	default:
+		sourceDesc = stateName
+	}
+
+	// Format: [file: path, lines: X-Y, source: description]
+	// This metadata helps the embedding model understand the context
+	return fmt.Sprintf("[file: %s, lines: %d-%d, source: %s]\n%s",
+		filePath,
+		chunk.StartLine,
+		chunk.EndLine,
+		sourceDesc,
+		chunk.TextContent,
+	)
 }

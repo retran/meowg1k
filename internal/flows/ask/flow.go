@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	queryactivity "github.com/retran/meowg1k/internal/activities/query"
+	"github.com/retran/meowg1k/internal/core/retrieval"
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
@@ -46,7 +46,7 @@ type ConfigReader interface {
 
 // Factory creates instances of the ask flow.
 type Factory struct {
-	queryFactory     executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
+	retrievalService retrieval.RetrievalService
 	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 	parametersReader CommandParametersReader
 	profileResolver  ports.ProfileResolver
@@ -56,15 +56,15 @@ type Factory struct {
 
 // NewFactory creates a new ask flow factory.
 func NewFactory(
-	queryFactory executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output],
+	retrievalService retrieval.RetrievalService,
 	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
 	parametersReader CommandParametersReader,
 	profileResolver ports.ProfileResolver,
 	outputWriter ports.OutputWriter,
 	configReader ConfigReader,
 ) (*Factory, error) {
-	if queryFactory == nil {
-		return nil, fmt.Errorf("ask.NewFactory: queryFactory cannot be nil")
+	if retrievalService == nil {
+		return nil, fmt.Errorf("ask.NewFactory: retrievalService cannot be nil")
 	}
 	if invokeLLMFactory == nil {
 		return nil, fmt.Errorf("ask.NewFactory: invokeLLMFactory cannot be nil")
@@ -83,7 +83,7 @@ func NewFactory(
 	}
 
 	return &Factory{
-		queryFactory:     queryFactory,
+		retrievalService: retrievalService,
 		invokeLLMFactory: invokeLLMFactory,
 		parametersReader: parametersReader,
 		profileResolver:  profileResolver,
@@ -177,23 +177,22 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("executor not available in context")
 		}
 
-		// Step 1: Execute query activity to retrieve context
-		queryActivity := f.queryFactory.NewActivity()
-		queryInput := &queryactivity.Input{
-			QueryText:        question,
-			SnapshotPriority: snapshots,
-			TopK:             topK,
-			MinScore:         minScore,
-		}
+		// Step 1: Retrieve formatted context using retrieval service
+		flowCtx.SendRunning(fmt.Sprintf("Searching for: %q", question))
 
-		queryFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "Query", queryActivity, queryInput)
-		queryOutput, err := queryFuture.Get(ctx)
+		context, err := f.retrievalService.RetrieveContext(
+			ctx,
+			question,
+			snapshots,
+			topK,
+			minScore,
+		)
 		if err != nil {
-			return fmt.Errorf("query failed: %w", err)
+			return fmt.Errorf("failed to retrieve context: %w", err)
 		}
 
 		// Check if we found any results
-		if len(queryOutput.Results) == 0 {
+		if context == "" {
 			if err := f.outputWriter.PrintLine("No relevant context found to answer the question."); err != nil {
 				return fmt.Errorf("failed to write output: %w", err)
 			}
@@ -201,17 +200,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return nil
 		}
 
-		// Step 2: Format context from search results
-		var contextBuilder strings.Builder
-		contextBuilder.WriteString("# Retrieved Context\n\n")
-		for i, result := range queryOutput.Results {
-			contextBuilder.WriteString(fmt.Sprintf("## Source %d (Score: %.4f)\n", i+1, result.Score))
-			contextBuilder.WriteString(fmt.Sprintf("**File:** %s (Lines %d-%d)\n\n", result.FilePath, result.StartLine, result.EndLine))
-			contextBuilder.WriteString("```\n")
-			contextBuilder.WriteString(result.TextContent)
-			contextBuilder.WriteString("\n```\n\n")
-		}
-		context := contextBuilder.String()
+		flowCtx.SendCompleted("Context retrieved")
 
 		// Step 3: Execute LLM invocation to generate answer
 		invokeLLMActivity := f.invokeLLMFactory.NewActivity()

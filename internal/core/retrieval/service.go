@@ -38,6 +38,7 @@ type SearchResult struct {
 	StartLine         int
 	EndLine           int
 	DocumentVersionID int64
+	SnapshotName      string
 }
 
 // RetrievalService defines the interface for high-level RAG operations.
@@ -228,10 +229,25 @@ func (s *Service) Search(
 			StartLine:         chunk.StartLine,
 			EndLine:           chunk.EndLine,
 			DocumentVersionID: chunk.DocumentVersionID,
+			SnapshotName:      queryResult.SnapshotName,
 		})
 	}
 
 	return searchResults, nil
+}
+
+// formatSnapshotName converts internal snapshot names to user-friendly descriptions.
+func formatSnapshotName(snapshotName string) string {
+	switch snapshotName {
+	case "_workdir_":
+		return "(uncommitted changes)"
+	case "_stage_":
+		return "(staged for commit)"
+	case "_head_":
+		return "(not changed since last commit)"
+	default:
+		return snapshotName
+	}
 }
 
 // RetrieveContext performs search and assembles a formatted context string.
@@ -255,9 +271,9 @@ func (s *Service) RetrieveContext(
 	var builder strings.Builder
 	builder.WriteString("# Retrieved Context\n\n")
 
-	for i, result := range results {
-		builder.WriteString(fmt.Sprintf("## Result %d (Score: %.4f)\n", i+1, result.Score))
-		builder.WriteString(fmt.Sprintf("**File:** %s (Lines %d-%d)\n\n", result.FilePath, result.StartLine, result.EndLine))
+	for _, result := range results {
+		builder.WriteString(fmt.Sprintf("%s (Lines %d-%d)\n", result.FilePath, result.StartLine, result.EndLine))
+		builder.WriteString(fmt.Sprintf("%s\n\n", formatSnapshotName(result.SnapshotName)))
 		builder.WriteString("```\n")
 		builder.WriteString(result.TextContent)
 		builder.WriteString("\n```\n\n")

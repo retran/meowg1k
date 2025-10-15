@@ -31,8 +31,9 @@ import (
 
 // QueryResult represents a single search result from vector search.
 type QueryResult struct {
-	ChunkID int64
-	Score   float32
+	ChunkID      int64
+	Score        float32
+	SnapshotName string
 }
 
 // VectorSearchService defines the interface for low-level vector search operations.
@@ -132,8 +133,9 @@ func (s *SearchService) Search(
 		similarity := cosineSimilarity(queryVec, node.Value)
 
 		results = append(results, QueryResult{
-			ChunkID: node.Key,
-			Score:   similarity,
+			ChunkID:      node.Key,
+			Score:        similarity,
+			SnapshotName: snapshotName,
 		})
 	}
 
