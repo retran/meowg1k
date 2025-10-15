@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package composeflatpr provides the activity for composing PR descriptions using the full diff.
+// Package composeflatpr implements an activity that generates pull request descriptions from a flat list of file changes.
 package composeflatpr
 
 import (

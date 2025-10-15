@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package httpclient provides a configured HTTP client with custom transport settings and timeouts.
 package httpclient
 
 import (

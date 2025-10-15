@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package buildsinglevectorindex provides an activity to build a single vector index.
+// Package buildsinglevectorindex implements an activity that builds and saves a vector index for a single snapshot.
 package buildsinglevectorindex
 
 import (
@@ -43,13 +43,13 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 
 func (f *Factory) NewActivity() executor.Activity[string, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, snapshotName string) (struct{}, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Building index for %s...", snapshotName))
+		executorCtx.SendRunning(fmt.Sprintf("Building index: %s", snapshotName))
 
 		if err := f.vectorIndexSvc.BuildAndSave(snapshotName); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build vector index for %s: %w", snapshotName, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Index for %s is ready", snapshotName))
+		executorCtx.SendCompleted(fmt.Sprintf("Built index: %s", snapshotName))
 		return struct{}{}, nil
 	}
 }

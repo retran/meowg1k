@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package git provides functionalities to interact with Git repositories.
+// Package git provides a service for executing git commands to read staged files, diffs, and branch information.
 package git
 
 import (

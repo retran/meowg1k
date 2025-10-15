@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package generate provides the flow for generating content using a language model.
+// Package generate implements the workflow for generating arbitrary content using LLMs based on prompts and tasks.
 package generate
 
 import (

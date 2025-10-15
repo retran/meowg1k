@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package chunker provides text chunking functionality.
 package chunker
 
 import domainindex "github.com/retran/meowg1k/internal/domain/index"

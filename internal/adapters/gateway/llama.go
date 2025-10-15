@@ -27,8 +27,10 @@ import (
 	"github.com/retran/meowg1k/pkg/llama"
 )
 
-var _ ports.GenerationGateway = (*llamaGateway)(nil)
-var _ ports.EmbeddingsGateway = (*llamaGateway)(nil)
+var (
+	_ ports.GenerationGateway = (*llamaGateway)(nil)
+	_ ports.EmbeddingsGateway = (*llamaGateway)(nil)
+)
 
 // llamaGateway is a unified client for a local LLM server compatible with the llama.cpp API.
 type llamaGateway struct {

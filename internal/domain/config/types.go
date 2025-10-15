@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package config defines domain types for application configuration including profiles, tasks, filters, and chunking settings.
 package config
 
 import (

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package query provides flows for RAG query operations.
+// Package query implements the workflow for semantic code search using vector similarity.
 package query
 
 import (

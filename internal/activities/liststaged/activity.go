@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package liststaged provides an activity to list staged files from a git repository.
+// Package liststaged implements an activity that lists all files currently staged in git.
 package liststaged
 
 import (

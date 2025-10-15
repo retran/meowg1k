@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package computeallembeddings provides an activity to compute embeddings with controlled parallelism.
+// Package computeallembeddings implements a parent activity that computes embeddings for multiple batches in parallel.
 package computeallembeddings
 
 import (
@@ -62,10 +62,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		numBatches := len(input.PreparedBatches.Batches)
 		totalChunks := len(input.PreparedBatches.ChunkResults.AllChunkTexts)
 
-		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings for %d chunks in %d batches (%s)...", totalChunks, numBatches, input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings: %d chunks in %d batches (%s)", totalChunks, numBatches, input.StateName))
 
 		if numBatches == 0 {
-			executorCtx.SendCompleted("No batches to process")
+			executorCtx.SendCompleted("No batches")
 			return &Output{
 				StateName:       input.StateName,
 				PreparedBatches: input.PreparedBatches,
@@ -73,13 +73,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}, nil
 		}
 
-		// Get executor from context
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		// Launch all batches in parallel (rate limiter will control actual concurrency)
 		allEmbeddings := make([]gateway.Embedding, totalChunks)
 		futures := make([]*future.Future[*computeembeddingsbatch.Output], numBatches)
 
@@ -95,14 +93,12 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			futures[i] = fut
 		}
 
-		// Wait for all batches to complete
 		for i, fut := range futures {
 			result, err := fut.Get(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to compute embeddings batch: %w", err)
 			}
 
-			// Place embeddings at correct positions
 			batch := input.PreparedBatches.Batches[i]
 			copy(allEmbeddings[batch.StartIndex:batch.EndIndex], result.Embeddings)
 		}
@@ -111,7 +107,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("embedding count mismatch: got %d, expected %d", len(allEmbeddings), totalChunks)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Computed %d embeddings for %s", len(allEmbeddings), input.StateName))
+		executorCtx.SendCompleted(fmt.Sprintf("Computed %d embeddings (%s)", len(allEmbeddings), input.StateName))
 		return &Output{
 			StateName:       input.StateName,
 			PreparedBatches: input.PreparedBatches,

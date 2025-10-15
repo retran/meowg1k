@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package meta provides a SQLite-based repository for storing and retrieving metadata key-value pairs.
 package meta
 
 import (

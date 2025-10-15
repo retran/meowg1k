@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package cleanupstaledata provides an activity to clean up stale snapshot data.
+// Package cleanupstaledata implements an activity that removes outdated document versions and embeddings from storage.
 package cleanupstaledata
 
 import (
@@ -48,9 +48,8 @@ func NewFactory(snapshotRepo ports.SnapshotRepository, metaRepo ports.MetaReposi
 
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
-		executorCtx.SendRunning("Cleaning up stale data...")
+		executorCtx.SendRunning("Cleaning stale data")
 
-		// Clear snapshot links for all live snapshots
 		if err := f.snapshotRepo.ClearSnapshotLinks(ctx, "_head_"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to clear _head_ snapshot links: %w", err)
 		}
@@ -63,7 +62,6 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to clear _workdir_ snapshot links: %w", err)
 		}
 
-		// Delete vector index dumps for all live snapshots
 		if err := f.metaRepo.DeleteValue(ctx, "idx_dump_head"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to delete idx_dump_head: %w", err)
 		}
@@ -76,7 +74,7 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to delete idx_dump_workdir: %w", err)
 		}
 
-		executorCtx.SendCompleted("Cleanup complete")
+		executorCtx.SendCompleted("Cleaned stale data")
 		return struct{}{}, nil
 	}
 }

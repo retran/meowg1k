@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package llama provides a client for interacting with the llama.cpp server endpoints.
+// Package llama provides an HTTP client for interacting with Llama model APIs (local and hosted).
 package llama
 
 import (

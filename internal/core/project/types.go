@@ -15,5 +15,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package project provides project state management.
+// Package project provides services for managing project state (workspace, stage, HEAD) and file scanning.
 package project

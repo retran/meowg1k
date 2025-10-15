@@ -53,10 +53,6 @@ Examples:
   meow query "API endpoints" --top-k 20 --json`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cmd == nil {
-			return fmt.Errorf("command is nil")
-		}
-
 		ctx := cmd.Context()
 
 		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -69,7 +65,6 @@ Examples:
 			return fmt.Errorf("failed to create query flow: %w", err)
 		}
 
-		// Limit concurrency to prevent database lock contention
 		concurrency := runtime.NumCPU() * 2
 		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {

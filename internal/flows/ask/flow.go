@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package ask provides flows for RAG-based question answering.
+// Package ask implements the workflow for answering questions about code using RAG.
 package ask
 
 import (

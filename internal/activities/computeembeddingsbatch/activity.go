@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package computeembeddingsbatch provides an activity to compute embeddings for a batch of chunks.
+// Package computeembeddingsbatch implements an activity that computes embeddings for a batch of text chunks.
 package computeembeddingsbatch
 
 import (
@@ -57,14 +57,13 @@ func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings for %d chunks...", len(input.ChunkTexts)))
+		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings: %d chunks", len(input.ChunkTexts)))
 
 		if len(input.ChunkTexts) == 0 {
-			executorCtx.SendCompleted("No chunks to process")
+			executorCtx.SendCompleted("No chunks")
 			return &Output{Embeddings: []gateway.Embedding{}}, nil
 		}
 
-		// Compute embeddings in a single batch
 		embeddingRequest := gateway.NewComputeEmbeddingsRequest(
 			f.modelName,
 			input.ChunkTexts,

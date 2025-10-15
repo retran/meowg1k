@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package chunkallfiles provides an activity to chunk all files in parallel.
+// Package chunkallfiles implements a parent activity that chunks multiple files in parallel.
 package chunkallfiles
 
 import (
@@ -66,15 +66,13 @@ func NewFactory(
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Chunking %d files for %s...", len(input.Files), input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Chunking %d files (%s)", len(input.Files), input.StateName))
 
-		// Get executor from context
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		// Launch chunking activities for all files in parallel
 		chunkFutures := make(map[string]*future.Future[*chunkfile.Output])
 		for filePath, fileState := range input.Files {
 			activity := f.chunkFileFactory.NewActivity()
@@ -86,7 +84,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			chunkFutures[filePath] = fut
 		}
 
-		// Collect results
 		var fileChunks []FileChunkResult
 		var allChunkTexts []string
 		var chunkToFileIndex []int
@@ -105,18 +102,16 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				Chunks:      result.Chunks,
 			})
 
-			// Build mapping and collect texts with metadata
 			for range result.Chunks {
 				chunkToFileIndex = append(chunkToFileIndex, fileIndex)
 			}
 			for _, chunk := range result.Chunks {
-				// Format chunk text with metadata for better embeddings
 				chunkText := formatChunkWithMetadata(chunk, filePath, input.StateName)
 				allChunkTexts = append(allChunkTexts, chunkText)
 			}
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Chunked %d files into %d chunks for %s", len(fileChunks), len(allChunkTexts), input.StateName))
+		executorCtx.SendCompleted(fmt.Sprintf("Chunked %d files → %d chunks (%s)", len(fileChunks), len(allChunkTexts), input.StateName))
 		return &Output{
 			StateName:        input.StateName,
 			FileChunks:       fileChunks,
@@ -126,10 +121,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	}
 }
 
-// formatChunkWithMetadata adds metadata to chunk text for better embedding quality.
-// Metadata includes: filename, line range, and source state (HEAD/staging/workspace).
-func formatChunkWithMetadata(chunk domainindex.ChunkData, filePath string, stateName string) string {
-	// Convert state name to human-readable description
+func formatChunkWithMetadata(chunk domainindex.ChunkData, filePath, stateName string) string {
 	var sourceDesc string
 	switch stateName {
 	case "head":
@@ -142,8 +134,6 @@ func formatChunkWithMetadata(chunk domainindex.ChunkData, filePath string, state
 		sourceDesc = stateName
 	}
 
-	// Format: [file: path, lines: X-Y, source: description]
-	// This metadata helps the embedding model understand the context
 	return fmt.Sprintf("[file: %s, lines: %d-%d, source: %s]\n%s",
 		filePath,
 		chunk.StartLine,

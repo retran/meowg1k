@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package index provides domain models for the document indexing system.
+// Package index defines domain types for document indexing including chunks, embeddings, and snapshots.
 package index
 
 import (

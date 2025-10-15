@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package commit provides a flow to compose a commit message based on staged changes.
+// Package commit implements the workflow for generating commit messages from staged changes or branch diffs.
 package commit
 
 import (

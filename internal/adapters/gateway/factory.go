@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package gateway provides adapters for LLM providers (OpenAI, Anthropic, Gemini, etc.) with caching, rate limiting, and logging.
 package gateway
 
 import (

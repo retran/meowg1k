@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package executor provides a framework for defining and executing activities
-// with support for retries, feedback, and sub-activities.
+// Package executor provides a framework for executing activities and flows with retry logic, feedback, and concurrency control.
 package executor
 
 import (

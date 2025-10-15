@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package path provides adapters for determining database file paths.
+// Package path provides services for resolving SQLite database file paths based on workspace location.
 package path
 
 import (

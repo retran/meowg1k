@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package ratelimit provides a SQLite-based repository for tracking and enforcing API rate limits.
 package ratelimit
 
 import (

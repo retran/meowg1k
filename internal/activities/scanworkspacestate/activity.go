@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package scanworkspacestate provides an activity to scan workspace state.
+// Package scanworkspacestate implements an activity that scans workspace state (working directory, stage, or HEAD) for files.
 package scanworkspacestate
 
 import (
@@ -50,32 +50,29 @@ func NewFactory(projectStateSvc ports.ProjectStateService) (executor.ActivityFac
 
 func (f *Factory) NewActivity() executor.Activity[struct{}, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (*Output, error) {
-		executorCtx.SendRunning("Scanning workspace state...")
+		executorCtx.SendRunning("Scanning workspace")
 
 		result := &Output{}
 
-		// Scan HEAD state
 		headState, err := f.projectStateSvc.GetHeadState(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get HEAD state: %w", err)
 		}
 		result.HeadState = headState
 
-		// Scan staging area state
 		stageState, err := f.projectStateSvc.GetStagingState(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get staging state: %w", err)
 		}
 		result.StageState = stageState
 
-		// Scan working directory state
 		workdirState, err := f.projectStateSvc.GetWorkdirState(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get working directory state: %w", err)
 		}
 		result.WorkdirState = workdirState
 
-		executorCtx.SendCompleted("Workspace scan complete")
+		executorCtx.SendCompleted("Scanned workspace")
 		return result, nil
 	}
 }

@@ -32,12 +32,8 @@ var askCmd = &cobra.Command{
 	Short:   "Ask a question about your codebase using RAG",
 	Long: `Ask a question about your codebase and get an AI-generated answer.
 
-This command uses Retrieval-Augmented Generation (RAG) to answer questions
-about your code. It first searches for relevant code chunks using vector
-similarity, then uses an LLM to generate an answer based on that context.
-
-The question can be provided as an argument or via stdin. You can customize
-the retrieval parameters (top-k, min-score) and the generation profile.
+Uses Retrieval-Augmented Generation (RAG) to search for relevant code chunks
+using vector similarity, then generates an answer with an LLM.
 
 Examples:
   # Ask a question as argument
@@ -53,10 +49,6 @@ Examples:
   meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cmd == nil {
-			return fmt.Errorf("command is nil")
-		}
-
 		ctx := cmd.Context()
 
 		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -69,7 +61,6 @@ Examples:
 			return fmt.Errorf("failed to create ask flow: %w", err)
 		}
 
-		// Limit concurrency to prevent database lock contention
 		concurrency := runtime.NumCPU() * 2
 		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {

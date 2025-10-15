@@ -29,7 +29,6 @@ coverage.html
 /*.iml
 *.swp
 *~
-*~
 *.sublime-workspace
 *.sublime-project
 

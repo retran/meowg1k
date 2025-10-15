@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package index provides document indexing services.
+// Package index provides services for managing document indices, embeddings, and vector index construction.
 package index

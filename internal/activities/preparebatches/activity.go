@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package preparebatches provides an activity to prepare chunk batches for embedding computation.
+// Package preparebatches implements an activity that groups chunks into batches for embedding computation.
 package preparebatches
 
 import (
@@ -55,10 +55,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		totalChunks := len(input.ChunkResults.AllChunkTexts)
 
-		executorCtx.SendRunning(fmt.Sprintf("Preparing batches for %d chunks (%s)...", totalChunks, input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Preparing batches: %d chunks (%s)", totalChunks, input.StateName))
 
 		if totalChunks == 0 {
-			executorCtx.SendCompleted("No chunks to batch")
+			executorCtx.SendCompleted("No chunks")
 			return &Output{
 				StateName:    input.StateName,
 				ChunkResults: input.ChunkResults,
@@ -87,7 +87,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			})
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d batches (size: %d)", numBatches, batchSize))
+		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d batches (%s)", numBatches, input.StateName))
 
 		return &Output{
 			StateName:    input.StateName,

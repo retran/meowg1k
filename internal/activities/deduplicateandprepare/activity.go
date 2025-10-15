@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package deduplicateandprepare provides an activity to deduplicate files and prepare them for processing.
+// Package deduplicateandprepare implements an activity that deduplicates files and prepares them for processing.
 package deduplicateandprepare
 
 import (
@@ -62,7 +62,7 @@ func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, *
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning("Deduplicating files and preparing for processing...")
+		executorCtx.SendRunning("Deduplicating files")
 
 		result, err := f.indexService.PrepareForProcessing(ctx, input.WorkspaceState)
 		if err != nil {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package retrieval provides high-level RAG (Retrieval-Augmented Generation) services.
+// Package retrieval provides services for semantic search and retrieval of code chunks using vector similarity.
 package retrieval
 
 import (

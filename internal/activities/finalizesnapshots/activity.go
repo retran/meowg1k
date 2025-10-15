@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package finalizesnapshots provides an activity to finalize snapshots by linking document versions.
+// Package finalizesnapshots implements an activity that finalizes snapshot states in the database.
 package finalizesnapshots
 
 import (
@@ -50,7 +50,7 @@ func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, s
 
 func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (struct{}, error) {
-		executorCtx.SendRunning("Finalizing snapshots...")
+		executorCtx.SendRunning("Finalizing snapshots")
 
 		serviceInput := &index.FinalizeInput{
 			ScanResult:       input.ScanResult,
@@ -62,7 +62,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to finalize snapshots: %w", err)
 		}
 
-		executorCtx.SendCompleted("Snapshots finalized successfully")
+		executorCtx.SendCompleted("Finalized snapshots")
 		return struct{}{}, nil
 	}
 }

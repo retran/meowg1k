@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package summarizefile contains the activity to summarize changes in a single file.
+// Package summarizefile implements an activity that generates a summary of changes in a single file using an LLM.
 package summarizefile
 
 import (

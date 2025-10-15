@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package query provides an activity for executing RAG queries against the vector index.
+// Package query implements an activity that performs semantic search across indexed code using vector similarity.
 package query
 
 import (
@@ -75,9 +75,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("topK must be positive, got %d", input.TopK)
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Searching for: %q", input.QueryText))
+		executorCtx.SendRunning(fmt.Sprintf("Searching: %q", input.QueryText))
 
-		// Perform the search
 		results, err := f.retrievalService.Search(
 			ctx,
 			input.QueryText,
@@ -89,7 +88,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Found %d results", len(results)))
+		executorCtx.SendCompleted(fmt.Sprintf("%d results", len(results)))
 
 		return &Output{
 			Results: results,

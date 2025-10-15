@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package index provides a SQLite-based repository for storing and querying document chunks, embeddings, and snapshots.
 package index
 
 import (

@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package vector provides vector index management services.
+// Package vector provides services for vector index operations including search and index building.
 package vector

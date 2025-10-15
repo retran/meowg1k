@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package savedocumentversion provides an activity to save a document version with chunks and embeddings.
+// Package savedocumentversion implements an activity that saves a document version with its chunks to storage.
 package savedocumentversion
 
 import (
@@ -58,7 +58,7 @@ func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, *
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Saving document: %s", input.FilePath))
+		executorCtx.SendRunning(fmt.Sprintf("Saving: %s", input.FilePath))
 
 		serviceInput := &index.SaveVersionInput{
 			FilePath:    input.FilePath,
@@ -73,7 +73,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to save document version: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Document saved: %s (%d chunks)", input.FilePath, len(input.Chunks)))
+		executorCtx.SendCompleted(fmt.Sprintf("Saved: %s (%d)", input.FilePath, len(input.Chunks)))
 		return &Output{
 			FilePath:  result.FilePath,
 			VersionID: result.VersionID,

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package chunkfile provides an activity to chunk a single file.
+// Package chunkfile implements an activity that chunks a single file into smaller pieces for embedding.
 package chunkfile
 
 import (
@@ -58,18 +58,16 @@ func NewFactory(chunkerService ports.ChunkerService) (executor.ActivityFactory[*
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Chunking file: %s", input.FilePath))
+		executorCtx.SendRunning(fmt.Sprintf("Chunking: %s", input.FilePath))
 
-		// Compute content hash
 		contentHash := computeContentHash(input.Content)
 
-		// Chunk the file
 		chunks, err := f.chunkerService.Chunk(input.Content, input.FilePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to chunk file %s: %w", input.FilePath, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("File chunked: %s (%d chunks)", input.FilePath, len(chunks)))
+		executorCtx.SendCompleted(fmt.Sprintf("Chunked: %s (%d)", input.FilePath, len(chunks)))
 		return &Output{
 			FilePath:    input.FilePath,
 			Content:     input.Content,

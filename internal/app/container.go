@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package app contains the main application struct and orchestrates cross-cutting adapters.
+// Package app provides the application container that orchestrates all services and dependencies.
+// It manages initialization, configuration, and lifecycle of adapters and services.
 package app
 
 import (

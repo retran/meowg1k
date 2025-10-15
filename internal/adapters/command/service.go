@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package command provides command context capabilities.
+// Package command provides services for accessing command-line flags and input streams.
 package command
 
 import (

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package cache provides a SQLite-based repository for caching LLM responses with TTL support.
 package cache
 
 import (

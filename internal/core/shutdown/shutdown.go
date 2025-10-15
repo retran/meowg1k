@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package shutdown provides service for graceful application shutdown.
+// Package shutdown provides graceful shutdown coordination for services and background operations.
 package shutdown
 
 import (

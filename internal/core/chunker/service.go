@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package chunker provides services for splitting file content into chunks for embedding.
 package chunker
 
 import (

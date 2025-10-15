@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package ratelimit defines domain types for API rate limiting including token budgets and request limits.
 package ratelimit
 
 import (

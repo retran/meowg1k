@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package pullrequest provides a flow to compose a Pull Request description based on branch changes.
-package pr
+// Package pullrequest implements the workflow for generating pull request descriptions from branch changes.
+package pullrequest
 
 import (
 	"context"

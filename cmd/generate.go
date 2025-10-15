@@ -31,10 +31,6 @@ var generateCmd = &cobra.Command{
 	Aliases: []string{"gen", "g"},
 	Short:   "Generate any content based on input — code, text, or docs",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cmd == nil {
-			return fmt.Errorf("command is nil")
-		}
-
 		ctx := cmd.Context()
 
 		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -47,7 +43,6 @@ var generateCmd = &cobra.Command{
 			return fmt.Errorf("failed to create generate flow: %w", err)
 		}
 
-		// Limit concurrency to prevent database lock contention
 		concurrency := runtime.NumCPU() * 2
 		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {

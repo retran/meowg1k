@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package sqlite provides SQLite database access and manages connections for index, cache, metadata, and rate limiting storage.
 package sqlite
 
 import (

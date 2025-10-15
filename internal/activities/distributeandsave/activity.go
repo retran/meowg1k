@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package distributeandsave provides an activity to distribute embeddings and save documents.
+// Package distributeandsave implements an activity that distributes embeddings to chunks and saves them to storage.
 package distributeandsave
 
 import (
@@ -66,15 +66,13 @@ func NewFactory(
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		chunkResults := input.EmbeddingResults.PreparedBatches.ChunkResults
-		executorCtx.SendRunning(fmt.Sprintf("Distributing embeddings and saving %d documents (%s)...", len(chunkResults.FileChunks), input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Saving %d documents (%s)", len(chunkResults.FileChunks), input.StateName))
 
-		// Get executor from context
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		// Distribute embeddings back to files
 		fileEmbeddings := make([][]gateway.Embedding, len(chunkResults.FileChunks))
 		for i := range fileEmbeddings {
 			fileEmbeddings[i] = []gateway.Embedding{}
@@ -84,11 +82,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			fileEmbeddings[fileIdx] = append(fileEmbeddings[fileIdx], input.EmbeddingResults.Embeddings[chunkIdx])
 		}
 
-		// Phase 1: Launch all save activities in parallel.
-		// The executor's concurrency limit will manage the actual parallelism.
 		futures := make(map[string]*future.Future[*savedocumentversion.Output])
 		for fileIdx, fileResult := range chunkResults.FileChunks {
-			// Create a new variable for the loop to avoid capturing the wrong value in the goroutine.
 			fr := fileResult
 			idx := fileIdx
 
@@ -104,26 +99,20 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			futures[fr.ContentHash] = fut
 		}
 
-		// Phase 2: Wait for all futures to complete and collect results.
-		// This creates a synchronization barrier, ensuring all saves are done before we proceed.
 		versionMap := make(map[string]int64)
 		for contentHash, fut := range futures {
 			result, err := fut.Get(ctx)
 			if err != nil {
-				// Since we don't know the file path here easily, let's just fail with the hash.
 				return nil, fmt.Errorf("failed to save document with content hash %s: %w", contentHash, err)
 			}
 			versionMap[contentHash] = result.VersionID
 		}
 
-		// Perform WAL checkpoint to ensure all writes are visible to readers
-		// This helps avoid race conditions where finalization might not see recently saved versions
 		if err := f.indexRepo.Checkpoint(ctx); err != nil {
-			// Log but don't fail - checkpoint failure is not critical
 			executorCtx.SendRunning(fmt.Sprintf("Warning: WAL checkpoint failed: %v", err))
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Saved %d documents for %s", len(versionMap), input.StateName))
+		executorCtx.SendCompleted(fmt.Sprintf("Saved %d documents (%s)", len(versionMap), input.StateName))
 		return &Output{
 			StateName:  input.StateName,
 			VersionMap: versionMap,

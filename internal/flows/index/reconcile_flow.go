@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package index provides flows for document indexing operations.
+// Package index implements the workflow for indexing workspace files by computing embeddings and building vector indices.
 package index
 
 import (
@@ -128,24 +128,19 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("flow context is nil")
 		}
 
-		flowCtx.SendRunning("Starting index reconciliation...")
+		flowCtx.SendRunning("Starting index reconciliation")
 
-		// Get executor from flow context
 		exec := flowCtx.GetExecutor()
 		if exec == nil {
 			return fmt.Errorf("executor not available in flow context")
 		}
 
-		// Step 5.1.1: Cleanup stale data
-		// Remove all previous links and dumps for live snapshots to ensure clean state
 		cleanupActivity := f.cleanupFactory.NewActivity()
 		cleanupFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "Cleanup", cleanupActivity, struct{}{})
 		if _, err := cleanupFuture.Get(ctx); err != nil {
 			return fmt.Errorf("cleanup failed: %w", err)
 		}
 
-		// Step 5.1.2: Scan workspace state
-		// Collect file information from HEAD, staging area, and working directory in parallel
 		scanActivity := f.scanStateFactory.NewActivity()
 		scanFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ScanState", scanActivity, struct{}{})
 		scanResult, err := scanFuture.Get(ctx)
@@ -153,9 +148,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("workspace scan failed: %w", err)
 		}
 
-		// Step 5.1.3: Deduplicate and prepare files for processing
-		// This identifies files that already exist in the database and those that need processing
-		flowCtx.SendRunning("Deduplicating files across all states...")
+		flowCtx.SendRunning("Deduplicating files")
 		deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
 		deduplicateInput := &deduplicateandprepare.Input{
 			WorkspaceState: scanResult,
@@ -166,11 +159,9 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("deduplication failed: %w", err)
 		}
 
-		// Step 5.1.4: Process unique files through pipeline: chunk → embed → save
-		// Only process files that are not already in the database
 		var newVersions map[string]int64
 		if len(deduplicateResult.FilesToProcess) > 0 {
-			flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files...", len(deduplicateResult.FilesToProcess)))
+			flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files", len(deduplicateResult.FilesToProcess)))
 
 			// Phase 1: Chunk all unique files
 			chunkActivity := f.chunkAllFilesFactory.NewActivity()
