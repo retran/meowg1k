@@ -69,7 +69,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to prepare for processing: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d unique files for processing, %d content hashes already indexed",
+		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d files (%d cached)",
 			len(result.FilesToProcess), len(result.ExistingVersions)))
 
 		return &Output{

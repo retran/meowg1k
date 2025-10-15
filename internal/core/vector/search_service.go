@@ -104,13 +104,12 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("failed to decode index dump for snapshot %q: %w", snapshotName, err)
 	}
 
-	// Step 3: Deserialize HNSW index
+	// Step 3: Deserialize HNSW index using Import
 	hnswBuffer := bytes.NewReader(dump.HNSWData)
-	hnswDecoder := gob.NewDecoder(hnswBuffer)
 
-	var hnswIndex hnsw.Graph[int64]
-	if err := hnswDecoder.Decode(&hnswIndex); err != nil {
-		return nil, fmt.Errorf("failed to decode HNSW graph for snapshot %q: %w", snapshotName, err)
+	hnswIndex := hnsw.NewGraph[int64]()
+	if err := hnswIndex.Import(hnswBuffer); err != nil {
+		return nil, fmt.Errorf("failed to import HNSW graph for snapshot %q: %w", snapshotName, err)
 	}
 
 	// Step 4: Convert query embedding from float64 to float32

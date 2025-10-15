@@ -59,6 +59,92 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 		paragraphRunes := []rune(paragraph)
 		paragraphRuneCount := len(paragraphRunes)
 
+		// If paragraph itself is too large, split it by lines
+		if paragraphRuneCount > s.maxChunkRunes {
+			lines := strings.Split(paragraph, "\n")
+			for _, line := range lines {
+				lineRunes := []rune(line)
+				lineRuneCount := len(lineRunes)
+
+				// If even a single line is too large, split it forcefully
+				if lineRuneCount > s.maxChunkRunes {
+					for i := 0; i < lineRuneCount; i += s.maxChunkRunes - s.overlapRunes {
+						end := i + s.maxChunkRunes
+						if end > lineRuneCount {
+							end = lineRuneCount
+						}
+
+						linePartRunes := lineRunes[i:end]
+						linePartText := string(linePartRunes)
+
+						if currentChunkBuilder.Len() > 0 {
+							chunk := s.finalizeChunk(
+								currentChunkBuilder.String(),
+								currentChunkRunes,
+								chunkStartByte,
+								chunkStartRune,
+								chunkStartLine,
+								currentByte,
+								currentRune,
+								currentLine,
+							)
+							chunks = append(chunks, chunk)
+
+							currentChunkBuilder.Reset()
+							currentChunkRunes = nil
+							chunkStartByte = currentByte
+							chunkStartRune = currentRune
+							chunkStartLine = currentLine
+						}
+
+						currentChunkBuilder.WriteString(linePartText)
+						currentChunkRunes = append(currentChunkRunes, linePartRunes...)
+						currentByte += len([]byte(linePartText))
+						currentRune += len(linePartRunes)
+					}
+				} else {
+					// Normal line processing
+					if len(currentChunkRunes)+lineRuneCount+1 > s.maxChunkRunes && currentChunkBuilder.Len() > 0 {
+						chunk := s.finalizeChunk(
+							currentChunkBuilder.String(),
+							currentChunkRunes,
+							chunkStartByte,
+							chunkStartRune,
+							chunkStartLine,
+							currentByte,
+							currentRune,
+							currentLine,
+						)
+						chunks = append(chunks, chunk)
+
+						overlapText, overlapRunes := s.createOverlap(currentChunkRunes, currentChunkBuilder.String())
+						currentChunkBuilder.Reset()
+						currentChunkBuilder.WriteString(overlapText)
+						currentChunkRunes = overlapRunes
+
+						chunkStartByte = currentByte - len([]byte(overlapText))
+						chunkStartRune = currentRune - len(overlapRunes)
+						chunkStartLine = currentLine - countNewlines(overlapText)
+					}
+
+					if currentChunkBuilder.Len() > 0 {
+						currentChunkBuilder.WriteString("\n")
+						currentChunkRunes = append(currentChunkRunes, '\n')
+						currentByte++
+						currentRune++
+						currentLine++
+					}
+
+					currentChunkBuilder.WriteString(line)
+					currentChunkRunes = append(currentChunkRunes, lineRunes...)
+					currentByte += len([]byte(line))
+					currentRune += lineRuneCount
+				}
+			}
+			currentLine += countNewlines(paragraph)
+			continue
+		}
+
 		if len(currentChunkRunes)+paragraphRuneCount > s.maxChunkRunes && currentChunkBuilder.Len() > 0 {
 			chunk := s.finalizeChunk(
 				currentChunkBuilder.String(),

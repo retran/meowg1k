@@ -80,6 +80,81 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 	return id, nil
 }
 
+// AddDocumentVersionWithChunks adds a document version with its chunks in a single transaction.
+// This ensures atomicity and better performance compared to separate calls.
+func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+	db, err := r.host.GetProjectDB()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get database: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("could not begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Insert content blob
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO content_blobs (content_hash, content) VALUES (?, ?) ON CONFLICT(content_hash) DO NOTHING`,
+		doc.ContentHash, content,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert content blob: %w", err)
+	}
+
+	// Insert document version
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO document_versions (file_path, git_commit_hash_first_seen, content_hash) VALUES (?, ?, ?)`,
+		doc.FilePath, doc.GitCommitHashFirstSeen, doc.ContentHash,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert document version: %w", err)
+	}
+
+	versionID, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get last insert ID for document version: %w", err)
+	}
+
+	// Insert chunks if any
+	if len(chunks) > 0 {
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO chunks (
+				document_version_id, chunk_type, text_content,
+				start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return 0, fmt.Errorf("failed to prepare chunk insert statement: %w", err)
+		}
+		defer stmt.Close()
+
+		for _, chunk := range chunks {
+			embeddingBytes, err := encodeEmbedding(chunk.Embedding)
+			if err != nil {
+				return 0, fmt.Errorf("could not encode embedding for chunk: %w", err)
+			}
+
+			_, err = stmt.ExecContext(ctx,
+				versionID, chunk.ChunkType, chunk.TextContent,
+				chunk.StartByte, chunk.EndByte, chunk.StartRune, chunk.EndRune,
+				chunk.StartLine, chunk.EndLine,
+				embeddingBytes,
+			)
+			if err != nil {
+				return 0, fmt.Errorf("failed to execute chunk insert: %w", err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return versionID, nil
+}
+
 func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) error {
 	db, err := r.host.GetProjectDB()
 	if err != nil {
@@ -212,6 +287,7 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 		FROM document_versions
 		WHERE content_hash IN (%s)
 		GROUP BY content_hash
+		HAVING id = MAX(id)
 	`, strings.Join(placeholders, ", "))
 
 	rows, err := db.QueryContext(ctx, query, args...)
@@ -559,4 +635,21 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 	}
 
 	return versions, nil
+}
+
+// Checkpoint performs a WAL checkpoint to ensure all pending writes are visible to readers.
+// This is useful after bulk inserts to ensure data visibility across connections.
+func (r *Repository) Checkpoint(ctx context.Context) error {
+	db, err := r.host.GetProjectDB()
+	if err != nil {
+		return fmt.Errorf("failed to get database: %w", err)
+	}
+
+	// PRAGMA wal_checkpoint(PASSIVE) - checkpoint without blocking readers/writers
+	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)")
+	if err != nil {
+		return fmt.Errorf("failed to perform WAL checkpoint: %w", err)
+	}
+
+	return nil
 }

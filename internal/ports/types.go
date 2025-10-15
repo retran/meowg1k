@@ -146,6 +146,11 @@ type IndexRepository interface {
 	// Returns the ID of the newly created document version.
 	AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error)
 
+	// AddDocumentVersionWithChunks adds a document version with its chunks in a single transaction.
+	// This ensures atomicity and better performance compared to separate calls.
+	// Returns the ID of the newly created document version.
+	AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error)
+
 	// AddChunks adds multiple chunks to the index in a single transaction.
 	AddChunks(ctx context.Context, chunks []domainindex.Chunk) error
 
@@ -182,6 +187,9 @@ type IndexRepository interface {
 
 	// GetVersionsByIDs retrieves document versions by their IDs.
 	GetVersionsByIDs(ctx context.Context, versionIDs []int64) ([]domainindex.DocumentVersion, error)
+
+	// Checkpoint performs a WAL checkpoint to ensure all pending writes are visible to readers.
+	Checkpoint(ctx context.Context) error
 }
 
 // SnapshotRepository defines the interface for managing commit snapshots.
@@ -234,9 +242,9 @@ type WorkspaceService interface {
 
 // ProjectStateService defines the interface for getting project file states.
 type ProjectStateService interface {
-	GetHeadState() (map[string]domainindex.FileState, error)
-	GetStagingState() (map[string]domainindex.FileState, error)
-	GetWorkdirState() (map[string]domainindex.FileState, error)
+	GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error)
+	GetStagingState(ctx context.Context) (map[string]domainindex.FileState, error)
+	GetWorkdirState(ctx context.Context) (map[string]domainindex.FileState, error)
 }
 
 // VectorIndexService defines the interface for vector index operations.

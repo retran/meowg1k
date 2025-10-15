@@ -41,6 +41,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
+	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	queryactivity "github.com/retran/meowg1k/internal/activities/query"
 	"github.com/retran/meowg1k/internal/activities/savedocumentversion"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
@@ -66,7 +67,6 @@ import (
 	"github.com/retran/meowg1k/internal/core/task"
 	"github.com/retran/meowg1k/internal/core/vector"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
-	domainProfile "github.com/retran/meowg1k/internal/domain/profile"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
@@ -375,27 +375,15 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
-	// Get configuration
-	config, err := c.ConfigService.Get()
+	// Get resolved index configuration
+	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
+		return nil, fmt.Errorf("failed to create index config service: %w", err)
 	}
 
-	// Validate index configuration
-	if config.Index == nil {
-		return nil, fmt.Errorf("index configuration is missing")
-	}
-	if config.Index.Profile == "" {
-		return nil, fmt.Errorf("index.profile is required in configuration")
-	}
-	if config.Index.Chunker == nil {
-		return nil, fmt.Errorf("index.chunker configuration is missing")
-	}
-
-	// Get embedding profile
-	embeddingProfile, err := profileService.Get(domainProfile.Profile(config.Index.Profile))
+	indexConfig, err := indexConfigService.Get()
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve index profile: %w", err)
+		return nil, fmt.Errorf("failed to get index config: %w", err)
 	}
 
 	// Initialize database and repositories
@@ -413,7 +401,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 
 	// Initialize services
 	projectStateSvc := project.NewStateService(gitService, filterService, workspaceService)
-	chunkerSvc := chunker.NewService(config.Index.Chunker.MaxRunes, config.Index.Chunker.OverlapRunes)
+	chunkerSvc := chunker.NewService(indexConfig.ChunkerMaxRunes, indexConfig.ChunkerOverlapRunes)
 	indexSvc, err := index.NewService(indexRepoImpl, indexRepoImpl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index service: %w", err)
@@ -434,7 +422,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 	}
 
 	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), embeddingProfile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
@@ -465,7 +453,12 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create chunk all factory: %w", err)
 	}
 
-	computeBatchFactory, err := computeembeddingsbatch.NewFactory(embeddingsGW)
+	prepareBatchesFactory, err := preparebatches.NewFactory()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create prepare batches factory: %w", err)
+	}
+
+	computeBatchFactory, err := computeembeddingsbatch.NewFactory(embeddingsGW, indexConfig.Profile.Model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute batch factory: %w", err)
 	}
@@ -480,7 +473,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create save document version factory: %w", err)
 	}
 
-	distributeAndSaveFactory, err := distributeandsave.NewFactory(saveDocVersionFactory)
+	distributeAndSaveFactory, err := distributeandsave.NewFactory(saveDocVersionFactory, indexRepoImpl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distribute and save factory: %w", err)
 	}
@@ -501,6 +494,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		scanStateFactory,
 		deduplicateFactory,
 		chunkAllFactory,
+		prepareBatchesFactory,
 		computeAllFactory,
 		distributeAndSaveFactory,
 		finalizeSnapshotsFactory,
@@ -523,23 +517,6 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 	metaRepo := meta.NewRepository(c.dbHost)
 	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
 
-	// Get configuration
-	config, err := c.ConfigService.Get()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
-	}
-
-	// Validate index configuration exists
-	if config.Index == nil {
-		return nil, fmt.Errorf("index configuration is missing - run 'meow index' first")
-	}
-
-	// Initialize services
-	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vector search service: %w", err)
-	}
-
 	providerService := provider.NewService()
 	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
@@ -551,10 +528,21 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
-	// Get embedding profile from index config
-	embeddingProfile, err := profileService.Get(domainProfile.Profile(config.Index.Profile))
+	// Get resolved index configuration
+	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve index profile: %w", err)
+		return nil, fmt.Errorf("failed to create index config service: %w", err)
+	}
+
+	indexConfig, err := indexConfigService.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index config: %w", err)
+	}
+
+	// Initialize services
+	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vector search service: %w", err)
 	}
 
 	// Create gateway factory for embeddings
@@ -571,13 +559,13 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 	}
 
 	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), embeddingProfile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
 	// Create retrieval service with RetrievalDocument for indexing, RetrievalQuery for search
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, config.Index.Profile, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Name, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
@@ -617,10 +605,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
 
-	// Validate configurations exist
-	if config.Index == nil {
-		return nil, fmt.Errorf("index configuration is missing - run 'meow index' first")
-	}
+	// Validate ask configuration exists
 	if config.Ask == nil {
 		return nil, fmt.Errorf("ask configuration is missing")
 	}
@@ -637,15 +622,20 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
+	// Get resolved index configuration
+	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create index config service: %w", err)
+	}
+
+	indexConfig, err := indexConfigService.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index config: %w", err)
+	}
+
 	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vector search service: %w", err)
-	}
-
-	// Get embedding profile from index config
-	embeddingProfile, err := profileService.Get(domainProfile.Profile(config.Index.Profile))
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve index profile: %w", err)
 	}
 
 	// Create gateway factory
@@ -662,13 +652,13 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	}
 
 	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), embeddingProfile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
 	// Create retrieval service with RetrievalQuery for ask flow
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, config.Index.Profile, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Name, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}

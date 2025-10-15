@@ -22,7 +22,15 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/domain/profile"
 )
+
+// ResolvedConfig represents the resolved configuration for indexing.
+type ResolvedConfig struct {
+	Profile             *profile.ResolvedProfile
+	ChunkerMaxRunes     int
+	ChunkerOverlapRunes int
+}
 
 // ContentBlob represents a content blob stored in the database.
 type ContentBlob struct {

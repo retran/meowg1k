@@ -118,11 +118,10 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 		chunkIDToID[chunk.chunkID] = hnswID
 	}
 
-	// Step 4: Serialize the index
+	// Step 4: Serialize the HNSW index using Export
 	var hnswBuffer bytes.Buffer
-	encoder := gob.NewEncoder(&hnswBuffer)
-	if err := encoder.Encode(hnswIndex); err != nil {
-		return fmt.Errorf("failed to serialize HNSW index: %w", err)
+	if err := hnswIndex.Export(&hnswBuffer); err != nil {
+		return fmt.Errorf("failed to export HNSW index: %w", err)
 	}
 
 	// Step 5: Create dump structure

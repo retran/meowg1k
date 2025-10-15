@@ -24,8 +24,8 @@ import (
 	"github.com/retran/meowg1k/internal/activities/computeallembeddings"
 	"github.com/retran/meowg1k/internal/activities/savedocumentversion"
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 type Input struct {
@@ -40,25 +40,32 @@ type Output struct {
 
 type Factory struct {
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output]
+	indexRepo                  ports.IndexRepository
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 func NewFactory(
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output],
+	indexRepo ports.IndexRepository,
 ) (executor.ActivityFactory[*Input, *Output], error) {
 	if saveDocumentVersionFactory == nil {
 		return nil, fmt.Errorf("distributeandsave.NewFactory: saveDocumentVersionFactory cannot be nil")
 	}
+	if indexRepo == nil {
+		return nil, fmt.Errorf("distributeandsave.NewFactory: indexRepo cannot be nil")
+	}
 
 	return &Factory{
 		saveDocumentVersionFactory: saveDocumentVersionFactory,
+		indexRepo:                  indexRepo,
 	}, nil
 }
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Distributing embeddings and saving %d documents (%s)...", len(input.EmbeddingResults.ChunkResults.FileChunks), input.StateName))
+		chunkResults := input.EmbeddingResults.PreparedBatches.ChunkResults
+		executorCtx.SendRunning(fmt.Sprintf("Distributing embeddings and saving %d documents (%s)...", len(chunkResults.FileChunks), input.StateName))
 
 		// Get executor from context
 		exec := executorCtx.GetExecutor()
@@ -67,18 +74,18 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Distribute embeddings back to files
-		fileEmbeddings := make([][]gateway.Embedding, len(input.EmbeddingResults.ChunkResults.FileChunks))
+		fileEmbeddings := make([][]gateway.Embedding, len(chunkResults.FileChunks))
 		for i := range fileEmbeddings {
 			fileEmbeddings[i] = []gateway.Embedding{}
 		}
 
-		for chunkIdx, fileIdx := range input.EmbeddingResults.ChunkResults.ChunkToFileIndex {
+		for chunkIdx, fileIdx := range chunkResults.ChunkToFileIndex {
 			fileEmbeddings[fileIdx] = append(fileEmbeddings[fileIdx], input.EmbeddingResults.Embeddings[chunkIdx])
 		}
 
-		// Save all documents in parallel
-		saveFutures := make(map[string]*future.Future[*savedocumentversion.Output])
-		for fileIdx, fileResult := range input.EmbeddingResults.ChunkResults.FileChunks {
+		// Save all documents sequentially to avoid race conditions
+		versionMap := make(map[string]int64)
+		for fileIdx, fileResult := range chunkResults.FileChunks {
 			saveActivity := f.saveDocumentVersionFactory.NewActivity()
 			saveInput := &savedocumentversion.Input{
 				FilePath:    fileResult.FilePath,
@@ -88,23 +95,18 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				Embeddings:  fileEmbeddings[fileIdx],
 			}
 			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Save_%s", fileResult.FilePath), saveActivity, saveInput)
-			saveFutures[fileResult.FilePath] = fut
-		}
-
-		// Collect version map (contentHash -> version_id)
-		versionMap := make(map[string]int64)
-		for filePath, fut := range saveFutures {
 			result, err := fut.Get(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to save document %s: %w", filePath, err)
+				return nil, fmt.Errorf("failed to save document %s: %w", fileResult.FilePath, err)
 			}
-			// Find the corresponding content hash from FileChunks
-			for _, fileResult := range input.EmbeddingResults.ChunkResults.FileChunks {
-				if fileResult.FilePath == result.FilePath {
-					versionMap[fileResult.ContentHash] = result.VersionID
-					break
-				}
-			}
+			versionMap[fileResult.ContentHash] = result.VersionID
+		}
+
+		// Perform WAL checkpoint to ensure all writes are visible to readers
+		// This helps avoid race conditions where finalization might not see recently saved versions
+		if err := f.indexRepo.Checkpoint(ctx); err != nil {
+			// Log but don't fail - checkpoint failure is not critical
+			executorCtx.SendRunning(fmt.Sprintf("Warning: WAL checkpoint failed: %v", err))
 		}
 
 		executorCtx.SendCompleted(fmt.Sprintf("Saved %d documents for %s", len(versionMap), input.StateName))

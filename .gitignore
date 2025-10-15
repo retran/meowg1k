@@ -44,7 +44,7 @@ temp/
 
 # Trace logs
 .meowg1k/logs/
-.meowg1k/project.db
+.meowg1k/project.*
 
 .env
 .env.local

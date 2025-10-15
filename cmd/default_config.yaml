@@ -99,6 +99,7 @@ filter:
     - "vendor/"
     - "node_modules/"
     - ".git/"
+    - ".meowg1k/"
 
 index:
   # Profile for computing embeddings

@@ -19,26 +19,26 @@ models:
     provider: "gemini"
     model: "gemini-embedding-001"
     rateLimit:
-      requestsPerMinute: 3000
-      tokensPerMinute: 1000000
-      requestsPerDay: 1000000
+      requestsPerMinute: 300
+      tokensPerMinute: 500000
+      requestsPerDay: 100000
 
 profiles:
   fast:
     model: "qwen-flash"
-    temperature: 0.3  # Lower temperature for more focused responses
+    temperature: 0.3
     cache:
       enabled: true
-      ttl: "24h"  # Cache fast completions for 1 day
+      ttl: "24h"
 
   smart:
     model: "qwen-plus"
     timeout: "10m"
-    temperature: 0.2  # Very low temperature for analytical, deterministic output
+    temperature: 0.2
     topP: 0.95
     cache:
       enabled: true
-      ttl: "72h"  # Cache smart completions longer (3 days)
+      ttl: "72h"
 
   embeddings:
     model: "gemini-embeddings"
@@ -121,6 +121,7 @@ filter:
     - "dist/**"
     - "bin/**"
     - ".git/**"
+    - ".meowg1k/**"
 
 index:
   profile: "embeddings"
@@ -150,7 +151,6 @@ summarize:
       Focus on the functional impact: what was changed, added, or removed.
       Be specific about the type of change (feature, fix, refactor, etc.).
   rules:
-    # Go source files - detailed analysis with changed file content
     - match: "**/*.go"
       systemPrompt: |
         Analyze the Go code changes and summarize in 2-3 sentences.
@@ -160,12 +160,10 @@ summarize:
         - Important logic or behavior changes
         - Error handling or performance improvements
         Be technical but concise. Mention function/type names when relevant.
-    # Test files - lighter analysis
     - match: "**/*_test.go"
       systemPrompt: |
         Summarize the test changes in 1-2 sentences.
         Focus on what functionality is being tested, new test cases added, or test improvements made.
-    # Configuration files
     - match: "**/*.yaml"
       systemPrompt: |
         Summarize the configuration changes in 1-2 sentences.
@@ -178,17 +176,14 @@ summarize:
       systemPrompt: |
         Summarize the JSON changes in 1-2 sentences.
         Focus on what data structure or configuration was modified.
-    # Docker files
     - match: "**/Dockerfile*"
       systemPrompt: |
         Summarize the Docker configuration changes in 1-2 sentences.
         Focus on what build steps, dependencies, or runtime configuration was modified.
-    # Go module files
     - match: "**/go.mod"
       systemPrompt: |
         Summarize the Go module changes in 1-2 sentences.
         Focus on what dependencies were added, updated, or removed.
-    # Scripts and build files
     - match: "**/*.sh"
       systemPrompt: |
         Summarize the script changes in 1-2 sentences.
@@ -197,14 +192,12 @@ summarize:
       systemPrompt: |
         Summarize the Task runner changes in 1-2 sentences.
         Focus on what tasks or build processes were modified.
-    # License and legal files - skip them
     - match: "**/LICENSE*"
       skip: true
     - match: "**/NOTICE*"
       skip: true
     - match: "**/COPYRIGHT*"
       skip: true
-    # Documentation files
     - match: "**/*.md"
       profile: "fast"
       systemPrompt: |

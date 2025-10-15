@@ -36,17 +36,22 @@ type Output struct {
 
 type Factory struct {
 	embeddingGW ports.EmbeddingsGateway
+	modelName   string
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-func NewFactory(embeddingGW ports.EmbeddingsGateway) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor.ActivityFactory[*Input, *Output], error) {
 	if embeddingGW == nil {
 		return nil, fmt.Errorf("computeembeddingsbatch.NewFactory: embeddingGW cannot be nil")
+	}
+	if modelName == "" {
+		return nil, fmt.Errorf("computeembeddingsbatch.NewFactory: modelName cannot be empty")
 	}
 
 	return &Factory{
 		embeddingGW: embeddingGW,
+		modelName:   modelName,
 	}, nil
 }
 
@@ -61,7 +66,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		// Compute embeddings in a single batch
 		embeddingRequest := gateway.NewComputeEmbeddingsRequest(
-			"text-embedding-3-small", // TODO: Make configurable
+			f.modelName,
 			input.ChunkTexts,
 			gateway.RetrievalDocument,
 		)

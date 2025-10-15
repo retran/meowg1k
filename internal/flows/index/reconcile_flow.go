@@ -26,6 +26,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/deduplicateandprepare"
 	"github.com/retran/meowg1k/internal/activities/distributeandsave"
 	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
+	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -35,6 +36,7 @@ type Factory struct {
 	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
 	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
 	chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
+	prepareBatchesFactory        executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
 	computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
 	distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
 	finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
@@ -46,6 +48,7 @@ func NewFactory(
 	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],
 	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output],
 	chunkAllFilesFactory executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output],
+	prepareBatchesFactory executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output],
 	computeAllEmbeddingsFactory executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output],
 	distributeAndSaveFactory executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output],
 	finalizeSnapshotsFactory executor.ActivityFactory[*finalizesnapshots.Input, struct{}],
@@ -65,6 +68,10 @@ func NewFactory(
 
 	if chunkAllFilesFactory == nil {
 		return nil, fmt.Errorf("chunkAllFilesFactory is nil")
+	}
+
+	if prepareBatchesFactory == nil {
+		return nil, fmt.Errorf("prepareBatchesFactory is nil")
 	}
 
 	if computeAllEmbeddingsFactory == nil {
@@ -88,6 +95,7 @@ func NewFactory(
 		scanStateFactory:             scanStateFactory,
 		deduplicateAndPrepareFactory: deduplicateAndPrepareFactory,
 		chunkAllFilesFactory:         chunkAllFilesFactory,
+		prepareBatchesFactory:        prepareBatchesFactory,
 		computeAllEmbeddingsFactory:  computeAllEmbeddingsFactory,
 		distributeAndSaveFactory:     distributeAndSaveFactory,
 		finalizeSnapshotsFactory:     finalizeSnapshotsFactory,
@@ -169,12 +177,24 @@ func (f *Factory) NewFlow() executor.Flow {
 				return fmt.Errorf("chunking failed: %w", err)
 			}
 
-			// Phase 2: Compute embeddings for all chunks
-			computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
-			computeInput := &computeallembeddings.Input{
+			// Phase 2a: Prepare batches
+			prepareBatchesActivity := f.prepareBatchesFactory.NewActivity()
+			prepareBatchesInput := &preparebatches.Input{
 				StateName:    "Deduplicated",
 				ChunkResults: chunkResults,
-				BatchSize:    0, // Single batch for all chunks
+				BatchSize:    50, // Process in batches of 50 chunks
+			}
+			prepareBatchesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
+			preparedBatches, err := prepareBatchesFuture.Get(ctx)
+			if err != nil {
+				return fmt.Errorf("batch preparation failed: %w", err)
+			}
+
+			// Phase 2b: Compute embeddings for all batches (rate limiter controls concurrency)
+			computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
+			computeInput := &computeallembeddings.Input{
+				StateName:       "Deduplicated",
+				PreparedBatches: preparedBatches,
 			}
 			computeFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
 			embeddingResults, err := computeFuture.Get(ctx)

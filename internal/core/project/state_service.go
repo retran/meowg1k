@@ -17,6 +17,7 @@ limitations under the License.
 package project
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -42,7 +43,7 @@ func NewStateService(gitService ports.GitService, filterService ports.FilterServ
 	}
 }
 
-func (s *StateService) GetHeadState() (map[string]domainindex.FileState, error) {
+func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error) {
 	// Get list of files in HEAD
 	files, err := s.gitService.ListFiles("HEAD")
 	if err != nil {
@@ -52,6 +53,11 @@ func (s *StateService) GetHeadState() (map[string]domainindex.FileState, error) 
 	state := make(map[string]domainindex.FileState, len(files))
 
 	for _, filePath := range files {
+		// Check context cancellation
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		// Read file content from HEAD
 		content, err := s.gitService.ReadFileAtCommit("HEAD", filePath)
 		if err != nil {
@@ -74,7 +80,7 @@ func (s *StateService) GetHeadState() (map[string]domainindex.FileState, error) 
 }
 
 // GetStagingState returns the state of files in staging area.
-func (s *StateService) GetStagingState() (map[string]domainindex.FileState, error) {
+func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainindex.FileState, error) {
 	// Get list of staged files
 	files, err := s.gitService.ReadStagedFiles()
 	if err != nil {
@@ -84,6 +90,11 @@ func (s *StateService) GetStagingState() (map[string]domainindex.FileState, erro
 	state := make(map[string]domainindex.FileState, len(files))
 
 	for _, filePath := range files {
+		// Check context cancellation
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		// Read file content from staging
 		content, err := s.gitService.ReadStagedFileContent(filePath)
 		if err != nil {
@@ -106,7 +117,7 @@ func (s *StateService) GetStagingState() (map[string]domainindex.FileState, erro
 }
 
 // GetWorkdirState returns the state of files in working directory.
-func (s *StateService) GetWorkdirState() (map[string]domainindex.FileState, error) {
+func (s *StateService) GetWorkdirState(ctx context.Context) (map[string]domainindex.FileState, error) {
 	state := make(map[string]domainindex.FileState)
 
 	// Get workspace root
@@ -117,6 +128,11 @@ func (s *StateService) GetWorkdirState() (map[string]domainindex.FileState, erro
 
 	// Walk through workspace directory
 	err = filepath.WalkDir(workspaceRoot, func(path string, d fs.DirEntry, err error) error {
+		// Check context cancellation
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if err != nil {
 			return err
 		}

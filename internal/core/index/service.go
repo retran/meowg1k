@@ -17,6 +17,7 @@ limitations under the License.
 package index
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -70,6 +71,10 @@ func (s *Service) PrepareForProcessing(
 	contentHashMap := make(map[string]string)
 
 	for filePath, fileState := range workspaceState.HeadState {
+		// Skip binary files
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
@@ -80,6 +85,10 @@ func (s *Service) PrepareForProcessing(
 	}
 
 	for filePath, fileState := range workspaceState.StageState {
+		// Skip binary files
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
@@ -90,6 +99,10 @@ func (s *Service) PrepareForProcessing(
 	}
 
 	for filePath, fileState := range workspaceState.WorkdirState {
+		// Skip binary files
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
@@ -161,31 +174,30 @@ func (s *Service) SaveNewVersion(
 		ContentHash:            input.ContentHash,
 	}
 
-	versionID, err := s.indexRepo.AddDocumentVersion(ctx, docVersion, input.Content)
-	if err != nil {
-		return nil, fmt.Errorf("failed to add document version: %w", err)
-	}
-
+	// Prepare chunks if any
+	var chunks []domainindex.Chunk
 	if len(input.Chunks) > 0 {
-		chunks := make([]domainindex.Chunk, len(input.Chunks))
+		chunks = make([]domainindex.Chunk, len(input.Chunks))
 		for i, chunkData := range input.Chunks {
 			chunks[i] = domainindex.Chunk{
-				DocumentVersionID: versionID,
-				ChunkType:         "plain_text",
-				StartLine:         chunkData.StartLine,
-				EndLine:           chunkData.EndLine,
-				StartByte:         chunkData.StartByte,
-				EndByte:           chunkData.EndByte,
-				StartRune:         chunkData.StartRune,
-				EndRune:           chunkData.EndRune,
-				TextContent:       chunkData.TextContent,
-				Embedding:         input.Embeddings[i],
+				// DocumentVersionID will be set by the repository
+				ChunkType:   "plain_text",
+				StartLine:   chunkData.StartLine,
+				EndLine:     chunkData.EndLine,
+				StartByte:   chunkData.StartByte,
+				EndByte:     chunkData.EndByte,
+				StartRune:   chunkData.StartRune,
+				EndRune:     chunkData.EndRune,
+				TextContent: chunkData.TextContent,
+				Embedding:   input.Embeddings[i],
 			}
 		}
+	}
 
-		if err := s.indexRepo.AddChunks(ctx, chunks); err != nil {
-			return nil, fmt.Errorf("failed to add chunks: %w", err)
-		}
+	// Save document version and chunks in a single transaction
+	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, docVersion, input.Content, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add document version with chunks: %w", err)
 	}
 
 	return &SaveVersionOutput{
@@ -244,10 +256,26 @@ func (s *Service) finalizeSnapshot(
 		return fmt.Errorf("failed to clear snapshot links for %s: %w", snapshotName, err)
 	}
 
-	for _, fileState := range fileStates {
+	for filePath, fileState := range fileStates {
+		// Skip binary files - they are not indexed
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
+
 		versionID, exists := versionMap[fileState.ContentHash]
 		if !exists {
-			return fmt.Errorf("no version found for content hash %s in %s", fileState.ContentHash, snapshotName)
+			// Version not in our cache - query from database
+			// This can happen if the file was saved in a previous run or by another process
+			version, err := s.indexRepo.FindVersionByContentHash(ctx, filePath, fileState.ContentHash)
+			if err != nil {
+				return fmt.Errorf("failed to find version for content hash %s (file: %s): %w", fileState.ContentHash, filePath, err)
+			}
+			if version == nil {
+				return fmt.Errorf("no version found for content hash %s (file: %s) in %s", fileState.ContentHash, filePath, snapshotName)
+			}
+			versionID = version.ID
+			// Cache it for future iterations
+			versionMap[fileState.ContentHash] = versionID
 		}
 
 		if err := s.snapshotRepo.LinkVersionToSnapshot(ctx, snapshotName, versionID); err != nil {
@@ -256,4 +284,42 @@ func (s *Service) finalizeSnapshot(
 	}
 
 	return nil
+}
+
+// isLikelyBinary checks if content appears to be binary (non-text) data.
+// It uses a simple heuristic: if the first 512 bytes (or less) contain
+// a null byte or have too many non-printable characters, it's likely binary.
+func isLikelyBinary(content []byte) bool {
+	if len(content) == 0 {
+		return false
+	}
+
+	// Check up to first 512 bytes
+	checkLen := len(content)
+	if checkLen > 512 {
+		checkLen = 512
+	}
+
+	sample := content[:checkLen]
+
+	// If contains null byte, it's binary
+	if bytes.IndexByte(sample, 0) != -1 {
+		return true
+	}
+
+	// Count non-printable characters
+	nonPrintable := 0
+	for _, b := range sample {
+		// Allow common text characters: printable ASCII, tabs, newlines, carriage returns
+		if b < 32 && b != '\t' && b != '\n' && b != '\r' {
+			nonPrintable++
+		} else if b == 127 || b > 127 {
+			// DEL character or non-ASCII (could be UTF-8, but be conservative)
+			nonPrintable++
+		}
+	}
+
+	// If more than 30% non-printable, consider it binary
+	threshold := checkLen * 30 / 100
+	return nonPrintable > threshold
 }

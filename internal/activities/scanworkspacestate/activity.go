@@ -21,8 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	"golang.org/x/sync/errgroup"
-
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -55,47 +53,27 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, *Output] {
 		executorCtx.SendRunning("Scanning workspace state...")
 
 		result := &Output{}
-		g, gctx := errgroup.WithContext(ctx)
 
 		// Scan HEAD state
-		g.Go(func() error {
-			headState, err := f.projectStateSvc.GetHeadState()
-			if err != nil {
-				return fmt.Errorf("failed to get HEAD state: %w", err)
-			}
-			result.HeadState = headState
-			return nil
-		})
+		headState, err := f.projectStateSvc.GetHeadState(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get HEAD state: %w", err)
+		}
+		result.HeadState = headState
 
 		// Scan staging area state
-		g.Go(func() error {
-			stageState, err := f.projectStateSvc.GetStagingState()
-			if err != nil {
-				return fmt.Errorf("failed to get staging state: %w", err)
-			}
-			result.StageState = stageState
-			return nil
-		})
+		stageState, err := f.projectStateSvc.GetStagingState(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get staging state: %w", err)
+		}
+		result.StageState = stageState
 
 		// Scan working directory state
-		g.Go(func() error {
-			workdirState, err := f.projectStateSvc.GetWorkdirState()
-			if err != nil {
-				return fmt.Errorf("failed to get working directory state: %w", err)
-			}
-			result.WorkdirState = workdirState
-			return nil
-		})
-
-		// Wait for all scans to complete
-		if err := g.Wait(); err != nil {
-			return nil, err
+		workdirState, err := f.projectStateSvc.GetWorkdirState(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get working directory state: %w", err)
 		}
-
-		// Check context cancellation
-		if gctx.Err() != nil {
-			return nil, gctx.Err()
-		}
+		result.WorkdirState = workdirState
 
 		executorCtx.SendCompleted("Workspace scan complete")
 		return result, nil
