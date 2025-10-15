@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/core/retrieval"
+	"github.com/retran/meowg1k/internal/activities/retrievecontext"
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
@@ -46,25 +46,25 @@ type ConfigReader interface {
 
 // Factory creates instances of the ask flow.
 type Factory struct {
-	retrievalService retrieval.RetrievalService
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
-	parametersReader CommandParametersReader
-	profileResolver  ports.ProfileResolver
-	outputWriter     ports.OutputWriter
-	configReader     ConfigReader
+	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output]
+	invokeLLMFactory       executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	parametersReader       CommandParametersReader
+	profileResolver        ports.ProfileResolver
+	outputWriter           ports.OutputWriter
+	configReader           ConfigReader
 }
 
 // NewFactory creates a new ask flow factory.
 func NewFactory(
-	retrievalService retrieval.RetrievalService,
+	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
 	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
 	parametersReader CommandParametersReader,
 	profileResolver ports.ProfileResolver,
 	outputWriter ports.OutputWriter,
 	configReader ConfigReader,
 ) (*Factory, error) {
-	if retrievalService == nil {
-		return nil, fmt.Errorf("ask.NewFactory: retrievalService cannot be nil")
+	if retrieveContextFactory == nil {
+		return nil, fmt.Errorf("ask.NewFactory: retrieveContextFactory cannot be nil")
 	}
 	if invokeLLMFactory == nil {
 		return nil, fmt.Errorf("ask.NewFactory: invokeLLMFactory cannot be nil")
@@ -83,12 +83,12 @@ func NewFactory(
 	}
 
 	return &Factory{
-		retrievalService: retrievalService,
-		invokeLLMFactory: invokeLLMFactory,
-		parametersReader: parametersReader,
-		profileResolver:  profileResolver,
-		outputWriter:     outputWriter,
-		configReader:     configReader,
+		retrieveContextFactory: retrieveContextFactory,
+		invokeLLMFactory:       invokeLLMFactory,
+		parametersReader:       parametersReader,
+		profileResolver:        profileResolver,
+		outputWriter:           outputWriter,
+		configReader:           configReader,
 	}, nil
 }
 
@@ -177,22 +177,23 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("executor not available in context")
 		}
 
-		// Step 1: Retrieve formatted context using retrieval service
-		flowCtx.SendRunning(fmt.Sprintf("Searching for: %q", question))
+		// Step 1: Retrieve formatted context using retrieval activity
+		retrieveContextActivity := f.retrieveContextFactory.NewActivity()
+		retrieveContextInput := &retrievecontext.Input{
+			QueryText:        question,
+			SnapshotPriority: snapshots,
+			TopK:             topK,
+			MinScore:         minScore,
+		}
 
-		context, err := f.retrievalService.RetrieveContext(
-			ctx,
-			question,
-			snapshots,
-			topK,
-			minScore,
-		)
+		retrieveContextFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
+		retrieveContextOutput, err := retrieveContextFuture.Get(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve context: %w", err)
+			return fmt.Errorf("context retrieval failed: %w", err)
 		}
 
 		// Check if we found any results
-		if context == "" {
+		if retrieveContextOutput.Context == "" {
 			if err := f.outputWriter.PrintLine("No relevant context found to answer the question."); err != nil {
 				return fmt.Errorf("failed to write output: %w", err)
 			}
@@ -200,9 +201,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return nil
 		}
 
-		flowCtx.SendCompleted("Context retrieved")
-
-		// Step 3: Execute LLM invocation to generate answer
+		// Step 2: Execute LLM invocation to generate answer
 		invokeLLMActivity := f.invokeLLMFactory.NewActivity()
 
 		// Use default system prompt for RAG
@@ -215,7 +214,7 @@ Instructions:
 - Cite specific files/locations from the context when relevant
 - If the question cannot be answered with the given context, clearly state that`
 
-		userPrompt := fmt.Sprintf("Context:\n%s\n\nQuestion: %s", context, question)
+		userPrompt := fmt.Sprintf("Context:\n%s\n\nQuestion: %s", retrieveContextOutput.Context, question)
 
 		invokeLLMInput := &invokellm.Input{
 			Profile:      resolvedProfile,

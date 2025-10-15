@@ -42,6 +42,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	queryactivity "github.com/retran/meowg1k/internal/activities/query"
+	"github.com/retran/meowg1k/internal/activities/retrievecontext"
 	"github.com/retran/meowg1k/internal/activities/savedocumentversion"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
 	"github.com/retran/meowg1k/internal/activities/summarizeall"
@@ -663,6 +664,12 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
 
+	// Create retrieve context activity factory
+	retrieveContextFactory, err := retrievecontext.NewFactory(retrievalSvc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create retrieve context factory: %w", err)
+	}
+
 	// Create invoke LLM factory
 	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
 	if err != nil {
@@ -683,7 +690,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 
 	// Create ask flow factory with resolved parameters
 	askFlowFactory, err := askFlow.NewFactory(
-		retrievalSvc,
+		retrieveContextFactory,
 		invokeLLMFactory,
 		c.CommandService,
 		profileService,
