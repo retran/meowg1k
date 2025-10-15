@@ -65,7 +65,8 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 		return fmt.Errorf("failed to get database: %w", err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	// Use IMMEDIATE transaction to prevent database lock contention
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -136,6 +137,14 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit token acquisition transaction: %w", err)
 	}
+
+	// Perform WAL checkpoint to ensure writes are visible to other connections
+	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)")
+	if err != nil {
+		// Log but don't fail - checkpoint failure is not critical
+		return fmt.Errorf("warning: WAL checkpoint failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -146,7 +155,8 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 		return fmt.Errorf("failed to get database: %w", err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	// Use IMMEDIATE transaction to prevent database lock contention
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for init: %w", err)
 	}
@@ -168,6 +178,14 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit bucket initialization transaction: %w", err)
 	}
+
+	// Perform WAL checkpoint to ensure writes are visible to other connections
+	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)")
+	if err != nil {
+		// Log but don't fail - checkpoint failure is not critical
+		return fmt.Errorf("warning: WAL checkpoint failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -178,7 +196,8 @@ func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.Bucke
 		return fmt.Errorf("failed to get database: %w", err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	// Use IMMEDIATE transaction to prevent database lock contention
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for reset: %w", err)
 	}
@@ -199,5 +218,13 @@ func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.Bucke
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit bucket reset transaction: %w", err)
 	}
+
+	// Perform WAL checkpoint to ensure writes are visible to other connections
+	_, err = db.ExecContext(ctx, "PRAGMA wal_checkpoint(PASSIVE)")
+	if err != nil {
+		// Log but don't fail - checkpoint failure is not critical
+		return fmt.Errorf("warning: WAL checkpoint failed: %w", err)
+	}
+
 	return nil
 }

@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -68,7 +69,9 @@ Examples:
 			return fmt.Errorf("failed to create query flow: %w", err)
 		}
 
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger)
+		// Limit concurrency to prevent database lock contention
+		concurrency := runtime.NumCPU() * 2
+		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}

@@ -38,7 +38,7 @@ func TestContext_GetExecutor_NilContext(t *testing.T) {
 }
 
 func TestNewContext_WithNilFeedbackHandler(t *testing.T) {
-	executor := NewExecutor()
+	executor := NewExecutor(0)
 	ctx := NewContext("test", nil, executor)
 
 	if ctx == nil {

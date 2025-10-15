@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -65,7 +66,9 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return fmt.Errorf("failed to create pull request flow: %w", err)
 		}
 
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger)
+		// Limit concurrency to prevent database lock contention
+		concurrency := runtime.NumCPU() * 2
+		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}
