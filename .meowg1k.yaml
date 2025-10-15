@@ -49,7 +49,7 @@ profiles:
       enabled: true
       ttl: "72h"
 
-  embeddings:
+  gemini-embeddings:
     model: "gemini-embeddings"
     timeout: "10m"
     cache:
