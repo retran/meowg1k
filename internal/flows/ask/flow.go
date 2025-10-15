@@ -24,6 +24,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
 	queryactivity "github.com/retran/meowg1k/internal/activities/query"
+	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -38,6 +39,11 @@ type CommandParametersReader interface {
 	GetProfileFlag() (string, error)
 }
 
+// ConfigReader provides access to ask configuration.
+type ConfigReader interface {
+	Get() (*config.Config, error)
+}
+
 // Factory creates instances of the ask flow.
 type Factory struct {
 	queryFactory     executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
@@ -45,6 +51,7 @@ type Factory struct {
 	parametersReader CommandParametersReader
 	profileResolver  ports.ProfileResolver
 	outputWriter     ports.OutputWriter
+	configReader     ConfigReader
 }
 
 // NewFactory creates a new ask flow factory.
@@ -54,6 +61,7 @@ func NewFactory(
 	parametersReader CommandParametersReader,
 	profileResolver ports.ProfileResolver,
 	outputWriter ports.OutputWriter,
+	configReader ConfigReader,
 ) (*Factory, error) {
 	if queryFactory == nil {
 		return nil, fmt.Errorf("ask.NewFactory: queryFactory cannot be nil")
@@ -70,6 +78,9 @@ func NewFactory(
 	if outputWriter == nil {
 		return nil, fmt.Errorf("ask.NewFactory: outputWriter cannot be nil")
 	}
+	if configReader == nil {
+		return nil, fmt.Errorf("ask.NewFactory: configReader cannot be nil")
+	}
 
 	return &Factory{
 		queryFactory:     queryFactory,
@@ -77,6 +88,7 @@ func NewFactory(
 		parametersReader: parametersReader,
 		profileResolver:  profileResolver,
 		outputWriter:     outputWriter,
+		configReader:     configReader,
 	}, nil
 }
 
@@ -84,6 +96,16 @@ func NewFactory(
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		flowCtx.SendRunning("Starting ask flow")
+
+		// Read configuration
+		cfg, err := f.configReader.Get()
+		if err != nil {
+			return fmt.Errorf("failed to get config: %w", err)
+		}
+
+		if cfg.Ask == nil {
+			return fmt.Errorf("ask configuration is missing")
+		}
 
 		// Read command parameters
 		question, err := f.parametersReader.GetQuestionFlag()
@@ -111,7 +133,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		if topK <= 0 {
-			topK = 10 // Default
+			// Use config default if flag not set
+			topK = cfg.Ask.TopK
+			if topK <= 0 {
+				topK = 10 // Fallback default
+			}
 		}
 
 		minScore, err := f.parametersReader.GetMinScoreFlag()
@@ -119,8 +145,12 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("failed to get min score: %w", err)
 		}
 
-		if minScore < 0 {
-			minScore = 0.0 // Default
+		if minScore <= 0 {
+			// Use config default if flag not set
+			minScore = cfg.Ask.MinScore
+			if minScore < 0 {
+				minScore = 0.0 // Fallback default
+			}
 		}
 
 		profileName, err := f.parametersReader.GetProfileFlag()
@@ -129,7 +159,11 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		if profileName == "" {
-			return fmt.Errorf("profile is required")
+			// Use config default if flag not set
+			profileName = cfg.Ask.Profile
+			if profileName == "" {
+				return fmt.Errorf("profile is required (set in config ask.profile or via --profile flag)")
+			}
 		}
 
 		// Resolve profile

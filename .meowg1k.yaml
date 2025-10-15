@@ -133,7 +133,7 @@ index:
 ask:
   profile: "smart"
   topK: 20
-  minScore: 0.7
+  minScore: 0.4
   systemPrompt: >-
     You are an expert AI assistant helping developers understand their codebase.
     Answer questions based ONLY on the provided code context.

@@ -565,7 +565,7 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 	}
 
 	// Create retrieval service with RetrievalDocument for indexing, RetrievalQuery for search
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Name, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
@@ -658,7 +658,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	}
 
 	// Create retrieval service with RetrievalQuery for ask flow
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Name, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
@@ -694,6 +694,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		c.CommandService,
 		profileService,
 		c.OutputService,
+		c.ConfigService,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ask flow factory: %w", err)
