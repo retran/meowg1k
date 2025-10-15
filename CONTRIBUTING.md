@@ -4,11 +4,9 @@ First off, thank you for considering contributing to `meowg1k`! We welcome contr
 
 This document provides guidelines for contributing to the project.
 
-
 ## Code of Conduct
 
 By participating in this project, you are expected to uphold our [Code of Conduct](./CODE_OF_CONDUCT.md). Please report any unacceptable behavior.
-
 
 ## How Can I Contribute?
 
@@ -18,7 +16,6 @@ There are many ways to contribute to the project:
 - **Suggesting Enhancements:** Have an idea for a new feature or an improvement? [Open a feature request](https://github.com/retran/meowg1k/issues/new?template=feature_request.md).
 - **Improving Documentation:** If you find a typo or think a section could be clearer, feel free to open an issue or a pull request.
 - **Pull Requests:** If you're ready to contribute code or documentation, we'd love to review your work!
-
 
 ## Development Workflow
 
@@ -137,7 +134,6 @@ Push your branch to your fork and [open a pull request](https://github.com/retra
 > ```
 >
 > Copy the generated output to use in your Pull Request.
-
 
 ## Continuous Integration (CI)
 

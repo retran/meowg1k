@@ -2,7 +2,6 @@
 
 These are the fundamental, non-negotiable principles that guide the architecture and development of `meowg1k`. Every future decision must adhere to these rules.
 
-
 ## 1. A Composable Engine, Not an Application
 
 This principle defines the tool's role in the software ecosystem. It is engineered to be a reliable component — a building block — that can be plugged into larger, automated systems. Its primary purpose is to be called programmatically by other tools, such as shell scripts, CI/CD runners, or custom automation pipelines.
@@ -71,12 +70,11 @@ This principle ensures that operational expenses are a transparent and manageabl
 
 1. **Granular Control via Configuration**
 
-    You have full and explicit control over all factors that influence cost, empowering you to make a deliberate economic trade-off for any given task. This includes:
-
+   You have full and explicit control over all factors that influence cost, empowering you to make a deliberate economic trade-off for any given task. This includes:
    - **Model & Provider Selection:** The freedom to choose cost-effective models (including free or local ones) over more expensive, powerful ones.
    - **Token Caps:** The ability to set hard limits on `maxInputTokens` and `maxOutputTokens` to prevent unexpectedly large and costly requests.
    - **Rate Limiting:** The power to define strict budgets through `requestsPerMinute` and `requestsPerDay`, creating a hard ceiling on usage.
 
 2. **Built-in Efficiency via Intelligent Context**
 
-    The tool is designed to be inherently cost-effective. Fulfilling **Principle #8 (Intelligent Context, Not Raw Input)**, its primary function is to engineer the context sent to the AI. It automatically optimizes the prompt to use the minimum number of tokens required for a high-quality result. This is a built-in, automatic cost-reduction mechanism that works on your behalf, reducing waste and maximizing the value of every token.
+   The tool is designed to be inherently cost-effective. Fulfilling **Principle #8 (Intelligent Context, Not Raw Input)**, its primary function is to engineer the context sent to the AI. It automatically optimizes the prompt to use the minimum number of tokens required for a high-quality result. This is a built-in, automatic cost-reduction mechanism that works on your behalf, reducing waste and maximizing the value of every token.
