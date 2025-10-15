@@ -122,6 +122,7 @@ filter:
     - "bin/**"
     - ".git/**"
     - ".meowg1k/**"
+    - "assets/**"
 
 index:
   profile: "embeddings"

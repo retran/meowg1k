@@ -26,6 +26,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
+	"github.com/retran/meowg1k/pkg/future"
 )
 
 type Input struct {
@@ -83,23 +84,36 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			fileEmbeddings[fileIdx] = append(fileEmbeddings[fileIdx], input.EmbeddingResults.Embeddings[chunkIdx])
 		}
 
-		// Save all documents sequentially to avoid race conditions
-		versionMap := make(map[string]int64)
+		// Phase 1: Launch all save activities in parallel.
+		// The executor's concurrency limit will manage the actual parallelism.
+		futures := make(map[string]*future.Future[*savedocumentversion.Output])
 		for fileIdx, fileResult := range chunkResults.FileChunks {
+			// Create a new variable for the loop to avoid capturing the wrong value in the goroutine.
+			fr := fileResult
+			idx := fileIdx
+
 			saveActivity := f.saveDocumentVersionFactory.NewActivity()
 			saveInput := &savedocumentversion.Input{
-				FilePath:    fileResult.FilePath,
-				Content:     fileResult.Content,
-				ContentHash: fileResult.ContentHash,
-				Chunks:      fileResult.Chunks,
-				Embeddings:  fileEmbeddings[fileIdx],
+				FilePath:    fr.FilePath,
+				Content:     fr.Content,
+				ContentHash: fr.ContentHash,
+				Chunks:      fr.Chunks,
+				Embeddings:  fileEmbeddings[idx],
 			}
-			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Save_%s", fileResult.FilePath), saveActivity, saveInput)
+			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Save_%s", fr.FilePath), saveActivity, saveInput)
+			futures[fr.ContentHash] = fut
+		}
+
+		// Phase 2: Wait for all futures to complete and collect results.
+		// This creates a synchronization barrier, ensuring all saves are done before we proceed.
+		versionMap := make(map[string]int64)
+		for contentHash, fut := range futures {
 			result, err := fut.Get(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to save document %s: %w", fileResult.FilePath, err)
+				// Since we don't know the file path here easily, let's just fail with the hash.
+				return nil, fmt.Errorf("failed to save document with content hash %s: %w", contentHash, err)
 			}
-			versionMap[fileResult.ContentHash] = result.VersionID
+			versionMap[contentHash] = result.VersionID
 		}
 
 		// Perform WAL checkpoint to ensure all writes are visible to readers

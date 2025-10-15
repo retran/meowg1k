@@ -58,6 +58,11 @@ func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex
 			return nil, ctx.Err()
 		}
 
+		// Check if file should be ignored
+		if s.filterService.IsIgnoredFile(filePath) {
+			continue
+		}
+
 		// Read file content from HEAD
 		content, err := s.gitService.ReadFileAtCommit("HEAD", filePath)
 		if err != nil {
@@ -93,6 +98,11 @@ func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainin
 		// Check context cancellation
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+
+		// Check if file should be ignored
+		if s.filterService.IsIgnoredFile(filePath) {
+			continue
 		}
 
 		// Read file content from staging

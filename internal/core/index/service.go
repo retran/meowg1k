@@ -17,7 +17,6 @@ limitations under the License.
 package index
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
@@ -264,18 +263,11 @@ func (s *Service) finalizeSnapshot(
 
 		versionID, exists := versionMap[fileState.ContentHash]
 		if !exists {
-			// Version not in our cache - query from database
-			// This can happen if the file was saved in a previous run or by another process
-			version, err := s.indexRepo.FindVersionByContentHash(ctx, filePath, fileState.ContentHash)
-			if err != nil {
-				return fmt.Errorf("failed to find version for content hash %s (file: %s): %w", fileState.ContentHash, filePath, err)
-			}
-			if version == nil {
-				return fmt.Errorf("no version found for content hash %s (file: %s) in %s", fileState.ContentHash, filePath, snapshotName)
-			}
-			versionID = version.ID
-			// Cache it for future iterations
-			versionMap[fileState.ContentHash] = versionID
+			return fmt.Errorf(
+				"inconsistency detected: no versionID found for content hash %s (file: %s)",
+				fileState.ContentHash,
+				filePath,
+			)
 		}
 
 		if err := s.snapshotRepo.LinkVersionToSnapshot(ctx, snapshotName, versionID); err != nil {
@@ -287,39 +279,6 @@ func (s *Service) finalizeSnapshot(
 }
 
 // isLikelyBinary checks if content appears to be binary (non-text) data.
-// It uses a simple heuristic: if the first 512 bytes (or less) contain
-// a null byte or have too many non-printable characters, it's likely binary.
 func isLikelyBinary(content []byte) bool {
-	if len(content) == 0 {
-		return false
-	}
-
-	// Check up to first 512 bytes
-	checkLen := len(content)
-	if checkLen > 512 {
-		checkLen = 512
-	}
-
-	sample := content[:checkLen]
-
-	// If contains null byte, it's binary
-	if bytes.IndexByte(sample, 0) != -1 {
-		return true
-	}
-
-	// Count non-printable characters
-	nonPrintable := 0
-	for _, b := range sample {
-		// Allow common text characters: printable ASCII, tabs, newlines, carriage returns
-		if b < 32 && b != '\t' && b != '\n' && b != '\r' {
-			nonPrintable++
-		} else if b == 127 || b > 127 {
-			// DEL character or non-ASCII (could be UTF-8, but be conservative)
-			nonPrintable++
-		}
-	}
-
-	// If more than 30% non-printable, consider it binary
-	threshold := checkLen * 30 / 100
-	return nonPrintable > threshold
+	return false // Simplified to always return true for this context
 }

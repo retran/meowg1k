@@ -61,7 +61,12 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 	}
 
 	if len(versionIDs) == 0 {
-		return fmt.Errorf("no versions found for snapshot %s", snapshotName)
+		// This is a valid scenario (e.g., empty stage or working directory).
+		// Nothing to index, so we can exit early.
+		// Also clean up any existing index dump if present.
+		key := fmt.Sprintf("idx_dump_%s", snapshotName)
+		_ = s.metaRepo.DeleteValue(ctx, key) // Ignore error if key doesn't exist
+		return nil
 	}
 
 	// Step 2: Get all chunks for these versions
