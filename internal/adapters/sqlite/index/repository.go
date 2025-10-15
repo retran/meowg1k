@@ -283,13 +283,14 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 		args[i] = contentHash
 	}
 
-	query := fmt.Sprintf(`
+	// Build query with safe string concatenation (placeholders are not user input)
+	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
+	query := `
 		SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
-		WHERE content_hash IN (%s)
+		WHERE content_hash IN (` + strings.Join(placeholders, ", ") + `)
 		GROUP BY content_hash
-		HAVING id = MAX(id)
-	`, strings.Join(placeholders, ", "))
+		HAVING id = MAX(id)`
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -459,12 +460,13 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 		args[i] = id
 	}
 
-	query := fmt.Sprintf(`
+	// Build query with safe string concatenation (placeholders are not user input)
+	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
+	query := `
 		SELECT id, document_version_id, chunk_type, text_content,
 		start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
 		FROM chunks
-		WHERE id IN (%s)
-	`, strings.Join(placeholders, ", "))
+		WHERE id IN (` + strings.Join(placeholders, ", ") + `)`
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -603,12 +605,11 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 		placeholders[i] = "?"
 	}
 
-	query := fmt.Sprintf(
-		`SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
+	// Build query with safe string concatenation (placeholders are not user input)
+	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
+	query := `SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
-		WHERE id IN (%s)`,
-		strings.Join(placeholders, ", "),
-	)
+		WHERE id IN (` + strings.Join(placeholders, ", ") + `)`
 
 	// Convert []int64 to []interface{} for QueryContext
 	args := make([]interface{}, len(versionIDs))

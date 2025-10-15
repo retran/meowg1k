@@ -24,6 +24,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
@@ -165,8 +166,19 @@ func (s *StateService) GetWorkdirState(ctx context.Context) (map[string]domainin
 			return nil
 		}
 
+		// Verify the path is within workspace root to prevent directory traversal
+		cleanPath := filepath.Clean(path)
+		cleanRoot := filepath.Clean(workspaceRoot)
+		// Ensure cleanRoot ends with separator for proper prefix matching
+		if !strings.HasSuffix(cleanRoot, string(filepath.Separator)) {
+			cleanRoot += string(filepath.Separator)
+		}
+		if !strings.HasPrefix(cleanPath+string(filepath.Separator), cleanRoot) {
+			return fmt.Errorf("path %s is outside workspace root %s", path, workspaceRoot)
+		}
+
 		// Read file content
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(cleanPath)
 		if err != nil {
 			return fmt.Errorf("failed to read file %s: %w", path, err)
 		}

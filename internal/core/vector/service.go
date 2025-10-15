@@ -112,6 +112,11 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 
 	// Add all embeddings to the index
 	for i, chunk := range allChunks {
+		// Check for potential overflow before converting
+		if i > int(^uint32(0)) {
+			return fmt.Errorf("too many chunks (%d) to fit in uint32 index", len(allChunks))
+		}
+		// #nosec G115 -- overflow is checked above
 		hnswID := uint32(i)
 
 		// Add to HNSW index using the chunk ID as the key
