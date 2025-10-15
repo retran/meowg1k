@@ -139,13 +139,14 @@ filter:
     - ".git/**"
     - ".meowg1k/**"
     - "assets/**"
+    - ".idea/**"
 
 index:
-  profile: "jina"
+  profile: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
-  batchSize: 4
+  batchSize: 64
 
 ask:
   profile: "smart"
