@@ -240,17 +240,8 @@ Instructions:
 			return fmt.Errorf("answer generation failed: %w", err)
 		}
 
-		// Step 4: Output the answer
-		if err := f.outputWriter.PrintLine(fmt.Sprintf("Question: %s\n", question)); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
-		}
-
-		if err := f.outputWriter.PrintLine(fmt.Sprintf("\nAnswer:\n%s\n", invokeLLMOutput.Content)); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
-		}
-
-		if err := f.outputWriter.PrintLine(fmt.Sprintf("\nSources: %d documents", len(queryOutput.Results))); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeLLMOutput.Content)); err != nil {
+			return fmt.Errorf("failed to print generated content: %w", err)
 		}
 
 		flowCtx.SendCompleted("Ask flow completed")

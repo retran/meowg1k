@@ -20,6 +20,7 @@ package commit
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
@@ -353,7 +354,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(commitMessage); err != nil {
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
 			return fmt.Errorf("failed to print commit message: %w", err)
 		}
 

@@ -20,6 +20,7 @@ package pr
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composeflatpr"
@@ -294,7 +295,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(prDescription); err != nil {
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(prDescription)); err != nil {
 			return fmt.Errorf("failed to print PR description: %w", err)
 		}
 
