@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
@@ -38,13 +39,18 @@ type openaiGateway struct {
 }
 
 // newOpenAIGateway creates and initializes a new OpenAI-compatible gateway.
-func newOpenAIGateway(baseURL, apiKey string) ports.Gateway {
+// If httpClient is nil, the SDK will use its default HTTP client.
+func newOpenAIGateway(baseURL, apiKey string, httpClient *http.Client) ports.Gateway {
 	options := []option.RequestOption{
 		option.WithBaseURL(baseURL),
 	}
 
 	if apiKey != "" {
 		options = append(options, option.WithAPIKey(apiKey))
+	}
+
+	if httpClient != nil {
+		options = append(options, option.WithHTTPClient(httpClient))
 	}
 
 	client := openai.NewClient(options...)

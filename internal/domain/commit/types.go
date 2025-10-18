@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package commit defines domain types for commit message generation.
 package commit
 
 import (

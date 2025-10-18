@@ -27,12 +27,20 @@ import (
 
 // mockDBPathService is a mock implementation of DBPathService for testing.
 type mockDBPathService struct {
-	getMainDBPathFunc func() (string, error)
+	getMainDBPathFunc    func() (string, error)
+	getProjectDBPathFunc func() (string, error)
 }
 
 func (m *mockDBPathService) GetMainDBPath() (string, error) {
 	if m.getMainDBPathFunc != nil {
 		return m.getMainDBPathFunc()
+	}
+	return "", nil
+}
+
+func (m *mockDBPathService) GetProjectDBPath() (string, error) {
+	if m.getProjectDBPathFunc != nil {
+		return m.getProjectDBPathFunc()
 	}
 	return "", nil
 }
@@ -95,7 +103,7 @@ func TestNewLocalHost_Success(t *testing.T) {
 	}
 
 	// Test GetDB
-	db, err := host.GetDB()
+	db, err := host.GetMainDB()
 	if err != nil {
 		t.Fatalf("unexpected error getting db: %v", err)
 	}
@@ -120,7 +128,7 @@ func TestNewLocalHost_Success(t *testing.T) {
 
 func TestLocalHostImpl_GetDB_NilHost(t *testing.T) {
 	var host *localHostImpl
-	_, err := host.GetDB()
+	_, err := host.GetMainDB()
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
@@ -188,7 +196,7 @@ func TestLocalHostImpl_GetMainDBMigrations_Success(t *testing.T) {
 
 func TestLocalHostImpl_MigrateDB_NilHost(t *testing.T) {
 	var host *localHostImpl
-	err := host.migrateDB()
+	err := host.migrateMainDB()
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}

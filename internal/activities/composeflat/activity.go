@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package composeflat provides a generic activity for composing content using the full diff.
-// This is a shared implementation used by both commit and PR flat strategies.
+// Package composeflat implements a generic activity for composing text using an LLM with file context.
 package composeflat
 
 import (

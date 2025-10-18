@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package model defines domain types for LLM model configurations and capabilities.
 package model
 
 import (

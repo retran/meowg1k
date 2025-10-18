@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package llama provides a client for interacting with the llama.cpp server endpoints.
+// Package llama provides an HTTP client for interacting with Llama model APIs (local and hosted).
 package llama
 
 import (
@@ -111,6 +111,32 @@ type TokenProb struct {
 	TopLogprobs []TokenProb `json:"top_logprobs,omitempty"`
 }
 
+// EmbeddingRequest represents the request body for /embedding endpoint
+// Content can be either a single string or array of strings for batch processing
+type EmbeddingRequest struct {
+	Content    interface{} `json:"content"` // string or []string
+	ImageData  []ImageData `json:"image_data,omitempty"`
+	NormOutput bool        `json:"norm_output,omitempty"`
+	Truncate   int         `json:"truncate,omitempty"`
+	Lora       []Lora      `json:"lora,omitempty"`
+}
+
+// EmbeddingResponse represents the response from /embedding endpoint for single text
+type EmbeddingResponse struct {
+	Embedding       []float64      `json:"embedding"`
+	Model           string         `json:"model,omitempty"`
+	Timings         map[string]any `json:"timings,omitempty"`
+	TokensEvaluated int            `json:"tokens_evaluated,omitempty"`
+}
+
+// EmbeddingBatchItem represents a single item in batch embedding response
+type EmbeddingBatchItem struct {
+	Index     int         `json:"index"`
+	Embedding [][]float64 `json:"embedding"` // nested array from llama.cpp
+	Object    string      `json:"object,omitempty"`
+	Model     string      `json:"model,omitempty"`
+}
+
 // Client provides methods to interact with LLM completion API
 type Client struct {
 	baseURL    string
@@ -190,4 +216,156 @@ func (c *Client) Complete(ctx context.Context, req *CompletionRequest) (*Complet
 	}
 
 	return &completionResp, nil
+}
+
+// Embedding generates an embedding vector for the provided content.
+func (c *Client) Embedding(ctx context.Context, req *EmbeddingRequest) (*EmbeddingResponse, error) {
+	if c == nil {
+		return nil, fmt.Errorf("client is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if req == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := c.baseURL + "/embedding"
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request to %q: %w", url, err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body from %q: %w", url, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("API request to %q failed with status %d: %s", url, resp.StatusCode, string(bodyBytes))
+	}
+
+	// llama.cpp can return multiple formats:
+	// 1. Nested array: [[0.1, 0.2, ...]]
+	// 2. Simple array: [0.1, 0.2, ...]
+	// 3. Object: {"embedding": [0.1, 0.2, ...], "model": "..."}
+
+	// Try nested array first (most common format from llama.cpp)
+	var nestedEmbedding [][]float64
+	if err := json.Unmarshal(bodyBytes, &nestedEmbedding); err == nil && len(nestedEmbedding) > 0 {
+		return &EmbeddingResponse{
+			Embedding: nestedEmbedding[0],
+		}, nil
+	}
+
+	// Try simple array
+	var embedding []float64
+	if err := json.Unmarshal(bodyBytes, &embedding); err == nil {
+		return &EmbeddingResponse{
+			Embedding: embedding,
+		}, nil
+	}
+
+	// Finally, try object format
+	var embeddingResp EmbeddingResponse
+	if err := json.Unmarshal(bodyBytes, &embeddingResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response from %q: %w", url, err)
+	}
+
+	return &embeddingResp, nil
+}
+
+// EmbeddingBatch generates embedding vectors for multiple texts in a single request.
+// Returns a slice of embeddings in the same order as input texts.
+func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput bool) ([][]float64, error) {
+	if c == nil {
+		return nil, fmt.Errorf("client is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if len(texts) == 0 {
+		return [][]float64{}, nil
+	}
+
+	req := &EmbeddingRequest{
+		Content:    texts,
+		NormOutput: normOutput,
+	}
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := c.baseURL + "/embedding"
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request to %q: %w", url, err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body from %q: %w", url, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("API request to %q failed with status %d: %s", url, resp.StatusCode, string(bodyBytes))
+	}
+
+	// Parse batch response: array of {index, embedding: [[...]]}
+	var batchItems []EmbeddingBatchItem
+	if err := json.Unmarshal(bodyBytes, &batchItems); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal batch response from %q: %w", url, err)
+	}
+
+	// Extract embeddings and sort by index to match input order
+	results := make([][]float64, len(texts))
+	for _, item := range batchItems {
+		if item.Index < 0 || item.Index >= len(texts) {
+			return nil, fmt.Errorf("invalid index %d in batch response (expected 0-%d)", item.Index, len(texts)-1)
+		}
+		if len(item.Embedding) == 0 {
+			return nil, fmt.Errorf("empty embedding for index %d", item.Index)
+		}
+		// Extract first (and only) embedding from nested array
+		results[item.Index] = item.Embedding[0]
+	}
+
+	return results, nil
 }

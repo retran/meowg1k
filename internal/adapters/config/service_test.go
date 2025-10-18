@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -648,5 +649,338 @@ func TestNewServiceWithInvalidYAMLInWorkspaceConfig(t *testing.T) {
 	_, err = NewService(commandSvc, workspaceResolver)
 	if err == nil {
 		t.Error("Expected error when workspace config has invalid YAML")
+	}
+}
+
+func TestNewServiceWithNilFilePathResolver(t *testing.T) {
+	_, err := NewService(nil, &mockWorkspaceDirResolver{})
+	if err == nil {
+		t.Error("Expected error when file path resolver is nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "config path resolver is nil") {
+		t.Errorf("Expected error about nil resolver, got: %v", err)
+	}
+}
+
+func TestNewServiceWithNilWorkspaceDirResolver(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	_, err = NewService(commandSvc, nil)
+	if err == nil {
+		t.Error("Expected error when workspace dir resolver is nil")
+	}
+	if err != nil && !strings.Contains(err.Error(), "workspace dir resolver is nil") {
+		t.Errorf("Expected error about nil resolver, got: %v", err)
+	}
+}
+
+func TestServiceGetWithNilService(t *testing.T) {
+	var service *Service
+	_, err := service.Get()
+	if err == nil {
+		t.Error("Expected error when calling Get on nil service")
+	}
+	if err != nil && !strings.Contains(err.Error(), "config service is nil") {
+		t.Errorf("Expected error about nil service, got: %v", err)
+	}
+}
+
+func TestNewServiceWithWorkspaceDirResolverError(t *testing.T) {
+	// Save original environment variables
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	// Create a valid user config so we don't fail on missing config
+	tempDir := t.TempDir()
+	userDir := filepath.Join(tempDir, "meowg1k")
+	os.MkdirAll(userDir, 0o755)
+	userPath := filepath.Join(userDir, "config.yaml")
+	userContent := `models:
+  test:
+    provider: "test"
+profiles:
+  test:
+    model: "test"
+`
+	os.WriteFile(userPath, []byte(userContent), 0o644)
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
+	os.Setenv("HOME", "")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	// Create workspace resolver that returns an error
+	workspaceResolver := &mockWorkspaceDirResolver{
+		dir: "",
+		err: errors.New("workspace resolver error"),
+	}
+
+	_, err = NewService(commandSvc, workspaceResolver)
+	if err == nil {
+		t.Error("Expected error when workspace resolver returns error")
+	}
+	if err != nil && !strings.Contains(err.Error(), "failed to get workspace directory") {
+		t.Errorf("Expected workspace directory error, got: %v", err)
+	}
+}
+
+func TestNewServiceWithYMLExtension(t *testing.T) {
+	// Test that .yml extension is also recognized (not just .yaml)
+
+	// Save original environment variables
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	// Create temporary directory with .yml config file
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "meowg1k")
+	os.MkdirAll(configDir, 0o755)
+
+	// Use .yml extension instead of .yaml
+	configPath := filepath.Join(configDir, "config.yml")
+	configContent := `models:
+  yml-test:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+profiles:
+  yml:
+    model: "yml-test"
+generate:
+  default:
+    profile: "yml"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
+	os.Setenv("HOME", "")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
+	if err != nil {
+		t.Fatalf("NewService failed with .yml extension: %v", err)
+	}
+
+	config, err := configSvc.Get()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	if config.Profiles["yml"].Model != "yml-test" {
+		t.Errorf("Failed to load config with .yml extension")
+	}
+}
+
+func TestNewServiceConfigPrecedence(t *testing.T) {
+	// Test that config file specified via flag takes precedence over default locations
+
+	// Save original environment variables
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	tempDir := t.TempDir()
+
+	// Create user config
+	userDir := filepath.Join(tempDir, "user", "meowg1k")
+	os.MkdirAll(userDir, 0o755)
+	userPath := filepath.Join(userDir, "config.yaml")
+	userContent := `models:
+  user-model:
+    provider: "openai"
+    model: "gpt-3.5"
+profiles:
+  default:
+    model: "user-model"
+    temperature: 0.5
+`
+	os.WriteFile(userPath, []byte(userContent), 0o644)
+
+	// Create flag-specified config with override
+	flagPath := filepath.Join(tempDir, "flag-config.yaml")
+	flagContent := `profiles:
+  default:
+    # Override temperature from user config
+    temperature: 0.9
+  flag-profile:
+    model: "user-model"
+    temperature: 0.7
+`
+	os.WriteFile(flagPath, []byte(flagContent), 0o644)
+
+	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
+	os.Setenv("HOME", "")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().Set("config", flagPath)
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	config, err := configSvc.Get()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	// Check that flag config overrode user config
+	if config.Profiles["default"].Temperature == nil || *config.Profiles["default"].Temperature != 0.9 {
+		t.Errorf("Expected temperature 0.9 from flag config, got %v", config.Profiles["default"].Temperature)
+	}
+
+	// Check that flag config added new profile
+	if _, exists := config.Profiles["flag-profile"]; !exists {
+		t.Error("Flag profile should exist")
+	}
+
+	// Check that user config model is still there (merged, not replaced)
+	if config.Profiles["default"].Model != "user-model" {
+		t.Error("Model from user config should still be present")
+	}
+}
+
+func TestNewServiceEmptyWorkspaceDir(t *testing.T) {
+	// Test that empty workspace dir doesn't cause issues
+
+	// Save original environment variables
+	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
+	originalHome := os.Getenv("HOME")
+
+	defer func() {
+		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
+		os.Setenv("HOME", originalHome)
+	}()
+
+	// Create user config
+	tempDir := t.TempDir()
+	userDir := filepath.Join(tempDir, "meowg1k")
+	os.MkdirAll(userDir, 0o755)
+	userPath := filepath.Join(userDir, "config.yaml")
+	userContent := `models:
+  test:
+    provider: "test"
+profiles:
+  test:
+    model: "test"
+`
+	os.WriteFile(userPath, []byte(userContent), 0o644)
+	os.Setenv("XDG_CONFIG_HOME", tempDir)
+	os.Setenv("HOME", "")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	// Empty workspace dir should not cause error
+	workspaceResolver := &mockWorkspaceDirResolver{dir: ""}
+
+	configSvc, err := NewService(commandSvc, workspaceResolver)
+	if err != nil {
+		t.Fatalf("NewService should not fail with empty workspace dir: %v", err)
+	}
+
+	config, err := configSvc.Get()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	if config.Profiles["test"].Model != "test" {
+		t.Error("Should load user config even with empty workspace dir")
+	}
+}
+
+func TestNewServiceGetCalledMultipleTimes(t *testing.T) {
+	// Test that Get() can be called multiple times and returns the same config
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "test-config.yaml")
+	configContent := `models:
+  test:
+    provider: "test"
+profiles:
+  test:
+    model: "test"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().Set("config", configPath)
+
+	commandSvc, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	// Call Get multiple times
+	config1, err1 := configSvc.Get()
+	config2, err2 := configSvc.Get()
+	config3, err3 := configSvc.Get()
+
+	if err1 != nil || err2 != nil || err3 != nil {
+		t.Fatalf("Get should not fail: %v, %v, %v", err1, err2, err3)
+	}
+
+	// All should return the same config instance
+	if config1 != config2 || config2 != config3 {
+		t.Error("Get should return the same config instance on multiple calls")
+	}
+
+	// Verify config content
+	if config1.Profiles["test"].Model != "test" {
+		t.Error("Config should have test profile")
 	}
 }

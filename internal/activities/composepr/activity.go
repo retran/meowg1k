@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package composepr provides the activity for composing Pull Request descriptions using summarized changes.
+// Package composepr implements an activity that generates pull request descriptions using an LLM.
 package composepr
 
 import (

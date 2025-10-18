@@ -29,7 +29,6 @@ coverage.html
 /*.iml
 *.swp
 *~
-*~
 *.sublime-workspace
 *.sublime-project
 
@@ -44,6 +43,7 @@ temp/
 
 # Trace logs
 .meowg1k/logs/
+.meowg1k/project.*
 
 .env
 .env.local

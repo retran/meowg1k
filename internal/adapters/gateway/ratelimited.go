@@ -20,18 +20,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/core/ratelimit"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
-// rateLimitedGenerationGateway wraps a ports.GenerationGateway with rate limiting.
 type rateLimitedGenerationGateway struct {
 	gateway ports.GenerationGateway
 	limiter ratelimit.Limiter
 }
 
-// newRateLimitedGenerationGateway creates a new rate-limited generation
 func newRateLimitedGenerationGateway(gateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
 	return &rateLimitedGenerationGateway{
 		gateway: gateway,
@@ -39,7 +37,6 @@ func newRateLimitedGenerationGateway(gateway ports.GenerationGateway, limiter ra
 	}
 }
 
-// GenerateContent implements GenerationGateway with rate limiting.
 func (g *rateLimitedGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
@@ -65,14 +62,11 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 	return g.gateway.GenerateContent(ctx, request)
 }
 
-// estimateTokenCount provides a rough estimate of token count.
-// Typically ~4 characters per token for English text.
 func estimateTokenCount(text string) int {
 	// TODO implement precise token counting
 	return len(text) / 4
 }
 
-// rateLimitedEmbeddingsGateway wraps an ports.EmbeddingsGateway with rate limiting.
 type rateLimitedEmbeddingsGateway struct {
 	gateway ports.EmbeddingsGateway
 	limiter ratelimit.Limiter
@@ -86,7 +80,6 @@ func newRateLimitedEmbeddingsGateway(gateway ports.EmbeddingsGateway, limiter ra
 	}
 }
 
-// ComputeEmbeddings implements EmbeddingsGateway with rate limiting.
 func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	ctx context.Context,
 	request *gateway.ComputeEmbeddingsRequest,
@@ -117,7 +110,6 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 	return g.gateway.ComputeEmbeddings(ctx, request)
 }
 
-// ComputeDistance implements EmbeddingsGateway by delegating to the wrapped gateway.
 func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second gateway.Embedding) (float64, error) {
 	if g == nil {
 		return 0, fmt.Errorf("rate limited embeddings gateway is nil")

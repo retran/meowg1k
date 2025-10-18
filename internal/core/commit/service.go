@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package commit provides adapters for commit command configuration resolution.
+// Package commit provides services for composing commit messages from file changes.
 package commit
 
 import (

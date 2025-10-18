@@ -35,11 +35,13 @@ type TraceLogger interface {
 type Orchestrator struct {
 	outputSink  OutputSink
 	traceLogger TraceLogger
+	concurrency int
 }
 
 // NewOrchestrator creates a new FlowRunner with the given container.
 // traceLogger can be nil if trace logging is not needed.
-func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger) (*Orchestrator, error) {
+// concurrency limits the number of concurrent activities (0 means no limit).
+func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger, concurrency int) (*Orchestrator, error) {
 	if outputSink == nil {
 		return nil, fmt.Errorf("flusher is nil")
 	}
@@ -47,6 +49,7 @@ func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger) (*Orchestra
 	return &Orchestrator{
 		outputSink:  outputSink,
 		traceLogger: traceLogger,
+		concurrency: concurrency,
 	}, nil
 }
 
@@ -70,7 +73,7 @@ func (o *Orchestrator) Execute(
 		feedbackHandler = o.traceLogger.FeedbackHandler(feedbackHandler)
 	}
 
-	exec := NewExecutor().
+	exec := NewExecutor(o.concurrency).
 		WithRetryPolicy(DefaultRetryPolicy()).
 		WithFeedbackHandler(feedbackHandler)
 

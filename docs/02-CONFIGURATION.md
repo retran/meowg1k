@@ -4,7 +4,6 @@
 
 This guide covers everything from setting your API keys to creating complex, rule-based workflows.
 
-
 ## 1. Setting API Keys
 
 The primary way to provide API keys to `meowg1k` is through environment variables. The tool automatically looks for variables based on the provider you choose.
@@ -23,7 +22,6 @@ export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 > **Note:** You can specify a custom environment variable name within a profile using the `apiKeyEnv` field if needed.
-
 
 ## 2. Configuration File Hierarchy
 
@@ -90,7 +88,6 @@ This is useful when:
 
 > **Note:** The workspace root is detected independently of configuration loading. Even when using the `--config` flag to specify an explicit configuration file, the workspace root is still determined and used for other operations. Use `--workspace` to explicitly set the workspace root when automatic detection is not suitable.
 
-
 ## 3. Configuration File Structure
 
 The `config.yaml` file has several top-level sections that control different aspects of the tool.
@@ -116,15 +113,15 @@ models:
   local-dev:
     provider: "llama"
     baseURL: "http://localhost:8080" # Required for local models
-    apiKeyEnv: "MY_LOCAL_API_KEY"    # Optional: specify a custom env var
+    apiKeyEnv: "MY_LOCAL_API_KEY" # Optional: specify a custom env var
 
   # A model with rate limiting to control costs
   openai-cost-controlled:
     provider: "openai"
     model: "gpt-4o"
     rateLimit:
-      requestsPerMinute: 20  # Max 20 requests per minute (0 = unlimited)
-      requestsPerDay: 500    # Max 500 requests per day
+      requestsPerMinute: 20 # Max 20 requests per minute (0 = unlimited)
+      requestsPerDay: 500 # Max 500 requests per day
       tokensPerMinute: 40000 # Max 40k tokens (input + output) per minute
 ```
 
@@ -132,7 +129,7 @@ models:
 
 Profiles define a reusable set of parameters for an LLM request, such as timeout, temperature, and sampling parameters. Each profile must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
 
-```yaml
+````yaml
 profiles:
   # A profile for fast, general tasks
   fast:
@@ -156,39 +153,39 @@ profiles:
     model: "claude-sonnet"
     temperature: 0.1
     maxTokens: 2048
-    seed: 42  # For reproducible results
-    stop: ["```", "END"]  # Stop at code blocks or END marker
+    seed: 42 # For reproducible results
+    stop: ["```", "END"] # Stop at code blocks or END marker
 
   # A profile to reduce repetition
   no-repeat:
     model: "gpt-4"
     temperature: 0.5
-    frequencyPenalty: 0.8  # Discourage repeating tokens
-    presencePenalty: 0.6   # Encourage topic diversity
+    frequencyPenalty: 0.8 # Discourage repeating tokens
+    presencePenalty: 0.6 # Encourage topic diversity
 
   # A profile for JSON structured output
   json-output:
     model: "gpt-4"
-    responseFormat: "json_object"  # Force JSON output
+    responseFormat: "json_object" # Force JSON output
     temperature: 0.3
 
   # A profile for OpenRouter with advanced sampling
   openrouter-creative:
     model: "openrouter-model"
     temperature: 0.9
-    repetitionPenalty: 1.1  # OpenRouter-specific
-    minP: 0.05              # OpenRouter-specific
-    topA: 0.2               # OpenRouter-specific
+    repetitionPenalty: 1.1 # OpenRouter-specific
+    minP: 0.05 # OpenRouter-specific
+    topA: 0.2 # OpenRouter-specific
 
   # A profile for llama.cpp with Mirostat
   local-mirostat:
     model: "local-dev"
     temperature: 0.7
-    mirostat: 2          # Enable Mirostat v2
-    mirostatTau: 5.0     # Target entropy
-    mirostatEta: 0.1     # Learning rate
-    typicalP: 0.95       # Typical sampling
-```
+    mirostat: 2 # Enable Mirostat v2
+    mirostatTau: 5.0 # Target entropy
+    mirostatEta: 0.1 # Learning rate
+    typicalP: 0.95 # Typical sampling
+````
 
 #### Profile Parameters
 
@@ -238,7 +235,6 @@ profiles:
 
 ##### Logging and Analysis Parameters
 
-
 - **`logProbs`** (optional): Enable returning log probabilities of output tokens (boolean). Supported by OpenAI, Gemini, and Llama.cpp.
 - **`topLogProbs`** (optional): Number of top log probabilities to return per token (0-20). Only used when `logProbs` is true.
 - **`logitBias`** (optional): Map of token IDs to bias values (-100 to 100) to modify likelihood of specific tokens. Supported by OpenAI and Llama.cpp.
@@ -254,32 +250,32 @@ profiles:
 
 **Note:** The availability and exact behavior of parameters may vary by provider:
 
-| Parameter | Gemini | Anthropic | OpenAI | OpenRouter | Llama.cpp |
-|-----------|--------|-----------|--------|------------|-----------|
-| `temperature` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `topP` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `topK` | ✅ | ✅ | ❌ | ✅ | ✅ |
-| `maxTokens` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `frequencyPenalty` | ✅ | ❌ | ✅ | ✅ | ✅ |
-| `presencePenalty` | ✅ | ❌ | ✅ | ✅ | ✅ |
-| `repetitionPenalty` | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `seed` | ✅ | ❌ | ✅ | ✅ | ✅ |
-| `stop` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `responseFormat` | ✅ | ❌ | ✅ | ✅ | ❌ |
-| `responseSchema` | ✅ | ❌ | ✅ | ✅ | ❌ |
-| `candidateCount` | ✅ | ❌ | ✅ (as `n`) | ✅ | ❌ |
-| `logProbs` | ✅ | ❌ | ✅ | ✅ | ✅ |
-| `topLogProbs` | ✅ | ❌ | ✅ | ✅ | ❌ |
-| `logitBias` | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `serviceTier` | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `user` | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `minP` | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `topA` | ❌ | ❌ | ❌ | ✅ | ❌ |
-| `typicalP` | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `mirostat` | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `mirostatTau` | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `mirostatEta` | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `grammar` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Parameter           | Gemini | Anthropic | OpenAI      | OpenRouter | Llama.cpp |
+| ------------------- | ------ | --------- | ----------- | ---------- | --------- |
+| `temperature`       | ✅     | ✅        | ✅          | ✅         | ✅        |
+| `topP`              | ✅     | ✅        | ✅          | ✅         | ✅        |
+| `topK`              | ✅     | ✅        | ❌          | ✅         | ✅        |
+| `maxTokens`         | ✅     | ✅        | ✅          | ✅         | ✅        |
+| `frequencyPenalty`  | ✅     | ❌        | ✅          | ✅         | ✅        |
+| `presencePenalty`   | ✅     | ❌        | ✅          | ✅         | ✅        |
+| `repetitionPenalty` | ❌     | ❌        | ❌          | ✅         | ✅        |
+| `seed`              | ✅     | ❌        | ✅          | ✅         | ✅        |
+| `stop`              | ✅     | ✅        | ✅          | ✅         | ✅        |
+| `responseFormat`    | ✅     | ❌        | ✅          | ✅         | ❌        |
+| `responseSchema`    | ✅     | ❌        | ✅          | ✅         | ❌        |
+| `candidateCount`    | ✅     | ❌        | ✅ (as `n`) | ✅         | ❌        |
+| `logProbs`          | ✅     | ❌        | ✅          | ✅         | ✅        |
+| `topLogProbs`       | ✅     | ❌        | ✅          | ✅         | ❌        |
+| `logitBias`         | ❌     | ❌        | ✅          | ✅         | ✅        |
+| `serviceTier`       | ❌     | ❌        | ✅          | ❌         | ❌        |
+| `user`              | ❌     | ❌        | ✅          | ❌         | ❌        |
+| `minP`              | ❌     | ❌        | ❌          | ✅         | ✅        |
+| `topA`              | ❌     | ❌        | ❌          | ✅         | ❌        |
+| `typicalP`          | ❌     | ❌        | ❌          | ❌         | ✅        |
+| `mirostat`          | ❌     | ❌        | ❌          | ❌         | ✅        |
+| `mirostatTau`       | ❌     | ❌        | ❌          | ❌         | ✅        |
+| `mirostatEta`       | ❌     | ❌        | ❌          | ❌         | ✅        |
+| `grammar`           | ❌     | ❌        | ❌          | ❌         | ✅        |
 
 ### `cache`
 
@@ -384,7 +380,7 @@ generate:
 
 commit:
   profile: "smart"
-  strategy: "summarize"  # Optional: "summarize" (default) or "flat"
+  strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer reviewing code changes. Your task is to write a high-quality commit message in the Conventional Commits format based on the provided summaries of file changes.
 
@@ -397,7 +393,7 @@ commit:
 
 pullRequest:
   profile: "smart"
-  strategy: "summarize"  # Optional: "summarize" (default) or "flat"
+  strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer tasked with writing a Pull Request description. Based on the summaries of file changes, generate a complete PR description in Markdown format.
 
@@ -422,7 +418,6 @@ pullRequest:
     3. Check that `...` works as expected.
 ```
 
-
 ## 4. Supported Providers
 
 | Provider          | `provider` value    | Default Environment Variable     |
@@ -434,7 +429,6 @@ pullRequest:
 | Llama.cpp         | `llama`             | `MEOW_LLAMA_API_KEY` (optional)  |
 | OpenAI Compatible | `openai-compatible` | `MEOW_OPENAI_COMPATIBLE_API_KEY` |
 | Voyage AI         | `voyage`            | `MEOW_VOYAGE_API_KEY`            |
-
 
 ## 5. Complete Examples
 
@@ -519,6 +513,92 @@ pullRequest:
   profile: "smart"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
+
+### `index`
+
+The `index` section configures the document indexing process for RAG (Retrieval-Augmented Generation) and semantic search capabilities.
+
+```yaml
+index:
+  # Profile for computing embeddings (required)
+  # This profile must reference a model that supports embeddings
+  profile: "embeddings"
+
+  # Chunker configuration
+  chunker:
+    # Maximum number of Unicode runes per chunk
+    # Larger chunks = more context but fewer chunks
+    # Recommended range: 512-2048
+    maxRunes: 1024
+
+    # Number of runes to overlap between consecutive chunks
+    # Overlap ensures context continuity across chunk boundaries
+    # Recommended: 10-20% of maxRunes
+    overlapRunes: 128
+
+  # Number of chunks to process in one embedding API call
+  # Larger batches = faster indexing but higher memory usage
+  # Guidelines:
+  #   - Cloud APIs (Gemini, OpenAI): 32-100
+  #   - Local models (llama.cpp): 1-8
+  # Default: 32
+  batchSize: 64
+```
+
+**Chunking Strategy:**
+
+The chunker splits files into smaller pieces for embedding. The goal is to balance:
+
+- **Context preservation**: Chunks large enough to contain meaningful context
+- **Semantic coherence**: Each chunk represents a cohesive concept
+- **Search precision**: Smaller chunks = more precise matches
+
+**Recommended settings:**
+
+| Use Case      | maxRunes | overlapRunes |
+| ------------- | -------- | ------------ |
+| General code  | 1024     | 128          |
+| Documentation | 2048     | 256          |
+| Config files  | 512      | 64           |
+
+### `ask`
+
+The `ask` section configures the RAG-based question answering feature.
+
+```yaml
+ask:
+  # Profile for generating answers (required)
+  # This should reference a capable LLM model for reasoning
+  profile: "smart"
+
+  # Number of top chunks to retrieve for context
+  # More chunks = more context but slower and may introduce noise
+  # Recommended range: 3-10
+  topK: 5
+
+  # Minimum similarity score for retrieved chunks (0.0 to 1.0)
+  # Higher values = more relevant but fewer results
+  # Recommended range: 0.6-0.8
+  minScore: 0.7
+
+  # System prompt for answer generation
+  # Guides the LLM's behavior when answering questions
+  systemPrompt: >-
+    You are an expert AI assistant helping developers understand their codebase.
+    Answer questions based ONLY on the provided code context.
+    Be precise, concise, and reference specific code elements when relevant.
+    If the context doesn't contain enough information, clearly state that.
+```
+
+**Tuning Guidelines:**
+
+- **Broad questions** (e.g., "How does the system work?")
+  - Higher `topK` (10-20)
+  - Lower `minScore` (0.5-0.6)
+
+- **Specific questions** (e.g., "Where is the login function?")
+  - Lower `topK` (3-5)
+  - Higher `minScore` (0.7-0.8)
 
 ## Next Steps
 

@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package pullrequest provides a flow to compose a Pull Request description based on branch changes.
-package pr
+// Package pullrequest implements the workflow for generating pull request descriptions from branch changes.
+package pullrequest
 
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composeflatpr"
@@ -294,7 +295,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(prDescription); err != nil {
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(prDescription)); err != nil {
 			return fmt.Errorf("failed to print PR description: %w", err)
 		}
 

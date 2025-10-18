@@ -35,18 +35,18 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
+	"github.com/retran/meowg1k/internal/core/shutdown"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/cache"
-	"github.com/retran/meowg1k/pkg/ratelimit"
-	"github.com/retran/meowg1k/pkg/shutdown"
 )
 
 // testMockDBHost is a simple mock implementation for testing nil validation
 type testMockDBHost struct{}
 
-func (h *testMockDBHost) GetDB() (*sql.DB, error) {
+func (h *testMockDBHost) GetMainDB() (*sql.DB, error) {
 	return nil, nil
 }
 
@@ -101,13 +101,8 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	mainDB, err := dbHost.GetDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get main database: %w", err)
-	}
-
-	rateLimitRepo := ratelimit.NewRepository(mainDB)
-	cacheRepo := cache.NewRepository(mainDB)
+	rateLimitRepo := ratelimit.NewRepository(dbHost)
+	cacheRepo := cache.NewRepository(dbHost)
 
 	if err := shutdownService.Register(func(ctx context.Context) error {
 		if dbHost != nil {

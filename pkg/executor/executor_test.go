@@ -71,7 +71,7 @@ func TestNoRetryPolicy(t *testing.T) {
 }
 
 func TestNewExecutor(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	if exec.RetryPolicy == nil {
 		t.Error("expected RetryPolicy to be set")
 	}
@@ -81,7 +81,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestWithRetryPolicy(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	policy := NoRetryPolicy()
 	result := exec.WithRetryPolicy(&policy)
 	if result != exec {
@@ -93,7 +93,7 @@ func TestWithRetryPolicy(t *testing.T) {
 }
 
 func TestWithFeedbackHandler(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	handler := func(f *Feedback) {}
 	result := exec.WithFeedbackHandler(handler)
 	if result != exec {
@@ -105,7 +105,7 @@ func TestWithFeedbackHandler(t *testing.T) {
 }
 
 func TestRunFlow(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := context.Background()
 
 	flow := func(ctx context.Context, activityCtx *Context) error {
@@ -119,7 +119,7 @@ func TestRunFlow(t *testing.T) {
 }
 
 func TestRunFlowWithError(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := context.Background()
 
 	flow := func(ctx context.Context, activityCtx *Context) error {
@@ -136,7 +136,7 @@ func TestRunFlowWithError(t *testing.T) {
 }
 
 func TestRunActivity(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := context.Background()
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
@@ -155,7 +155,7 @@ func TestRunActivity(t *testing.T) {
 }
 
 func TestRunActivityWithError(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := context.Background()
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, exec)
 
@@ -171,7 +171,7 @@ func TestRunActivityWithError(t *testing.T) {
 }
 
 func TestExecutorContext(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := NewContext("test", NoOpFeedbackHandler, exec)
 
 	if ctx.GetExecutor() != exec {
@@ -267,7 +267,7 @@ func TestFeedbackString(t *testing.T) {
 }
 
 func TestContextName(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := NewContext("test-activity", NoOpFeedbackHandler, exec)
 
 	if ctx.Name() != "test-activity" {
@@ -276,7 +276,7 @@ func TestContextName(t *testing.T) {
 }
 
 func TestExecutorContextSendFeedbackEdgeCases(t *testing.T) {
-	exec := NewExecutor()
+	exec := NewExecutor(0)
 	ctx := NewContext("test-activity", NoOpFeedbackHandler, exec)
 
 	// Test sending feedback with nil values (should not panic)
@@ -292,7 +292,7 @@ func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	exec := NewExecutor().WithFeedbackHandler(handler)
+	exec := NewExecutor(0).WithFeedbackHandler(handler)
 	ctx := NewContext("test-activity", handler, exec)
 
 	// Simulate a flow with retries
@@ -352,7 +352,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	executor := NewExecutor().WithFeedbackHandler(handler)
+	executor := NewExecutor(0).WithFeedbackHandler(handler)
 
 	// Define a complex activity that sends multiple feedback updates
 	complexActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
@@ -394,7 +394,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	executor := NewExecutor().WithFeedbackHandler(handler)
+	executor := NewExecutor(0).WithFeedbackHandler(handler)
 
 	// Define an activity that fails
 	failingActivity := func(ctx context.Context, executorCtx *Context, input any) (any, error) {
@@ -436,7 +436,7 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 		feedbackCalls = append(feedbackCalls, feedback)
 	}
 
-	executor := NewExecutor().WithFeedbackHandler(handler)
+	executor := NewExecutor(0).WithFeedbackHandler(handler)
 
 	// Define a simple activity
 	simpleActivity := func(ctx context.Context, executorCtx *Context, input string) (string, error) {
@@ -494,7 +494,7 @@ func TestExecutorContextWithNilHandler(t *testing.T) {
 }
 
 func TestExecutorWithTimeout(t *testing.T) {
-	executor := NewExecutor() // Uses NoOpFeedbackHandler by default
+	executor := NewExecutor(0) // Uses NoOpFeedbackHandler by default
 
 	// Define a slow activity
 	slowActivity := func(ctx context.Context, executorCtx *Context, input string) (string, error) {

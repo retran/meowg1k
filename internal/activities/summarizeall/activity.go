@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package summarizeall contains the parent activity to summarize changes for multiple files in parallel.
+// Package summarizeall implements a parent activity that summarizes changes for multiple files in parallel.
 package summarizeall
 
 import (
