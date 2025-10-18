@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package httpclient provides a configured HTTP client with custom transport settings and timeouts.
 package httpclient
 
 import (
@@ -86,6 +87,40 @@ func (s *Service) Get() *http.Client {
 		return http.DefaultClient
 	}
 	return s.client
+}
+
+// GetWithTimeout returns a new http.Client with custom timeout settings.
+// This is useful for operations that need different timeout characteristics
+// than the default client (e.g., longer timeouts for embedding batch processing).
+// The returned client shares the same connection pool as the base client.
+func (s *Service) GetWithTimeout(timeout time.Duration) *http.Client {
+	if s == nil {
+		return http.DefaultClient
+	}
+
+	baseTransport := s.client.Transport.(*http.Transport)
+
+	// Clone the transport with adjusted timeouts
+	transport := &http.Transport{
+		MaxIdleConns:          baseTransport.MaxIdleConns,
+		MaxIdleConnsPerHost:   baseTransport.MaxIdleConnsPerHost,
+		IdleConnTimeout:       baseTransport.IdleConnTimeout,
+		ForceAttemptHTTP2:     baseTransport.ForceAttemptHTTP2,
+		TLSHandshakeTimeout:   baseTransport.TLSHandshakeTimeout,
+		ExpectContinueTimeout: baseTransport.ExpectContinueTimeout,
+
+		// Use longer response header timeout to match the overall timeout
+		// This is critical for batch operations that may take a long time
+		ResponseHeaderTimeout: timeout,
+
+		// Reuse the same dialer
+		DialContext: baseTransport.DialContext,
+	}
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
 }
 
 // Close cleans up any resources held by the HTTP client.

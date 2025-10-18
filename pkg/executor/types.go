@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package executor provides the core components for running activities and flows.
 package executor
 
 import (

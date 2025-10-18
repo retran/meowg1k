@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package filter provides functionality to filter files based on configured ignore patterns.
+// Package filter provides services for filtering files based on include/exclude patterns and gitignore rules.
 package filter
 
 import (

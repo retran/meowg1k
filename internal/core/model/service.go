@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package model provides adapters for resolving and validating LLM model instances.
+// Package model provides services for managing LLM model configurations and their capabilities.
 package model
 
 import (

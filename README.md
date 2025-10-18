@@ -65,17 +65,16 @@ Fine-grained rate limiting and token caps prevent unexpected bills. Configure re
 
 Every aspect of behavior is defined in version-controlled YAML files. Share configurations across teams, reproduce workflows exactly, and audit every decision.
 
-### 🎯 **Intelligent Context Engineering**
+### 🎯 **RAG-Powered Code Understanding**
 
-Automatically enriches prompts with relevant context from your codebase. Future versions will include semantic search, RAG-powered completions, and workspace-aware analysis.
-
+Ask questions about your codebase using Retrieval-Augmented Generation. Semantic search finds relevant code using vector similarity, then LLMs provide context-aware answers grounded in your actual code.
 
 ## 📦 Installation
 
 ### ⚡ Quick Install
 
 ```bash
-# Using Go (requires Go 1.25.1+)
+# Using Go (requires Go 1.25.2+)
 go install github.com/retran/meowg1k@latest
 
 # Using Homebrew (macOS/Linux)
@@ -113,7 +112,6 @@ sudo rpm -i meowg1k_*.rpm
 
 > 📚 For detailed installation instructions, see the [**Installation Guide**](./docs/01-INSTALLATION.md)
 
-
 ## 🚀 Quick Start
 
 ### 1️⃣ Initialize Your Project
@@ -149,8 +147,16 @@ meow commit
 
 # Generate a Pull Request description
 meow pullrequest --base main
-```
 
+# Index your codebase for semantic search
+meow index
+
+# Search your code semantically
+meow query "authentication logic"
+
+# Ask questions about your codebase
+meow ask "How does error handling work in this project?"
+```
 
 ## 📖 Documentation
 
@@ -162,18 +168,19 @@ meow pullrequest --base main
 
 ### 📚 **Learn More**
 
-- [Examples & Recipes](./docs/04-EXAMPLES.md)
-- [Integrations Guide](./docs/05-INTEGRATIONS.md)
-- [Core Principles](./docs/06-PRINCIPLES.md)
+- [Code Generation and Automated Workflows](./docs/04-GENERATION-AND-WORKFLOWS.md)
+- [RAG and Code Search](./docs/05-RAG-AND-CODE-SEARCH.md)
+- [Examples & Recipes](./docs/06-EXAMPLES.md)
+- [Integrations Guide](./docs/07-INTEGRATIONS.md)
+- [Core Principles](./docs/08-PRINCIPLES.md)
 
 ### 🔧 **Support**
 
-- [FAQ](./docs/07-FAQ.md)
-- [Troubleshooting](./docs/08-TROUBLESHOOTING.md)
+- [FAQ](./docs/09-FAQ.md)
+- [Troubleshooting](./docs/10-TROUBLESHOOTING.md)
 - [Report Issues](https://github.com/retran/meowg1k/issues)
 
 For a complete overview, visit our [**Documentation Index**](./docs/README.md).
-
 
 ## 🤝 Contributing
 
@@ -183,7 +190,6 @@ We welcome contributions! Whether it's bug reports, feature requests, or code co
 - Follow our [**Code of Conduct**](./CODE_OF_CONDUCT.md)
 - Check the [**Project Roadmap**](./ROADMAP.md)
 
-
 ## 🔐 Security
 
 Security is a top priority. If you discover a security vulnerability:
@@ -191,7 +197,6 @@ Security is a top priority. If you discover a security vulnerability:
 1. **Do not** open a public issue
 2. Follow our [**Security Policy**](./SECURITY.md)
 3. Report privately to the maintainers
-
 
 ## 📄 License
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package workspace provides adapters for workspace directory management.
+// Package workspace provides services for resolving and managing the workspace directory path.
 package workspace
 
 import (

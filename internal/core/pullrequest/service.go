@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package pullrequest provides adapters for PR command configuration resolution.
+// Package pullrequest provides services for composing pull request descriptions from file changes.
 package pullrequest
 
 import (

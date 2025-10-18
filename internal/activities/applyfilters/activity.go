@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package applyfilters provides an activity to filter files based on ignore patterns.
+// Package applyfilters implements an activity that filters files based on include/exclude patterns.
 package applyfilters
 
 import (

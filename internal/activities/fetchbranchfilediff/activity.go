@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchbranchfilediff contains the activity to fetch the diff for a file in branch compared to target branch.
+// Package fetchbranchfilediff implements an activity that fetches the diff of a file between current branch and target branch.
 package fetchbranchfilediff
 
 import (

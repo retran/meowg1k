@@ -60,7 +60,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout), nil)
+			runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout), nil, 0)
 			if err != nil {
 				t.Fatalf("NewFlowRunner() returned error: %v", err)
 			}
@@ -77,7 +77,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 
 // mockOutputService is a mock implementation of output.Service for testing
 func TestNewFlowRunner(t *testing.T) {
-	runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout), nil)
+	runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout), nil, 0)
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestNewFlowRunner(t *testing.T) {
 }
 
 func TestNewFlowRunnerNil(t *testing.T) {
-	runner, err := NewOrchestrator(nil, nil)
+	runner, err := NewOrchestrator(nil, nil, 0)
 	if err == nil {
 		t.Error("Expected error when NewFlowRunner called with nil")
 	}
@@ -127,7 +127,7 @@ func TestFlowRunner_RunFlowWithFlushError(t *testing.T) {
 		flushError: context.Canceled,
 	}
 
-	runner, err := NewOrchestrator(mockOutput, nil)
+	runner, err := NewOrchestrator(mockOutput, nil, 0)
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 	// Create an output service for testing
 	mockOutput := output.NewService(domainOutput.Discard)
 
-	runner, err := NewOrchestrator(mockOutput, nil)
+	runner, err := NewOrchestrator(mockOutput, nil, 0)
 	if err != nil {
 		t.Fatalf("NewFlowRunner() returned error: %v", err)
 	}

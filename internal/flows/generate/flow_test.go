@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -286,4 +287,178 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFlowFactory_NewFlow_UserPromptError(t *testing.T) {
+	factory, _ := NewFlowFactory(
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockUserPromptProvider{err: errors.New("user prompt error")},
+		&mockSystemPromptProvider{},
+		&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+		&mockOutputWriter{},
+	)
+
+	ctx := context.Background()
+	flowCtx := executor.NewContext("test", nil, nil)
+
+	flow := factory.NewFlow()
+	err := flow(ctx, flowCtx)
+
+	if err == nil {
+		t.Fatal("expected error from user prompt provider")
+	}
+
+	if !strings.Contains(err.Error(), "failed to get user prompt") {
+		t.Errorf("expected error about user prompt, got: %v", err)
+	}
+}
+
+func TestFlowFactory_NewFlow_SystemPromptError(t *testing.T) {
+	factory, _ := NewFlowFactory(
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockUserPromptProvider{prompt: "test prompt"},
+		&mockSystemPromptProvider{err: errors.New("system prompt error")},
+		&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+		&mockOutputWriter{},
+	)
+
+	ctx := context.Background()
+	flowCtx := executor.NewContext("test", nil, nil)
+
+	flow := factory.NewFlow()
+	err := flow(ctx, flowCtx)
+
+	if err == nil {
+		t.Fatal("expected error from system prompt provider")
+	}
+
+	if !strings.Contains(err.Error(), "failed to get system prompt") {
+		t.Errorf("expected error about system prompt, got: %v", err)
+	}
+}
+
+func TestFlowFactory_NewFlow_ActivityExecutionError(t *testing.T) {
+	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
+		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+				return nil, errors.New("LLM invocation error")
+			}
+		},
+	}
+
+	factory, _ := NewFlowFactory(
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockUserPromptProvider{prompt: "test prompt"},
+		&mockSystemPromptProvider{prompt: "test system prompt"},
+		mockActivityFactory,
+		&mockOutputWriter{},
+	)
+
+	ctx := context.Background()
+	exec := executor.NewExecutor(1)
+	flowCtx := executor.NewContext("test", nil, exec)
+
+	flow := factory.NewFlow()
+	err := flow(ctx, flowCtx)
+
+	if err == nil {
+		t.Fatal("expected error from activity execution")
+	}
+
+	if !strings.Contains(err.Error(), "failed to execute \"InvokeLLM\" activity") {
+		t.Errorf("expected error about activity execution, got: %v", err)
+	}
+}
+
+func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
+	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
+		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+				return &invokellm.Output{Content: "Generated content"}, nil
+			}
+		},
+	}
+
+	mockWriter := &mockOutputWriterWithError{}
+
+	factory, _ := NewFlowFactory(
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockUserPromptProvider{prompt: "test prompt"},
+		&mockSystemPromptProvider{prompt: "test system prompt"},
+		mockActivityFactory,
+		mockWriter,
+	)
+
+	ctx := context.Background()
+	exec := executor.NewExecutor(1)
+	flowCtx := executor.NewContext("test", nil, exec)
+
+	flow := factory.NewFlow()
+	err := flow(ctx, flowCtx)
+
+	if err == nil {
+		t.Fatal("expected error from output writer")
+	}
+
+	if !strings.Contains(err.Error(), "failed to print generated content") {
+		t.Errorf("expected error about printing content, got: %v", err)
+	}
+}
+
+func TestFlowFactory_NewFlow_Success(t *testing.T) {
+	testProfile := &profile.ResolvedProfile{Name: "test-profile"}
+
+	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
+		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+				// Verify input
+				if input.Profile.Name != "test-profile" {
+					return nil, errors.New("unexpected profile")
+				}
+				if input.UserPrompt != "user test prompt" {
+					return nil, errors.New("unexpected user prompt")
+				}
+				if input.SystemPrompt != "system test prompt" {
+					return nil, errors.New("unexpected system prompt")
+				}
+				return &invokellm.Output{Content: "  Generated content with whitespace  "}, nil
+			}
+		},
+	}
+
+	mockWriter := &mockOutputWriter{}
+
+	factory, _ := NewFlowFactory(
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: testProfile}},
+		&mockUserPromptProvider{prompt: "user test prompt"},
+		&mockSystemPromptProvider{prompt: "system test prompt"},
+		mockActivityFactory,
+		mockWriter,
+	)
+
+	ctx := context.Background()
+	exec := executor.NewExecutor(1)
+	flowCtx := executor.NewContext("test", nil, exec)
+
+	flow := factory.NewFlow()
+	err := flow(ctx, flowCtx)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(mockWriter.outputs) != 1 {
+		t.Fatalf("expected 1 output, got %d", len(mockWriter.outputs))
+	}
+
+	// Verify content is trimmed
+	if mockWriter.outputs[0] != "Generated content with whitespace" {
+		t.Errorf("expected 'Generated content with whitespace', got %q", mockWriter.outputs[0])
+	}
+}
+
+// Mock output writer that returns error
+type mockOutputWriterWithError struct{}
+
+func (m *mockOutputWriterWithError) PrintLine(line string) error {
+	return errors.New("output writer error")
 }

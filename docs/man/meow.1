@@ -25,6 +25,7 @@ Input can be provided via flags and/or piped through stdin. All behavior
 is controlled through version-controlled YAML configuration files.
 
 .SH COMMANDS
+.SS Code Generation Commands
 .TP
 .B init
 Initialize a new meowg1k project configuration by creating a
@@ -38,12 +39,31 @@ providers. Aliases: \fBgen\fR, \fBg\fR.
 .TP
 .B commit
 Generate commit messages based on staged changes or the difference between
-branches. Supports both regular commit mode (analyzing staged files) and
-squash commit mode (analyzing branch diffs). Alias: \fBc\fR.
+branches. Supports two strategies: \fBsummarize\fR (Map-Reduce for large
+commits) and \fBflat\fR (direct diff for small commits). Alias: \fBc\fR.
 .TP
 .B pullrequest
 Generate Pull Request title and description based on the difference between
-your current branch and a base branch. Alias: \fBpr\fR.
+your current branch and a base branch. Supports two strategies: \fBsummarize\fR
+and \fBflat\fR. Alias: \fBpr\fR.
+
+.SS RAG and Code Search Commands
+.TP
+.B index
+Index workspace files by computing embeddings and building vector indices for
+semantic search and RAG-based queries. Processes workdir, stage, and HEAD
+snapshots. Alias: \fBidx\fR.
+.TP
+.B query
+Search for code chunks similar to the query text using vector similarity
+(semantic search). Returns relevant code with similarity scores. Alias: \fBq\fR.
+.TP
+.B ask
+Ask a question about your codebase and get an AI-generated answer using
+Retrieval-Augmented Generation (RAG). Combines semantic search with LLM
+reasoning. Alias: \fBa\fR.
+
+.SS Utility Commands
 .TP
 .B version
 Show version information including build date and git commit hash.
@@ -66,6 +86,14 @@ environments.
 .BR \-\-silent
 Enable silent mode. Suppresses progress indicators and non-essential output.
 Ideal for scripting and CI/CD pipelines where only the final result is needed.
+.TP
+.BR \-\-no\-cache
+Disable LLM response caching for the current command. Overrides configuration
+cache settings.
+.TP
+.BR \-\-update\-cache
+Force a cache refresh by making a fresh request to the LLM and updating the
+cache entry with the new response.
 .TP
 .BR \-h , " \-\-help"
 Show help information for
@@ -150,10 +178,15 @@ Explicit config via \fB\-\-config\fR flag
 .PP
 The configuration file has several top-level sections:
 .TP
+.B models
+Model definitions including provider, connection details, and rate limits.
+.TP
 .B profiles
-Reusable provider configurations with model, timeout, rate limiting,
-.br
-and token caps.
+Reusable LLM request parameters referencing models, with timeout, temperature,
+and sampling settings.
+.TP
+.B cache
+Global caching configuration for LLM responses (TTL, enabled status).
 .TP
 .B filter
 Gitignore-style patterns to exclude files from analysis
@@ -161,7 +194,7 @@ Gitignore-style patterns to exclude files from analysis
 (for security and noise reduction).
 .TP
 .B summarize
-Map-phase configuration for commit and pr commands, with
+Map-phase configuration for commit and pullrequest commands, with
 .br
 rule-based file-specific settings.
 .TP
@@ -169,10 +202,24 @@ rule-based file-specific settings.
 Configuration for the generate command, including predefined tasks.
 .TP
 .B commit
-Reduce-phase configuration for generating commit messages.
+Reduce-phase configuration for generating commit messages. Supports
+.br
+\fBsummarize\fR and \fBflat\fR strategies.
 .TP
-.B pr
-Reduce-phase configuration for generating PR descriptions.
+.B pullRequest
+Reduce-phase configuration for generating PR descriptions. Supports
+.br
+\fBsummarize\fR and \fBflat\fR strategies.
+.TP
+.B index
+Configuration for indexing workspace files, including embedding profile,
+.br
+chunker settings, and batch size.
+.TP
+.B ask
+Configuration for RAG-based question answering, including retrieval
+.br
+parameters (topK, minScore) and answer generation profile.
 .PP
 See
 .BR meow\-config (5)
@@ -246,18 +293,58 @@ With developer intent:
 .B meow pullrequest \-b dev \-i "Add complete Stripe payment integration"
 .fi
 
+.SS RAG and Code Search
+Index your codebase:
+.PP
+.nf
+.B meow index
+.fi
+.PP
+Semantic code search:
+.PP
+.nf
+.B meow query "authentication middleware"
+.B meow query "error handling" \-\-top\-k 20 \-\-min\-score 0.5
+.fi
+.PP
+Ask questions about your codebase:
+.PP
+.nf
+.B meow ask "How does authentication work in this project?"
+.B meow ask "Where are the API routes defined?" \-\-show\-context
+.fi
+.PP
+Search specific snapshots:
+.PP
+.nf
+.B meow query "new feature" \-\-snapshots _workdir_
+.B meow ask "What changed?" \-s _workdir_,_stage_
+.fi
+
 .SS Project Configuration
 Create
 .B ./.meowg1k.yaml
 with custom profiles and tasks:
 .PP
 .nf
-profiles:
-  fast:
+models:
+  gemini-flash:
     provider: "gemini"
-  smart:
+    model: "gemini-2.5-flash"
+  claude-sonnet:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
+  gemini-embeddings:
+    provider: "gemini"
+    model: "text-embedding-004"
+
+profiles:
+  fast:
+    model: "gemini-flash"
+  smart:
+    model: "claude-sonnet"
+  embeddings:
+    model: "gemini-embeddings"
 
 generate:
   default:
@@ -269,9 +356,22 @@ generate:
 
 commit:
   profile: "smart"
+  strategy: "summarize"
 
-pr:
+pullRequest:
   profile: "smart"
+  strategy: "summarize"
+
+index:
+  profile: "embeddings"
+  chunker:
+    maxRunes: 1024
+    overlapRunes: 128
+
+ask:
+  profile: "smart"
+  topK: 5
+  minScore: 0.7
 .fi
 .PP
 Then use the configuration:
@@ -296,6 +396,10 @@ Directory containing trace logs for debugging and auditing. Each command
 execution creates a unique timestamped JSON Lines (.jsonl) file with
 detailed information about LLM API calls, execution events, and errors.
 Should be excluded from version control (already in .gitignore).
+.TP
+.B ./.meowg1k/meowg1k.db
+SQLite database storing indexed documents, embeddings, and vector indices
+for RAG functionality. Created automatically by the \fBindex\fR command.
 
 .SH DEBUGGING
 .B meow

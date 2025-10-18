@@ -82,7 +82,7 @@ func TestActivitySuccess(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -151,7 +151,7 @@ func TestActivity_SkippedSummaries(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -182,7 +182,7 @@ func TestActivity_EmptySummaries(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{

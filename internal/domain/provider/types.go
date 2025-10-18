@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package provider defines domain types for LLM provider configurations (OpenAI, Anthropic, Gemini, etc.).
 package provider
 
 import (

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package task provides functionality to resolve and validate task configurations.
+// Package task provides services for managing predefined tasks with prompts and configurations.
 package task
 
 import (

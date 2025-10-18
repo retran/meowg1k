@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package invokellm provides a reusable activity for invoking LLM to generate content.
+// Package invokellm implements an activity that invokes an LLM to generate text responses.
 package invokellm
 
 import (

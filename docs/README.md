@@ -4,20 +4,24 @@ This page provides a complete index of the `meowg1k` documentation.
 
 [Back to the main project README](../README.md)
 
-
 ## Getting Started
 
-- [01 - Installation Guide](./01-INSTALLATION.md)
-- [02 - Configuration Guide](./02-CONFIGURATION.md)
+- [01 - Installation Guide](./01-INSTALLATION.md) — Install meowg1k on your system
+- [02 - Configuration Guide](./02-CONFIGURATION.md) — Configure models, profiles, and features
+- [03 - Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for all commands
 
-## Guides & Usage
+## Core Features
 
-- [03 - Command Reference](./03-COMMAND-REFERENCE.md)
-- [04 - Examples & Recipes](./04-EXAMPLES.md)
-- [05 - Integrations Guide](./05-INTEGRATIONS.md)
+- [04 - Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Generate code, commit messages, and PR descriptions with AI
+- [05 - RAG and Code Search](./05-RAG-AND-CODE-SEARCH.md) — Semantic search and question answering with Retrieval-Augmented Generation
+- [06 - Examples & Recipes](./06-EXAMPLES.md) — Practical examples and workflows
+
+## Advanced Topics
+
+- [07 - Integrations Guide](./07-INTEGRATIONS.md) — Integrate meowg1k with your tools and workflows
+- [08 - Project Philosophy & Core Principles](./08-PRINCIPLES.md) — Design philosophy and architectural decisions
 
 ## Reference & Help
 
-- [06 - Project Philosophy & Core Principles](./06-PRINCIPLES.md)
-- [07 - Frequently Asked Questions (FAQ)](./07-FAQ.md)
-- [08 - Troubleshooting Guide](./08-TROUBLESHOOTING.md)
+- [09 - Frequently Asked Questions (FAQ)](./09-FAQ.md) — Common questions and answers
+- [10 - Troubleshooting Guide](./10-TROUBLESHOOTING.md) — Solutions for common issues
