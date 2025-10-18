@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package profile defines domain types for LLM provider profiles with rate limits and cost tracking.
 package profile
 
 import (

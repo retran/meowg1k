@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package prompt provides services for generating prompts from templates with variable substitution.
 package prompt
 
 import (

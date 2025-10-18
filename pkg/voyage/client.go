@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package voyage provides a client for interacting with the Voyage AI API.
+// Package voyage provides an HTTP client for the Voyage AI embedding API.
 package voyage
 
 import (

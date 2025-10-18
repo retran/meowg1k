@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package future provides a simple implementation of futures in Go.
+// Package future provides asynchronous computation primitives with support for chaining, error handling, and concurrent execution.
 package future
 
 import (

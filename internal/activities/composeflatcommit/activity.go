@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package composeflatcommit provides the activity for composing commit messages using the full diff.
+// Package composeflatcommit implements an activity that generates commit messages from a flat list of file changes.
 package composeflatcommit
 
 import (

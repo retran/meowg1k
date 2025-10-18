@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchfilediff contains the activity to fetch the diff for a staged file from a git repository.
+// Package fetchfilediff implements an activity that fetches the staged diff for a single file.
 package fetchfilediff
 
 import (

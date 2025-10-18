@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package summarize provides adapters for file summarization configuration and rule matching.
+// Package summarize provides services for generating summaries of file changes using LLMs.
 package summarize
 
 import (

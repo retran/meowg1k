@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package output defines domain types for output formatting and destinations.
 package output
 
 // Destination represents where the output should be sent.

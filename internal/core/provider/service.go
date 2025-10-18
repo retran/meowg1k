@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package provider implements a registry for LLM providers.
+// Package provider provides services for managing LLM provider configurations (OpenAI, Anthropic, Gemini, etc.).
 package provider
 
 import (

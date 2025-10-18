@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package command provides command context capabilities.
+// Package command provides services for accessing command-line flags and input streams.
 package command
 
 import (
@@ -219,4 +219,148 @@ func (s *Service) GetUpdateCacheFlag() (bool, error) {
 	}
 
 	return s.cmd.Flags().GetBool("update-cache")
+}
+
+// GetQueryTextFlag retrieves the query text from command arguments or stdin.
+func (s *Service) GetQueryTextFlag() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	// Try to get from arguments first
+	args := s.cmd.Flags().Args()
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	// Fall back to stdin
+	if s.stdin != "" {
+		return s.stdin, nil
+	}
+
+	return "", fmt.Errorf("query text is required (provide as argument or via stdin)")
+}
+
+// GetSnapshotsFlag retrieves the snapshots flag from command flags.
+func (s *Service) GetSnapshotsFlag() ([]string, error) {
+	if s == nil {
+		return nil, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return nil, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetStringSlice("snapshots")
+}
+
+// GetTopKFlag retrieves the top-k flag from command flags.
+func (s *Service) GetTopKFlag() (int, error) {
+	if s == nil {
+		return 0, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return 0, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetInt("top-k")
+}
+
+// GetMinScoreFlag retrieves the min-score flag from command flags.
+func (s *Service) GetMinScoreFlag() (float32, error) {
+	if s == nil {
+		return 0, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return 0, fmt.Errorf("command is nil")
+	}
+
+	val, err := s.cmd.Flags().GetFloat32("min-score")
+	if err != nil {
+		return 0, err
+	}
+
+	return val, nil
+}
+
+// GetJsonFlag retrieves the json flag from command flags.
+func (s *Service) GetJsonFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetBool("json")
+}
+
+// GetQuestionFlag retrieves the question from command arguments or stdin.
+func (s *Service) GetQuestionFlag() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	// Try to get from arguments first
+	args := s.cmd.Flags().Args()
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	// Fall back to stdin
+	if s.stdin != "" {
+		return s.stdin, nil
+	}
+
+	return "", fmt.Errorf("question is required (provide as argument or via stdin)")
+}
+
+// GetProfileFlag retrieves the profile flag from command flags.
+func (s *Service) GetProfileFlag() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetString("profile")
+}
+
+// GetShowContextFlag retrieves the show-context flag from command flags.
+func (s *Service) GetShowContextFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetBool("show-context")
+}
+
+// GetSystemPromptFlag retrieves the system-prompt flag from command flags.
+func (s *Service) GetSystemPromptFlag() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	return s.cmd.Flags().GetString("system-prompt")
 }

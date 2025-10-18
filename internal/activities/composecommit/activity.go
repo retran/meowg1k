@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package composecommit provides the activity for composing commit messages using summarized changes.
+// Package composecommit implements an activity that generates commit messages using an LLM.
 package composecommit
 
 import (

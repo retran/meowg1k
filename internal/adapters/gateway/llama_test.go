@@ -481,3 +481,159 @@ func TestLlamaGateway_InterfaceCompliance(t *testing.T) {
 	_, err = gateway.GenerateContent(ctx, request)
 	t.Logf("GenerateContent method exists and is callable: %v", err != nil)
 }
+
+func TestLlamaGateway_NilChecks(t *testing.T) {
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
+	if err != nil {
+		t.Skipf("Cannot create Llama gateway for nil checks: %v", err)
+		return
+	}
+
+	t.Run("Nil context", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		//nolint:staticcheck // intentionally testing nil context handling
+		_, err := gateway.GenerateContent(nil, request)
+		if err == nil {
+			t.Fatal("Expected error for nil context")
+		}
+		if !strings.Contains(err.Error(), "context cannot be nil") {
+			t.Errorf("Expected 'context cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil request", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, nil)
+		if err == nil {
+			t.Fatal("Expected error for nil request")
+		}
+		if !strings.Contains(err.Error(), "request cannot be nil") {
+			t.Errorf("Expected 'request cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil gateway", func(t *testing.T) {
+		var nilGateway *llamaGateway = nil
+		ctx := context.Background()
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		_, err := nilGateway.GenerateContent(ctx, request)
+		if err == nil {
+			t.Fatal("Expected error for nil gateway")
+		}
+		if !strings.Contains(err.Error(), "llama gateway is nil") {
+			t.Errorf("Expected 'llama gateway is nil' error, got: %v", err)
+		}
+	})
+}
+
+func TestLlamaGateway_WithGenerationParameters(t *testing.T) {
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", &http.Client{})
+	if err != nil {
+		t.Skipf("Cannot create Llama gateway for parameter testing: %v", err)
+		return
+	}
+
+	ctx := context.Background()
+
+	t.Run("With temperature", func(t *testing.T) {
+		temp := 0.7
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTemperature(&temp)
+
+		_, err := gateway.GenerateContent(ctx, request)
+		// Should not fail validation
+		if err != nil && strings.Contains(err.Error(), "cannot be nil") {
+			t.Error("Should not get validation error for valid request with temperature")
+		}
+	})
+
+	t.Run("With topP and topK", func(t *testing.T) {
+		topP := 0.9
+		topK := 40
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTopP(&topP).WithTopK(&topK)
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "cannot be nil") {
+			t.Error("Should not get validation error for valid request with topP/topK")
+		}
+	})
+
+	t.Run("With stop sequences", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithStop([]string{"END", "STOP", "\n\n"})
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "cannot be nil") {
+			t.Error("Should not get validation error for valid request with stop sequences")
+		}
+	})
+
+	t.Run("With all parameters", func(t *testing.T) {
+		temp := 0.8
+		topP := 0.95
+		topK := 50
+		fp := 0.5
+		pp := 0.6
+		rp := 1.1
+		minP := 0.05
+		seed := 42
+
+		request := domainGateway.NewGenerateContentRequest(
+			"llama2",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTemperature(&temp).
+			WithTopP(&topP).
+			WithTopK(&topK).
+			WithFrequencyPenalty(&fp).
+			WithPresencePenalty(&pp).
+			WithRepetitionPenalty(&rp).
+			WithMinP(&minP).
+			WithSeed(&seed).
+			WithStop([]string{"STOP"})
+
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "cannot be nil") {
+			t.Error("Should not get validation error for valid request with all parameters")
+		}
+	})
+}
+
+func TestNewLlamaGateway_NilHTTPClient(t *testing.T) {
+	gateway, err := newLlamaGateway("http://localhost:11434", "test-api-key", nil)
+	if err == nil {
+		t.Fatal("Expected error for nil HTTP client")
+	}
+	if gateway != nil {
+		t.Fatal("Expected gateway to be nil when error occurs")
+	}
+	if !strings.Contains(err.Error(), "HTTP client is required") {
+		t.Errorf("Expected 'HTTP client is required' in error, got: %v", err)
+	}
+}

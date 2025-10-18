@@ -1,0 +1,326 @@
+.\" docs/man/meow-index.1
+.TH MEOW-INDEX 1 "2025-10-15" "meowg1k" "User Commands"
+.SH NAME
+meow-index \- index workspace files for semantic search and RAG
+.SH SYNOPSIS
+.B meow index
+[\fIflags\fR]
+.br
+.B meow idx
+[\fIflags\fR]
+.SH DESCRIPTION
+.B meow index
+processes workspace files by computing embeddings and building vector indices
+for semantic search and Retrieval-Augmented Generation (RAG) capabilities.
+.PP
+The indexing process includes:
+.IP \[bu] 2
+Scanning three workspace snapshots: \fB_workdir_\fR (uncommitted changes),
+\fB_stage_\fR (staged for commit), and \fB_head_\fR (last commit)
+.IP \[bu]
+Deduplicating files based on content hashes to avoid reprocessing unchanged
+files
+.IP \[bu]
+Chunking new/modified files into smaller pieces with configurable overlap
+.IP \[bu]
+Computing embeddings in batches using the configured embedding model
+.IP \[bu]
+Saving document versions and chunks to SQLite database
+.IP \[bu]
+Building HNSW (Hierarchical Navigable Small World) vector indices for each
+snapshot to enable fast similarity search
+.PP
+The index is stored in \fB.meowg1k/meowg1k.db\fR within the workspace root.
+All index data is local and never leaves your machine unless you configure
+a cloud embedding provider.
+
+.SH OPTIONS
+.TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file.
+.TP
+.BR \-\-silent
+Enable silent mode for scripting. Suppresses progress output.
+.TP
+.BR \-h ", " \-\-help
+Show command help and usage information.
+
+.SH CONFIGURATION
+The command uses the
+.B index
+configuration section:
+.PP
+.nf
+index:
+  profile: "embeddings"  # Profile with embedding model
+
+  chunker:
+    maxRunes: 1024       # Maximum chunk size in Unicode runes
+    overlapRunes: 128    # Overlap between consecutive chunks
+
+  batchSize: 64          # Chunks per embedding API call
+.fi
+.PP
+The profile must reference a model that supports embeddings:
+.PP
+.nf
+models:
+  gemini-embeddings:
+    provider: "gemini"
+    model: "text-embedding-004"
+
+profiles:
+  embeddings:
+    model: "gemini-embeddings"
+.fi
+.PP
+Supported embedding providers:
+.IP \[bu] 2
+\fBGemini\fR: text-embedding-004 (768 dimensions, free)
+.IP \[bu]
+\fBOpenAI\fR: text-embedding-3-small, text-embedding-3-large
+.IP \[bu]
+\fBVoyage AI\fR: voyage-code-2 (optimized for code)
+.IP \[bu]
+\fBLlama.cpp\fR: Local models like nomic-embed-text-v1.5 (complete privacy)
+.PP
+Use
+.B filter
+section to exclude files from indexing:
+.PP
+.nf
+filter:
+  ignore:
+    - "node_modules/**"
+    - "vendor/**"
+    - "dist/**"
+    - "**/*.generated.go"
+    - "**/*.pb.go"
+.fi
+
+.SH CHUNKING STRATEGY
+Chunking splits files into smaller pieces for embedding. Configuration affects
+search quality:
+.PP
+.B Large chunks (maxRunes: 2048):
+.RS
+More context per result, fewer total chunks, faster indexing, less precise
+matching. Best for documentation and narrative text.
+.RE
+.PP
+.B Small chunks (maxRunes: 512):
+.RS
+More precise matching, more total chunks, slower indexing, less context per
+result. Best for finding specific functions and targeted searches.
+.RE
+.PP
+.B Recommended: maxRunes: 1024, overlapRunes: 128
+.RS
+Good balance for most codebases. The overlap ensures code spanning chunk
+boundaries doesn't get split awkwardly.
+.RE
+
+.SH SNAPSHOT SYSTEM
+The index maintains three snapshots of your workspace:
+.TP
+.B _head_
+Files as they exist in the last commit (HEAD). Represents committed code.
+.TP
+.B _stage_
+Files currently staged for commit (git add). Represents code about to be
+committed.
+.TP
+.B _workdir_
+Files in your working directory with uncommitted changes. Represents
+work-in-progress code.
+.PP
+This allows searching through historical code (HEAD), staged changes, and
+current work simultaneously. When searching with
+.BR meow-query (1)
+or
+.BR meow-ask (1),
+results from all three snapshots are merged and sorted by similarity.
+
+.SH DEDUPLICATION
+The indexer uses content-based deduplication to avoid reprocessing unchanged
+files:
+.IP "1." 3
+Compute SHA-256 hash of each file's content
+.IP "2."
+Check if document version with that hash exists in database
+.IP "3."
+If yes, reuse existing chunks and embeddings
+.IP "4."
+If no, chunk the file and compute new embeddings
+.PP
+This makes incremental indexing very fast\(emonly changed files are
+reprocessed.
+
+.SH EXAMPLES
+.SS Initial Indexing
+Index your codebase for the first time:
+.PP
+.nf
+.B cd /path/to/project
+.B meow index
+.fi
+.PP
+Progress output:
+.PP
+.nf
+▶ Starting index reconciliation
+  ▶ Scanning workspace state
+    ✓ Scanned workspace: 147 files
+  ▶ Deduplicating files
+    ✓ Prepared 147 files
+  ▶ Chunking 147 files
+    ✓ Chunked 147 files → 1,234 chunks
+  ▶ Computing embeddings: 1,234 chunks in 20 batches
+    ✓ Computed 1,234 embeddings
+  ▶ Building indices
+    ✓ Built index: _head_
+    ✓ Built index: _stage_
+    ✓ Built index: _workdir_
+✓ Index reconciliation complete
+.fi
+
+.SS Incremental Indexing
+After making changes, re-index to update:
+.PP
+.nf
+.B # Make code changes
+.B vim src/auth.go
+
+.B # Re-index (only changed files processed)
+.B meow index
+.fi
+.PP
+Progress output:
+.PP
+.nf
+▶ Starting index reconciliation
+  ▶ Scanning workspace state
+    ✓ Scanned workspace: 147 files
+  ▶ Deduplicating files
+    ✓ Prepared 1 files (146 cached)
+  ▶ Chunking 1 files
+    ✓ Chunked 1 files → 8 chunks
+  ▶ Computing embeddings: 8 chunks in 1 batches
+    ✓ Computed 8 embeddings
+  ...
+.fi
+
+.SS Silent Mode for Automation
+Index in CI/CD or Git hooks:
+.PP
+.nf
+.B meow index \-\-silent
+.fi
+
+.SS Using Local Embedding Model
+For complete privacy with llama.cpp:
+.PP
+.nf
+# Start llama.cpp server with embedding model
+.B llama-server -m nomic-embed-text-v1.5.Q4_K_M.gguf \\
+  --port 8080 --embeddings
+
+# Configure in .meowg1k.yaml:
+# models:
+#   local-embeddings:
+#     provider: "llama"
+#     model: "nomic-embed-text-v1.5"
+#     baseURL: "http://localhost:8080"
+# profiles:
+#   embeddings:
+#     model: "local-embeddings"
+# index:
+#   profile: "embeddings"
+#   batchSize: 1  # Process one chunk at a time for local
+
+# Index with local model
+.B meow index
+.fi
+
+.SH ENVIRONMENT
+Embedding providers use these environment variables for API keys:
+.TP
+.B MEOW_GEMINI_API_KEY
+API key for Gemini embedding models.
+.TP
+.B MEOW_OPENAI_API_KEY
+API key for OpenAI embedding models.
+.TP
+.B MEOW_VOYAGE_API_KEY
+API key for Voyage AI embedding models.
+.TP
+.B MEOW_LLAMA_API_KEY
+Optional API key for llama.cpp server.
+
+.SH FILES
+.TP
+.B ./.meowg1k/meowg1k.db
+SQLite database storing indexed documents, embeddings, and vector indices.
+Created automatically by this command.
+.TP
+.B ./.meowg1k.yaml
+Project-level configuration specifying embedding model and chunking parameters.
+
+.SH EXIT STATUS
+Returns 0 on success, non-zero on error.
+.PP
+Common errors:
+.IP \[bu] 2
+Embedding API authentication failure
+.IP \[bu]
+Rate limit exceeded
+.IP \[bu]
+Invalid configuration (missing profile or model)
+.IP \[bu]
+Insufficient disk space for index
+
+.SH BEST PRACTICES
+.TP
+.B Re-index regularly
+Run after pulling changes, switching branches, or making significant code
+changes. Consider automating with a post-checkout Git hook.
+.TP
+.B Use aggressive filters
+Exclude dependencies (node_modules, vendor), build artifacts (dist, target),
+generated code, and test fixtures. This reduces index size and improves
+search quality.
+.TP
+.B Tune chunking for your codebase
+Small files (<100 lines): use smaller chunks (512 runes).
+Large files (>1000 lines): use larger chunks (1536 runes).
+Documentation: use larger chunks (2048 runes).
+.TP
+.B Enable caching
+Cache embeddings to avoid recomputing for repeated indexing operations:
+.PP
+.nf
+profiles:
+  embeddings:
+    model: "gemini-embeddings"
+    cache:
+      enabled: true
+      ttl: "168h"  # 1 week
+.fi
+
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-query (1),
+.BR meow\-ask (1),
+.BR meow\-config (5)
+
+.SH AUTHORS
+Andrew Vasilyev <me@retran.me>
+
+.SH COPYRIGHT
+Copyright (c) 2025 Andrew Vasilyev.
+Licensed under the Apache License, Version 2.0.
+.PP
+Project page: https://github.com/retran/meowg1k

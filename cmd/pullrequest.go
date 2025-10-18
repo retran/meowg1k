@@ -18,6 +18,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 
@@ -49,10 +50,6 @@ You can provide your intent or context in two ways:
 
 The intent will be included in the prompt to help generate a more accurate PR description.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if cmd == nil {
-			return fmt.Errorf("command is nil")
-		}
-
 		ctx := cmd.Context()
 
 		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
@@ -65,7 +62,8 @@ The intent will be included in the prompt to help generate a more accurate PR de
 			return fmt.Errorf("failed to create pull request flow: %w", err)
 		}
 
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger)
+		concurrency := runtime.NumCPU() * 2
+		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
 		if err != nil {
 			return fmt.Errorf("failed to create flow runner: %w", err)
 		}

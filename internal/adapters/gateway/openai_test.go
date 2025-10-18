@@ -95,21 +95,21 @@ func handleOpenAIEmbeddings(w http.ResponseWriter, _ *http.Request) {
 
 func TestNewOpenAIGateway(t *testing.T) {
 	t.Run("with API key", func(t *testing.T) {
-		gateway := newOpenAIGateway("https://api.openai.com/v1", "test-api-key")
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "test-api-key", nil)
 		if gateway == nil {
 			t.Fatal("Expected gateway to be non-nil")
 		}
 	})
 
 	t.Run("without API key", func(t *testing.T) {
-		gateway := newOpenAIGateway("https://api.openai.com/v1", "")
+		gateway := newOpenAIGateway("https://api.openai.com/v1", "", nil)
 		if gateway == nil {
 			t.Fatal("Expected gateway to be non-nil even without API key")
 		}
 	})
 
 	t.Run("with custom base URL", func(t *testing.T) {
-		gateway := newOpenAIGateway("https://custom.example.com/v1", "test-key")
+		gateway := newOpenAIGateway("https://custom.example.com/v1", "test-key", nil)
 		if gateway == nil {
 			t.Fatal("Expected gateway to be non-nil with custom URL")
 		}
@@ -128,7 +128,7 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	}
 
 	// Create gateway
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
 
 	// Create test request
 	request := domainGateway.NewGenerateContentRequest(
@@ -167,7 +167,7 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
 
 	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -198,7 +198,7 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey)
+	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
 
 	// Create embeddings request
 	request := domainGateway.NewComputeEmbeddingsRequest(
@@ -243,7 +243,7 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 	}))
 	defer errorServer.Close()
 
-	gateway := newOpenAIGateway(errorServer.URL, "test-api-key")
+	gateway := newOpenAIGateway(errorServer.URL, "test-api-key", nil)
 
 	request := domainGateway.NewComputeEmbeddingsRequest(
 		"text-embedding-ada-002",
@@ -279,7 +279,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 	}))
 	defer emptyServer.Close()
 
-	gateway := newOpenAIGateway(emptyServer.URL, "test-api-key")
+	gateway := newOpenAIGateway(emptyServer.URL, "test-api-key", nil)
 
 	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -309,7 +309,7 @@ func TestOpenAIGatewayTimeout(t *testing.T) {
 	}))
 	defer slowServer.Close()
 
-	gateway := newOpenAIGateway(slowServer.URL, "test-api-key")
+	gateway := newOpenAIGateway(slowServer.URL, "test-api-key", nil)
 
 	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -334,7 +334,7 @@ func TestOpenAIGatewayComputeEmbeddingsWithDimensions(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	gateway := newOpenAIGateway(mockServer.URL, "test-api-key")
+	gateway := newOpenAIGateway(mockServer.URL, "test-api-key", nil)
 
 	// Create embeddings request with dimensions
 	request := domainGateway.NewComputeEmbeddingsRequestWithDimensions(
