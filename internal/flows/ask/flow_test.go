@@ -48,17 +48,17 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 
 // Mock command parameters reader
 type mockCommandParametersReader struct {
-	mu            sync.Mutex
-	question      string
-	questionErr   error
-	snapshots     []string
-	snapshotsErr  error
-	topK          int
-	topKErr       error
-	minScore      float32
-	minScoreErr   error
-	profile       string
-	profileErr    error
+	mu           sync.Mutex
+	question     string
+	questionErr  error
+	snapshots    []string
+	snapshotsErr error
+	topK         int
+	topKErr      error
+	minScore     float32
+	minScoreErr  error
+	profile      string
+	profileErr   error
 }
 
 func (m *mockCommandParametersReader) GetQuestionFlag() (string, error) {

@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/coder/hnsw"
+
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
@@ -183,7 +184,6 @@ func TestService_BuildAndSave_EmptySnapshot(t *testing.T) {
 
 	service := NewService(indexRepo, snapshotRepo, metaRepo)
 	err := service.BuildAndSave("test")
-
 	if err != nil {
 		t.Fatalf("expected no error for empty snapshot, got: %v", err)
 	}
@@ -288,7 +288,6 @@ func TestService_BuildAndSave_Success(t *testing.T) {
 
 	service := NewService(indexRepo, snapshotRepo, metaRepo)
 	err := service.BuildAndSave("test-snapshot")
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -389,7 +388,6 @@ func TestService_BuildAndSave_LargeNumberOfChunks(t *testing.T) {
 
 	service := NewService(indexRepo, snapshotRepo, metaRepo)
 	err := service.BuildAndSave("large-test")
-
 	if err != nil {
 		t.Fatalf("expected no error for large chunk set, got: %v", err)
 	}
@@ -446,7 +444,6 @@ func TestService_BuildAndSave_MultipleVersions(t *testing.T) {
 
 	service := NewService(indexRepo, snapshotRepo, metaRepo)
 	err := service.BuildAndSave("multi-version")
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -491,7 +488,6 @@ func TestService_BuildAndSave_EmbeddingConversion(t *testing.T) {
 
 	service := NewService(indexRepo, snapshotRepo, metaRepo)
 	err := service.BuildAndSave("conversion-test")
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

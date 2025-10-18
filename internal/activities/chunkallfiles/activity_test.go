@@ -142,7 +142,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activityFunc(ctx, executorCtx, input)
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity returned an unexpected error: %v", err)
@@ -202,7 +201,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activityFunc(ctx, executorCtx, input)
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity returned an unexpected error: %v", err)

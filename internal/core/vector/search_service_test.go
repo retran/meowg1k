@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/coder/hnsw"
+
 	"github.com/retran/meowg1k/internal/domain/gateway"
 )
 
@@ -145,7 +146,6 @@ func TestSearchService_Search(t *testing.T) {
 
 		queryEmbedding := gateway.Embedding{0.1, 0.2, 0.3}
 		results, err := service.Search(context.Background(), "test-snapshot", queryEmbedding, 5)
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -379,7 +379,6 @@ func TestSearchService_Search_Integration(t *testing.T) {
 
 		service, _ := NewSearchService(metaRepo)
 		results, err := service.Search(context.Background(), "snap", gateway.Embedding{0.5, 0.5, 0.5}, 10)
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}

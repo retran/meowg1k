@@ -442,7 +442,6 @@ func TestFlowFactory_NewFlow_Success(t *testing.T) {
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

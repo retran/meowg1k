@@ -146,7 +146,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activity(ctx, executorCtx, struct{}{})
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity failed: %v", err)
@@ -303,7 +302,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activity(ctx, executorCtx, struct{}{})
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity failed: %v", err)

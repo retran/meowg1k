@@ -112,7 +112,6 @@ func TestConfigService_Get(t *testing.T) {
 
 		service, _ := NewConfigService(configResolver, profileResolver)
 		cfg, err := service.Get()
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}

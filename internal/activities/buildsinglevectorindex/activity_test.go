@@ -80,7 +80,6 @@ func TestNewFactory(t *testing.T) {
 		mockSvc := newMockVectorIndexService()
 
 		factory, err := NewFactory(mockSvc)
-
 		if err != nil {
 			t.Fatalf("expected no error, but got: %v", err)
 		}
@@ -125,7 +124,6 @@ func TestActivity(t *testing.T) {
 		snapshotName := "test_snapshot_success"
 
 		result, err := activity(ctx, executorCtx, snapshotName)
-
 		if err != nil {
 			t.Fatalf("activity returned an unexpected error: %v", err)
 		}

@@ -98,7 +98,7 @@ func TestPlainTextStrategy_Chunk_MultipleParagraphs(t *testing.T) {
 
 func TestPlainTextStrategy_Chunk_LongParagraph(t *testing.T) {
 	strategy := NewPlainTextStrategy(50, 5)
-	
+
 	// Create a paragraph longer than maxChunkRunes
 	longParagraph := strings.Repeat("This is a long line. ", 10) // ~200 chars
 	content := []byte(longParagraph)
@@ -115,7 +115,7 @@ func TestPlainTextStrategy_Chunk_LongParagraph(t *testing.T) {
 
 func TestPlainTextStrategy_Chunk_VeryLongLine(t *testing.T) {
 	strategy := NewPlainTextStrategy(20, 2)
-	
+
 	// Create a line that needs to be split mid-line
 	veryLongLine := strings.Repeat("abcdefghij", 10) // 100 chars, no spaces
 	content := []byte(veryLongLine)
@@ -140,7 +140,7 @@ func TestPlainTextStrategy_Chunk_VeryLongLine(t *testing.T) {
 
 func TestPlainTextStrategy_Chunk_WithOverlap(t *testing.T) {
 	strategy := NewPlainTextStrategy(30, 5)
-	
+
 	// Create content that will be split into multiple chunks
 	content := []byte("Line 1 text here\n\nLine 2 text here\n\nLine 3 text here")
 
@@ -215,7 +215,7 @@ func TestPlainTextStrategy_Chunk_UnicodeContent(t *testing.T) {
 		}
 		return texts
 	}(), "")
-	
+
 	if !strings.Contains(allText, "世界") {
 		t.Error("Expected to find '世界' in chunks")
 	}
@@ -223,7 +223,7 @@ func TestPlainTextStrategy_Chunk_UnicodeContent(t *testing.T) {
 
 func TestPlainTextStrategy_Chunk_NewlineHandling(t *testing.T) {
 	strategy := NewPlainTextStrategy(100, 10)
-	
+
 	testCases := []struct {
 		name    string
 		content string
@@ -324,11 +324,11 @@ func TestPlainTextStrategy_CreateOverlap(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			overlapText, overlapRunes := strategy.createOverlap(tc.currentRunes, tc.currentText)
-			
+
 			if len(overlapRunes) != tc.expectedLen {
 				t.Errorf("Expected overlap length %d, got %d", tc.expectedLen, len(overlapRunes))
 			}
-			
+
 			if overlapText != string(overlapRunes) {
 				t.Error("Overlap text doesn't match overlap runes")
 			}
@@ -389,7 +389,7 @@ func TestPlainTextStrategy_Chunk_SingleWord(t *testing.T) {
 
 func TestPlainTextStrategy_Chunk_WhitespaceOnly(t *testing.T) {
 	strategy := NewPlainTextStrategy(100, 10)
-	
+
 	testCases := []struct {
 		name    string
 		content string

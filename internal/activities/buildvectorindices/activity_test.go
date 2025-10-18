@@ -130,7 +130,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		_, err := activity(ctx, executorCtx, struct{}{})
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity returned an unexpected error: %v", err)

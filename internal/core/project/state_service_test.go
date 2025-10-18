@@ -121,7 +121,6 @@ func TestStateService_GetHeadState(t *testing.T) {
 
 		service := NewStateService(gitSvc, filterSvc, workspaceSvc)
 		state, err := service.GetHeadState(context.Background())
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}

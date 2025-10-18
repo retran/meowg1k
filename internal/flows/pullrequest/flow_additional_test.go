@@ -466,7 +466,6 @@ func TestFactory_NewFlow_FlatStrategy_Success(t *testing.T) {
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -624,7 +623,6 @@ func TestFactory_NewFlow_SummarizeStrategy_Success(t *testing.T) {
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
-
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

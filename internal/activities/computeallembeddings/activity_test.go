@@ -119,9 +119,10 @@ func TestActivity(t *testing.T) {
 		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) *future.Future[any] {
 			f := future.NewFuture[any]()
 			output := &computeembeddingsbatch.Output{}
-			if activityID == "Batch_0-2" {
+			switch activityID {
+			case "Batch_0-2":
 				output.Embeddings = []gateway.Embedding{{1}, {2}}
-			} else if activityID == "Batch_2-3" {
+			case "Batch_2-3":
 				output.Embeddings = []gateway.Embedding{{3}}
 			}
 			f.Complete(output)
@@ -132,7 +133,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activity(ctx, executorCtx, input)
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity failed: %v", err)
@@ -165,7 +165,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activity(ctx, executorCtx, emptyInput)
-
 		// Assert
 		if err != nil {
 			t.Fatalf("activity failed: %v", err)
@@ -248,7 +247,6 @@ func TestActivity(t *testing.T) {
 
 		// Act
 		output, err := activity(ctx, executorCtx, input)
-
 		// Assert - currently the implementation doesn't validate per-batch counts
 		if err != nil {
 			t.Fatalf("activity failed: %v", err)

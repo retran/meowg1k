@@ -240,7 +240,6 @@ func TestService_Search(t *testing.T) {
 
 		ctx := context.Background()
 		results, err := service.Search(ctx, "test query", []string{"snapshot1"}, 5, 0.5)
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -414,7 +413,6 @@ func TestService_RetrieveContext(t *testing.T) {
 
 		ctx := context.Background()
 		contextStr, err := service.RetrieveContext(ctx, "test query", []string{"snapshot1"}, 5, 0.5)
-
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
