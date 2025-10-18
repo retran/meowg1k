@@ -356,6 +356,7 @@ func TestAnthropicGateway_NilChecks(t *testing.T) {
 			1000,
 		)
 
+		//nolint:staticcheck // intentionally testing nil context handling
 		_, err = gateway.GenerateContent(nil, request)
 		if err == nil {
 			t.Fatal("Expected error for nil context")

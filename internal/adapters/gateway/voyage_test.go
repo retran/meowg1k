@@ -408,6 +408,7 @@ func TestVoyageGateway_NilChecks(t *testing.T) {
 			domainGateway.RetrievalQuery,
 		)
 
+		//nolint:staticcheck // intentionally testing nil context handling
 		_, err := gateway.ComputeEmbeddings(nil, request)
 		if err == nil {
 			t.Fatal("Expected error for nil context")

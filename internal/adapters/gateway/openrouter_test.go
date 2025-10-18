@@ -91,6 +91,7 @@ func TestOpenRouterGateway_InterfaceCompliance(t *testing.T) {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
 
+	//nolint:staticcheck // explicit interface check for documentation
 	var _ ports.GenerationGateway = gateway
 	t.Log("OpenRouterGateway correctly implements GenerationGateway interface")
 }
@@ -182,6 +183,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		}
 
 		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System", "User", 1000)
+		//nolint:staticcheck // intentionally testing nil context handling
 		_, err = gateway.GenerateContent(nil, request)
 		if err == nil {
 			t.Fatal("Expected error for nil context")

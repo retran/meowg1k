@@ -151,6 +151,7 @@ func TestCachingEmbeddingsGateway_NilContext(t *testing.T) {
 
 	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
 
+	//nolint:staticcheck // intentionally testing nil context handling
 	result, err := gateway.ComputeEmbeddings(nil, request)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context cannot be nil")

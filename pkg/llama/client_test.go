@@ -652,6 +652,7 @@ func TestServiceImpl_EmbeddingNilContext(t *testing.T) {
 	require.NoError(t, err)
 
 	req := &EmbeddingRequest{Content: "Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
 	result, err := client.Embedding(nil, req)
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -894,6 +895,7 @@ func TestServiceImpl_EmbeddingBatchNilContext(t *testing.T) {
 	require.NoError(t, err)
 
 	texts := []string{"Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
 	result, err := client.EmbeddingBatch(nil, texts, false)
 	require.Error(t, err)
 	require.Nil(t, result)
@@ -998,6 +1000,7 @@ func TestServiceImpl_CompleteNilContext(t *testing.T) {
 	require.NoError(t, err)
 
 	req := &CompletionRequest{Prompt: "Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
 	result, err := client.Complete(nil, req)
 	require.Error(t, err)
 	require.Nil(t, result)

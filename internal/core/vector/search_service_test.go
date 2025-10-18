@@ -169,6 +169,7 @@ func TestSearchService_Search(t *testing.T) {
 	t.Run("Nil context", func(t *testing.T) {
 		service, _ := NewSearchService(&mockMetaRepository{})
 
+		//nolint:staticcheck // intentionally testing nil context handling
 		_, err := service.Search(nil, "snap", gateway.Embedding{0.1}, 5)
 		if err == nil {
 			t.Fatal("Expected error for nil context")
