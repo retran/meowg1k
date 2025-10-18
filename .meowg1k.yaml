@@ -11,15 +11,15 @@ models:
     provider: "gemini"
     model: "gemini-2.5-flash"
     rateLimit:
-      requestsPerMinute: 60
-      tokensPerMinute: 1000000
+      requestsPerMinute: 1000
+      tokensPerMinute: 2000000
       requestsPerDay: 10000
 
   gemini-pro:
     provider: "gemini"
     model: "gemini-2.5-pro"
     rateLimit:
-      requestsPerMinute: 60
+      requestsPerMinute: 150
       tokensPerMinute: 1000000
       requestsPerDay: 10000
 
