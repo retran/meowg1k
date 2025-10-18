@@ -2,7 +2,6 @@
 
 The `meowg1k` team takes security seriously. We appreciate the efforts of security researchers and the community to help us maintain a high standard of security.
 
-
 ## Philosophies
 
 Our security model is guided by our core principles:
@@ -11,11 +10,9 @@ Our security model is guided by our core principles:
 - **Security by Design:** We follow a "zero trust" model. The application never stores or persists user secrets like API keys. They are only held in memory for the duration of a request.
 - **Transparency:** Our entire software supply chain is open source. There are no proprietary black boxes.
 
-
 ## Supported Versions
 
 Only the latest major version of `meowg1k` receives security updates. Please ensure you are running the most recent release.
-
 
 ## Vulnerability Reporting
 
@@ -32,7 +29,6 @@ To report a vulnerability, please use GitHub's private vulnerability reporting f
    - Any known workarounds.
 
 You can expect a response from us within **48 hours** to acknowledge receipt of your report. We will work with you to understand the issue and coordinate a fix and disclosure.
-
 
 ## Release Verification
 

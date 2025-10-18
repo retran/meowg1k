@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -35,15 +36,22 @@ type anthropicGateway struct {
 	client anthropic.Client
 }
 
-// NewAnthropicGateway creates a new Anthropic
-func newAnthropicGateway(apiKey string) (ports.GenerationGateway, error) {
+// NewAnthropicGateway creates a new Anthropic gateway with an optional HTTP client.
+// If httpClient is nil, the SDK will use its default HTTP client.
+func newAnthropicGateway(apiKey string, httpClient *http.Client) (ports.GenerationGateway, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}
 
-	client := anthropic.NewClient(
+	options := []option.RequestOption{
 		option.WithAPIKey(apiKey),
-	)
+	}
+
+	if httpClient != nil {
+		options = append(options, option.WithHTTPClient(httpClient))
+	}
+
+	client := anthropic.NewClient(options...)
 
 	return &anthropicGateway{
 		client: client,

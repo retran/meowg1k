@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package tracelog provides context-aware trace logging for meowg1k sessions.
+// Package tracelog provides structured logging for tracing LLM API interactions and activity execution.
 package tracelog
 
 import "time"

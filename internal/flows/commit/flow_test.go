@@ -506,7 +506,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			},
 			setupContext: func() (context.Context, *executor.Context) {
 				ctx := context.Background()
-				exec := executor.NewExecutor()
+				exec := executor.NewExecutor(0)
 				flowCtx := executor.NewContext("test", nil, exec)
 				return ctx, flowCtx
 			},
@@ -579,7 +579,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			},
 			setupContext: func() (context.Context, *executor.Context) {
 				ctx := context.Background()
-				exec := executor.NewExecutor()
+				exec := executor.NewExecutor(0)
 				flowCtx := executor.NewContext("test", nil, exec)
 				return ctx, flowCtx
 			},

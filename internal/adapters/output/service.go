@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package output provides an abstraction for output destinations.
+// Package output provides services for writing formatted output and progress feedback to the console.
 package output
 
 import (

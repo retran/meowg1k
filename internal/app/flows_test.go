@@ -26,10 +26,10 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 	"github.com/spf13/cobra"
 
+	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/cache"
-	"github.com/retran/meowg1k/pkg/migrations"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 // mockDBHost is a test mock implementation of db.Host using in-memory SQLite.
@@ -38,7 +38,7 @@ type mockDBHost struct {
 	projectDB *sql.DB
 }
 
-func (h *mockDBHost) GetDB() (*sql.DB, error) {
+func (h *mockDBHost) GetMainDB() (*sql.DB, error) {
 	return h.mainDB, nil
 }
 

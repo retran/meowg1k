@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package commit provides a flow to compose a commit message based on staged changes.
+// Package commit implements the workflow for generating commit messages from staged changes or branch diffs.
 package commit
 
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/composecommit"
@@ -353,7 +354,7 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		flowCtx.SendCompleted("")
 
-		if err := f.outputWriter.PrintLine(commitMessage); err != nil {
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
 			return fmt.Errorf("failed to print commit message: %w", err)
 		}
 

@@ -87,7 +87,7 @@ func TestComposeFlat(t *testing.T) {
 		}
 
 		activity := factory.NewActivity()
-		exec := executor.NewExecutor()
+		exec := executor.NewExecutor(0)
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{
@@ -116,7 +116,7 @@ func TestComposeFlat(t *testing.T) {
 	t.Run("nil factory", func(t *testing.T) {
 		var factory *Factory
 		activity := factory.NewActivity()
-		exec := executor.NewExecutor()
+		exec := executor.NewExecutor(0)
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{
@@ -133,7 +133,7 @@ func TestComposeFlat(t *testing.T) {
 		mockFactory := &mockContentGenerationFactory{response: "test"}
 		factory, _ := NewFactory(mockFactory, "test", "test")
 		activity := factory.NewActivity()
-		exec := executor.NewExecutor()
+		exec := executor.NewExecutor(0)
 		execCtx := executor.NewContext("test", nil, exec)
 
 		_, err := activity(context.Background(), execCtx, nil)
@@ -146,7 +146,7 @@ func TestComposeFlat(t *testing.T) {
 		mockFactory := &mockContentGenerationFactory{response: "test"}
 		factory, _ := NewFactory(mockFactory, "test", "test content")
 		activity := factory.NewActivity()
-		exec := executor.NewExecutor()
+		exec := executor.NewExecutor(0)
 		execCtx := executor.NewContext("test", nil, exec)
 
 		// Create a large change
@@ -181,7 +181,7 @@ func TestComposeFlat(t *testing.T) {
 		mockFactory := &mockContentGenerationFactory{response: "Multi-file content"}
 		factory, _ := NewFactory(mockFactory, "test", "test content")
 		activity := factory.NewActivity()
-		exec := executor.NewExecutor()
+		exec := executor.NewExecutor(0)
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{

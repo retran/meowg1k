@@ -216,7 +216,7 @@ func TestActivity_SuccessWithAllContent(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -269,7 +269,7 @@ func TestActivity_SuccessWithoutOriginalFile(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -316,7 +316,7 @@ func TestActivity_SuccessWithoutChangedFile(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
@@ -361,7 +361,7 @@ func TestActivity_GenerationError(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{

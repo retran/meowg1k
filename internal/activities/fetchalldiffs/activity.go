@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchalldiffs contains the parent activity to fetch diffs for multiple files in parallel.
+// Package fetchalldiffs implements a parent activity that fetches staged diffs for multiple files in parallel.
 package fetchalldiffs
 
 import (

@@ -826,3 +826,729 @@ func TestNilServiceMethods(t *testing.T) {
 		}
 	})
 }
+
+func TestGetNoCacheFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("no-cache", false, "disable cache")
+	cmd.Flags().Set("no-cache", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	noCache, err := service.GetNoCacheFlag()
+	if err != nil {
+		t.Fatalf("GetNoCacheFlag failed: %v", err)
+	}
+
+	if !noCache {
+		t.Error("Expected no-cache flag to be true")
+	}
+}
+
+func TestGetNoCacheFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("no-cache", false, "disable cache")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	noCache, err := service.GetNoCacheFlag()
+	if err != nil {
+		t.Fatalf("GetNoCacheFlag failed: %v", err)
+	}
+
+	if noCache {
+		t.Error("Expected no-cache flag to be false")
+	}
+}
+
+func TestGetNoCacheFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetNoCacheFlag()
+	if err == nil {
+		t.Error("Expected error when no-cache flag is not defined")
+	}
+}
+
+func TestGetNoCacheFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetNoCacheFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+	if !strings.Contains(err.Error(), "command service is nil") {
+		t.Errorf("Expected 'command service is nil' error, got: %v", err)
+	}
+}
+
+func TestGetUpdateCacheFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("update-cache", false, "update cache")
+	cmd.Flags().Set("update-cache", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	updateCache, err := service.GetUpdateCacheFlag()
+	if err != nil {
+		t.Fatalf("GetUpdateCacheFlag failed: %v", err)
+	}
+
+	if !updateCache {
+		t.Error("Expected update-cache flag to be true")
+	}
+}
+
+func TestGetUpdateCacheFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("update-cache", false, "update cache")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	updateCache, err := service.GetUpdateCacheFlag()
+	if err != nil {
+		t.Fatalf("GetUpdateCacheFlag failed: %v", err)
+	}
+
+	if updateCache {
+		t.Error("Expected update-cache flag to be false")
+	}
+}
+
+func TestGetUpdateCacheFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetUpdateCacheFlag()
+	if err == nil {
+		t.Error("Expected error when update-cache flag is not defined")
+	}
+}
+
+func TestGetUpdateCacheFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetUpdateCacheFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetQueryTextFlagFromArgs(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+
+	// Simulate passing arguments
+	cmd.SetArgs([]string{"test query text"})
+	cmd.Execute()
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	queryText, err := service.GetQueryTextFlag()
+	if err != nil {
+		t.Fatalf("GetQueryTextFlag failed: %v", err)
+	}
+
+	if queryText != "test query text" {
+		t.Errorf("Expected query text 'test query text', got '%s'", queryText)
+	}
+}
+
+func TestGetQueryTextFlagNoArgsNoStdin(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetQueryTextFlag()
+	if err == nil {
+		t.Error("Expected error when no args and no stdin")
+	}
+	if !strings.Contains(err.Error(), "query text is required") {
+		t.Errorf("Expected 'query text is required' error, got: %v", err)
+	}
+}
+
+func TestGetQueryTextFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetQueryTextFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetSnapshotsFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().StringSlice("snapshots", []string{}, "snapshots")
+	cmd.Flags().Set("snapshots", "_head_,_stage_,_workdir_")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	snapshots, err := service.GetSnapshotsFlag()
+	if err != nil {
+		t.Fatalf("GetSnapshotsFlag failed: %v", err)
+	}
+
+	expected := []string{"_head_", "_stage_", "_workdir_"}
+	if len(snapshots) != len(expected) {
+		t.Errorf("Expected %d snapshots, got %d", len(expected), len(snapshots))
+	}
+	for i, snap := range expected {
+		if snapshots[i] != snap {
+			t.Errorf("Expected snapshot[%d] = '%s', got '%s'", i, snap, snapshots[i])
+		}
+	}
+}
+
+func TestGetSnapshotsFlagEmpty(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().StringSlice("snapshots", []string{}, "snapshots")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	snapshots, err := service.GetSnapshotsFlag()
+	if err != nil {
+		t.Fatalf("GetSnapshotsFlag failed: %v", err)
+	}
+
+	if len(snapshots) != 0 {
+		t.Errorf("Expected empty snapshots, got %v", snapshots)
+	}
+}
+
+func TestGetSnapshotsFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetSnapshotsFlag()
+	if err == nil {
+		t.Error("Expected error when snapshots flag is not defined")
+	}
+}
+
+func TestGetSnapshotsFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetSnapshotsFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetTopKFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Int("top-k", 10, "top k results")
+	cmd.Flags().Set("top-k", "25")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	topK, err := service.GetTopKFlag()
+	if err != nil {
+		t.Fatalf("GetTopKFlag failed: %v", err)
+	}
+
+	if topK != 25 {
+		t.Errorf("Expected top-k 25, got %d", topK)
+	}
+}
+
+func TestGetTopKFlagDefault(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Int("top-k", 10, "top k results")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	topK, err := service.GetTopKFlag()
+	if err != nil {
+		t.Fatalf("GetTopKFlag failed: %v", err)
+	}
+
+	if topK != 10 {
+		t.Errorf("Expected top-k 10 (default), got %d", topK)
+	}
+}
+
+func TestGetTopKFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetTopKFlag()
+	if err == nil {
+		t.Error("Expected error when top-k flag is not defined")
+	}
+}
+
+func TestGetTopKFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetTopKFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetMinScoreFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Float32("min-score", 0.5, "minimum score")
+	cmd.Flags().Set("min-score", "0.75")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	minScore, err := service.GetMinScoreFlag()
+	if err != nil {
+		t.Fatalf("GetMinScoreFlag failed: %v", err)
+	}
+
+	if minScore != 0.75 {
+		t.Errorf("Expected min-score 0.75, got %f", minScore)
+	}
+}
+
+func TestGetMinScoreFlagDefault(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Float32("min-score", 0.5, "minimum score")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	minScore, err := service.GetMinScoreFlag()
+	if err != nil {
+		t.Fatalf("GetMinScoreFlag failed: %v", err)
+	}
+
+	if minScore != 0.5 {
+		t.Errorf("Expected min-score 0.5 (default), got %f", minScore)
+	}
+}
+
+func TestGetMinScoreFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetMinScoreFlag()
+	if err == nil {
+		t.Error("Expected error when min-score flag is not defined")
+	}
+}
+
+func TestGetMinScoreFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetMinScoreFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetJsonFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("json", false, "json output")
+	cmd.Flags().Set("json", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	json, err := service.GetJsonFlag()
+	if err != nil {
+		t.Fatalf("GetJsonFlag failed: %v", err)
+	}
+
+	if !json {
+		t.Error("Expected json flag to be true")
+	}
+}
+
+func TestGetJsonFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("json", false, "json output")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	json, err := service.GetJsonFlag()
+	if err != nil {
+		t.Fatalf("GetJsonFlag failed: %v", err)
+	}
+
+	if json {
+		t.Error("Expected json flag to be false")
+	}
+}
+
+func TestGetJsonFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetJsonFlag()
+	if err == nil {
+		t.Error("Expected error when json flag is not defined")
+	}
+}
+
+func TestGetJsonFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetJsonFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetQuestionFlagFromArgs(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+
+	cmd.SetArgs([]string{"What is the meaning of life?"})
+	cmd.Execute()
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	question, err := service.GetQuestionFlag()
+	if err != nil {
+		t.Fatalf("GetQuestionFlag failed: %v", err)
+	}
+
+	if question != "What is the meaning of life?" {
+		t.Errorf("Expected question 'What is the meaning of life?', got '%s'", question)
+	}
+}
+
+func TestGetQuestionFlagNoArgsNoStdin(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetQuestionFlag()
+	if err == nil {
+		t.Error("Expected error when no args and no stdin")
+	}
+	if !strings.Contains(err.Error(), "question is required") {
+		t.Errorf("Expected 'question is required' error, got: %v", err)
+	}
+}
+
+func TestGetQuestionFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetQuestionFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetProfileFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("profile", "", "profile name")
+	cmd.Flags().Set("profile", "production")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	profile, err := service.GetProfileFlag()
+	if err != nil {
+		t.Fatalf("GetProfileFlag failed: %v", err)
+	}
+
+	if profile != "production" {
+		t.Errorf("Expected profile 'production', got '%s'", profile)
+	}
+}
+
+func TestGetProfileFlagEmpty(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("profile", "", "profile name")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	profile, err := service.GetProfileFlag()
+	if err != nil {
+		t.Fatalf("GetProfileFlag failed: %v", err)
+	}
+
+	if profile != "" {
+		t.Errorf("Expected empty profile, got '%s'", profile)
+	}
+}
+
+func TestGetProfileFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetProfileFlag()
+	if err == nil {
+		t.Error("Expected error when profile flag is not defined")
+	}
+}
+
+func TestGetProfileFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetProfileFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetShowContextFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("show-context", false, "show context")
+	cmd.Flags().Set("show-context", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	showContext, err := service.GetShowContextFlag()
+	if err != nil {
+		t.Fatalf("GetShowContextFlag failed: %v", err)
+	}
+
+	if !showContext {
+		t.Error("Expected show-context flag to be true")
+	}
+}
+
+func TestGetShowContextFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("show-context", false, "show context")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	showContext, err := service.GetShowContextFlag()
+	if err != nil {
+		t.Fatalf("GetShowContextFlag failed: %v", err)
+	}
+
+	if showContext {
+		t.Error("Expected show-context flag to be false")
+	}
+}
+
+func TestGetShowContextFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetShowContextFlag()
+	if err == nil {
+		t.Error("Expected error when show-context flag is not defined")
+	}
+}
+
+func TestGetShowContextFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetShowContextFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetSystemPromptFlag(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("system-prompt", "", "system prompt")
+	cmd.Flags().Set("system-prompt", "You are a helpful assistant.")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	systemPrompt, err := service.GetSystemPromptFlag()
+	if err != nil {
+		t.Fatalf("GetSystemPromptFlag failed: %v", err)
+	}
+
+	if systemPrompt != "You are a helpful assistant." {
+		t.Errorf("Expected system prompt 'You are a helpful assistant.', got '%s'", systemPrompt)
+	}
+}
+
+func TestGetSystemPromptFlagEmpty(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().String("system-prompt", "", "system prompt")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	systemPrompt, err := service.GetSystemPromptFlag()
+	if err != nil {
+		t.Fatalf("GetSystemPromptFlag failed: %v", err)
+	}
+
+	if systemPrompt != "" {
+		t.Errorf("Expected empty system prompt, got '%s'", systemPrompt)
+	}
+}
+
+func TestGetSystemPromptFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetSystemPromptFlag()
+	if err == nil {
+		t.Error("Expected error when system-prompt flag is not defined")
+	}
+}
+
+func TestGetSystemPromptFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetSystemPromptFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}

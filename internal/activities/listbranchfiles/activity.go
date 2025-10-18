@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package listbranchfiles provides an activity to list changed files in a branch compared to target branch.
+// Package listbranchfiles implements an activity that lists files changed between current branch and target branch.
 package listbranchfiles
 
 import (

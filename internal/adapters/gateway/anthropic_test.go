@@ -29,7 +29,7 @@ import (
 
 func TestNewAnthropicGateway(t *testing.T) {
 	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -39,7 +39,7 @@ func TestNewAnthropicGateway(t *testing.T) {
 	})
 
 	t.Run("Empty API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("")
+		gateway, err := newAnthropicGateway("", nil)
 		if err == nil {
 			t.Fatal("Expected error for empty API key")
 		}
@@ -107,7 +107,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	// For now, we'll test the gateway creation and basic error handling
 
 	t.Run("Generate content with valid request", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -136,7 +136,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with empty model", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -160,7 +160,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -183,7 +183,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with different max tokens", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -219,7 +219,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 	})
 
 	t.Run("Generate content with canceled context", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key")
+		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -247,7 +247,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 }
 
 func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key")
+	gateway, err := newAnthropicGateway("test-api-key", nil)
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -258,7 +258,7 @@ func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
 }
 
 func TestAnthropicGateway_ErrorHandling(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key")
+	gateway, err := newAnthropicGateway("test-api-key", nil)
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -337,6 +337,211 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 				if err != nil && strings.Contains(err.Error(), tc.errorSubstring) {
 					t.Errorf("Did not expect error containing '%s', but got: %v", tc.errorSubstring, err)
 				}
+			}
+		})
+	}
+}
+
+func TestAnthropicGateway_NilChecks(t *testing.T) {
+	t.Run("Nil context", func(t *testing.T) {
+		gateway, err := newAnthropicGateway("test-api-key", nil)
+		if err != nil {
+			t.Fatalf("Failed to create gateway: %v", err)
+		}
+
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		//nolint:staticcheck // intentionally testing nil context handling
+		_, err = gateway.GenerateContent(nil, request)
+		if err == nil {
+			t.Fatal("Expected error for nil context")
+		}
+		if !strings.Contains(err.Error(), "context cannot be nil") {
+			t.Errorf("Expected 'context cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil request", func(t *testing.T) {
+		gateway, err := newAnthropicGateway("test-api-key", nil)
+		if err != nil {
+			t.Fatalf("Failed to create gateway: %v", err)
+		}
+
+		ctx := context.Background()
+		_, err = gateway.GenerateContent(ctx, nil)
+		if err == nil {
+			t.Fatal("Expected error for nil request")
+		}
+		if !strings.Contains(err.Error(), "request cannot be nil") {
+			t.Errorf("Expected 'request cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil gateway", func(t *testing.T) {
+		var gateway *anthropicGateway = nil
+
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		if err == nil {
+			t.Fatal("Expected error for nil gateway")
+		}
+		if !strings.Contains(err.Error(), "anthropic gateway is nil") {
+			t.Errorf("Expected 'anthropic gateway is nil' error, got: %v", err)
+		}
+	})
+}
+
+func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
+	gateway, err := newAnthropicGateway("test-api-key", nil)
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	t.Run("With temperature", func(t *testing.T) {
+		temp := 0.7
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTemperature(&temp)
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		// Should not fail validation
+		if err != nil && strings.Contains(err.Error(), "model is required") {
+			t.Error("Should not get validation error for valid request with temperature")
+		}
+	})
+
+	t.Run("With topP", func(t *testing.T) {
+		topP := 0.9
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTopP(&topP)
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "model is required") {
+			t.Error("Should not get validation error for valid request with topP")
+		}
+	})
+
+	t.Run("With topK", func(t *testing.T) {
+		topK := 40
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTopK(&topK)
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "model is required") {
+			t.Error("Should not get validation error for valid request with topK")
+		}
+	})
+
+	t.Run("With stop sequences", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithStop([]string{"\n\n", "END"})
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "model is required") {
+			t.Error("Should not get validation error for valid request with stop sequences")
+		}
+	})
+
+	t.Run("With all parameters", func(t *testing.T) {
+		temp := 0.8
+		topP := 0.95
+		topK := 50
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		).WithTemperature(&temp).WithTopP(&topP).WithTopK(&topK).WithStop([]string{"STOP"})
+
+		ctx := context.Background()
+		_, err := gateway.GenerateContent(ctx, request)
+		if err != nil && strings.Contains(err.Error(), "model is required") {
+			t.Error("Should not get validation error for valid request with all parameters")
+		}
+	})
+}
+
+func TestAnthropicGateway_WithCustomHTTPClient(t *testing.T) {
+	t.Run("With custom HTTP client", func(t *testing.T) {
+		customClient := &http.Client{}
+		gateway, err := newAnthropicGateway("test-api-key", customClient)
+		if err != nil {
+			t.Fatalf("Failed to create gateway with custom HTTP client: %v", err)
+		}
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil")
+		}
+	})
+
+	t.Run("With nil HTTP client", func(t *testing.T) {
+		gateway, err := newAnthropicGateway("test-api-key", nil)
+		if err != nil {
+			t.Fatalf("Failed to create gateway with nil HTTP client: %v", err)
+		}
+		if gateway == nil {
+			t.Fatal("Expected gateway to be non-nil")
+		}
+	})
+}
+
+func TestAnthropicGateway_DifferentModels(t *testing.T) {
+	gateway, err := newAnthropicGateway("test-api-key", nil)
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	models := []string{
+		"claude-3-haiku-20240307",
+		"claude-3-sonnet-20240229",
+		"claude-3-opus-20240229",
+		"claude-3-5-sonnet-20240620",
+	}
+
+	for _, model := range models {
+		t.Run("Model: "+model, func(t *testing.T) {
+			request := domainGateway.NewGenerateContentRequest(
+				model,
+				"System prompt",
+				"User prompt",
+				1000,
+			)
+
+			ctx := context.Background()
+			_, err := gateway.GenerateContent(ctx, request)
+			// Should not fail validation
+			if err != nil && strings.Contains(err.Error(), "model is required") {
+				t.Errorf("Should not get validation error for model %s", model)
 			}
 		})
 	}

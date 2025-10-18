@@ -83,7 +83,7 @@ func TestComposeFlatPR_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	output, err := activity(ctx, executorCtx, input)
@@ -132,7 +132,7 @@ func TestComposeFlatPR_WithIntent(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	output, err := activity(ctx, executorCtx, input)
@@ -183,7 +183,7 @@ func TestComposeFlatPR_DiffTooLarge(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	_, err = activity(ctx, executorCtx, input)
@@ -217,7 +217,7 @@ func TestComposeFlatPR_NilInput(t *testing.T) {
 	activity := factory.NewActivity()
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	_, err = activity(ctx, executorCtx, nil)
@@ -270,7 +270,7 @@ func TestComposeFlatPR_MultipleFiles(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	output, err := activity(ctx, executorCtx, input)
@@ -312,7 +312,7 @@ func TestComposeFlatPR_EmptyChanges(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	mockExec := executor.NewExecutor()
+	mockExec := executor.NewExecutor(0)
 	executorCtx := executor.NewContext("test", nil, mockExec)
 
 	output, err := activity(ctx, executorCtx, input)

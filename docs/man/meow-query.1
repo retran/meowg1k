@@ -1,0 +1,316 @@
+.\" docs/man/meow-query.1
+.TH MEOW-QUERY 1 "2025-10-15" "meowg1k" "User Commands"
+.SH NAME
+meow-query \- search for code using semantic similarity
+.SH SYNOPSIS
+.B meow query
+\fITEXT\fR [\fIflags\fR]
+.br
+.B meow q
+\fITEXT\fR [\fIflags\fR]
+.br
+.B echo
+"\fITEXT\fR" |
+.B meow query
+[\fIflags\fR]
+.SH DESCRIPTION
+.B meow query
+searches for code chunks similar to the query text using vector similarity
+(semantic search). Unlike traditional text search that relies on exact keyword
+matching, semantic search uses vector embeddings to understand the
+.B meaning
+of your query and match it with relevant code, even when the exact words
+don't appear in your code.
+.PP
+The command:
+.IP "1." 3
+Computes an embedding for your search query
+.IP "2."
+Searches HNSW indices for the most similar code chunks
+.IP "3."
+Returns results with similarity scores, file paths, and line numbers
+.IP "4."
+Supports filtering by snapshot and minimum score threshold
+.PP
+Results are returned in order of decreasing similarity, showing the most
+relevant code first. Each result includes the similarity score (0.0 to 1.0),
+file path, line range, and the actual code content.
+
+.SH OPTIONS
+.TP
+.BR \-k ", " \-\-top\-k " " \fINUMBER\fR
+Number of top results to return. Default: 10. Increase for broader searches,
+decrease for focused results.
+.TP
+.BR \-s ", " \-\-snapshots " " \fILIST\fR
+Snapshots to search. Comma-separated list of: \fB_workdir_\fR, \fB_stage_\fR,
+\fB_head_\fR. Default: all three. Use to limit search scope. Example:
+\fB_workdir_,_stage_\fR searches only uncommitted and staged changes.
+.TP
+.BR \-\-min\-score " " \fIFLOAT\fR
+Minimum similarity score threshold (0.0 to 1.0). Results below this score
+are filtered out. Default: 0.0 (no filtering). Higher values = more relevant
+but fewer results. Recommended range: 0.5-0.8.
+.TP
+.BR \-\-json
+Output results in JSON format for scripting and automation. Default is
+human-readable text format.
+.TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file.
+.TP
+.BR \-\-silent
+Enable silent mode. Only outputs results, no progress indicators.
+.TP
+.BR \-h ", " \-\-help
+Show command help and usage information.
+
+.SH CONFIGURATION
+The command uses the embedding profile configured for
+.BR meow-index (1):
+.PP
+.nf
+index:
+  profile: "embeddings"
+
+profiles:
+  embeddings:
+    model: "gemini-embeddings"
+.fi
+.PP
+The same embedding model must be used for both indexing and querying.
+Switching embedding models requires re-indexing with
+.BR meow-index (1).
+
+.SH EXAMPLES
+.SS Basic Semantic Search
+Find authentication-related code:
+.PP
+.nf
+.B meow query "authentication logic"
+.fi
+.PP
+Example output:
+.PP
+.nf
+Found 3 results:
+
+=== Result 1 (Score: 0.8542) ===
+File: internal/auth/service.go (Lines 45-67)
+
+func (s *Service) Authenticate(ctx context.Context, token string) (*User, error) {
+    claims, err := s.jwtService.ValidateToken(token)
+    if err != nil {
+        return nil, fmt.Errorf("invalid token: %w", err)
+    }
+    // ... rest of function
+}
+
+=== Result 2 (Score: 0.7891) ===
+(additional results)
+.fi
+
+.SS Get More Results
+Search for error handling with higher result count:
+.PP
+.nf
+.B meow query "error handling" \-\-top\-k 20
+.fi
+
+.SS Filter by Score
+Only show highly relevant results:
+.PP
+.nf
+.B meow query "database queries" \-\-min\-score 0.7
+.fi
+
+.SS Search Specific Snapshots
+Search only uncommitted changes:
+.PP
+.nf
+.B meow query "new feature" \-\-snapshots _workdir_
+.fi
+.PP
+Search only committed code:
+.PP
+.nf
+.B meow query "authentication" \-\-snapshots _head_
+.fi
+
+.SS JSON Output for Scripting
+Export results as JSON:
+.PP
+.nf
+.B meow query "API endpoints" \-\-json | jq '.[] | .FilePath'
+.fi
+.PP
+Process results in a script:
+.PP
+.nf
+#!/bin/bash
+results=$(meow query "$1" \-\-json)
+echo "$results" | jq -r '.[] | "\\(.FilePath):\\(.StartLine)"'
+.fi
+
+.SS Search from Stdin
+Pipe query text via stdin:
+.PP
+.nf
+.B echo "database connection" | meow query
+.fi
+.PP
+Use in scripts:
+.PP
+.nf
+.B cat query.txt | meow query \-\-top\-k 5
+.fi
+
+.SS Finding Code Without Exact Terms
+Semantic search finds code by meaning, not just keywords:
+.PP
+.nf
+# Finds error handling even without word "error"
+.B meow query "error handling and validation"
+
+# Finds rate limiting code with various implementations
+.B meow query "rate limiting and throttling"
+
+# Finds database code regardless of ORM used
+.B meow query "database queries and transactions"
+.fi
+
+.SH TUNING GUIDELINES
+.SS Broad Questions
+When searching for general concepts or exploring unfamiliar code:
+.IP \[bu] 2
+Higher \fB\-\-top-k\fR (10-20)
+.IP \[bu]
+Lower \fB\-\-min-score\fR (0.5-0.6)
+.IP \[bu]
+Search all snapshots
+.PP
+Example:
+.PP
+.nf
+.B meow query "how does the system work" \-\-top\-k 20 \-\-min\-score 0.5
+.fi
+
+.SS Specific Questions
+When looking for particular functions or implementations:
+.IP \[bu] 2
+Lower \fB\-\-top-k\fR (3-5)
+.IP \[bu]
+Higher \fB\-\-min-score\fR (0.7-0.8)
+.IP \[bu]
+May limit to specific snapshots
+.PP
+Example:
+.PP
+.nf
+.B meow query "login function implementation" \-\-top\-k 5 \-\-min\-score 0.7
+.fi
+
+.SH TROUBLESHOOTING
+.SS No Results Found
+Possible causes and solutions:
+.IP \[bu] 2
+Index not built: Run \fBmeow index\fR first
+.IP \[bu]
+Query too specific: Try more general terms
+.IP \[bu]
+\fB\-\-min-score\fR too high: Lower the threshold
+.IP \[bu]
+Filters too aggressive: Check filter configuration
+.PP
+.nf
+# Debug with low threshold and high result count
+.B meow query "your query" \-\-top\-k 20 \-\-min\-score 0.3
+.fi
+
+.SS Results Not Relevant
+Solutions:
+.IP \[bu] 2
+Increase \fB\-\-min-score\fR to filter low-quality matches
+.IP \[bu]
+Make query more specific
+.IP \[bu]
+Re-index if codebase changed significantly
+.IP \[bu]
+Check if important files are being excluded by filters
+
+.SS Index Outdated
+Re-index after:
+.IP \[bu] 2
+Pulling changes from Git
+.IP \[bu]
+Making significant code changes
+.IP \[bu]
+Switching branches
+.PP
+.nf
+.B meow index
+.fi
+
+.SH ENVIRONMENT
+Uses the embedding provider's API key configured for indexing:
+.TP
+.B MEOW_GEMINI_API_KEY
+For Gemini embedding models.
+.TP
+.B MEOW_OPENAI_API_KEY
+For OpenAI embedding models.
+.TP
+.B MEOW_VOYAGE_API_KEY
+For Voyage AI embedding models.
+.TP
+.B MEOW_LLAMA_API_KEY
+For llama.cpp server (optional).
+
+.SH FILES
+.TP
+.B ./.meowg1k/meowg1k.db
+SQLite database containing vector indices. Must exist (created by
+\fBmeow index\fR).
+
+.SH EXIT STATUS
+Returns 0 on success, non-zero on error.
+.PP
+Common errors:
+.IP \[bu] 2
+No index found (run \fBmeow index\fR first)
+.IP \[bu]
+Embedding API authentication failure
+.IP \[bu]
+Invalid snapshot names
+
+.SH COMPARISON WITH TEXT SEARCH
+.B Traditional text search (grep, git grep):
+.RS
+Matches exact keywords. Fast but misses semantic matches. Example:
+searching "error" misses "failure", "exception", "err".
+.RE
+.PP
+.B Semantic search (meow query):
+.RS
+Matches by meaning. Finds relevant code even with different words.
+Example: "authentication logic" finds JWT validation, token verification,
+user lookup, session management.
+.RE
+
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-index (1),
+.BR meow\-ask (1),
+.BR meow\-config (5)
+
+.SH AUTHORS
+Andrew Vasilyev <me@retran.me>
+
+.SH COPYRIGHT
+Copyright (c) 2025 Andrew Vasilyev.
+Licensed under the Apache License, Version 2.0.
+.PP
+Project page: https://github.com/retran/meowg1k

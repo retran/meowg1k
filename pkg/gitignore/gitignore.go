@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package gitignore provides functionality to match paths against a set of
-// rules compatible with the .gitignore format.
+// Package gitignore provides gitignore pattern matching functionality for filtering files.
 package gitignore
 
 import (
