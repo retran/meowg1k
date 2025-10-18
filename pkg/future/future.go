@@ -171,6 +171,8 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 
 	// Use a WaitGroup to wait for all goroutines to complete
 	var wg sync.WaitGroup
+	// Use a mutex to protect concurrent writes to results and errs slices
+	var mu sync.Mutex
 
 	// Launch a goroutine for each future to wait concurrently
 	for i, future := range futures {
@@ -179,13 +181,17 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 			defer wg.Done()
 
 			if fut == nil {
+				mu.Lock()
 				errs[idx] = fmt.Errorf("future at index %d is nil", idx)
+				mu.Unlock()
 				return
 			}
 
 			result, err := fut.Get(ctx)
+			mu.Lock()
 			results[idx] = result
 			errs[idx] = err
+			mu.Unlock()
 		}(i, future)
 	}
 
