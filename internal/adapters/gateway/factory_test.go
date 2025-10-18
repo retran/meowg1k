@@ -28,12 +28,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/model"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
-	"github.com/retran/meowg1k/pkg/migrations"
-	"github.com/retran/meowg1k/pkg/ratelimit"
 )
 
 // mockCommandNameReader is a mock implementation of CommandNameReader for testing
@@ -97,6 +97,11 @@ func (m *mockHTTPClientService) Get() *http.Client {
 	return m.client
 }
 
+func (m *mockHTTPClientService) GetWithTimeout(timeout time.Duration) *http.Client {
+	// Return a client with the specified timeout for testing
+	return &http.Client{Timeout: timeout}
+}
+
 func (m *mockHTTPClientService) Close() error {
 	return nil
 }
@@ -106,7 +111,7 @@ func (m *mockHTTPClientService) Validate() error {
 }
 
 // setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
-func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
+func setupTestRepoForFactory(t *testing.T) (*sql.DB, *ratelimit.Repository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
@@ -117,7 +122,8 @@ func setupTestRepoForFactory(t *testing.T) (*sql.DB, ratelimit.Repository) {
 		t.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	repo := ratelimit.NewRepository(db)
+	host := newMockHost(db)
+	repo := ratelimit.NewRepository(host)
 	return db, repo
 }
 
@@ -521,7 +527,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 			errorMsg:    "openrouter provider requires an API key",
 		},
 		{
-			name: "Llama provider (not implemented)",
+			name: "Llama provider (implemented)",
 			profile: &profile.ResolvedProfile{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
@@ -532,8 +538,22 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 				APIKey:          "",
 				TokenizerType:   model.TokenizerLlama,
 			},
+			expectError: false,
+		},
+		{
+			name: "Llama provider (missing BaseURL)",
+			profile: &profile.ResolvedProfile{
+				Provider:        provider.Llama,
+				Model:           "llama-3.1-70b-instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   model.TokenizerLlama,
+			},
 			expectError: true,
-			errorMsg:    "llama embedding gateway is not yet implemented",
+			errorMsg:    "llama provider requires a base URL",
 		},
 		{
 			name: "Anthropic provider (not supported)",

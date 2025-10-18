@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package generate provides the flow for generating content using a language model.
+// Package generate implements the workflow for generating arbitrary content using LLMs based on prompts and tasks.
 package generate
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
@@ -144,7 +145,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 
 		time.Sleep(300 * time.Millisecond)
 
-		if err := f.outputWriter.PrintLine(invokeOutput.Content); err != nil {
+		if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Content)); err != nil {
 			return fmt.Errorf("failed to print generated content: %w", err)
 		}
 

@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package task defines domain types for predefined tasks with prompts and configurations.
 package task
 
 import (

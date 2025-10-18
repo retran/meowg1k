@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package git defines domain types for git operations and file changes.
 package git
 
 // FileChange represents a change made to a file in a git repository.

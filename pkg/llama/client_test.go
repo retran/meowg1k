@@ -482,3 +482,538 @@ func TestCompletionResponseValidation(t *testing.T) {
 	assert.Equal(t, len(response.Tokens), len(unmarshaledResp.Tokens))
 	assert.Equal(t, len(response.Probs), len(unmarshaledResp.Probs))
 }
+
+func TestServiceImpl_Embedding(t *testing.T) {
+	tests := []struct {
+		name           string
+		request        *EmbeddingRequest
+		mockResponse   string
+		mockStatusCode int
+		expectedEmbed  []float64
+		expectError    bool
+		errorMsg       string
+	}{
+		{
+			name: "Successful embedding with nested array format",
+			request: &EmbeddingRequest{
+				Content: "Hello world",
+			},
+			mockResponse:   `[[0.1, 0.2, 0.3, 0.4, 0.5]]`,
+			mockStatusCode: 200,
+			expectedEmbed:  []float64{0.1, 0.2, 0.3, 0.4, 0.5},
+			expectError:    false,
+		},
+		{
+			name: "Successful embedding with simple array format",
+			request: &EmbeddingRequest{
+				Content: "Test text",
+			},
+			mockResponse:   `[0.9, 0.8, 0.7, 0.6]`,
+			mockStatusCode: 200,
+			expectedEmbed:  []float64{0.9, 0.8, 0.7, 0.6},
+			expectError:    false,
+		},
+		{
+			name: "Successful embedding with object format",
+			request: &EmbeddingRequest{
+				Content: "Another test",
+			},
+			mockResponse:   `{"embedding": [0.5, 0.4, 0.3], "model": "test-model", "tokens_evaluated": 5}`,
+			mockStatusCode: 200,
+			expectedEmbed:  []float64{0.5, 0.4, 0.3},
+			expectError:    false,
+		},
+		{
+			name: "Server error response",
+			request: &EmbeddingRequest{
+				Content: "Test",
+			},
+			mockStatusCode: 500,
+			mockResponse:   "Internal Server Error",
+			expectError:    true,
+			errorMsg:       "failed with status 500",
+		},
+		{
+			name: "Invalid JSON response",
+			request: &EmbeddingRequest{
+				Content: "Test",
+			},
+			mockStatusCode: 200,
+			mockResponse:   "not a valid json",
+			expectError:    true,
+			errorMsg:       "failed to unmarshal response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/embedding", r.URL.Path)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+				w.WriteHeader(tt.mockStatusCode)
+				w.Write([]byte(tt.mockResponse))
+			}))
+			defer server.Close()
+
+			client, err := NewClient(server.URL, "test-key", &http.Client{})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			result, err := client.Embedding(ctx, tt.request)
+
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, result)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, len(tt.expectedEmbed), len(result.Embedding))
+			for i, val := range tt.expectedEmbed {
+				assert.InEpsilon(t, val, result.Embedding[i], 0.0001)
+			}
+		})
+	}
+}
+
+func TestServiceImpl_EmbeddingWithAuthHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer test-api-key", r.Header.Get("Authorization"))
+		w.WriteHeader(200)
+		w.Write([]byte(`[0.1, 0.2, 0.3]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "test-api-key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	req := &EmbeddingRequest{Content: "Test"}
+	_, err = client.Embedding(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestServiceImpl_EmbeddingWithoutAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.WriteHeader(200)
+		w.Write([]byte(`[0.1, 0.2, 0.3]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	req := &EmbeddingRequest{Content: "Test"}
+	_, err = client.Embedding(ctx, req)
+	require.NoError(t, err)
+}
+
+func TestServiceImpl_EmbeddingWithContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(200)
+		w.Write([]byte(`[0.1, 0.2, 0.3]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "test-key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	req := &EmbeddingRequest{Content: "Test"}
+	_, err = client.Embedding(ctx, req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
+func TestServiceImpl_EmbeddingNilClient(t *testing.T) {
+	var client *Client
+	ctx := context.Background()
+	req := &EmbeddingRequest{Content: "Test"}
+
+	result, err := client.Embedding(ctx, req)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "client is nil")
+}
+
+func TestServiceImpl_EmbeddingNilContext(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", &http.Client{})
+	require.NoError(t, err)
+
+	req := &EmbeddingRequest{Content: "Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
+	result, err := client.Embedding(nil, req)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "context cannot be nil")
+}
+
+func TestServiceImpl_EmbeddingNilRequest(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	result, err := client.Embedding(ctx, nil)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "request cannot be nil")
+}
+
+func TestServiceImpl_EmbeddingWithNormOutput(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request body contains norm_output flag
+		var reqBody EmbeddingRequest
+		err := json.NewDecoder(r.Body).Decode(&reqBody)
+		require.NoError(t, err)
+		assert.True(t, reqBody.NormOutput)
+
+		w.WriteHeader(200)
+		w.Write([]byte(`[0.1, 0.2, 0.3]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	req := &EmbeddingRequest{
+		Content:    "Test",
+		NormOutput: true,
+	}
+	result, err := client.Embedding(ctx, req)
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+}
+
+func TestEmbeddingRequestValidation(t *testing.T) {
+	req := &EmbeddingRequest{
+		Content:    "Test content",
+		NormOutput: true,
+		Truncate:   512,
+		ImageData: []ImageData{
+			{Data: "base64data", ID: 1},
+		},
+		Lora: []Lora{
+			{ID: 1, Scale: 0.5},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	var unmarshaledReq EmbeddingRequest
+	err = json.Unmarshal(data, &unmarshaledReq)
+	require.NoError(t, err)
+	assert.Equal(t, req.Content, unmarshaledReq.Content)
+	assert.Equal(t, req.NormOutput, unmarshaledReq.NormOutput)
+	assert.Equal(t, req.Truncate, unmarshaledReq.Truncate)
+}
+
+func TestEmbeddingResponseValidation(t *testing.T) {
+	resp := &EmbeddingResponse{
+		Embedding:       []float64{0.1, 0.2, 0.3, 0.4, 0.5},
+		Model:           "text-embedding-model",
+		TokensEvaluated: 10,
+		Timings: map[string]any{
+			"prompt_ms": 5.2,
+			"eval_ms":   10.8,
+		},
+	}
+
+	data, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	var unmarshaledResp EmbeddingResponse
+	err = json.Unmarshal(data, &unmarshaledResp)
+	require.NoError(t, err)
+	assert.Equal(t, len(resp.Embedding), len(unmarshaledResp.Embedding))
+	assert.Equal(t, resp.Model, unmarshaledResp.Model)
+	assert.Equal(t, resp.TokensEvaluated, unmarshaledResp.TokensEvaluated)
+}
+
+func TestServiceImpl_EmbeddingBatch(t *testing.T) {
+	tests := []struct {
+		name           string
+		texts          []string
+		normOutput     bool
+		mockResponse   string
+		mockStatusCode int
+		expectedCount  int
+		expectError    bool
+		errorMsg       string
+	}{
+		{
+			name:       "Successful batch embedding",
+			texts:      []string{"Hello", "World", "Test"},
+			normOutput: false,
+			mockResponse: `[
+				{"index": 0, "embedding": [[0.1, 0.2, 0.3]]},
+				{"index": 1, "embedding": [[0.4, 0.5, 0.6]]},
+				{"index": 2, "embedding": [[0.7, 0.8, 0.9]]}
+			]`,
+			mockStatusCode: 200,
+			expectedCount:  3,
+			expectError:    false,
+		},
+		{
+			name:       "Batch with normalized output",
+			texts:      []string{"Test1", "Test2"},
+			normOutput: true,
+			mockResponse: `[
+				{"index": 0, "embedding": [[0.5, 0.5]]},
+				{"index": 1, "embedding": [[0.6, 0.4]]}
+			]`,
+			mockStatusCode: 200,
+			expectedCount:  2,
+			expectError:    false,
+		},
+		{
+			name:           "Empty texts array",
+			texts:          []string{},
+			normOutput:     false,
+			mockResponse:   `[]`,
+			mockStatusCode: 200,
+			expectedCount:  0,
+			expectError:    false,
+		},
+		{
+			name:           "Server error",
+			texts:          []string{"Test"},
+			normOutput:     false,
+			mockResponse:   "Internal Server Error",
+			mockStatusCode: 500,
+			expectError:    true,
+			errorMsg:       "failed with status 500",
+		},
+		{
+			name:           "Invalid JSON response",
+			texts:          []string{"Test"},
+			normOutput:     false,
+			mockResponse:   "invalid json",
+			mockStatusCode: 200,
+			expectError:    true,
+			errorMsg:       "failed to unmarshal batch response",
+		},
+		{
+			name:       "Invalid index in response",
+			texts:      []string{"Test1", "Test2"},
+			normOutput: false,
+			mockResponse: `[
+				{"index": 0, "embedding": [[0.1, 0.2]]},
+				{"index": 5, "embedding": [[0.3, 0.4]]}
+			]`,
+			mockStatusCode: 200,
+			expectError:    true,
+			errorMsg:       "invalid index 5 in batch response",
+		},
+		{
+			name:       "Empty embedding in response",
+			texts:      []string{"Test"},
+			normOutput: false,
+			mockResponse: `[
+				{"index": 0, "embedding": []}
+			]`,
+			mockStatusCode: 200,
+			expectError:    true,
+			errorMsg:       "empty embedding for index 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "POST", r.Method)
+				assert.Equal(t, "/embedding", r.URL.Path)
+				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+				// Verify request body if not empty texts
+				if len(tt.texts) > 0 {
+					var reqBody EmbeddingRequest
+					err := json.NewDecoder(r.Body).Decode(&reqBody)
+					require.NoError(t, err)
+					assert.Equal(t, tt.normOutput, reqBody.NormOutput)
+				}
+
+				w.WriteHeader(tt.mockStatusCode)
+				w.Write([]byte(tt.mockResponse))
+			}))
+			defer server.Close()
+
+			client, err := NewClient(server.URL, "test-key", &http.Client{})
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			result, err := client.EmbeddingBatch(ctx, tt.texts, tt.normOutput)
+
+			if tt.expectError {
+				require.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedCount, len(result))
+
+			// Verify embeddings are properly ordered
+			if tt.expectedCount > 0 {
+				for i, embedding := range result {
+					assert.NotEmpty(t, embedding, "Embedding at index %d should not be empty", i)
+				}
+			}
+		})
+	}
+}
+
+func TestServiceImpl_EmbeddingBatchNilClient(t *testing.T) {
+	var client *Client
+	ctx := context.Background()
+	texts := []string{"Test"}
+
+	result, err := client.EmbeddingBatch(ctx, texts, false)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "client is nil")
+}
+
+func TestServiceImpl_EmbeddingBatchNilContext(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", &http.Client{})
+	require.NoError(t, err)
+
+	texts := []string{"Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
+	result, err := client.EmbeddingBatch(nil, texts, false)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "context cannot be nil")
+}
+
+func TestServiceImpl_EmbeddingBatchWithContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
+		w.WriteHeader(200)
+		w.Write([]byte(`[{"index": 0, "embedding": [[0.1, 0.2]]}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "test-key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	texts := []string{"Test"}
+	_, err = client.EmbeddingBatch(ctx, texts, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
+func TestServiceImpl_EmbeddingBatchWithAuthHeader(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer test-api-key", r.Header.Get("Authorization"))
+		w.WriteHeader(200)
+		w.Write([]byte(`[{"index": 0, "embedding": [[0.1, 0.2]]}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "test-api-key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	texts := []string{"Test"}
+	_, err = client.EmbeddingBatch(ctx, texts, false)
+	require.NoError(t, err)
+}
+
+func TestServiceImpl_EmbeddingBatchWithoutAPIKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.WriteHeader(200)
+		w.Write([]byte(`[{"index": 0, "embedding": [[0.1, 0.2]]}]`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	texts := []string{"Test"}
+	_, err = client.EmbeddingBatch(ctx, texts, false)
+	require.NoError(t, err)
+}
+
+func TestEmbeddingBatchItemValidation(t *testing.T) {
+	item := EmbeddingBatchItem{
+		Index:     0,
+		Embedding: [][]float64{{0.1, 0.2, 0.3}},
+		Object:    "embedding",
+		Model:     "test-model",
+	}
+
+	data, err := json.Marshal(item)
+	require.NoError(t, err)
+	assert.NotEmpty(t, data)
+
+	var unmarshaledItem EmbeddingBatchItem
+	err = json.Unmarshal(data, &unmarshaledItem)
+	require.NoError(t, err)
+	assert.Equal(t, item.Index, unmarshaledItem.Index)
+	assert.Equal(t, len(item.Embedding), len(unmarshaledItem.Embedding))
+	assert.Equal(t, item.Object, unmarshaledItem.Object)
+	assert.Equal(t, item.Model, unmarshaledItem.Model)
+}
+
+func TestNewClientNilHTTPClient(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", nil)
+	require.Error(t, err)
+	require.Nil(t, client)
+	assert.Contains(t, err.Error(), "HTTP client cannot be nil")
+}
+
+func TestServiceImpl_CompleteNilClient(t *testing.T) {
+	var client *Client
+	ctx := context.Background()
+	req := &CompletionRequest{Prompt: "Test"}
+
+	result, err := client.Complete(ctx, req)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "client is nil")
+}
+
+func TestServiceImpl_CompleteNilContext(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", &http.Client{})
+	require.NoError(t, err)
+
+	req := &CompletionRequest{Prompt: "Test"}
+	//nolint:staticcheck // intentionally testing nil context handling
+	result, err := client.Complete(nil, req)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "context cannot be nil")
+}
+
+func TestServiceImpl_CompleteNilRequest(t *testing.T) {
+	client, err := NewClient("http://localhost:8080", "key", &http.Client{})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	result, err := client.Complete(ctx, nil)
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "request cannot be nil")
+}

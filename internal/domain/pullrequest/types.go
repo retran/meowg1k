@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package pullrequest defines domain types for pull request description generation.
 package pullrequest
 
 import (

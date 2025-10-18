@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package executor provides a framework for defining and executing activities
-// with support for retries, feedback, and sub-activities.
+// Package executor provides a framework for executing activities and flows with retry logic, feedback, and concurrency control.
 package executor
 
 import (
@@ -114,16 +113,25 @@ type Executor interface {
 type executorImpl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
+	workerSemaphore chan struct{} // Semaphore to limit concurrent workers
 }
 
 // Compile-time check to ensure Impl implements Executor interface
 var _ Executor = (*executorImpl)(nil)
 
 // NewExecutor creates a new activity executor with the given configuration
-func NewExecutor() *executorImpl {
+// concurrency limits the number of activities that can run in parallel
+// If concurrency <= 0, no limit is applied
+func NewExecutor(concurrency int) *executorImpl {
+	var semaphore chan struct{}
+	if concurrency > 0 {
+		semaphore = make(chan struct{}, concurrency)
+	}
+
 	return &executorImpl{
 		RetryPolicy:     DefaultRetryPolicy(),
 		FeedbackHandler: NoOpFeedbackHandler,
+		workerSemaphore: semaphore,
 	}
 }
 
@@ -235,6 +243,12 @@ func (e *executorImpl) ExecuteActivity(
 	activityCtx := NewContext(fullActivityName, parentCtx.feedbackFunc, e)
 
 	go func() {
+		// Acquire worker slot if semaphore is configured
+		if e.workerSemaphore != nil {
+			e.workerSemaphore <- struct{}{}
+			defer func() { <-e.workerSemaphore }()
+		}
+
 		result, err := e.executeActivityImpl(ctx, activityCtx, activity, input, e.RetryPolicy)
 		if err != nil {
 			_ = fut.CompleteWithError(err)

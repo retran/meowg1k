@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package version provides information about the current build of the application.
+// Package version provides build-time version information populated by the Go linker.
 package version
 
 // These variables are populated by the Go linker during the build process.

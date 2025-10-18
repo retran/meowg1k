@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package profile provides adapters for resolving and validating LLM profiles.
+// Package profile provides services for managing LLM provider profiles with rate limiting and cost tracking.
 package profile
 
 import (

@@ -19,6 +19,14 @@ models:
       tokensPerMinute: 125000
       requestsPerDay: 100
 
+  gemini-embeddings:
+    provider: "gemini"
+    model: "gemini-embedding-001"
+    rateLimit:
+      requestsPerMinute: 3000
+      tokensPerMinute: 1000000
+      requestsPerDay: 1000000
+
 profiles:
   fast:
     model: "gemini-flash"
@@ -32,6 +40,13 @@ profiles:
     timeout: "10m"
     temperature: 0.2  # Low temperature for analytical tasks
     topP: 0.95
+    cache:
+      enabled: true
+      ttl: "72h"
+
+  embeddings:
+    model: "gemini-embeddings"
+    timeout: "10m"
     cache:
       enabled: true
       ttl: "72h"
@@ -84,6 +99,29 @@ filter:
     - "vendor/"
     - "node_modules/"
     - ".git/"
+    - ".meowg1k/"
+
+index:
+  # Profile for computing embeddings
+  profile: "embeddings"
+  chunker:
+    maxRunes: 1024
+    overlapRunes: 100
+  # Number of chunks to process in one embedding API call
+  # Default is 32. Increase for faster cloud APIs, decrease for local models
+  batchSize: 32
+
+ask:
+  # Profile for generating answers
+  profile: "smart"
+  topK: 5
+  minScore: 0.7
+  # System prompt for answer generation (required)
+  systemPrompt: >-
+    You are an expert AI assistant helping developers understand their codebase.
+    Answer questions based ONLY on the provided code context.
+    Be precise, concise, and reference specific code elements when relevant.
+    If the context doesn't contain enough information, clearly state that.
 
 summarize:
   default:

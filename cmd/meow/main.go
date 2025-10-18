@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package main is the entry point for the meow application.
+// Package main is the entry point for the meow CLI application.
 package main
 
 import (

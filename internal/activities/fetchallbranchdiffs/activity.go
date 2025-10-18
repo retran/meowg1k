@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package fetchallbranchdiffs contains the parent activity to fetch branch diffs for multiple files in parallel.
+// Package fetchallbranchdiffs implements a parent activity that fetches branch diffs for multiple files in parallel.
 package fetchallbranchdiffs
 
 import (

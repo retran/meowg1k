@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package summarize defines domain types for file change summarization.
 package summarize
 
 import (
