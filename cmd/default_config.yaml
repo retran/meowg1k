@@ -196,7 +196,7 @@ summarize:
       profile: "smart"
       # (Optional) The system prompt to use for matching files.
       systemPrompt: "Analyze this critical Go code change, focusing on business logic and potential side effects."
-    # Example 2: Skip summarizing documentation changes entirely.
+    # This rule is intentionally enabled: it will skip summarizing all Markdown documentation changes.
     - match: "**/*.md"
       # (Optional) If true, files matching this pattern are not summarized.
       skip: true
