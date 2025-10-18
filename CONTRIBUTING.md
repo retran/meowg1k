@@ -23,7 +23,7 @@ This project uses **Go Task** to automate common development tasks. All commands
 
 ### 1. Prerequisites
 
-- **Go 1.25.1** or newer
+- **Go 1.25.2** or newer
 - **Git**
 - **Go Task**: See the [official installation guide](https://taskfile.dev/installation/).
 

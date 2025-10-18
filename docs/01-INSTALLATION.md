@@ -6,7 +6,7 @@ This guide provides instructions for installing `meowg1k` on various operating s
 
 Before you begin, ensure you have the following:
 
-- **Go**: Version 1.25.1 or newer is required if you plan to install using the `go install` method.
+- **Go**: Version 1.25.2 or newer is required if you plan to install using the `go install` method.
 - **API Key**: You will need an API key from at least one supported LLM provider (e.g., Gemini, OpenAI, Anthropic) to use the tool with cloud-based models.
 - **Internet Connection**: Required for downloading the tool and for using cloud-based models.
 

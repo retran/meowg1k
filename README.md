@@ -74,7 +74,7 @@ Ask questions about your codebase using Retrieval-Augmented Generation. Semantic
 ### ⚡ Quick Install
 
 ```bash
-# Using Go (requires Go 1.25.1+)
+# Using Go (requires Go 1.25.2+)
 go install github.com/retran/meowg1k@latest
 
 # Using Homebrew (macOS/Linux)

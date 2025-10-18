@@ -73,7 +73,7 @@ generate:
     systemPrompt: >-
       You are a helpful senior Go software developer and reviewer.
       Prefer clear, concise, and actionable feedback.
-      When suggesting code, write clean, idiomatic, production-ready Go 1.25.1+.
+      When suggesting code, write clean, idiomatic, production-ready Go 1.25.2+.
 
   tasks:
     review:
