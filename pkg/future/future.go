@@ -158,7 +158,9 @@ func (f *Future[T]) TryGet() (T, error, bool) {
 	}
 }
 
-// WaitAll waits for all futures to complete and returns all results
+// WaitAll waits for all futures to complete and returns all results.
+// This function waits for all futures concurrently (not sequentially),
+// which prevents deadlock scenarios when combined with concurrency limiting.
 func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 	if ctx == nil {
 		return nil, []error{fmt.Errorf("context is nil")}
@@ -167,15 +169,34 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 	results := make([]T, len(futures))
 	errs := make([]error, len(futures))
 
+	// Use a WaitGroup to wait for all goroutines to complete
+	var wg sync.WaitGroup
+	// Use a mutex to protect concurrent writes to results and errs slices
+	var mu sync.Mutex
+
+	// Launch a goroutine for each future to wait concurrently
 	for i, future := range futures {
-		if future == nil {
-			errs[i] = fmt.Errorf("future at index %d is nil", i)
-			continue
-		}
-		result, err := future.Get(ctx)
-		results[i] = result
-		errs[i] = err
+		wg.Add(1)
+		go func(idx int, fut *Future[T]) {
+			defer wg.Done()
+
+			if fut == nil {
+				mu.Lock()
+				errs[idx] = fmt.Errorf("future at index %d is nil", idx)
+				mu.Unlock()
+				return
+			}
+
+			result, err := fut.Get(ctx)
+			mu.Lock()
+			results[idx] = result
+			errs[idx] = err
+			mu.Unlock()
+		}(i, future)
 	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
 
 	return results, errs
 }
