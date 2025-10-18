@@ -244,9 +244,15 @@ func (e *executorImpl) ExecuteActivity(
 
 	go func() {
 		// Acquire worker slot if semaphore is configured
+		// We must handle context cancellation to avoid goroutines getting stuck
 		if e.workerSemaphore != nil {
-			e.workerSemaphore <- struct{}{}
-			defer func() { <-e.workerSemaphore }()
+			select {
+			case e.workerSemaphore <- struct{}{}:
+				defer func() { <-e.workerSemaphore }()
+			case <-ctx.Done():
+				_ = fut.CompleteWithError(fmt.Errorf("activity %q canceled while waiting for worker slot: %w", fullActivityName, ctx.Err()))
+				return
+			}
 		}
 
 		result, err := e.executeActivityImpl(ctx, activityCtx, activity, input, e.RetryPolicy)
