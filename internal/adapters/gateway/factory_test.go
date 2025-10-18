@@ -527,7 +527,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 			errorMsg:    "openrouter provider requires an API key",
 		},
 		{
-			name: "Llama provider (not implemented)",
+			name: "Llama provider (implemented)",
 			profile: &profile.ResolvedProfile{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
@@ -538,8 +538,22 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 				APIKey:          "",
 				TokenizerType:   model.TokenizerLlama,
 			},
+			expectError: false,
+		},
+		{
+			name: "Llama provider (missing BaseURL)",
+			profile: &profile.ResolvedProfile{
+				Provider:        provider.Llama,
+				Model:           "llama-3.1-70b-instruct",
+				MaxInputTokens:  8000,
+				MaxOutputTokens: 0,
+				Timeout:         30 * time.Second,
+				BaseURL:         "",
+				APIKey:          "",
+				TokenizerType:   model.TokenizerLlama,
+			},
 			expectError: true,
-			errorMsg:    "llama embedding gateway is not yet implemented",
+			errorMsg:    "llama provider requires a base URL",
 		},
 		{
 			name: "Anthropic provider (not supported)",

@@ -24,6 +24,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/index"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -41,12 +42,12 @@ type Output struct {
 }
 
 type Factory struct {
-	indexService *index.Service
+	indexService ports.IndexService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Input, *Output], error) {
 	if indexService == nil {
 		return nil, fmt.Errorf("savedocumentversion.NewFactory: indexService cannot be nil")
 	}
@@ -73,10 +74,16 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to save document version: %w", err)
 		}
 
+		// Type assert the result to the expected type
+		saveResult, ok := result.(*index.SaveVersionOutput)
+		if !ok {
+			return nil, fmt.Errorf("unexpected result type from SaveNewVersion")
+		}
+
 		executorCtx.SendCompleted(fmt.Sprintf("Saved: %s (%d)", input.FilePath, len(input.Chunks)))
 		return &Output{
-			FilePath:  result.FilePath,
-			VersionID: result.VersionID,
+			FilePath:  saveResult.FilePath,
+			VersionID: saveResult.VersionID,
 		}, nil
 	}
 }

@@ -32,6 +32,9 @@ type Service struct {
 	snapshotRepo ports.SnapshotRepository
 }
 
+// Ensure Service implements the IndexService interface
+var _ ports.IndexService = (*Service)(nil)
+
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,
@@ -55,7 +58,15 @@ type PrepareOutput struct {
 	ContentHashMap   map[string]string
 }
 
-func (s *Service) PrepareForProcessing(
+func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
+	wsState, ok := workspaceState.(*scanworkspacestate.Output)
+	if !ok {
+		return nil, fmt.Errorf("invalid workspaceState type")
+	}
+	return s.prepareForProcessingImpl(ctx, wsState)
+}
+
+func (s *Service) prepareForProcessingImpl(
 	ctx context.Context,
 	workspaceState *scanworkspacestate.Output,
 ) (*PrepareOutput, error) {
@@ -155,7 +166,7 @@ type SaveVersionOutput struct {
 	VersionID int64
 }
 
-func (s *Service) SaveNewVersion(
+func (s *Service) saveNewVersionImpl(
 	ctx context.Context,
 	input *SaveVersionInput,
 ) (*SaveVersionOutput, error) {
@@ -211,7 +222,7 @@ type FinalizeInput struct {
 	NewVersions      map[string]int64
 }
 
-func (s *Service) FinalizeLiveSnapshots(
+func (s *Service) finalizeLiveSnapshotsImpl(
 	ctx context.Context,
 	input *FinalizeInput,
 ) error {
@@ -281,4 +292,24 @@ func (s *Service) finalizeSnapshot(
 // isLikelyBinary checks if content appears to be binary (non-text) data.
 func isLikelyBinary(content []byte) bool {
 	return false // Simplified to always return true for this context
+}
+
+// Interface wrapper methods for ports.IndexService
+
+// SaveNewVersion implements ports.IndexService
+func (s *Service) SaveNewVersion(ctx context.Context, input interface{}) (interface{}, error) {
+	saveInput, ok := input.(*SaveVersionInput)
+	if !ok {
+		return nil, fmt.Errorf("invalid input type")
+	}
+	return s.saveNewVersionImpl(ctx, saveInput)
+}
+
+// FinalizeLiveSnapshots implements ports.IndexService
+func (s *Service) FinalizeLiveSnapshots(ctx context.Context, input interface{}) error {
+	finalizeInput, ok := input.(*FinalizeInput)
+	if !ok {
+		return fmt.Errorf("invalid input type")
+	}
+	return s.finalizeLiveSnapshotsImpl(ctx, finalizeInput)
 }

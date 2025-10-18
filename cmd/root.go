@@ -35,6 +35,10 @@ var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return fmt.Errorf("command cannot be nil")
+		}
+
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
 			return nil
 		}
@@ -47,6 +51,10 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd == nil {
+			return fmt.Errorf("command cannot be nil")
+		}
+
 		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
 			return nil
 		}

@@ -24,6 +24,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
 	"github.com/retran/meowg1k/internal/core/index"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -45,12 +46,12 @@ type Output struct {
 }
 
 type Factory struct {
-	indexService *index.Service
+	indexService ports.IndexService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Input, *Output], error) {
 	if indexService == nil {
 		return nil, fmt.Errorf("deduplicateandprepare.NewFactory: indexService cannot be nil")
 	}
@@ -69,13 +70,19 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to prepare for processing: %w", err)
 		}
 
+		// Type assert the result to the expected type
+		prepareResult, ok := result.(*index.PrepareOutput)
+		if !ok {
+			return nil, fmt.Errorf("unexpected result type from PrepareForProcessing")
+		}
+
 		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d files (%d cached)",
-			len(result.FilesToProcess), len(result.ExistingVersions)))
+			len(prepareResult.FilesToProcess), len(prepareResult.ExistingVersions)))
 
 		return &Output{
-			ExistingVersions: result.ExistingVersions,
-			FilesToProcess:   result.FilesToProcess,
-			ContentHashMap:   result.ContentHashMap,
+			ExistingVersions: prepareResult.ExistingVersions,
+			FilesToProcess:   prepareResult.FilesToProcess,
+			ContentHashMap:   prepareResult.ContentHashMap,
 		}, nil
 	}
 }
