@@ -393,3 +393,122 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestVoyageGateway_NilChecks(t *testing.T) {
+	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	t.Run("Nil context", func(t *testing.T) {
+		chunks := []string{"Test chunk"}
+		request := domainGateway.NewComputeEmbeddingsRequest(
+			"voyage-large-2",
+			chunks,
+			domainGateway.RetrievalQuery,
+		)
+
+		_, err := gateway.ComputeEmbeddings(nil, request)
+		if err == nil {
+			t.Fatal("Expected error for nil context")
+		}
+		if !strings.Contains(err.Error(), "context cannot be nil") {
+			t.Errorf("Expected 'context cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil request", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := gateway.ComputeEmbeddings(ctx, nil)
+		if err == nil {
+			t.Fatal("Expected error for nil request")
+		}
+		if !strings.Contains(err.Error(), "request cannot be nil") {
+			t.Errorf("Expected 'request cannot be nil' error, got: %v", err)
+		}
+	})
+
+	t.Run("Nil gateway", func(t *testing.T) {
+		var nilGateway *voyageGateway = nil
+		ctx := context.Background()
+		chunks := []string{"Test chunk"}
+		request := domainGateway.NewComputeEmbeddingsRequest(
+			"voyage-large-2",
+			chunks,
+			domainGateway.RetrievalQuery,
+		)
+
+		_, err := nilGateway.ComputeEmbeddings(ctx, request)
+		if err == nil {
+			t.Fatal("Expected error for nil gateway")
+		}
+		if !strings.Contains(err.Error(), "voyage gateway is nil") {
+			t.Errorf("Expected 'voyage gateway is nil' error, got: %v", err)
+		}
+	})
+}
+
+func TestNewVoyageGateway_NilHTTPClient(t *testing.T) {
+	gateway, err := newVoyageGateway("test-api-key", nil)
+	if err == nil {
+		t.Fatal("Expected error for nil HTTP client")
+	}
+	if gateway != nil {
+		t.Fatal("Expected gateway to be nil when error occurs")
+	}
+	if !strings.Contains(err.Error(), "HTTP client is required") {
+		t.Errorf("Expected 'HTTP client is required' in error, got: %v", err)
+	}
+}
+
+func TestVoyageGateway_DifferentModels(t *testing.T) {
+	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	models := []string{
+		"voyage-large-2",
+		"voyage-code-2",
+		"voyage-2",
+		"voyage-lite-02-instruct",
+	}
+
+	for _, model := range models {
+		t.Run("Model_"+model, func(t *testing.T) {
+			chunks := []string{"Test chunk for " + model}
+			request := domainGateway.NewComputeEmbeddingsRequest(
+				model,
+				chunks,
+				domainGateway.RetrievalQuery,
+			)
+
+			ctx := context.Background()
+			_, err := gateway.ComputeEmbeddings(ctx, request)
+			if err != nil {
+				t.Logf("Expected network error for model %s: %v", model, err)
+			}
+		})
+	}
+}
+
+func TestVoyageGateway_ZeroDimensions(t *testing.T) {
+	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	chunks := []string{"Test chunk"}
+	// Request with 0 dimensions (should use model's default)
+	request := domainGateway.NewComputeEmbeddingsRequest(
+		"voyage-large-2",
+		chunks,
+		domainGateway.RetrievalQuery,
+	)
+
+	ctx := context.Background()
+	_, err = gateway.ComputeEmbeddings(ctx, request)
+	if err != nil {
+		t.Logf("Expected network error for zero dimensions: %v", err)
+	}
+}

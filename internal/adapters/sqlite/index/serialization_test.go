@@ -121,3 +121,82 @@ func TestDecodeEmbedding_InvalidData(t *testing.T) {
 		})
 	}
 }
+
+func TestEncodeEmbedding_SpecialValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		embedding gateway.Embedding
+	}{
+		{
+			name:      "very small values",
+			embedding: gateway.Embedding{1e-300, 1e-200, 1e-100},
+		},
+		{
+			name:      "very large values",
+			embedding: gateway.Embedding{1e100, 1e200, 1e300},
+		},
+		{
+			name:      "zero values",
+			embedding: gateway.Embedding{0.0, 0.0, 0.0},
+		},
+		{
+			name:      "mixed precision",
+			embedding: gateway.Embedding{0.123456789012345, -0.987654321098765},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded, err := encodeEmbedding(tt.embedding)
+			if err != nil {
+				t.Fatalf("encodeEmbedding() error = %v", err)
+			}
+
+			decoded, err := decodeEmbedding(encoded)
+			if err != nil {
+				t.Fatalf("decodeEmbedding() error = %v", err)
+			}
+
+			if len(decoded) != len(tt.embedding) {
+				t.Fatalf("length mismatch: got %d, want %d", len(decoded), len(tt.embedding))
+			}
+
+			for i := range tt.embedding {
+				if decoded[i] != tt.embedding[i] {
+					t.Errorf("value mismatch at index %d: got %v, want %v", i, decoded[i], tt.embedding[i])
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeEmbedding_InvalidLength7Bytes(t *testing.T) {
+	// 7 bytes is not a multiple of 8
+	data := []byte{1, 2, 3, 4, 5, 6, 7}
+	_, err := decodeEmbedding(data)
+	if err == nil {
+		t.Error("expected error for 7-byte data, got nil")
+	}
+}
+
+func TestDecodeEmbedding_ValidSingleFloat(t *testing.T) {
+	// Create a valid 8-byte encoding of a single float64
+	original := gateway.Embedding{42.42}
+	encoded, err := encodeEmbedding(original)
+	if err != nil {
+		t.Fatalf("encodeEmbedding() error = %v", err)
+	}
+
+	decoded, err := decodeEmbedding(encoded)
+	if err != nil {
+		t.Fatalf("decodeEmbedding() error = %v", err)
+	}
+
+	if len(decoded) != 1 {
+		t.Errorf("expected length 1, got %d", len(decoded))
+	}
+
+	if decoded[0] != 42.42 {
+		t.Errorf("expected 42.42, got %f", decoded[0])
+	}
+}

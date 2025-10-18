@@ -140,3 +140,137 @@ func TestCachingEmbeddingsGateway_CreateCacheKey(t *testing.T) {
 	key3 := gateway.createCacheKey(req3)
 	assert.NotEqual(t, key1, key3, "Different parameters should produce different cache keys")
 }
+
+func TestCachingEmbeddingsGateway_NilContext(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{
+		embeddings: []domainGateway.Embedding{{0.1, 0.2, 0.3}},
+	}
+	mockCache := newMockCacheForCaching()
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false)
+
+	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+
+	result, err := gateway.ComputeEmbeddings(nil, request)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context cannot be nil")
+	assert.Nil(t, result)
+}
+
+func TestCachingEmbeddingsGateway_NilGateway(t *testing.T) {
+	var gateway *cachingEmbeddingsGateway = nil
+
+	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+
+	result, err := gateway.ComputeEmbeddings(context.Background(), request)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "caching embeddings gateway is nil")
+	assert.Nil(t, result)
+}
+
+func TestCachingEmbeddingsGateway_CacheKeyDifferentChunks(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{}
+	mockCache := newMockCacheForCaching()
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false).(*cachingEmbeddingsGateway)
+
+	req1 := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1", "text2"}, domainGateway.RetrievalDocument)
+	req2 := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+
+	key1 := gateway.createCacheKey(req1)
+	key2 := gateway.createCacheKey(req2)
+
+	assert.NotEqual(t, key1, key2, "Different chunks should produce different cache keys")
+}
+
+func TestCachingEmbeddingsGateway_CacheKeyDifferentTaskType(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{}
+	mockCache := newMockCacheForCaching()
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false).(*cachingEmbeddingsGateway)
+
+	req1 := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+	req2 := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalQuery)
+
+	key1 := gateway.createCacheKey(req1)
+	key2 := gateway.createCacheKey(req2)
+
+	assert.NotEqual(t, key1, key2, "Different task types should produce different cache keys")
+}
+
+func TestCachingEmbeddingsGateway_CacheKeyDifferentDimensions(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{}
+	mockCache := newMockCacheForCaching()
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false).(*cachingEmbeddingsGateway)
+
+	req1 := domainGateway.NewComputeEmbeddingsRequestWithDimensions("model", []string{"text1"}, domainGateway.RetrievalDocument, 512)
+	req2 := domainGateway.NewComputeEmbeddingsRequestWithDimensions("model", []string{"text1"}, domainGateway.RetrievalDocument, 1024)
+
+	key1 := gateway.createCacheKey(req1)
+	key2 := gateway.createCacheKey(req2)
+
+	assert.NotEqual(t, key1, key2, "Different dimensions should produce different cache keys")
+}
+
+func TestCachingEmbeddingsGateway_CacheGetError(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{
+		embeddings: []domainGateway.Embedding{{0.1, 0.2, 0.3}},
+	}
+	mockCache := newMockCacheForCaching()
+	mockCache.getError = errors.New("cache get error")
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false)
+
+	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+
+	// Should fall back to gateway when cache get fails
+	result, err := gateway.ComputeEmbeddings(context.Background(), request)
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, 1, mockGateway.callCount)
+}
+
+func TestCachingEmbeddingsGateway_CacheSetError(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{
+		embeddings: []domainGateway.Embedding{{0.1, 0.2, 0.3}},
+	}
+	mockCache := newMockCacheForCaching()
+	mockCache.setError = errors.New("cache set error")
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false)
+
+	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
+
+	// Should succeed even if cache set fails
+	result, err := gateway.ComputeEmbeddings(context.Background(), request)
+	require.NoError(t, err)
+	assert.Len(t, result, 1)
+	assert.Equal(t, 1, mockGateway.callCount)
+}
+
+func TestCachingEmbeddingsGateway_MultipleChunks(t *testing.T) {
+	mockGateway := &mockEmbGatewayForCaching{
+		embeddings: []domainGateway.Embedding{
+			{0.1, 0.2, 0.3},
+			{0.4, 0.5, 0.6},
+			{0.7, 0.8, 0.9},
+		},
+	}
+	mockCache := newMockCacheForCaching()
+
+	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false)
+
+	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1", "text2", "text3"}, domainGateway.RetrievalDocument)
+
+	result, err := gateway.ComputeEmbeddings(context.Background(), request)
+	require.NoError(t, err)
+	assert.Len(t, result, 3)
+	assert.Equal(t, 1, mockGateway.callCount)
+
+	// Second call should hit cache
+	result2, err := gateway.ComputeEmbeddings(context.Background(), request)
+	require.NoError(t, err)
+	assert.Len(t, result2, 3)
+	assert.Equal(t, 1, mockGateway.callCount, "Should not call gateway again")
+}
