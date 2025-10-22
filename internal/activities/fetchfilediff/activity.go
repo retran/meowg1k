@@ -63,8 +63,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 
 		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not in 'HEAD'") {
-				originalFileContent = "" // File is new or was deleted
+			if strings.Contains(err.Error(), "does not exist") ||
+				strings.Contains(err.Error(), "not in 'HEAD'") ||
+				strings.Contains(err.Error(), "invalid object name 'HEAD'") {
+				originalFileContent = "" // File is new or was deleted, or this is the initial commit
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 			}

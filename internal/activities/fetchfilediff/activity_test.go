@@ -219,3 +219,35 @@ func TestActivity_DeletedFileScenario(t *testing.T) {
 		t.Errorf("expected original content, got %q", output.OriginalFileContent)
 	}
 }
+
+func TestActivity_InitialCommitScenario(t *testing.T) {
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "diff for new file in initial commit", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("fatal: invalid object name 'HEAD'")
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "new file content", nil
+		},
+	}
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "initial.go"}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error for initial commit: %v", err)
+	}
+
+	if output.OriginalFileContent != "" {
+		t.Errorf("expected empty original content for initial commit, got %q", output.OriginalFileContent)
+	}
+	if output.ChangedFileContent != "new file content" {
+		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
+	}
+}
