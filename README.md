@@ -33,9 +33,19 @@
 
 ## 🎬 See It in Action
 
+### 📝 Automated Commit Message Generation
+
 <div align="center">
 
-<img src="./assets/demo_commit.gif" alt="meowg1k demo" width="100%" />
+<img src="./assets/demo_commit.gif" alt="meowg1k commit demo" width="100%" />
+
+</div>
+
+### 🔍 RAG-Powered Code Search and Q&A
+
+<div align="center">
+
+<img src="./assets/demo_rag.gif" alt="meowg1k rag demo" width="100%" />
 
 </div>
 
