@@ -5,6 +5,7 @@ package fetchbranchfilediff
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/retran/meowg1k/pkg/executor"
@@ -103,5 +104,43 @@ func TestActivitySuccess(t *testing.T) {
 
 	if output.Filename != "test.go" {
 		t.Errorf("Expected filename 'test.go', got '%s'", output.Filename)
+	}
+}
+
+func TestActivity_InitialCommitScenario(t *testing.T) {
+	gitSvc := &mockBranchDiffReader{
+		GetBranchDiffFunc: func(filePath, targetBranch string) (string, error) {
+			return "diff for new file in initial commit", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("fatal: invalid object name 'HEAD'")
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "new file content", nil
+		},
+	}
+	factory, err := NewFactory(gitSvc)
+	if err != nil {
+		t.Fatalf("NewFactory failed: %v", err)
+	}
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{
+		Filename:     "initial.go",
+		TargetBranch: "main",
+	}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error for initial commit: %v", err)
+	}
+
+	if output.OriginalFileContent != "" {
+		t.Errorf("expected empty original content for initial commit, got %q", output.OriginalFileContent)
+	}
+	if output.ChangedFileContent != "new file content" {
+		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
 	}
 }
