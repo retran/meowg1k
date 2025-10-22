@@ -68,14 +68,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") ||
 				strings.Contains(err.Error(), "not in 'HEAD'") ||
+				strings.Contains(err.Error(), "invalid object name 'HEAD'") ||
 				strings.Contains(err.Error(), "path not in the working tree") {
-				originalFileContent = "" // File is new
+				originalFileContent = "" // File is new or this is the initial commit
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
 			}
-		}
-
-		// For branch diff, "staged" content is actually current HEAD content
+		} // For branch diff, "staged" content is actually current HEAD content
 		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") ||
