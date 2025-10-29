@@ -24,8 +24,8 @@ type Output struct {
 	ExistingVersions map[string]int64
 
 	// FilesToProcess contains files that need to be chunked, embedded, and saved
-	// Maps a synthetic file path (first encountered) to file state (only unique files not in DB)
-	FilesToProcess map[string]domainindex.FileState
+	// Each entry preserves the source file path and its associated state
+	FilesToProcess []domainindex.FileToProcess
 
 	// ContentHashToVersionID maps content hash to version ID for all files (used in finalization)
 	// Will be populated with both existing and new versions

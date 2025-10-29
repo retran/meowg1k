@@ -16,7 +16,7 @@ import (
 
 type Input struct {
 	StateName string
-	Files     map[string]domainindex.FileState
+	Files     []domainindex.FileToProcess
 }
 
 type FileChunkResult struct {
@@ -60,25 +60,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		chunkFutures := make(map[string]*future.Future[*chunkfile.Output])
-		for filePath, fileState := range input.Files {
+		type chunkFuture struct {
+			file   domainindex.FileToProcess
+			future *future.Future[*chunkfile.Output]
+		}
+		chunkFutures := make([]chunkFuture, 0, len(input.Files))
+
+		for _, file := range input.Files {
 			activity := f.chunkFileFactory.NewActivity()
 			fileInput := &chunkfile.Input{
-				FilePath: filePath,
-				Content:  fileState.Content,
+				FilePath: file.FilePath,
+				Content:  file.State.Content,
 			}
-			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Chunk_%s", filePath), activity, fileInput)
-			chunkFutures[filePath] = fut
+			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Chunk_%s", file.FilePath), activity, fileInput)
+			chunkFutures = append(chunkFutures, chunkFuture{
+				file:   file,
+				future: fut,
+			})
 		}
 
 		var fileChunks []FileChunkResult
 		var allChunkTexts []string
 		var chunkToFileIndex []int
 
-		for filePath, fut := range chunkFutures {
-			result, err := fut.Get(ctx)
+		for _, entry := range chunkFutures {
+			result, err := entry.future.Get(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to chunk file %s: %w", filePath, err)
+				return nil, fmt.Errorf("failed to chunk file %s: %w", entry.file.FilePath, err)
 			}
 
 			fileIndex := len(fileChunks)
@@ -93,7 +101,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				chunkToFileIndex = append(chunkToFileIndex, fileIndex)
 			}
 			for _, chunk := range result.Chunks {
-				chunkText := formatChunkWithMetadata(chunk, filePath, input.StateName)
+				chunkText := formatChunkWithMetadata(chunk, result.FilePath, input.StateName)
 				allChunkTexts = append(allChunkTexts, chunkText)
 			}
 		}

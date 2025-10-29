@@ -46,6 +46,11 @@ generate:
 		t.Fatalf("Failed to create temp config file: %v", err)
 	}
 
+	cleanEnvDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cleanEnvDir)
+	t.Setenv("HOME", cleanEnvDir)
+	t.Setenv("XDG_CONFIG_DIRS", "")
+
 	// Create command with config flag
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
@@ -167,6 +172,11 @@ func TestNewServiceWithoutConfig(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
 	// Don't set the config flag
+
+	cleanEnvDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cleanEnvDir)
+	t.Setenv("HOME", cleanEnvDir)
+	t.Setenv("XDG_CONFIG_DIRS", "")
 
 	commandSvc, err := command.NewService(cmd)
 	if err != nil {
