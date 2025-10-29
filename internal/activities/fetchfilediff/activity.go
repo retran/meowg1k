@@ -74,7 +74,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 
 		stagedFileContent, err := f.stagedChangesReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") {
+			if strings.Contains(err.Error(), "does not exist") ||
+				strings.Contains(err.Error(), "unknown revision or path not in the working tree") {
 				// File was deleted - return with empty staged content but include original content and diff
 				executorCtx.SendCompleted("Deleted")
 				return &git.FileChange{
