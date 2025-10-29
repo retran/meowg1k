@@ -229,7 +229,7 @@ func TestActivity_DeletedFileWithUnknownRevisionError(t *testing.T) {
 			return "original content", nil
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
-			return "", fmt.Errorf("fatal: ambiguous argument ':.meowg1k/config.yaml': unknown revision or path not in the working tree")
+			return "", fmt.Errorf("fatal: ambiguous argument '%s': unknown revision or path not in the working tree", filename)
 		},
 	}
 	factory, _ := NewFactory(gitSvc)
