@@ -220,6 +220,41 @@ func TestActivity_DeletedFileScenario(t *testing.T) {
 	}
 }
 
+func TestActivity_DeletedFileWithUnknownRevisionError(t *testing.T) {
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "diff for deleted file", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			return "original content", nil
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "", fmt.Errorf("fatal: ambiguous argument ':.meowg1k/config.yaml': unknown revision or path not in the working tree")
+		},
+	}
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: ".meowg1k/config.yaml"}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if output.ChangedFileContent != "" {
+		t.Errorf("expected empty staged content for deleted file, got %q", output.ChangedFileContent)
+	}
+	if output.OriginalFileContent != "original content" {
+		t.Errorf("expected original content, got %q", output.OriginalFileContent)
+	}
+	if output.Change != "diff for deleted file" {
+		t.Errorf("expected diff content, got %q", output.Change)
+	}
+}
+
 func TestActivity_InitialCommitScenario(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{
 		ReadStagedChangesFunc: func(filename string) (string, error) {
