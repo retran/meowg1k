@@ -3,7 +3,7 @@ module github.com/retran/meowg1k
 go 1.25.2
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.14.0
+	github.com/anthropics/anthropic-sdk-go v1.16.0
 	github.com/coder/hnsw v0.6.1
 	github.com/ncruces/go-sqlite3 v0.29.1
 	github.com/openai/openai-go/v2 v2.7.1
