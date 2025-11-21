@@ -1,0 +1,122 @@
+# Copyright 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+version: "3"
+
+vars:
+  PROJECT_NAME: meowg1k
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
+  LDFLAGS: >
+    -s -w
+    -X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
+    -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
+    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+  GOFLAGS: -trimpath -buildvcs=false
+  COVERAGE_THRESHOLD: 75.0
+  # Colors
+  GREEN: \033[0;32m
+  BLUE: \033[0;34m
+  NC: \033[0m
+
+tasks:
+  deps:install:
+    desc: Download and tidy Go modules
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Downloading dependencies...\n"
+      - go mod download
+      - go mod tidy
+      - |
+        printf "{{.GREEN}}[DONE]{{.NC}} Dependencies installed.\n"
+
+  check:all:
+    desc: Run all checks (lint, test, security)
+    cmds:
+      - task: check:lint
+      - task: check:test
+      - task: check:security
+
+  check:lint:
+    desc: Run golangci-lint
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Running linters...\n"
+      - golangci-lint run --timeout=5m
+
+  check:test:
+    desc: Run tests with coverage
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Running tests...\n"
+      - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+      - task: internal:coverage-check
+
+  check:security:
+    desc: Run security checks (gosec, govulncheck)
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Running security scans...\n"
+      - go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  fix:fmt:
+    desc: Format code (gofumpt, goimports)
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Formatting code...\n"
+      - golangci-lint run --fix --disable-all -E gofumpt -E goimports
+      - go fmt ./...
+
+  fix:lint:
+    desc: Auto-fix lint issues
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Fixing lint issues...\n"
+      - golangci-lint run --fix --timeout=5m
+
+  build:
+    desc: Build the binary
+    deps: [clean]
+    cmds:
+      - |
+        printf "{{.BLUE}}[INFO]{{.NC}} Building {{.PROJECT_NAME}}...\n"
+      - mkdir -p bin
+      - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" ./cmd/meow
+      - |
+        printf "{{.GREEN}}[DONE]{{.NC}} Binary built at bin/meow\n"
+
+  install:
+    desc: Install binary to GOBIN
+    cmds:
+      - |
+        BIN_DIR="$(go env GOBIN)"; [ -z "$BIN_DIR" ] && BIN_DIR="$(go env GOPATH)/bin"
+        printf "{{.BLUE}}[INFO]{{.NC}} Installing to $BIN_DIR...\n"
+        CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" ./cmd/meow
+
+  release:
+    desc: Release via GoReleaser
+    cmds:
+      - goreleaser release --clean
+
+  release:snapshot:
+    desc: Build snapshot release
+    cmds:
+      - goreleaser release --snapshot --clean
+
+  clean:
+    desc: Clean artifacts
+    cmds:
+      - rm -rf bin coverage.out coverage.html dist
+
+  internal:coverage-check:
+    internal: true
+    silent: true
+    cmds:
+      - |
+        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        echo "Coverage: ${COVERAGE}% (Threshold: {{.COVERAGE_THRESHOLD}}%)"
+        if (( $(echo "$COVERAGE < {{.COVERAGE_THRESHOLD}}" | bc -l) )); then
+          echo "FAIL: Coverage below threshold"
+          exit 1
+        fi
