@@ -490,7 +490,7 @@ func TestFactory_NewFlow(t *testing.T) {
 						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
 							return &deduplicateandprepare.Output{
 								ExistingVersions: make(map[string]int64),
-								FilesToProcess:   make(map[string]domainindex.FileState),
+								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},
@@ -544,12 +544,13 @@ func TestFactory_NewFlow(t *testing.T) {
 				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
 					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
 						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
-							files := map[string]domainindex.FileState{
-								"test.go": {
+							files := []domainindex.FileToProcess{{
+								FilePath: "test.go",
+								State: domainindex.FileState{
 									ContentHash: "hash1",
 									Content:     []byte("content"),
 								},
-							}
+							}}
 							return &deduplicateandprepare.Output{
 								ExistingVersions: make(map[string]int64),
 								FilesToProcess:   files,
@@ -582,7 +583,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					newActivityFunc: func() executor.Activity[*distributeandsave.Input, *distributeandsave.Output] {
 						return func(ctx context.Context, activityCtx *executor.Context, input *distributeandsave.Input) (*distributeandsave.Output, error) {
 							return &distributeandsave.Output{
-								VersionMap: map[string]int64{"test.go": 1},
+								VersionMap: map[string]int64{"hash1": 1},
 							}, nil
 						}
 					},
@@ -638,7 +639,7 @@ func TestFactory_NewFlow(t *testing.T) {
 						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
 							return &deduplicateandprepare.Output{
 								ExistingVersions: make(map[string]int64),
-								FilesToProcess:   make(map[string]domainindex.FileState),
+								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},
@@ -688,7 +689,7 @@ func TestFactory_NewFlow(t *testing.T) {
 						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
 							return &deduplicateandprepare.Output{
 								ExistingVersions: make(map[string]int64),
-								FilesToProcess:   make(map[string]domainindex.FileState),
+								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},

@@ -121,9 +121,21 @@ func TestActivity(t *testing.T) {
 
 		input := &Input{
 			StateName: "test_state",
-			Files: map[string]domainindex.FileState{
-				"file1.go": {ContentHash: "hash1", Content: []byte("content1")},
-				"file2.go": {ContentHash: "hash2", Content: []byte("content2")},
+			Files: []domainindex.FileToProcess{
+				{
+					FilePath: "file1.go",
+					State: domainindex.FileState{
+						ContentHash: "hash1",
+						Content:     []byte("content1"),
+					},
+				},
+				{
+					FilePath: "file2.go",
+					State: domainindex.FileState{
+						ContentHash: "hash2",
+						Content:     []byte("content2"),
+					},
+				},
 			},
 		}
 
@@ -147,31 +159,24 @@ func TestActivity(t *testing.T) {
 			t.Fatalf("expected 3 ChunkToFileIndex entries, got %d", len(output.ChunkToFileIndex))
 		}
 
-		// Since map iteration order is not guaranteed, we need to be flexible about the index mapping
-		// Just verify that the indices are valid and the counts are correct
-		for _, idx := range output.ChunkToFileIndex {
-			if idx < 0 || idx >= len(output.FileChunks) {
-				t.Errorf("invalid file index %d", idx)
+		expectedOrder := []string{"file1.go", "file2.go"}
+		for i, chunk := range output.FileChunks {
+			if chunk.FilePath != expectedOrder[i] {
+				t.Errorf("expected file %s at index %d, got %s", expectedOrder[i], i, chunk.FilePath)
 			}
 		}
 
-		// Count chunks per file index
-		chunkCounts := make(map[int]int)
-		for _, idx := range output.ChunkToFileIndex {
-			chunkCounts[idx]++
-		}
-
-		// We should have exactly 2 files, one with 2 chunks and one with 1 chunk
-		if len(chunkCounts) != 2 {
-			t.Errorf("expected chunks for 2 files, got chunks for %d files", len(chunkCounts))
-		}
-
-		totalChunks := 0
-		for _, count := range chunkCounts {
-			totalChunks += count
-		}
-		if totalChunks != 3 {
-			t.Errorf("expected 3 total chunks, got %d", totalChunks)
+		expectedChunkCounts := []int{2, 1}
+		for fileIdx, expectedCount := range expectedChunkCounts {
+			count := 0
+			for _, idx := range output.ChunkToFileIndex {
+				if idx == fileIdx {
+					count++
+				}
+			}
+			if count != expectedCount {
+				t.Errorf("expected %d chunks for file index %d, got %d", expectedCount, fileIdx, count)
+			}
 		}
 	})
 
@@ -184,7 +189,7 @@ func TestActivity(t *testing.T) {
 		exec := &mockExecutor{}
 		ctx := context.Background()
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec)
-		input := &Input{StateName: "empty_state", Files: map[string]domainindex.FileState{}}
+		input := &Input{StateName: "empty_state", Files: []domainindex.FileToProcess{}}
 
 		// Act
 		output, err := activityFunc(ctx, executorCtx, input)
@@ -208,7 +213,7 @@ func TestActivity(t *testing.T) {
 
 		ctx := context.Background()
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, nil) // No executor
-		input := &Input{StateName: "test", Files: map[string]domainindex.FileState{}}
+		input := &Input{StateName: "test", Files: []domainindex.FileToProcess{}}
 
 		// Act
 		_, err := activityFunc(ctx, executorCtx, input)
@@ -244,7 +249,12 @@ func TestActivity(t *testing.T) {
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec)
 		input := &Input{
 			StateName: "fail_state",
-			Files:     map[string]domainindex.FileState{"fail.go": {}},
+			Files: []domainindex.FileToProcess{
+				{
+					FilePath: "fail.go",
+					State:    domainindex.FileState{},
+				},
+			},
 		}
 
 		// Act
