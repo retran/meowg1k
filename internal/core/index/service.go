@@ -41,7 +41,7 @@ func NewService(
 
 type PrepareOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   map[string]domainindex.FileState
+	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
 }
 
@@ -65,6 +65,7 @@ func (s *Service) prepareForProcessingImpl(
 		fileState domainindex.FileState
 		firstPath string
 	})
+	encounterOrder := make([]string, 0)
 	contentHashMap := make(map[string]string)
 
 	for filePath, fileState := range workspaceState.HeadState {
@@ -78,6 +79,7 @@ func (s *Service) prepareForProcessingImpl(
 				fileState domainindex.FileState
 				firstPath string
 			}{fileState: fileState, firstPath: filePath}
+			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
 	}
 
@@ -92,6 +94,7 @@ func (s *Service) prepareForProcessingImpl(
 				fileState domainindex.FileState
 				firstPath string
 			}{fileState: fileState, firstPath: filePath}
+			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
 	}
 
@@ -106,13 +109,11 @@ func (s *Service) prepareForProcessingImpl(
 				fileState domainindex.FileState
 				firstPath string
 			}{fileState: fileState, firstPath: filePath}
+			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
 	}
 
-	contentHashList := make([]string, 0, len(uniqueContentHashes))
-	for contentHash := range uniqueContentHashes {
-		contentHashList = append(contentHashList, contentHash)
-	}
+	contentHashList := append([]string(nil), encounterOrder...)
 
 	existingVersionsMap, err := s.indexRepo.FindVersionsByContentHashes(ctx, contentHashList)
 	if err != nil {
@@ -126,10 +127,14 @@ func (s *Service) prepareForProcessingImpl(
 		}
 	}
 
-	filesToProcess := make(map[string]domainindex.FileState)
-	for contentHash, entry := range uniqueContentHashes {
+	filesToProcess := make([]domainindex.FileToProcess, 0, len(uniqueContentHashes))
+	for _, contentHash := range encounterOrder {
+		entry := uniqueContentHashes[contentHash]
 		if _, exists := existingVersions[contentHash]; !exists {
-			filesToProcess[entry.firstPath] = entry.fileState
+			filesToProcess = append(filesToProcess, domainindex.FileToProcess{
+				FilePath: entry.firstPath,
+				State:    entry.fileState,
+			})
 		}
 	}
 
