@@ -12,7 +12,7 @@ import (
 // PrepareForProcessingOutput represents the output of the PrepareForProcessing operation.
 type PrepareForProcessingOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   map[string]domainindex.FileState
+	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
 }
 
