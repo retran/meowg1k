@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "group:recommended"],
+  "baseBranchPatterns": ["dev"],
+  "timezone": "Europe/Amsterdam",
+  "schedule": ["before 6am on Monday"],
+  "prCreation": "not-pending",
+  "rebaseWhen": "conflicted",
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Separate major and combine minor/patch",
+      "matchUpdateTypes": ["major"]
+    },
+    {
+      "description": "Combine minor/patch",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "all minor and patch updates"
+    },
+    {
+      "description": "Go dependencies",
+      "matchManagers": ["gomod"],
+      "groupName": "go dependencies",
+      "schedule": ["before 6am on Monday"],
+      "semanticCommitType": "build",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "groupName": "github actions",
+      "schedule": ["before 6am on Monday"],
+      "semanticCommitType": "ci"
+    }
+  ]
+}
