@@ -4,10 +4,17 @@
 package meta
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	_ "github.com/ncruces/go-sqlite3/driver"
 
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -74,7 +81,7 @@ func TestRepository_SetValue_DBError(t *testing.T) {
 		t.Fatal("Expected error when GetProjectDB fails")
 	}
 
-	if !contains(err.Error(), "failed to get database") {
+	if !strings.Contains(err.Error(), "failed to get database") {
 		t.Errorf("Expected 'failed to get database' in error, got: %v", err)
 	}
 }
@@ -94,7 +101,7 @@ func TestRepository_GetValue_DBError(t *testing.T) {
 		t.Fatal("Expected error when GetProjectDB fails")
 	}
 
-	if !contains(err.Error(), "failed to get database") {
+	if !strings.Contains(err.Error(), "failed to get database") {
 		t.Errorf("Expected 'failed to get database' in error, got: %v", err)
 	}
 }
@@ -114,7 +121,7 @@ func TestRepository_DeleteValue_DBError(t *testing.T) {
 		t.Fatal("Expected error when GetProjectDB fails")
 	}
 
-	if !contains(err.Error(), "failed to get database") {
+	if !strings.Contains(err.Error(), "failed to get database") {
 		t.Errorf("Expected 'failed to get database' in error, got: %v", err)
 	}
 }
@@ -137,16 +144,61 @@ func TestRepository_DeleteValue_NonExistentKey(t *testing.T) {
 	t.Skip("Skipping integration test - requires in-memory database")
 }
 
-// Helper function to check if a string contains a substring.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && hasSubstring(s, substr))
-}
+func TestRepository_LargeValueStoredExternally(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "project.db")
 
-func hasSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath))
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
 	}
-	return false
+	defer db.Close()
+
+	if _, err := db.Exec(`CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	host := &mockHost{
+		GetProjectDBFunc: func() (*sql.DB, error) {
+			return db, nil
+		},
+	}
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	largeValue := bytes.Repeat([]byte{0x2A}, maxInlineValueSize+1024)
+	if err := repo.SetValue(ctx, "large-key", largeValue); err != nil {
+		t.Fatalf("SetValue failed: %v", err)
+	}
+
+	readBack, err := repo.GetValue(ctx, "large-key")
+	if err != nil {
+		t.Fatalf("GetValue failed: %v", err)
+	}
+
+	if !bytes.Equal(readBack, largeValue) {
+		t.Fatal("retrieved value does not match original large payload")
+	}
+
+	metaBlobDir := filepath.Join(tempDir, "meta_blobs")
+	entries, err := os.ReadDir(metaBlobDir)
+	if err != nil {
+		t.Fatalf("failed to read blob directory: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 blob file, found %d", len(entries))
+	}
+
+	if err := repo.DeleteValue(ctx, "large-key"); err != nil {
+		t.Fatalf("DeleteValue failed: %v", err)
+	}
+
+	entries, err = os.ReadDir(metaBlobDir)
+	if err != nil {
+		t.Fatalf("failed to read blob directory after delete: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected blob directory to be empty after delete, found %d files", len(entries))
+	}
 }
