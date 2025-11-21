@@ -325,6 +325,52 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		}
 	})
 
+	t.Run("Processes distinct contents for same file path across states", func(t *testing.T) {
+		indexRepo := &mockIndexRepository{}
+		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
+
+		workspaceState := &scanworkspacestate.Output{
+			HeadState: map[string]domainindex.FileState{
+				"shared.ts": {
+					Content:     []byte("head version"),
+					ContentHash: "hash_head",
+				},
+			},
+			StageState: map[string]domainindex.FileState{
+				"shared.ts": {
+					Content:     []byte("stage version"),
+					ContentHash: "hash_stage",
+				},
+			},
+			WorkdirState: map[string]domainindex.FileState{},
+		}
+
+		result, err := service.PrepareForProcessing(context.Background(), workspaceState)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		output := result.(*PrepareOutput)
+		if len(output.FilesToProcess) != 2 {
+			t.Fatalf("Expected 2 files to process, got %d", len(output.FilesToProcess))
+		}
+
+		hashes := make(map[string]struct{})
+		for _, file := range output.FilesToProcess {
+			if file.FilePath != "shared.ts" {
+				t.Errorf("Expected file path shared.ts, got %s", file.FilePath)
+			}
+			hashes[file.State.ContentHash] = struct{}{}
+		}
+
+		if _, ok := hashes["hash_head"]; !ok {
+			t.Error("Expected head content hash to be processed")
+		}
+		if _, ok := hashes["hash_stage"]; !ok {
+			t.Error("Expected stage content hash to be processed")
+		}
+	})
+
 	t.Run("Repository error propagates", func(t *testing.T) {
 		indexRepo := &mockIndexRepository{
 			FindVersionsByContentHashesFunc: func(ctx context.Context, contentHashes []string) (map[string]*domainindex.DocumentVersion, error) {

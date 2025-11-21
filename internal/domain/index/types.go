@@ -67,6 +67,13 @@ type FileState struct {
 	Content     []byte
 }
 
+// FileToProcess represents a unique file (by content) that needs processing.
+// FilePath identifies where the content came from, State holds the file data.
+type FileToProcess struct {
+	FilePath string
+	State    FileState
+}
+
 // CommitSnapshot represents a link between a git commit and a document version.
 // It tracks which document versions existed at a specific commit.
 type CommitSnapshot struct {

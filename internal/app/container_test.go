@@ -519,6 +519,11 @@ generate:
 		t.Fatalf("Failed to create config file: %v", err)
 	}
 
+	cleanEnvDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cleanEnvDir)
+	t.Setenv("HOME", cleanEnvDir)
+	t.Setenv("XDG_CONFIG_DIRS", "")
+
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
 	cmd.Flags().String("task", "", "task name")
