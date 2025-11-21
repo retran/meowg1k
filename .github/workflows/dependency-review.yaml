@@ -1,0 +1,25 @@
+# Copyright 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Review
+        uses: actions/dependency-review-action@45529485b5eb76184ced07362d2331fd9d26f03f
+        with:
+          fail-on-severity: moderate
