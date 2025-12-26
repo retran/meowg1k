@@ -202,7 +202,7 @@ func (f *Factory) listFiles(
 ) ([]string, error) {
 	if targetBranch != "" {
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
-		branchFilesFuture := executor.ExecuteActivity(
+		branchFiles, err := executor.ExecuteActivity(
 			ctx,
 			exec,
 			flowCtx,
@@ -212,8 +212,6 @@ func (f *Factory) listFiles(
 				TargetBranch: targetBranch,
 			},
 		)
-
-		branchFiles, err := branchFilesFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list branch files: %w", err)
 		}
@@ -221,7 +219,7 @@ func (f *Factory) listFiles(
 	}
 
 	listStaged := f.listStagedFactory.NewActivity()
-	stagedFilesFuture := executor.ExecuteActivity(
+	stagedFiles, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -229,8 +227,6 @@ func (f *Factory) listFiles(
 		listStaged,
 		&liststaged.Input{},
 	)
-
-	stagedFiles, err := stagedFilesFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staged files: %w", err)
 	}
@@ -244,7 +240,7 @@ func (f *Factory) applyFilters(
 	files []string,
 ) ([]string, error) {
 	applyFilters := f.applyFiltersFactory.NewActivity()
-	filteredFilesFuture := executor.ExecuteActivity(
+	filteredFiles, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -254,8 +250,6 @@ func (f *Factory) applyFilters(
 			Files: files,
 		},
 	)
-
-	filteredFiles, err := filteredFilesFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply filters: %w", err)
 	}
@@ -271,7 +265,7 @@ func (f *Factory) fetchChanges(
 ) ([]*git.FileChange, error) {
 	if targetBranch != "" {
 		fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-		fetchAllBranchDiffsFuture := executor.ExecuteActivity(
+		fetchAllBranchDiffsOutput, err := executor.ExecuteActivity(
 			ctx,
 			exec,
 			flowCtx,
@@ -282,8 +276,6 @@ func (f *Factory) fetchChanges(
 				TargetBranch: targetBranch,
 			},
 		)
-
-		fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch branch diffs: %w", err)
 		}
@@ -291,7 +283,7 @@ func (f *Factory) fetchChanges(
 	}
 
 	fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
-	fetchAllDiffsFuture := executor.ExecuteActivity(
+	fetchAllDiffsOutput, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -301,8 +293,6 @@ func (f *Factory) fetchChanges(
 			Files: files,
 		},
 	)
-
-	fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch diffs: %w", err)
 	}
@@ -341,7 +331,7 @@ func (f *Factory) composeCommitMessage(
 ) (string, error) {
 	if cfg.Strategy == "flat" {
 		composeFlatCommit := f.composeFlatCommitFactory.NewActivity()
-		flatCommitFuture := executor.ExecuteActivity(
+		flatCommitResult, err := executor.ExecuteActivity(
 			ctx,
 			exec,
 			flowCtx,
@@ -354,8 +344,6 @@ func (f *Factory) composeCommitMessage(
 				Intent:       intent,
 			},
 		)
-
-		flatCommitResult, err := flatCommitFuture.Get(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to compose commit message using flat strategy: %w", err)
 		}
@@ -363,7 +351,7 @@ func (f *Factory) composeCommitMessage(
 	}
 
 	summarizeAll := f.summarizeAllFactory.NewActivity()
-	summarizeAllFuture := executor.ExecuteActivity(
+	summarizeAllOutput, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -373,14 +361,12 @@ func (f *Factory) composeCommitMessage(
 			Changes: changes,
 		},
 	)
-
-	summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to summarize changes: %w", err)
 	}
 
 	composeCommit := f.composeCommitFactory.NewActivity()
-	commitFuture := executor.ExecuteActivity(
+	commitResult, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -393,8 +379,6 @@ func (f *Factory) composeCommitMessage(
 			Intent:       intent,
 		},
 	)
-
-	commitResult, err := commitFuture.Get(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to compose commit message: %w", err)
 	}

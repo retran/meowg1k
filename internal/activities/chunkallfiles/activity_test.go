@@ -12,7 +12,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/chunkfile"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // mockChunkFileFactory is a mock implementation of the chunkfile factory.
@@ -26,17 +25,14 @@ func (m *mockChunkFileFactory) NewActivity() executor.Activity[*chunkfile.Input,
 
 // mockExecutor is a mock implementation of the executor.
 type mockExecutor struct {
-	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any]
+	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error)
 }
 
-func (m *mockExecutor) ExecuteActivity(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
+func (m *mockExecutor) ExecuteActivity(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error) {
 	if m.executeActivityFn != nil {
 		return m.executeActivityFn(ctx, parentCtx, name, activity, input)
 	}
-	// Default implementation
-	f := future.NewFuture[any]()
-	f.CompleteWithError(fmt.Errorf("mock not configured"))
-	return f
+	return nil, fmt.Errorf("mock not configured")
 }
 
 func (m *mockExecutor) ExecuteFlow(ctx context.Context, name string, flow executor.Flow) error {
@@ -102,18 +98,11 @@ func TestActivity(t *testing.T) {
 		activityFunc := factory.NewActivity()
 
 		exec := &mockExecutor{}
-		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
+		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error) {
 			params := input.(*chunkfile.Input)
-			f := future.NewFuture[any]()
 
 			// Execute the actual activity
-			result, err := mockChildFactory.activity(ctx, parentCtx, params)
-			if err != nil {
-				f.CompleteWithError(err)
-			} else {
-				f.Complete(result)
-			}
-			return f
+			return mockChildFactory.activity(ctx, parentCtx, params)
 		}
 
 		ctx := context.Background()
@@ -239,10 +228,8 @@ func TestActivity(t *testing.T) {
 		activityFunc := factory.NewActivity()
 
 		exec := &mockExecutor{}
-		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
-			f := future.NewFuture[any]()
-			f.CompleteWithError(childErr)
-			return f
+		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error) {
+			return nil, childErr
 		}
 
 		ctx := context.Background()

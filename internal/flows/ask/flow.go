@@ -261,8 +261,7 @@ func (f *Factory) runRetrieveContext(
 		MinScore:         params.minScore,
 	}
 
-	retrieveContextFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
-	retrieveContextOutput, err := retrieveContextFuture.Get(ctx)
+	retrieveContextOutput, err := executor.ExecuteActivity(ctx, exec, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
 	if err != nil {
 		return nil, fmt.Errorf("context retrieval failed: %w", err)
 	}
@@ -284,8 +283,7 @@ func (f *Factory) runInvokeLLM(
 		UserPrompt:   userPrompt,
 	}
 
-	invokeLLMFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
-	invokeLLMOutput, err := invokeLLMFuture.Get(ctx)
+	invokeLLMOutput, err := executor.ExecuteActivity(ctx, exec, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
 	if err != nil {
 		return nil, fmt.Errorf("answer generation failed: %w", err)
 	}

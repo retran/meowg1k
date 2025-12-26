@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package summarizeall implements a parent activity that summarizes changes for multiple files in parallel.
+// Package summarizeall implements a parent activity that summarizes changes for multiple files sequentially.
 package summarizeall
 
 import (
@@ -11,7 +11,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the input structure for the SummarizeAll activity.
@@ -67,10 +66,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
+		summaries := make([]*summarizefile.Output, 0, len(input.Changes))
 		for _, change := range input.Changes {
 			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
-			fut := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
+			summary, err := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
 				ctx,
 				exec,
 				executorCtx,
@@ -83,18 +82,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 					StagedFileContent:   change.ChangedFileContent,
 				},
 			)
-			summarizeFutures = append(summarizeFutures, fut)
-		}
-
-		summaryResults, errs := future.WaitAll(ctx, summarizeFutures...)
-		for _, err := range errs {
 			if err != nil {
 				return nil, fmt.Errorf("failed to summarize changes: %w", err)
 			}
+			summaries = append(summaries, summary)
 		}
-
-		summaries := make([]*summarizefile.Output, 0, len(summaryResults))
-		summaries = append(summaries, summaryResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Summarized %d files", len(summaries)))
 

@@ -80,7 +80,7 @@ func (g *loggingGenerationGateway) GenerateContent(
 		entry.Response.Error = err.Error()
 	}
 
-	// Log asynchronously to avoid blocking (ignore errors)
+	// Log in the background to avoid blocking (ignore errors).
 	go func() {
 		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
 	}()
@@ -207,7 +207,7 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 		entry.Response.Error = err.Error()
 	}
 
-	// Log asynchronously to avoid blocking (ignore errors)
+	// Log in the background to avoid blocking (ignore errors).
 	go func() {
 		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
 	}()

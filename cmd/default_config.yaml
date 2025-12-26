@@ -145,7 +145,7 @@ generate:
         Requirements:
           - Use a clear, structured approach (e.g., table-driven tests or Arrange-Act-Assert).
           - Cover the happy path, edge cases, and error scenarios.
-          - Ensure tests are deterministic and can be parallelized where safe.
+          - Ensure tests are deterministic and safe to run.
           - Return only compilable test code in the detected language.
 
 # Configures the document indexing process, building a vector database for the 'ask' command.

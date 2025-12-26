@@ -6,13 +6,13 @@ This guide provides practical examples and recipes to showcase how `meowg1k` can
 
 This is the simplest use case: providing a piece of code via stdin and asking for a modification.
 
-**Goal:** Convert a JavaScript function to use modern `async/await` syntax.
+**Goal:** Refactor a JavaScript function for clearer control flow and basic error handling.
 
 **Command:**
 
 ```bash
 echo "function getUser(id) { return fetch('/api/users/' + id).then(res => res.json()); }" \
-| meow g -u "Refactor this to use async/await syntax and add basic error handling"
+| meow g -u "Refactor this to improve control flow and add basic error handling"
 ```
 
 **Explanation:**

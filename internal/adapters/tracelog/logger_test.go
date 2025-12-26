@@ -286,7 +286,7 @@ func TestLogger_FeedbackHandler(t *testing.T) {
 
 	handler(feedback)
 
-	// Wait a bit for async logging
+	// Wait a bit for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	if !innerCalled {
@@ -352,7 +352,7 @@ func TestLogger_FeedbackHandlerWithError(t *testing.T) {
 
 	handler(feedback)
 
-	// Wait a bit for async logging
+	// Wait a bit for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify log was created with error

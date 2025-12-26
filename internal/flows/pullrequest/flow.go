@@ -189,7 +189,7 @@ func (f *Factory) listBranchFiles(
 	baseBranch string,
 ) ([]string, error) {
 	listBranchFiles := f.listBranchFilesFactory.NewActivity()
-	branchFilesFuture := executor.ExecuteActivity(
+	branchFiles, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -199,8 +199,6 @@ func (f *Factory) listBranchFiles(
 			TargetBranch: baseBranch,
 		},
 	)
-
-	branchFiles, err := branchFilesFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list branch files: %w", err)
 	}
@@ -214,7 +212,7 @@ func (f *Factory) applyFilters(
 	files []string,
 ) ([]string, error) {
 	applyFilters := f.applyFiltersFactory.NewActivity()
-	filteredFilesFuture := executor.ExecuteActivity(
+	filteredFiles, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -224,8 +222,6 @@ func (f *Factory) applyFilters(
 			Files: files,
 		},
 	)
-
-	filteredFiles, err := filteredFilesFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply filters: %w", err)
 	}
@@ -240,7 +236,7 @@ func (f *Factory) fetchBranchChanges(
 	baseBranch string,
 ) ([]*git.FileChange, error) {
 	fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-	fetchAllBranchDiffsFuture := executor.ExecuteActivity(
+	fetchAllBranchDiffsOutput, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -251,8 +247,6 @@ func (f *Factory) fetchBranchChanges(
 			TargetBranch: baseBranch,
 		},
 	)
-
-	fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch branch diffs: %w", err)
 	}
@@ -291,7 +285,7 @@ func (f *Factory) composePRDescription(
 ) (string, error) {
 	if cfg.Strategy == "flat" {
 		composeFlatPR := f.composeFlatPRFactory.NewActivity()
-		flatPRFuture := executor.ExecuteActivity(
+		flatPRResult, err := executor.ExecuteActivity(
 			ctx,
 			exec,
 			flowCtx,
@@ -304,8 +298,6 @@ func (f *Factory) composePRDescription(
 				Intent:       intent,
 			},
 		)
-
-		flatPRResult, err := flatPRFuture.Get(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to compose PR description using flat strategy: %w", err)
 		}
@@ -313,7 +305,7 @@ func (f *Factory) composePRDescription(
 	}
 
 	summarizeAll := f.summarizeAllFactory.NewActivity()
-	summarizeAllFuture := executor.ExecuteActivity(
+	summarizeAllOutput, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -323,14 +315,12 @@ func (f *Factory) composePRDescription(
 			Changes: changes,
 		},
 	)
-
-	summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to summarize changes: %w", err)
 	}
 
 	composePR := f.composePRFactory.NewActivity()
-	prFuture := executor.ExecuteActivity(
+	prResult, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -343,8 +333,6 @@ func (f *Factory) composePRDescription(
 			Intent:       intent,
 		},
 	)
-
-	prResult, err := prFuture.Get(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to compose PR description: %w", err)
 	}

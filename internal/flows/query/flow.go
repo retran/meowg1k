@@ -151,8 +151,7 @@ func (f *Factory) runQuery(
 		return nil, fmt.Errorf("executor not available in context")
 	}
 
-	queryFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Query", queryActivity, queryInput)
-	queryOutput, err := queryFuture.Get(ctx)
+	queryOutput, err := executor.ExecuteActivity(ctx, exec, flowCtx, "Query", queryActivity, queryInput)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

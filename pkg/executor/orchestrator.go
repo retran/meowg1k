@@ -27,7 +27,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new FlowRunner with the given container.
 // traceLogger can be nil if trace logging is not needed.
-// concurrency limits the number of concurrent activities (0 means no limit).
+// concurrency limits the number of in-flight activities (0 means no limit).
 func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger, concurrency int) (*Orchestrator, error) {
 	if outputSink == nil {
 		return nil, fmt.Errorf("flusher is nil")

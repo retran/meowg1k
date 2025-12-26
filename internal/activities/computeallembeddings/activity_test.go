@@ -14,7 +14,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 const batchID = "Batch_0-2"
@@ -31,17 +30,14 @@ func (m *mockComputeBatchFactory) NewActivity() executor.Activity[*computeembedd
 
 // mockExecutor is a mock implementation of the executor.
 type mockExecutor struct {
-	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any]
+	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error)
 }
 
-func (m *mockExecutor) ExecuteActivity(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) *future.Future[any] {
+func (m *mockExecutor) ExecuteActivity(ctx context.Context, parentCtx *executor.Context, name string, activity executor.Activity[any, any], input any) (any, error) {
 	if m.executeActivityFn != nil {
 		return m.executeActivityFn(ctx, parentCtx, name, activity, input)
 	}
-	// Default implementation
-	f := future.NewFuture[any]()
-	f.CompleteWithError(fmt.Errorf("mock not configured"))
-	return f
+	return nil, fmt.Errorf("mock not configured")
 }
 
 func (m *mockExecutor) ExecuteFlow(ctx context.Context, name string, flow executor.Flow) error {
@@ -105,8 +101,7 @@ func TestActivity(t *testing.T) {
 		// Arrange
 		ctx := context.Background()
 
-		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) *future.Future[any] {
-			f := future.NewFuture[any]()
+		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) (any, error) {
 			output := &computeembeddingsbatch.Output{}
 			switch activityID {
 			case batchID:
@@ -114,8 +109,7 @@ func TestActivity(t *testing.T) {
 			case "Batch_2-3":
 				output.Embeddings = []gateway.Embedding{{3}}
 			}
-			f.Complete(output)
-			return f
+			return output, nil
 		}
 
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec)
@@ -189,14 +183,11 @@ func TestActivity(t *testing.T) {
 		childErr := errors.New("batch failed")
 
 		exec2 := &mockExecutor{}
-		exec2.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) *future.Future[any] {
-			f := future.NewFuture[any]()
+		exec2.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) (any, error) {
 			if activityID == batchID {
-				f.CompleteWithError(childErr)
-			} else {
-				f.Complete(&computeembeddingsbatch.Output{})
+				return nil, childErr
 			}
-			return f
+			return &computeembeddingsbatch.Output{}, nil
 		}
 
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec2)
@@ -219,8 +210,7 @@ func TestActivity(t *testing.T) {
 		ctx := context.Background()
 
 		exec3 := &mockExecutor{}
-		exec3.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) *future.Future[any] {
-			f := future.NewFuture[any]()
+		exec3.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) (any, error) {
 			var output *computeembeddingsbatch.Output
 			// Return fewer embeddings than expected for the first batch
 			if activityID == batchID {
@@ -228,8 +218,7 @@ func TestActivity(t *testing.T) {
 			} else {
 				output = &computeembeddingsbatch.Output{Embeddings: []gateway.Embedding{{3}}} // Should be 1, and is 1
 			}
-			f.Complete(output)
-			return f
+			return output, nil
 		}
 
 		executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec3)

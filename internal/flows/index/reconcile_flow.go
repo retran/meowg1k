@@ -165,8 +165,7 @@ func (f *Factory) validateFlowContext(ctx context.Context, flowCtx *executor.Con
 
 func (f *Factory) runCleanup(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
 	cleanupActivity := f.cleanupFactory.NewActivity()
-	cleanupFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{})
-	if _, err := cleanupFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{}); err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 	return nil
@@ -174,8 +173,7 @@ func (f *Factory) runCleanup(ctx context.Context, flowCtx *executor.Context, exe
 
 func (f *Factory) runScan(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) (*scanworkspacestate.Output, error) {
 	scanActivity := f.scanStateFactory.NewActivity()
-	scanFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
-	scanResult, err := scanFuture.Get(ctx)
+	scanResult, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
 	if err != nil {
 		return nil, fmt.Errorf("workspace scan failed: %w", err)
 	}
@@ -193,8 +191,7 @@ func (f *Factory) runDeduplicate(
 	deduplicateInput := &deduplicateandprepare.Input{
 		WorkspaceState: scanResult,
 	}
-	deduplicateFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
-	deduplicateResult, err := deduplicateFuture.Get(ctx)
+	deduplicateResult, err := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
 	if err != nil {
 		return nil, fmt.Errorf("deduplication failed: %w", err)
 	}
@@ -219,8 +216,7 @@ func (f *Factory) processNewFiles(
 		StateName: "Deduplicated",
 		Files:     filesToProcess,
 	}
-	chunkFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
-	chunkResults, err := chunkFuture.Get(ctx)
+	chunkResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
 	if err != nil {
 		return nil, fmt.Errorf("chunking failed: %w", err)
 	}
@@ -231,8 +227,7 @@ func (f *Factory) processNewFiles(
 		ChunkResults: chunkResults,
 		BatchSize:    f.batchSize,
 	}
-	prepareBatchesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
-	preparedBatches, err := prepareBatchesFuture.Get(ctx)
+	preparedBatches, err := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
 	if err != nil {
 		return nil, fmt.Errorf("batch preparation failed: %w", err)
 	}
@@ -242,8 +237,7 @@ func (f *Factory) processNewFiles(
 		StateName:       "Deduplicated",
 		PreparedBatches: preparedBatches,
 	}
-	computeFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
-	embeddingResults, err := computeFuture.Get(ctx)
+	embeddingResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
 	if err != nil {
 		return nil, fmt.Errorf("embedding computation failed: %w", err)
 	}
@@ -253,8 +247,7 @@ func (f *Factory) processNewFiles(
 		StateName:        "Deduplicated",
 		EmbeddingResults: embeddingResults,
 	}
-	saveFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
-	saveResults, err := saveFuture.Get(ctx)
+	saveResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
 	if err != nil {
 		return nil, fmt.Errorf("save failed: %w", err)
 	}
@@ -278,8 +271,7 @@ func (f *Factory) finalizeSnapshots(
 		ExistingVersions: existingVersions,
 		NewVersions:      newVersions,
 	}
-	finalizeSnapshotsFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
-	if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput); err != nil {
 		return fmt.Errorf("snapshots finalization failed: %w", err)
 	}
 	return nil
@@ -287,8 +279,7 @@ func (f *Factory) finalizeSnapshots(
 
 func (f *Factory) buildVectorIndices(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
 	buildVectorIndicesActivity := f.buildVectorIndicesFactory.NewActivity()
-	vectorIndicesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
-	if _, err := vectorIndicesFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{}); err != nil {
 		return fmt.Errorf("vector indices build failed: %w", err)
 	}
 	return nil

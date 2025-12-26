@@ -856,8 +856,7 @@ func (r *ToolRunner) runSearchTool(ctx context.Context, execCtx *executor.Contex
 		TopK:             r.searchDefaults.TopK,
 		MinScore:         r.searchDefaults.MinScore,
 	}
-	future := executor.ExecuteActivity(ctx, executorInstance, execCtx, "Query", activity, queryInput)
-	output, err := future.Get(ctx)
+	output, err := executor.ExecuteActivity(ctx, executorInstance, execCtx, "Query", activity, queryInput)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
@@ -1160,8 +1159,7 @@ func (r *ToolRunner) summarize(ctx context.Context, execCtx *executor.Context, t
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
 	}
-	future := executor.ExecuteActivity(ctx, executorInstance, execCtx, "InvokeLLM", activity, input)
-	output, err := future.Get(ctx)
+	output, err := executor.ExecuteActivity(ctx, executorInstance, execCtx, "InvokeLLM", activity, input)
 	if err != nil {
 		return "", fmt.Errorf("summarize failed: %w", err)
 	}

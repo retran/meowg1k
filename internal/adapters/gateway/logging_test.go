@@ -87,7 +87,7 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 		t.Errorf("Expected 'Generated content', got %s", content)
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -130,7 +130,7 @@ func TestLoggingGenerationGateway_Error(t *testing.T) {
 		t.Fatal("Expected error, got nil")
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -180,7 +180,7 @@ func TestLoggingEmbeddingsGateway_Success(t *testing.T) {
 		t.Errorf("Expected 2 embeddings, got %d", len(embeddings))
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -214,7 +214,7 @@ func TestLoggingEmbeddingsGateway_Error(t *testing.T) {
 		t.Fatal("Expected error, got nil")
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()

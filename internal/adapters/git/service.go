@@ -38,7 +38,7 @@ func NewService(workspaceDirProvider WorkspaceDirProvider) (*Service, error) {
 
 	return &Service{
 		workspaceDir: workspaceDir,
-		semaphore:    make(chan struct{}, 1), // Only 1 concurrent git command
+		semaphore:    make(chan struct{}, 1), // Only 1 in-flight git command.
 	}, nil
 }
 

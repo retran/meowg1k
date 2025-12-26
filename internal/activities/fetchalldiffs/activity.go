@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package fetchalldiffs implements a parent activity that fetches staged diffs for multiple files in parallel.
+// Package fetchalldiffs implements a parent activity that fetches staged diffs for multiple files sequentially.
 package fetchalldiffs
 
 import (
@@ -11,7 +11,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the input structure for the FetchAllDiffs activity.
@@ -61,10 +60,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
+		changes := make([]*git.FileChange, 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
-			fut := executor.ExecuteActivity[*fetchfilediff.Input, *git.FileChange](
+			change, err := executor.ExecuteActivity[*fetchfilediff.Input, *git.FileChange](
 				ctx,
 				exec,
 				executorCtx,
@@ -74,18 +73,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 					Filename: file,
 				},
 			)
-			readChangesFutures = append(readChangesFutures, fut)
-		}
-
-		changesResults, errs := future.WaitAll(ctx, readChangesFutures...)
-		for _, err := range errs {
 			if err != nil {
 				return nil, fmt.Errorf("failed to read staged changes: %w", err)
 			}
+			changes = append(changes, change)
 		}
-
-		changes := make([]*git.FileChange, 0, len(changesResults))
-		changes = append(changes, changesResults...)
 
 		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
 

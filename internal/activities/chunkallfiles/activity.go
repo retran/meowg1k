@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package chunkallfiles implements a parent activity that chunks multiple files in parallel.
+// Package chunkallfiles implements a parent activity that chunks multiple files sequentially.
 package chunkallfiles
 
 import (
@@ -11,7 +11,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/chunkfile"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the request payload for chunking multiple files.
@@ -66,11 +65,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("executor not available in context")
 		}
 
-		type chunkFuture struct {
-			future *future.Future[*chunkfile.Output]
-			file   domainindex.FileToProcess
-		}
-		chunkFutures := make([]chunkFuture, 0, len(input.Files))
+		var fileChunks []FileChunkResult
+		var allChunkTexts []string
+		var chunkToFileIndex []int
 
 		for _, file := range input.Files {
 			activity := f.chunkFileFactory.NewActivity()
@@ -78,21 +75,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				FilePath: file.FilePath,
 				Content:  file.State.Content,
 			}
-			fut := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Chunk_%s", file.FilePath), activity, fileInput)
-			chunkFutures = append(chunkFutures, chunkFuture{
-				file:   file,
-				future: fut,
-			})
-		}
-
-		var fileChunks []FileChunkResult
-		var allChunkTexts []string
-		var chunkToFileIndex []int
-
-		for _, entry := range chunkFutures {
-			result, err := entry.future.Get(ctx)
+			result, err := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Chunk_%s", file.FilePath), activity, fileInput)
 			if err != nil {
-				return nil, fmt.Errorf("failed to chunk file %s: %w", entry.file.FilePath, err)
+				return nil, fmt.Errorf("failed to chunk file %s: %w", file.FilePath, err)
 			}
 
 			fileIndex := len(fileChunks)

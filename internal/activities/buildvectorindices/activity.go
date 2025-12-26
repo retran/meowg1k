@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package buildvectorindices implements a parent activity that builds vector indices for multiple snapshots in parallel.
+// Package buildvectorindices implements a parent activity that builds vector indices for multiple snapshots sequentially.
 package buildvectorindices
 
 import (
@@ -46,19 +46,15 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to create child factory: %w", err)
 		}
 
-		headFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-head", childFactory.NewActivity(), "_head_")
-		stageFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-stage", childFactory.NewActivity(), "_stage_")
-		workdirFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-workdir", childFactory.NewActivity(), "_workdir_")
-
-		if _, err := headFuture.Get(ctx); err != nil {
+		if _, err := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-head", childFactory.NewActivity(), "_head_"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _head_ index: %w", err)
 		}
 
-		if _, err := stageFuture.Get(ctx); err != nil {
+		if _, err := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-stage", childFactory.NewActivity(), "_stage_"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _stage_ index: %w", err)
 		}
 
-		if _, err := workdirFuture.Get(ctx); err != nil {
+		if _, err := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-workdir", childFactory.NewActivity(), "_workdir_"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _workdir_ index: %w", err)
 		}
 

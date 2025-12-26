@@ -543,7 +543,7 @@ func TestCommandServiceStateManagement(t *testing.T) {
 }
 
 func TestCommandServiceConcurrency(t *testing.T) {
-	cmd := &cobra.Command{Use: "concurrent-test"}
+	cmd := &cobra.Command{Use: "overlap-test"}
 	cmd.Flags().String("config", "test-config", "config path")
 	cmd.Flags().Bool("silent", false, "silent mode")
 
@@ -552,46 +552,46 @@ func TestCommandServiceConcurrency(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	// Test concurrent access to service methods
+	// Test overlapping access to service methods.
 	done := make(chan bool, 10)
 
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			defer func() { done <- true }()
 
-			// Multiple concurrent calls to various methods
+			// Multiple overlapping calls to various methods.
 			_, err := service.GetConfigPath()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetConfigPath failed: %v", id, err)
+				t.Errorf("Worker %d: GetConfigPath failed: %v", id, err)
 				return
 			}
 
 			name, err := service.GetCommandName()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetCommandName failed: %v", id, err)
+				t.Errorf("Worker %d: GetCommandName failed: %v", id, err)
 				return
 			}
-			if name != "concurrent-test" {
-				t.Errorf("Goroutine %d: Expected 'concurrent-test', got '%s'", id, name)
+			if name != "overlap-test" {
+				t.Errorf("Worker %d: Expected 'overlap-test', got '%s'", id, name)
 				return
 			}
 
 			_, err = service.GetSilentFlag()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetSilentFlag failed: %v", id, err)
+				t.Errorf("Worker %d: GetSilentFlag failed: %v", id, err)
 				return
 			}
 
 			stdin, err := service.GetStdIn()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetStdIn failed: %v", id, err)
+				t.Errorf("Worker %d: GetStdIn failed: %v", id, err)
 				return
 			}
 			_ = stdin // Just verify it doesn't return error
 		}(i)
 	}
 
-	// Wait for all goroutines to complete
+	// Wait for all workers to complete.
 	for i := 0; i < 10; i++ {
 		<-done
 	}

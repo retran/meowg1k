@@ -62,7 +62,7 @@ func NewTracker(silent bool) *Tracker {
 	}
 }
 
-// Start launches the goroutine for processing events and rendering the UI.
+// Start launches background processing for events and rendering the UI.
 func (t *Tracker) Start() {
 	if t == nil || t.silent {
 		return

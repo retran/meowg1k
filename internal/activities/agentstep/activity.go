@@ -674,8 +674,7 @@ func (f *Factory) invokeLLM(
 	}
 
 	activity := f.invokeLLMFactory.NewActivity()
-	future := executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "InvokeLLM", activity, input)
-	output, err := future.Get(ctx)
+	output, err := executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "InvokeLLM", activity, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke LLM: %w", err)
 	}

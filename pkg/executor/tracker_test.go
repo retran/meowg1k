@@ -44,7 +44,7 @@ func TestExecutionTracker_StartStop(t *testing.T) {
 
 	tracker.Start()
 
-	// Give the goroutine a moment to start
+	// Give the background worker a moment to start.
 	time.Sleep(10 * time.Millisecond)
 
 	tracker.Stop()
@@ -59,7 +59,7 @@ func TestExecutionTracker_StartStopSilent(t *testing.T) {
 	tracker.Start()
 	tracker.Stop()
 
-	// Should complete immediately without goroutine
+	// Should complete immediately without background work.
 }
 
 func TestExecutionTracker_FeedbackHandler(t *testing.T) {

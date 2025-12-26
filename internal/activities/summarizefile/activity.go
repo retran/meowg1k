@@ -137,7 +137,7 @@ func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, 
 	}
 
 	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-	invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+	output, err := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
 		ctx,
 		exec,
 		executorCtx,
@@ -145,7 +145,6 @@ func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, 
 		contentGenerationActivity,
 		input,
 	)
-	output, err := invokeFuture.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("invoke LLM: %w", err)
 	}

@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package computeallembeddings implements a parent activity that computes embeddings for multiple batches in parallel.
+// Package computeallembeddings implements a parent activity that computes embeddings for multiple batches sequentially.
 package computeallembeddings
 
 import (
@@ -12,7 +12,6 @@ import (
 	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the payload for computing embeddings across batches.
@@ -71,27 +70,19 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		allEmbeddings := make([]gateway.Embedding, totalChunks)
-		futures := make([]*future.Future[*computeembeddingsbatch.Output], numBatches)
-
 		for i := 0; i < numBatches; i++ {
 			batch := input.PreparedBatches.Batches[i]
 			activity := f.computeBatchFactory.NewActivity()
 			batchInput := &computeembeddingsbatch.Input{
 				ChunkTexts: batch.Texts,
 			}
-			fut := executor.ExecuteActivity(ctx, exec, executorCtx,
+			result, err := executor.ExecuteActivity(ctx, exec, executorCtx,
 				fmt.Sprintf("Batch_%d-%d", batch.StartIndex, batch.EndIndex),
 				activity, batchInput)
-			futures[i] = fut
-		}
-
-		for i, fut := range futures {
-			result, err := fut.Get(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to compute embeddings batch: %w", err)
 			}
 
-			batch := input.PreparedBatches.Batches[i]
 			copy(allEmbeddings[batch.StartIndex:batch.EndIndex], result.Embeddings)
 		}
 

@@ -373,7 +373,7 @@ agent:
       Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
       Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
       Use tools when needed and respond in the required JSON format.
-    maxSteps: 100 
+    maxSteps: 100
     maxToolCalls: 100
   tools:
     searchDefaults:

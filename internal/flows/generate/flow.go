@@ -156,7 +156,7 @@ func (f *FlowFactory) runInvokeActivity(
 		SystemPrompt: systemPrompt,
 	}
 
-	future := executor.ExecuteActivity(
+	invokeOutput, err := executor.ExecuteActivity(
 		ctx,
 		exec,
 		flowCtx,
@@ -164,8 +164,6 @@ func (f *FlowFactory) runInvokeActivity(
 		activity,
 		input,
 	)
-
-	invokeOutput, err := future.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
 	}

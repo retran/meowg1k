@@ -242,8 +242,7 @@ func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal s
 		ToolRunner:     runner,
 	}
 
-	future := executor.ExecuteActivity(ctx, executorInstance, flowCtx, fmt.Sprintf("AgentStep:%s", stepName), activity, input)
-	output, err := future.Get(ctx)
+	output, err := executor.ExecuteActivity(ctx, executorInstance, flowCtx, fmt.Sprintf("AgentStep:%s", stepName), activity, input)
 	if err != nil {
 		return nil, fmt.Errorf("agent step %s failed: %w", stepName, err)
 	}

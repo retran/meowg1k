@@ -11,7 +11,6 @@ import (
 
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // mockVectorIndexService is a mock implementation of the ports.VectorIndexService.
@@ -29,7 +28,7 @@ func (m *mockVectorIndexService) BuildAndSave(snapshotName string) error {
 
 // mockExecutor is a mock implementation of the executor.Executor.
 type mockExecutor struct {
-	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) *future.Future[any]
+	executeActivityFn func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) (any, error)
 }
 
 func (m *mockExecutor) ExecuteActivity(
@@ -38,14 +37,11 @@ func (m *mockExecutor) ExecuteActivity(
 	activityID string,
 	activity executor.Activity[any, any],
 	params any,
-) *future.Future[any] {
+) (any, error) {
 	if m.executeActivityFn != nil {
 		return m.executeActivityFn(ctx, parentCtx, activityID, activity, params)
 	}
-	// Default behavior: return a future that completes successfully
-	f := future.NewFuture[any]()
-	_ = f.Complete(struct{}{})
-	return f
+	return struct{}{}, nil
 }
 
 func (m *mockExecutor) ExecuteFlow(ctx context.Context, name string, flow executor.Flow) error {
@@ -108,11 +104,9 @@ func TestActivity(t *testing.T) {
 
 		executorCtx := executor.NewContext("test", feedbackHandler, exec)
 
-		// Configure the mock executor to return successful futures
-		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) *future.Future[any] {
-			f := future.NewFuture[any]()
-			_ = f.Complete(struct{}{}) // All activities succeed
-			return f
+		// Configure the mock executor to return successful results.
+		exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) (any, error) {
+			return struct{}{}, nil
 		}
 
 		// Act
@@ -157,9 +151,9 @@ func TestActivity(t *testing.T) {
 		failingChild  string
 		expectedError string
 	}{
-		{"head fails", "build-vector-index-head", "failed to build _head_ index: child failed"},
-		{"stage fails", "build-vector-index-stage", "failed to build _stage_ index: child failed"},
-		{"workdir fails", "build-vector-index-workdir", "failed to build _workdir_ index: child failed"},
+		{"head fails", "build-vector-index-head", "failed to build _head_ index: execute activity \"build-vector-index-head\": child failed"},
+		{"stage fails", "build-vector-index-stage", "failed to build _stage_ index: execute activity \"build-vector-index-stage\": child failed"},
+		{"workdir fails", "build-vector-index-workdir", "failed to build _workdir_ index: execute activity \"build-vector-index-workdir\": child failed"},
 	}
 
 	for _, tc := range testCases {
@@ -170,15 +164,12 @@ func TestActivity(t *testing.T) {
 			executorCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec)
 			childErr := errors.New("child failed")
 
-			// Configure the mock executor to return a failing future for the specific child
-			exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) *future.Future[any] {
-				f := future.NewFuture[any]()
+			// Configure the mock executor to return a failing result for the specific child
+			exec.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, activity executor.Activity[any, any], params any) (any, error) {
 				if activityID == tc.failingChild {
-					_ = f.CompleteWithError(childErr)
-				} else {
-					_ = f.Complete(struct{}{})
+					return nil, childErr
 				}
-				return f
+				return struct{}{}, nil
 			}
 
 			// Act

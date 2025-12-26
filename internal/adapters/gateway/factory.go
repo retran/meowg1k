@@ -164,7 +164,7 @@ func (f *Factory) NewGenerationGateway(
 	// TODO review this logic
 	maxConcurrency := resolvedProfile.RateLimit.RequestsPerMinute
 	if maxConcurrency == 0 {
-		maxConcurrency = 10 // Default to 10 concurrent requests if unlimited
+		maxConcurrency = 10 // Default to 10 requests if unlimited.
 	}
 
 	gateway = newWorkerPoolGateway(gateway, maxConcurrency)

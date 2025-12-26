@@ -13,7 +13,6 @@ import (
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/retran/meowg1k/pkg/future"
 )
 
 // Input defines the payload for distributing embeddings and saving documents.
@@ -74,7 +73,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			fileEmbeddings[fileIdx] = append(fileEmbeddings[fileIdx], input.EmbeddingResults.Embeddings[chunkIdx])
 		}
 
-		futures := make(map[string]*future.Future[*savedocumentversion.Output])
+		versionMap := make(map[string]int64)
 		for fileIdx, fileResult := range chunkResults.FileChunks {
 			fr := fileResult
 			idx := fileIdx
@@ -87,17 +86,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				Chunks:      fr.Chunks,
 				Embeddings:  fileEmbeddings[idx],
 			}
-			fut := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Save_%s", fr.FilePath), saveActivity, saveInput)
-			futures[fr.ContentHash] = fut
-		}
-
-		versionMap := make(map[string]int64)
-		for contentHash, fut := range futures {
-			result, err := fut.Get(ctx)
+			result, err := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Save_%s", fr.FilePath), saveActivity, saveInput)
 			if err != nil {
-				return nil, fmt.Errorf("failed to save document with content hash %s: %w", contentHash, err)
+				return nil, fmt.Errorf("failed to save document with content hash %s: %w", fr.ContentHash, err)
 			}
-			versionMap[contentHash] = result.VersionID
+			versionMap[fr.ContentHash] = result.VersionID
 		}
 
 		if err := f.indexRepo.Checkpoint(ctx); err != nil {
