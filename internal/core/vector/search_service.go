@@ -18,19 +18,19 @@ import (
 
 // QueryResult represents a single search result from vector search.
 type QueryResult struct {
+	SnapshotName string
 	ChunkID      int64
 	Score        float32
-	SnapshotName string
 }
 
-// VectorSearchService defines the interface for low-level vector search operations.
-type VectorSearchService interface {
+// Searcher defines the interface for low-level vector search operations.
+type Searcher interface {
 	// Search performs k-NN search in the vector index for a given snapshot.
 	// Returns top-K results sorted by similarity score (higher is better).
 	Search(ctx context.Context, snapshotName string, queryEmbedding gateway.Embedding, topK int) ([]QueryResult, error)
 }
 
-// SearchService implements VectorSearchService using HNSW indices stored in meta repository.
+// SearchService implements Searcher using HNSW indices stored in meta repository.
 type SearchService struct {
 	metaRepo ports.MetaRepository
 }

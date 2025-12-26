@@ -19,8 +19,8 @@ import (
 
 // mockChunkerService is a mock implementation of the ports.ChunkerService.
 type mockChunkerService struct {
-	mu      sync.Mutex
 	ChunkFn func(content []byte, filePath string) ([]domainindex.ChunkData, error)
+	mu      sync.Mutex
 }
 
 func (m *mockChunkerService) Chunk(content []byte, filePath string) ([]domainindex.ChunkData, error) {

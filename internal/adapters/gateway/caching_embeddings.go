@@ -62,7 +62,7 @@ func (g *cachingEmbeddingsGateway) ComputeEmbeddings(
 
 	result, err := g.gateway.ComputeEmbeddings(ctx, request)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to compute embeddings: %w", err)
 	}
 
 	if jsonData, err := json.Marshal(result); err == nil {

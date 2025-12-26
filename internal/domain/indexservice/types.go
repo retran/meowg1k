@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package indexservice defines types used by the indexing service API.
 package indexservice
 
 import (
@@ -12,8 +13,8 @@ import (
 // PrepareForProcessingOutput represents the output of the PrepareForProcessing operation.
 type PrepareForProcessingOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
 // SaveVersionInput represents the input for saving a new version.

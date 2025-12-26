@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	_ "github.com/ncruces/go-sqlite3/driver"
+	_ "github.com/ncruces/go-sqlite3/embed"
 
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -154,7 +155,7 @@ func TestRepository_LargeValueStoredExternally(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 

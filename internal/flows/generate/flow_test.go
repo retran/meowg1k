@@ -16,7 +16,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock factories
+// Mock factories.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -31,7 +31,7 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock task config provider
+// Mock task config provider.
 type mockTaskConfigProvider struct {
 	config *task.ResolvedConfig
 	err    error
@@ -41,27 +41,27 @@ func (m *mockTaskConfigProvider) Get() (*task.ResolvedConfig, error) {
 	return m.config, m.err
 }
 
-// Mock user prompt provider
+// Mock user prompt provider.
 type mockUserPromptProvider struct {
-	prompt string
 	err    error
+	prompt string
 }
 
 func (m *mockUserPromptProvider) GetUserPrompt() (string, error) {
 	return m.prompt, m.err
 }
 
-// Mock system prompt provider
+// Mock system prompt provider.
 type mockSystemPromptProvider struct {
-	prompt string
 	err    error
+	prompt string
 }
 
 func (m *mockSystemPromptProvider) GetSystemPrompt() (string, error) {
 	return m.prompt, m.err
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
 	outputs []string
 }
@@ -73,14 +73,14 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFlowFactory(t *testing.T) {
 	tests := []struct {
-		name                             string
 		taskConfigProvider               TaskConfigProvider
 		userPromptProvider               UserPromptProvider
 		systemPromptProvider             SystemPromptProvider
 		contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 		outputWriter                     ports.OutputWriter
-		wantErr                          bool
+		name                             string
 		expectedErrMsg                   string
+		wantErr                          bool
 	}{
 		{
 			name:                             "nil taskConfigProvider",
@@ -156,20 +156,22 @@ func TestNewFlowFactory(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
+					return
 				}
 				if factory != nil {
 					t.Errorf("expected nil factory but got %v", factory)
 				}
-				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
+				if tt.expectedErrMsg != "" && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
-				if factory == nil {
-					t.Errorf("expected non-nil factory but got nil")
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+			if factory == nil {
+				t.Errorf("expected non-nil factory but got nil")
 			}
 		})
 	}
@@ -177,11 +179,11 @@ func TestNewFlowFactory(t *testing.T) {
 
 func TestFlowFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *FlowFactory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",
@@ -244,7 +246,8 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 			},
 			setupContext: func() (context.Context, *executor.Context) {
 				ctx := context.Background()
-				flowCtx := executor.NewContext("test", nil, nil)
+				exec := executor.NewExecutor(0)
+				flowCtx := executor.NewContext("test", nil, exec)
 				return ctx, flowCtx
 			},
 			wantErr:        true,
@@ -267,10 +270,8 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}
@@ -286,7 +287,8 @@ func TestFlowFactory_NewFlow_UserPromptError(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	flowCtx := executor.NewContext("test", nil, nil)
+	exec := executor.NewExecutor(0)
+	flowCtx := executor.NewContext("test", nil, exec)
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
@@ -310,7 +312,8 @@ func TestFlowFactory_NewFlow_SystemPromptError(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	flowCtx := executor.NewContext("test", nil, nil)
+	exec := executor.NewExecutor(0)
+	flowCtx := executor.NewContext("test", nil, exec)
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
@@ -443,7 +446,7 @@ func TestFlowFactory_NewFlow_Success(t *testing.T) {
 	}
 }
 
-// Mock output writer that returns error
+// Mock output writer that returns error.
 type mockOutputWriterWithError struct{}
 
 func (m *mockOutputWriterWithError) PrintLine(line string) error {

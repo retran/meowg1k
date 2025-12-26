@@ -108,7 +108,10 @@ func (l *Logger) LogAPIInteraction(entry *APIInteractionEntry) error {
 		entry.Timestamp = time.Now()
 	}
 
-	return l.encoder.Encode(entry)
+	if err := l.encoder.Encode(entry); err != nil {
+		return fmt.Errorf("failed to encode API interaction entry: %w", err)
+	}
+	return nil
 }
 
 // LogExecutionEvent logs an executor framework event.
@@ -129,7 +132,10 @@ func (l *Logger) LogExecutionEvent(entry *ExecutionEventEntry) error {
 		entry.Timestamp = time.Now()
 	}
 
-	return l.encoder.Encode(entry)
+	if err := l.encoder.Encode(entry); err != nil {
+		return fmt.Errorf("failed to encode execution event entry: %w", err)
+	}
+	return nil
 }
 
 // LogApplicationError logs a critical application error.
@@ -150,7 +156,10 @@ func (l *Logger) LogApplicationError(entry *ApplicationErrorEntry) error {
 		entry.Timestamp = time.Now()
 	}
 
-	return l.encoder.Encode(entry)
+	if err := l.encoder.Encode(entry); err != nil {
+		return fmt.Errorf("failed to encode application error entry: %w", err)
+	}
+	return nil
 }
 
 // Close closes the log file.

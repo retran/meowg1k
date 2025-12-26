@@ -20,8 +20,8 @@ func mockFlow(err error) Flow {
 
 func TestFlowRunner_RunFlow(t *testing.T) {
 	tests := []struct {
-		name      string
 		flowError error
+		name      string
 		wantError bool
 		silent    bool
 	}{
@@ -62,7 +62,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 	}
 }
 
-// mockOutputService is a mock implementation of output.Service for testing
+// mockOutputService is a mock implementation of output.Service for testing.
 func TestNewFlowRunner(t *testing.T) {
 	runner, err := NewOrchestrator(output.NewService(domainOutput.Stdout), nil, 0)
 	if err != nil {

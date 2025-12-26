@@ -107,16 +107,16 @@ func TestExecutionTracker_WithFeedback(t *testing.T) {
 	exec := tracker.GetExecution("TestExecution")
 	if exec == nil {
 		t.Error("Expected TestExecution to be tracked")
-	} else {
-		if exec.Name != "TestExecution" {
-			t.Errorf("Expected name TestExecution, got %s", exec.Name)
-		}
-		if exec.Status != StatusRunning {
-			t.Errorf("Expected status Running, got %v", exec.Status)
-		}
-		if exec.Message != "Test message" {
-			t.Errorf("Expected message 'Test message', got %s", exec.Message)
-		}
+		return
+	}
+	if exec.Name != "TestExecution" {
+		t.Errorf("Expected name TestExecution, got %s", exec.Name)
+	}
+	if exec.Status != StatusRunning {
+		t.Errorf("Expected status Running, got %v", exec.Status)
+	}
+	if exec.Message != "Test message" {
+		t.Errorf("Expected message 'Test message', got %s", exec.Message)
 	}
 }
 
@@ -160,10 +160,8 @@ func TestExecutionTracker_MultipleExecutions(t *testing.T) {
 		tracked := tracker.GetExecution(exec.name)
 		if tracked == nil {
 			t.Errorf("Expected %s to be tracked", exec.name)
-		} else {
-			if tracked.Status != exec.status {
-				t.Errorf("Expected %s status %v, got %v", exec.name, exec.status, tracked.Status)
-			}
+		} else if tracked.Status != exec.status {
+			t.Errorf("Expected %s status %v, got %v", exec.name, exec.status, tracked.Status)
 		}
 	}
 }
@@ -258,16 +256,16 @@ func TestExecutionTracker_WithMetadata(t *testing.T) {
 	exec := tracker.GetExecution("MetadataTest")
 	if exec == nil {
 		t.Error("Expected MetadataTest to be tracked")
-	} else {
-		if exec.Metadata == nil {
-			t.Error("Metadata should be set")
-		}
-		if exec.Metadata["key1"] != "value1" {
-			t.Error("Metadata key1 should be 'value1'")
-		}
-		if exec.Metadata["key2"] != 42 {
-			t.Error("Metadata key2 should be 42")
-		}
+		return
+	}
+	if exec.Metadata == nil {
+		t.Error("Metadata should be set")
+	}
+	if exec.Metadata["key1"] != "value1" {
+		t.Error("Metadata key1 should be 'value1'")
+	}
+	if exec.Metadata["key2"] != 42 {
+		t.Error("Metadata key2 should be 42")
 	}
 }
 
@@ -301,15 +299,13 @@ func TestExecutionTracker_MultipleStatuses(t *testing.T) {
 		exec := tracker.GetExecution(name)
 		if exec == nil {
 			t.Errorf("Expected %s to be tracked", name)
-		} else {
-			if exec.Status != status {
-				t.Errorf("Expected %s status %v, got %v", name, status, exec.Status)
-			}
+		} else if exec.Status != status {
+			t.Errorf("Expected %s status %v, got %v", name, status, exec.Status)
 		}
 	}
 }
 
-// Test helper functions that are used internally
+// Test helper functions that are used internally.
 func TestSanitizeDescription(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -336,15 +332,15 @@ func TestSanitizeDescription(t *testing.T) {
 
 func TestTruncateString(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    string
-		max      int
 		expected string
+		name     string
+		max      int
 	}{
-		{"short string", "Hello", 10, "Hello"},
-		{"exact length", "Hello", 5, "Hello"},
-		{"too long", "Hello World", 8, "Hello..."},
-		{"empty string", "", 10, ""},
+		{"Hello", "Hello", "short string", 10},
+		{"Hello", "Hello", "exact length", 5},
+		{"Hello World", "Hello...", "too long", 8},
+		{"", "", "empty string", 10},
 	}
 
 	for _, tt := range tests {

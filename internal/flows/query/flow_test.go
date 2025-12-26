@@ -16,7 +16,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock activity factory
+// Mock activity factory.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -31,19 +31,19 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock command parameters reader
+// Mock command parameters reader.
 type mockCommandParametersReader struct {
-	mu           sync.Mutex
-	queryText    string
 	queryTextErr error
-	snapshots    []string
 	snapshotsErr error
-	topK         int
 	topKErr      error
-	minScore     float32
 	minScoreErr  error
-	useJson      bool
 	jsonErr      error
+	queryText    string
+	snapshots    []string
+	topK         int
+	mu           sync.Mutex
+	minScore     float32
+	useJSON      bool
 }
 
 func (m *mockCommandParametersReader) GetQueryTextFlag() (string, error) {
@@ -70,16 +70,16 @@ func (m *mockCommandParametersReader) GetMinScoreFlag() (float32, error) {
 	return m.minScore, m.minScoreErr
 }
 
-func (m *mockCommandParametersReader) GetJsonFlag() (bool, error) {
+func (m *mockCommandParametersReader) GetJSONFlag() (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.useJson, m.jsonErr
+	return m.useJSON, m.jsonErr
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
-	mu      sync.Mutex
 	outputs []string
+	mu      sync.Mutex
 }
 
 func (m *mockOutputWriter) PrintLine(line string) error {
@@ -91,12 +91,12 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		name             string
 		queryFactory     executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
 		parametersReader CommandParametersReader
 		outputWriter     ports.OutputWriter
-		wantErr          bool
+		name             string
 		expectedErrMsg   string
+		wantErr          bool
 	}{
 		{
 			name:             "nil queryFactory",
@@ -138,20 +138,22 @@ func TestNewFactory(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
+					return
 				}
 				if factory != nil {
 					t.Errorf("expected nil factory but got %v", factory)
 				}
-				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
+				if tt.expectedErrMsg != "" && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
-				if factory == nil {
-					t.Errorf("expected non-nil factory but got nil")
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+			if factory == nil {
+				t.Errorf("expected non-nil factory but got nil")
 			}
 		})
 	}
@@ -159,11 +161,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "error getting query text",
@@ -309,7 +311,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					snapshots: []string{"_head_"},
 					topK:      10,
 					minScore:  0.5,
-					useJson:   false,
+					useJSON:   false,
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
@@ -334,7 +336,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					snapshots: []string{},
 					topK:      0,
 					minScore:  -1,
-					useJson:   false,
+					useJSON:   false,
 				}
 				mockQueryFactory := &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{
 					newActivityFunc: func() executor.Activity[*queryactivity.Input, *queryactivity.Output] {
@@ -372,7 +374,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					snapshots: []string{"_head_"},
 					topK:      5,
 					minScore:  0.8,
-					useJson:   false,
+					useJSON:   false,
 				}
 				mockQueryFactory := &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{
 					newActivityFunc: func() executor.Activity[*queryactivity.Input, *queryactivity.Output] {
@@ -402,7 +404,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					snapshots: []string{"_workdir_", "_stage_", "_head_"},
 					topK:      10,
 					minScore:  0.5,
-					useJson:   true,
+					useJSON:   true,
 				}
 				mockQueryFactory := &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{
 					newActivityFunc: func() executor.Activity[*queryactivity.Input, *queryactivity.Output] {
@@ -440,7 +442,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					snapshots: []string{"_head_"},
 					topK:      10,
 					minScore:  0.5,
-					useJson:   false,
+					useJSON:   false,
 				}
 				mockQueryFactory := &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{
 					newActivityFunc: func() executor.Activity[*queryactivity.Input, *queryactivity.Output] {
@@ -478,10 +480,8 @@ func TestFactory_NewFlow(t *testing.T) {
 				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}

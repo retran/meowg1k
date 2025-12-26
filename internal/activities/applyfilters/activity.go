@@ -31,7 +31,7 @@ type Factory struct {
 	fileIgnoreChecker FileIgnoreChecker
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.
@@ -47,7 +47,7 @@ func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*
 
 // NewActivity creates and returns the ApplyFilters activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Applying filters")
 
 		if input == nil {

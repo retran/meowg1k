@@ -247,8 +247,8 @@ func TestNewServiceStdinErrorPaths(t *testing.T) {
 	// We can test the service creation works with various command configurations
 
 	tests := []struct {
-		name        string
 		setupCmd    func() *cobra.Command
+		name        string
 		expectError bool
 	}{
 		{
@@ -299,8 +299,8 @@ func TestGetMethodsWithUndefinedFlags(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
 		testFunc func() (interface{}, error)
+		name     string
 	}{
 		{
 			name: "GetConfigPath with undefined flag",
@@ -609,13 +609,13 @@ func TestCommandServiceErrorPropagation(t *testing.T) {
 
 	// These should all return errors since flags aren't defined
 	testCases := []struct {
-		name string
 		fn   func() (interface{}, error)
+		name string
 	}{
-		{"GetConfigPath", func() (interface{}, error) { return service.GetConfigPath() }},
-		{"GetTaskName", func() (interface{}, error) { return service.GetTaskName() }},
-		{"GetUserPrompt", func() (interface{}, error) { return service.GetUserPrompt() }},
-		{"GetSilentFlag", func() (interface{}, error) { return service.GetSilentFlag() }},
+		{func() (interface{}, error) { return service.GetConfigPath() }, "GetConfigPath"},
+		{func() (interface{}, error) { return service.GetTaskName() }, "GetTaskName"},
+		{func() (interface{}, error) { return service.GetUserPrompt() }, "GetUserPrompt"},
+		{func() (interface{}, error) { return service.GetSilentFlag() }, "GetSilentFlag"},
 	}
 
 	for _, tc := range testCases {
@@ -1216,7 +1216,7 @@ func TestGetMinScoreFlagNilService(t *testing.T) {
 	}
 }
 
-func TestGetJsonFlag(t *testing.T) {
+func TestGetJSONFlag(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -1228,9 +1228,9 @@ func TestGetJsonFlag(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	json, err := service.GetJsonFlag()
+	json, err := service.GetJSONFlag()
 	if err != nil {
-		t.Fatalf("GetJsonFlag failed: %v", err)
+		t.Fatalf("GetJSONFlag failed: %v", err)
 	}
 
 	if !json {
@@ -1238,7 +1238,7 @@ func TestGetJsonFlag(t *testing.T) {
 	}
 }
 
-func TestGetJsonFlagFalse(t *testing.T) {
+func TestGetJSONFlagFalse(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -1249,9 +1249,9 @@ func TestGetJsonFlagFalse(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	json, err := service.GetJsonFlag()
+	json, err := service.GetJSONFlag()
 	if err != nil {
-		t.Fatalf("GetJsonFlag failed: %v", err)
+		t.Fatalf("GetJSONFlag failed: %v", err)
 	}
 
 	if json {
@@ -1259,7 +1259,7 @@ func TestGetJsonFlagFalse(t *testing.T) {
 	}
 }
 
-func TestGetJsonFlagUndefined(t *testing.T) {
+func TestGetJSONFlagUndefined(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -1269,16 +1269,16 @@ func TestGetJsonFlagUndefined(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	_, err = service.GetJsonFlag()
+	_, err = service.GetJSONFlag()
 	if err == nil {
 		t.Error("Expected error when json flag is not defined")
 	}
 }
 
-func TestGetJsonFlagNilService(t *testing.T) {
+func TestGetJSONFlagNilService(t *testing.T) {
 	var service *Service
 
-	_, err := service.GetJsonFlag()
+	_, err := service.GetJSONFlag()
 	if err == nil {
 		t.Error("Expected error for nil service")
 	}

@@ -28,26 +28,26 @@ type ContentBlob struct {
 
 // DocumentVersion represents a version of a document stored in the database.
 type DocumentVersion struct {
-	ID                     int64          `db:"id"`
-	FilePath               string         `db:"file_path"`
-	GitCommitHashFirstSeen sql.NullString `db:"git_commit_hash_first_seen"`
-	ContentHash            string         `db:"content_hash"`
 	IndexedAt              time.Time      `db:"indexed_at"`
+	FilePath               string         `db:"file_path"`
+	ContentHash            string         `db:"content_hash"`
+	GitCommitHashFirstSeen sql.NullString `db:"git_commit_hash_first_seen"`
+	ID                     int64          `db:"id"`
 }
 
 // Chunk represents a chunk of a document with its embedding.
 type Chunk struct {
-	ID                int64             `db:"id"`
-	DocumentVersionID int64             `db:"document_version_id"`
 	ChunkType         string            `db:"chunk_type"`
 	TextContent       string            `db:"text_content"`
+	Embedding         gateway.Embedding `db:"embedding"`
+	ID                int64             `db:"id"`
+	DocumentVersionID int64             `db:"document_version_id"`
 	StartByte         int               `db:"start_byte"`
 	EndByte           int               `db:"end_byte"`
 	StartRune         int               `db:"start_rune"`
 	EndRune           int               `db:"end_rune"`
 	StartLine         int               `db:"start_line"`
 	EndLine           int               `db:"end_line"`
-	Embedding         gateway.Embedding `db:"embedding"`
 }
 
 // ChunkData represents a chunk of text with its position information (before saving to DB).

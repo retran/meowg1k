@@ -22,7 +22,7 @@ func TestNewService(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 	if service == nil {
 		t.Fatal("NewService should not return nil")
 	}
@@ -44,7 +44,7 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackCalled bool
 	callback := func(ctx context.Context) error {
@@ -71,7 +71,7 @@ func TestMultipleCallbacks(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackOrder []int
 	var mu sync.Mutex
@@ -116,7 +116,7 @@ func TestCallbackError(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var successCallbackCalled bool
 
@@ -148,7 +148,7 @@ func TestContextCanceledOnShutdown(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 	serviceCtx := service.Context()
 
 	// Context should not be canceled initially
@@ -179,7 +179,7 @@ func TestShutdownTimeout(t *testing.T) {
 	ctx := context.Background()
 	timeout := 50 * time.Millisecond // Very short timeout
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackCompleted bool
 
@@ -216,7 +216,7 @@ func TestConcurrentAccess(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	// Test concurrent registration and context access
 	var wg sync.WaitGroup
@@ -256,7 +256,7 @@ func TestListenForSignalsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	// Start ListenForSignals in a goroutine
 	done := make(chan bool, 1)
@@ -284,7 +284,7 @@ func TestListenForSignalsShutdown(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	// Start ListenForSignals in a goroutine
 	done := make(chan bool, 1)
@@ -313,7 +313,7 @@ func TestMultipleShutdownCalls(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackCount int32
 	service.Register(func(ctx context.Context) error {
@@ -342,7 +342,7 @@ func TestShutdownWithSlowCallback(t *testing.T) {
 	ctx := context.Background()
 	timeout := 200 * time.Millisecond // Short timeout for test
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackStarted, callbackCompleted bool
 	service.Register(func(ctx context.Context) error {
@@ -382,7 +382,7 @@ func TestServiceContextAfterShutdown(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 	serviceCtx := service.Context()
 
 	// Context should not be canceled initially
@@ -413,7 +413,7 @@ func TestCallbackErrorHandling(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var successCallbackCalled bool
 
@@ -445,7 +445,7 @@ func TestListenForSignals_ContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	// Start listening in a goroutine
 	var result bool
@@ -481,7 +481,7 @@ func TestNewServiceWithCanceledContext(t *testing.T) {
 	cancel() // Cancel immediately
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	if service == nil {
 		t.Fatal("NewService should not return nil even with canceled context")
@@ -503,7 +503,7 @@ func TestNewServiceWithZeroTimeout(t *testing.T) {
 	ctx := context.Background()
 	timeout := 0 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	if service == nil {
 		t.Fatal("NewService should not return nil with zero timeout")
@@ -527,7 +527,7 @@ func TestNewServiceWithNilLogger(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(nil, ctx, timeout)
+	service := NewService(ctx, nil, timeout)
 
 	if service == nil {
 		t.Fatal("NewService should not return nil with nil logger")
@@ -552,7 +552,7 @@ func TestConcurrentRegisterAndShutdown(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var wg sync.WaitGroup
 	callbackCount := atomic.Int32{}
@@ -587,7 +587,7 @@ func TestListenForSignals_SIGINT(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackCalled bool
 	service.Register(func(ctx context.Context) error {
@@ -642,7 +642,7 @@ func TestListenForSignals_SIGTERM(t *testing.T) {
 	ctx := context.Background()
 	timeout := 5 * time.Second
 
-	service := NewService(logger, ctx, timeout)
+	service := NewService(ctx, logger, timeout)
 
 	var callbackCalled bool
 	service.Register(func(ctx context.Context) error {

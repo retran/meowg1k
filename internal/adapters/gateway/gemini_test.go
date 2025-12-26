@@ -35,22 +35,24 @@ func TestNewGeminiGateway(t *testing.T) {
 
 	t.Run("Empty API key", func(t *testing.T) {
 		gateway, err := newGeminiGateway(ctx, "")
-		if err == nil && gateway != nil {
+		switch {
+		case err == nil && gateway != nil:
 			t.Log("Gemini allows empty API key on creation, will validate on use")
-		} else if err != nil {
+		case err != nil:
 			t.Logf("Gemini validates API key on creation: %v", err)
-		} else {
+		default:
 			t.Fatal("Unexpected state: no error but nil gateway")
 		}
 	})
 
 	t.Run("Invalid API key format", func(t *testing.T) {
 		gateway, err := newGeminiGateway(ctx, "invalid-key-format")
-		if err == nil && gateway != nil {
+		switch {
+		case err == nil && gateway != nil:
 			t.Log("Gemini allows invalid API key format on creation")
-		} else if err != nil {
+		case err != nil:
 			t.Logf("Gemini validates API key format: %v", err)
-		} else {
+		default:
 			t.Fatal("Unexpected state: no error but nil gateway")
 		}
 	})
@@ -341,8 +343,8 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 	t.Run("Embeddings with specialized content", func(t *testing.T) {
 		testCases := []struct {
 			name     string
-			chunks   []string
 			taskType domainGateway.TaskType
+			chunks   []string
 		}{
 			{
 				name: "Code snippets",

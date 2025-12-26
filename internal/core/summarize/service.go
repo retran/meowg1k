@@ -51,16 +51,7 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 		return nil, nil
 	}
 
-	var matchingRule *config.SummarizeRule
-	for _, rule := range currentConfig.Summarize.Rules {
-		if rule.Match != "" {
-			matcher := gitignore.NewMatcher([]string{rule.Match})
-			if matcher.Match(filename, false) {
-				matchingRule = rule
-				break
-			}
-		}
-	}
+	matchingRule := findMatchingRule(currentConfig.Summarize, filename)
 
 	if matchingRule != nil && matchingRule.Skip {
 		return &summarize2.ResolvedConfig{
@@ -68,33 +59,7 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 		}, nil
 	}
 
-	var profileName string
-	var strategy *config.Strategy
-	var systemPrompt string
-
-	if matchingRule != nil {
-		if matchingRule.Profile != "" {
-			profileName = matchingRule.Profile
-		}
-		if matchingRule.Strategy != nil {
-			strategy = matchingRule.Strategy
-		}
-		if matchingRule.SystemPrompt != "" {
-			systemPrompt = matchingRule.SystemPrompt
-		}
-	}
-
-	if currentConfig.Summarize.Default != nil {
-		if profileName == "" {
-			profileName = currentConfig.Summarize.Default.Profile
-		}
-		if strategy == nil {
-			strategy = currentConfig.Summarize.Default.Strategy
-		}
-		if systemPrompt == "" {
-			systemPrompt = currentConfig.Summarize.Default.SystemPrompt
-		}
-	}
+	profileName, strategy, systemPrompt := resolveSettings(currentConfig.Summarize, matchingRule)
 
 	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
 	if err != nil {
@@ -102,11 +67,7 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 	}
 
 	if strategy == nil {
-		strategy = &config.Strategy{
-			Type:                "plain",
-			IncludeOriginalFile: false,
-			IncludeChangedFile:  false,
-		}
+		strategy = defaultStrategy()
 	}
 
 	return &summarize2.ResolvedConfig{
@@ -117,4 +78,75 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 		IncludeOriginalFile: strategy.IncludeOriginalFile,
 		IncludeChangedFile:  strategy.IncludeChangedFile,
 	}, nil
+}
+
+func findMatchingRule(cfg *config.SummarizeConfig, filename string) *config.SummarizeRule {
+	for _, rule := range cfg.Rules {
+		if rule.Match == "" {
+			continue
+		}
+
+		matcher := gitignore.NewMatcher([]string{rule.Match})
+		if matcher.Match(filename, false) {
+			return rule
+		}
+	}
+	return nil
+}
+
+func resolveSettings(
+	summarizeConfig *config.SummarizeConfig,
+	rule *config.SummarizeRule,
+) (profileName string, strategy *config.Strategy, systemPrompt string) {
+	if rule != nil {
+		applyRuleSettings(rule, &profileName, &strategy, &systemPrompt)
+	}
+
+	if summarizeConfig.Default != nil {
+		applyDefaultSettings(summarizeConfig.Default, &profileName, &strategy, &systemPrompt)
+	}
+
+	return profileName, strategy, systemPrompt
+}
+
+func applyRuleSettings(
+	rule *config.SummarizeRule,
+	profileName *string,
+	strategy **config.Strategy,
+	systemPrompt *string,
+) {
+	if rule.Profile != "" {
+		*profileName = rule.Profile
+	}
+	if rule.Strategy != nil {
+		*strategy = rule.Strategy
+	}
+	if rule.SystemPrompt != "" {
+		*systemPrompt = rule.SystemPrompt
+	}
+}
+
+func applyDefaultSettings(
+	defaults *config.SummarizeDefault,
+	profileName *string,
+	strategy **config.Strategy,
+	systemPrompt *string,
+) {
+	if *profileName == "" {
+		*profileName = defaults.Profile
+	}
+	if *strategy == nil {
+		*strategy = defaults.Strategy
+	}
+	if *systemPrompt == "" {
+		*systemPrompt = defaults.SystemPrompt
+	}
+}
+
+func defaultStrategy() *config.Strategy {
+	return &config.Strategy{
+		Type:                "plain",
+		IncludeOriginalFile: false,
+		IncludeChangedFile:  false,
+	}
 }

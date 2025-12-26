@@ -17,9 +17,9 @@ type rateLimitedGenerationGateway struct {
 	limiter ratelimit.Limiter
 }
 
-func newRateLimitedGenerationGateway(gateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
+func newRateLimitedGenerationGateway(innerGateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
 	return &rateLimitedGenerationGateway{
-		gateway: gateway,
+		gateway: innerGateway,
 		limiter: limiter,
 	}
 }
@@ -46,7 +46,11 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 		return "", fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
-	return g.gateway.GenerateContent(ctx, request)
+	content, err := g.gateway.GenerateContent(ctx, request)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content: %w", err)
+	}
+	return content, nil
 }
 
 func estimateTokenCount(text string) int {
@@ -60,9 +64,9 @@ type rateLimitedEmbeddingsGateway struct {
 }
 
 // newRateLimitedEmbeddingsGateway creates a new rate-limited embeddings gateway.
-func newRateLimitedEmbeddingsGateway(gateway ports.EmbeddingsGateway, limiter ratelimit.Limiter) ports.EmbeddingsGateway {
+func newRateLimitedEmbeddingsGateway(innerGateway ports.EmbeddingsGateway, limiter ratelimit.Limiter) ports.EmbeddingsGateway {
 	return &rateLimitedEmbeddingsGateway{
-		gateway: gateway,
+		gateway: innerGateway,
 		limiter: limiter,
 	}
 }
@@ -94,7 +98,11 @@ func (g *rateLimitedEmbeddingsGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
-	return g.gateway.ComputeEmbeddings(ctx, request)
+	embs, err := g.gateway.ComputeEmbeddings(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute embeddings: %w", err)
+	}
+	return embs, nil
 }
 
 func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second gateway.Embedding) (float64, error) {
@@ -102,5 +110,9 @@ func (g *rateLimitedEmbeddingsGateway) ComputeDistance(first, second gateway.Emb
 		return 0, fmt.Errorf("rate limited embeddings gateway is nil")
 	}
 
-	return g.gateway.ComputeDistance(first, second)
+	dist, err := g.gateway.ComputeDistance(first, second)
+	if err != nil {
+		return 0, fmt.Errorf("failed to compute distance: %w", err)
+	}
+	return dist, nil
 }

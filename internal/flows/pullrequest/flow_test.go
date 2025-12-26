@@ -20,7 +20,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock factories
+// Mock factories.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -35,7 +35,7 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock PR config provider
+// Mock PR config provider.
 type mockPRConfigProvider struct {
 	config *pullrequest.ResolvedConfig
 	err    error
@@ -45,14 +45,14 @@ func (m *mockPRConfigProvider) Get() (*pullrequest.ResolvedConfig, error) {
 	return m.config, m.err
 }
 
-// Mock command parameters reader
+// Mock command parameters reader.
 type mockCommandParametersReader struct {
-	baseBranch string
 	baseErr    error
-	intent     string
 	intentErr  error
-	stdin      string
 	stdinErr   error
+	baseBranch string
+	intent     string
+	stdin      string
 }
 
 func (m *mockCommandParametersReader) GetBaseBranchFlag() (string, error) {
@@ -67,7 +67,7 @@ func (m *mockCommandParametersReader) GetStdIn() (string, error) {
 	return m.stdin, m.stdinErr
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
 	outputs []string
 }
@@ -79,18 +79,18 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		name                       string
 		listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
 		applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
 		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 		composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
 		composeFlatPRFactory       executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
-		prConfigProvider           PullRequestConfigProvider
+		prConfigProvider           ConfigProvider
 		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
-		wantErr                    bool
+		name                       string
 		expectedErrMsg             string
+		wantErr                    bool
 	}{
 		{
 			name:                       "nil listBranchFilesFactory",
@@ -250,20 +250,22 @@ func TestNewFactory(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
+					return
 				}
 				if factory != nil {
 					t.Errorf("expected nil factory but got %v", factory)
 				}
-				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
+				if tt.expectedErrMsg != "" && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
-				if factory == nil {
-					t.Errorf("expected non-nil factory but got nil")
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+			if factory == nil {
+				t.Errorf("expected non-nil factory but got nil")
 			}
 		})
 	}
@@ -271,11 +273,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",
@@ -354,7 +356,8 @@ func TestFactory_NewFlow(t *testing.T) {
 			},
 			setupContext: func() (context.Context, *executor.Context) {
 				ctx := context.Background()
-				flowCtx := executor.NewContext("test", nil, nil)
+				exec := executor.NewExecutor(0)
+				flowCtx := executor.NewContext("test", nil, exec)
 				return ctx, flowCtx
 			},
 			wantErr:        true,
@@ -377,10 +380,8 @@ func TestFactory_NewFlow(t *testing.T) {
 				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}

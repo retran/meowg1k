@@ -13,12 +13,14 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Factory builds buildvectorindices activities.
 type Factory struct {
 	vectorIndexSvc ports.VectorIndexService
 }
 
 var _ executor.ActivityFactory[struct{}, struct{}] = (*Factory)(nil)
 
+// NewFactory creates a buildvectorindices activity factory.
 func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFactory[struct{}, struct{}], error) {
 	if vectorIndexSvc == nil {
 		return nil, fmt.Errorf("buildvectorindices.NewFactory: vectorIndexSvc cannot be nil")
@@ -29,6 +31,7 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
 		executorCtx.SendRunning("Building indices")
@@ -43,9 +46,9 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to create child factory: %w", err)
 		}
 
-		headFuture := executor.ExecuteActivity(exec, ctx, executorCtx, "build-vector-index-head", childFactory.NewActivity(), "_head_")
-		stageFuture := executor.ExecuteActivity(exec, ctx, executorCtx, "build-vector-index-stage", childFactory.NewActivity(), "_stage_")
-		workdirFuture := executor.ExecuteActivity(exec, ctx, executorCtx, "build-vector-index-workdir", childFactory.NewActivity(), "_workdir_")
+		headFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-head", childFactory.NewActivity(), "_head_")
+		stageFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-stage", childFactory.NewActivity(), "_stage_")
+		workdirFuture := executor.ExecuteActivity(ctx, exec, executorCtx, "build-vector-index-workdir", childFactory.NewActivity(), "_workdir_")
 
 		if _, err := headFuture.Get(ctx); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build _head_ index: %w", err)

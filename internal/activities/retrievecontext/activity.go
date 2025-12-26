@@ -27,13 +27,13 @@ type Output struct {
 
 // Factory creates retrieve context activities.
 type Factory struct {
-	retrievalService retrieval.RetrievalService
+	retrievalService retrieval.Retriever
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new retrieve context activity factory.
-func NewFactory(retrievalService retrieval.RetrievalService) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(retrievalService retrieval.Retriever) (executor.ActivityFactory[*Input, *Output], error) {
 	if retrievalService == nil {
 		return nil, fmt.Errorf("retrievecontext.NewFactory: retrievalService cannot be nil")
 	}
@@ -64,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Retrieving context for: %q", input.QueryText))
 
-		context, err := f.retrievalService.RetrieveContext(
+		retrievedContext, err := f.retrievalService.RetrieveContext(
 			ctx,
 			input.QueryText,
 			input.SnapshotPriority,
@@ -75,14 +75,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to retrieve context: %w", err)
 		}
 
-		if context == "" {
+		if retrievedContext == "" {
 			executorCtx.SendCompleted("No context found")
 		} else {
 			executorCtx.SendCompleted("Context retrieved")
 		}
 
 		return &Output{
-			Context: context,
+			Context: retrievedContext,
 		}, nil
 	}
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/retran/meowg1k/internal/domain/output"
 )
 
+const outputServiceNilMessage = "output service is nil"
+
 func TestNewServiceStdout(t *testing.T) {
 	service := NewService(output.Stdout)
 	if service == nil {
@@ -131,7 +133,7 @@ func TestPrint_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := "output service is nil"
+	expectedMsg := outputServiceNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -143,7 +145,7 @@ func TestPrintLine_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := "output service is nil"
+	expectedMsg := outputServiceNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -155,7 +157,7 @@ func TestPrintf_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := "output service is nil"
+	expectedMsg := outputServiceNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -167,7 +169,7 @@ func TestFlush_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := "output service is nil"
+	expectedMsg := outputServiceNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}

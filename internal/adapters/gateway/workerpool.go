@@ -18,13 +18,13 @@ type workerPoolGateway struct {
 }
 
 // newWorkerPoolGateway creates a new gateway with worker pool concurrency control.
-func newWorkerPoolGateway(gateway ports.GenerationGateway, maxConcurrency int) ports.GenerationGateway {
+func newWorkerPoolGateway(innerGateway ports.GenerationGateway, maxConcurrency int) ports.GenerationGateway {
 	if maxConcurrency <= 0 {
 		maxConcurrency = 1 // At least one worker
 	}
 
 	return &workerPoolGateway{
-		gateway:   gateway,
+		gateway:   innerGateway,
 		semaphore: make(chan struct{}, maxConcurrency),
 	}
 }
@@ -55,5 +55,9 @@ func (g *workerPoolGateway) GenerateContent(
 		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 
-	return g.gateway.GenerateContent(ctx, request)
+	content, err := g.gateway.GenerateContent(ctx, request)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content: %w", err)
+	}
+	return content, nil
 }

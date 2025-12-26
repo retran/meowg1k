@@ -58,112 +58,7 @@ func (g *geminiGateway) GenerateContent(
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
-	generationConfig := &genai.GenerateContentConfig{}
-
-	if request.SystemPrompt() != "" {
-		parts := genai.Text(request.SystemPrompt())
-		if len(parts) > 0 {
-			generationConfig.SystemInstruction = parts[0]
-		}
-	}
-
-	// Set generation parameters if provided
-	if temperature := request.Temperature(); temperature != nil {
-		temp := float32(*temperature)
-		generationConfig.Temperature = &temp
-	}
-
-	if topP := request.TopP(); topP != nil {
-		p := float32(*topP)
-		generationConfig.TopP = &p
-	}
-
-	if topK := request.TopK(); topK != nil {
-		k := float32(*topK)
-		generationConfig.TopK = &k
-	}
-
-	if maxTokens := request.MaxOutputTokens(); maxTokens > 0 {
-		if maxTokens > 2147483647 { // int32 max value
-			maxTokens = 2147483647
-		}
-		generationConfig.MaxOutputTokens = int32(maxTokens) // #nosec G115 -- range checked above
-	}
-
-	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
-		fp := float32(*frequencyPenalty)
-		generationConfig.FrequencyPenalty = &fp
-	}
-
-	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
-		pp := float32(*presencePenalty)
-		generationConfig.PresencePenalty = &pp
-	}
-
-	if seed := request.Seed(); seed != nil {
-		seedVal := *seed
-		if seedVal > 2147483647 { // int32 max value
-			seedVal = 2147483647
-		}
-		if seedVal < -2147483648 { // int32 min value
-			seedVal = -2147483648
-		}
-		s := int32(seedVal) // #nosec G115 -- range checked above
-		generationConfig.Seed = &s
-	}
-
-	if stop := request.Stop(); len(stop) > 0 {
-		generationConfig.StopSequences = stop
-	}
-
-	// ResponseFormat maps to ResponseMIMEType in Gemini API
-	if responseFormat := request.ResponseFormat(); responseFormat != nil {
-		switch *responseFormat {
-		case "json_object", "json_schema":
-			generationConfig.ResponseMIMEType = "application/json"
-		case "text":
-			generationConfig.ResponseMIMEType = "text/plain"
-		}
-	}
-
-	// ResponseSchema is directly supported by Gemini
-	// Note: Would need type conversion from map[string]interface{} to *genai.Schema
-	// This is complex and may require additional helper functions
-	if responseSchema := request.ResponseSchema(); responseSchema != nil {
-		// TODO: Convert map[string]interface{} to *genai.Schema
-		// For now, this parameter will need to be set manually or through a helper
-		_ = responseSchema
-	}
-
-	// CandidateCount controls number of responses
-	if candidateCount := request.CandidateCount(); candidateCount != nil {
-		count := *candidateCount
-		if count > 2147483647 { // int32 max value
-			count = 2147483647
-		}
-		if count < 0 {
-			count = 0
-		}
-		generationConfig.CandidateCount = int32(count) // #nosec G115 -- range checked above
-	}
-
-	// LogProbs control
-	if logProbs := request.LogProbs(); logProbs != nil {
-		generationConfig.ResponseLogprobs = *logProbs
-	}
-
-	// TopLogProbs maps to Logprobs in Gemini
-	if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
-		logProbs := *topLogProbs
-		if logProbs > 2147483647 { // int32 max value
-			logProbs = 2147483647
-		}
-		if logProbs < 0 {
-			logProbs = 0
-		}
-		lp := int32(logProbs) // #nosec G115 -- range checked above
-		generationConfig.Logprobs = &lp
-	}
+	generationConfig := buildGeminiGenerationConfig(request)
 
 	userPrompt := genai.Text(request.UserPrompt())
 
@@ -172,20 +67,148 @@ func (g *geminiGateway) GenerateContent(
 		return "", fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
 	}
 
+	if err := validateGeminiResponse(result, request.Model()); err != nil {
+		return "", err
+	}
+
+	return result.Text(), nil
+}
+
+func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai.GenerateContentConfig {
+	config := &genai.GenerateContentConfig{}
+
+	applyGeminiSystemPrompt(config, request)
+	applyGeminiSamplingConfig(config, request)
+	applyGeminiPenaltyConfig(config, request)
+	applyGeminiResponseConfig(config, request)
+	applyGeminiCandidateConfig(config, request)
+	applyGeminiLogprobConfig(config, request)
+
+	return config
+}
+
+func applyGeminiSystemPrompt(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if request.SystemPrompt() == "" {
+		return
+	}
+
+	parts := genai.Text(request.SystemPrompt())
+	if len(parts) > 0 {
+		config.SystemInstruction = parts[0]
+	}
+}
+
+func applyGeminiSamplingConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if temperature := request.Temperature(); temperature != nil {
+		temp := float32(*temperature)
+		config.Temperature = &temp
+	}
+
+	if topP := request.TopP(); topP != nil {
+		p := float32(*topP)
+		config.TopP = &p
+	}
+
+	if topK := request.TopK(); topK != nil {
+		k := float32(*topK)
+		config.TopK = &k
+	}
+
+	if maxTokens := request.MaxOutputTokens(); maxTokens > 0 {
+		config.MaxOutputTokens = clampToInt32(maxTokens)
+	}
+
+	if seed := request.Seed(); seed != nil {
+		config.Seed = toInt32Pointer(*seed)
+	}
+
+	if stop := request.Stop(); len(stop) > 0 {
+		config.StopSequences = stop
+	}
+}
+
+func applyGeminiPenaltyConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
+		fp := float32(*frequencyPenalty)
+		config.FrequencyPenalty = &fp
+	}
+
+	if presencePenalty := request.PresencePenalty(); presencePenalty != nil {
+		pp := float32(*presencePenalty)
+		config.PresencePenalty = &pp
+	}
+}
+
+func applyGeminiResponseConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if responseFormat := request.ResponseFormat(); responseFormat != nil {
+		switch *responseFormat {
+		case "json_object", "json_schema":
+			config.ResponseMIMEType = "application/json"
+		case "text":
+			config.ResponseMIMEType = "text/plain"
+		}
+	}
+
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		// TODO: Convert map[string]interface{} to *genai.Schema
+		_ = responseSchema
+	}
+}
+
+func applyGeminiCandidateConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if candidateCount := request.CandidateCount(); candidateCount != nil {
+		count := *candidateCount
+		if count < 0 {
+			count = 0
+		}
+		config.CandidateCount = clampToInt32(count)
+	}
+}
+
+func applyGeminiLogprobConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if logProbs := request.LogProbs(); logProbs != nil {
+		config.ResponseLogprobs = *logProbs
+	}
+
+	if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
+		count := *topLogProbs
+		if count < 0 {
+			count = 0
+		}
+		config.Logprobs = toInt32Pointer(count)
+	}
+}
+
+func clampToInt32(value int) int32 {
+	if value > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if value < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(value)
+}
+
+func toInt32Pointer(value int) *int32 {
+	clamped := clampToInt32(value)
+	return &clamped
+}
+
+func validateGeminiResponse(result *genai.GenerateContentResponse, model string) error {
 	if len(result.Candidates) > 0 && result.Candidates[0].FinishReason != genai.FinishReasonStop &&
 		result.Candidates[0].FinishReason != genai.FinishReasonMaxTokens {
-		return "", fmt.Errorf("generation stopped for model %q with reason: %s", request.Model(), result.Candidates[0].FinishReason)
+		return fmt.Errorf("generation stopped for model %q with reason: %s", model, result.Candidates[0].FinishReason)
 	}
 
 	if len(result.Candidates) == 0 || len(result.Candidates[0].Content.Parts) == 0 {
 		if result.PromptFeedback != nil && result.PromptFeedback.BlockReason != genai.BlockedReasonUnspecified {
-			return "", fmt.Errorf("request was blocked by Gemini API for model %q with reason: %s", request.Model(), result.PromptFeedback.BlockReason)
+			return fmt.Errorf("request was blocked by Gemini API for model %q with reason: %s", model, result.PromptFeedback.BlockReason)
 		}
 
-		return "", fmt.Errorf("gemini API returned an empty response for model %q", request.Model())
+		return fmt.Errorf("gemini API returned an empty response for model %q", model)
 	}
 
-	return result.Text(), nil
+	return nil
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.

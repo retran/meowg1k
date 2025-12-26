@@ -24,7 +24,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock factories
+// Mock factories.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -39,24 +39,24 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock config provider
-type mockCommitConfigProvider struct {
+// Mock config provider.
+type mockConfigProvider struct {
 	config *commit.ResolvedConfig
 	err    error
 }
 
-func (m *mockCommitConfigProvider) Get() (*commit.ResolvedConfig, error) {
+func (m *mockConfigProvider) Get() (*commit.ResolvedConfig, error) {
 	return m.config, m.err
 }
 
-// Mock command parameters reader
+// Mock command parameters reader.
 type mockCommandParametersReader struct {
-	targetBranch string
 	targetErr    error
-	intent       string
 	intentErr    error
-	stdin        string
 	stdinErr     error
+	targetBranch string
+	intent       string
+	stdin        string
 }
 
 func (m *mockCommandParametersReader) GetTargetBranchFlag() (string, error) {
@@ -71,7 +71,7 @@ func (m *mockCommandParametersReader) GetStdIn() (string, error) {
 	return m.stdin, m.stdinErr
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
 	outputs []string
 }
@@ -83,20 +83,20 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		name                       string
-		listStagedFactory          executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
+		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+		commandParametersReader    CommandParametersReader
 		listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
 		applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
 		fetchAllDiffsFactory       executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
-		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
-		composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
 		composeFlatCommitFactory   executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
-		commitConfigProvider       CommitConfigProvider
-		commandParametersReader    CommandParametersReader
+		composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+		listStagedFactory          executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
+		commitConfigProvider       ConfigProvider
 		outputWriter               ports.OutputWriter
-		wantErr                    bool
+		name                       string
 		expectedErrMsg             string
+		wantErr                    bool
 	}{
 		{
 			name:                       "nil listStagedFactory",
@@ -108,7 +108,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -124,7 +124,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -140,7 +140,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -156,7 +156,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -172,7 +172,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -188,7 +188,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        nil,
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -204,7 +204,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       nil,
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -220,7 +220,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   nil,
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -252,7 +252,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    nil,
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    true,
@@ -268,7 +268,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               nil,
 			wantErr:                    true,
@@ -284,7 +284,7 @@ func TestNewFactory(t *testing.T) {
 			summarizeAllFactory:        &mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 			composeCommitFactory:       &mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 			composeFlatCommitFactory:   &mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-			commitConfigProvider:       &mockCommitConfigProvider{},
+			commitConfigProvider:       &mockConfigProvider{},
 			commandParametersReader:    &mockCommandParametersReader{},
 			outputWriter:               &mockOutputWriter{},
 			wantErr:                    false,
@@ -310,20 +310,22 @@ func TestNewFactory(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
+					return
 				}
 				if factory != nil {
 					t.Errorf("expected nil factory but got %v", factory)
 				}
-				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
+				if tt.expectedErrMsg != "" && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
-				if factory == nil {
-					t.Errorf("expected non-nil factory but got nil")
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+			if factory == nil {
+				t.Errorf("expected non-nil factory but got nil")
 			}
 		})
 	}
@@ -331,11 +333,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",
@@ -360,7 +362,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-					&mockCommitConfigProvider{},
+					&mockConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
 				)
@@ -384,7 +386,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-					&mockCommitConfigProvider{},
+					&mockConfigProvider{},
 					&mockCommandParametersReader{},
 					&mockOutputWriter{},
 				)
@@ -412,7 +414,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[*summarizeall.Input, *summarizeall.Output]{},
 					&mockActivityFactory[*composecommit.Input, *composecommit.Output]{},
 					&mockActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]{},
-					&mockCommitConfigProvider{},
+					&mockConfigProvider{},
 					mockReader,
 					&mockOutputWriter{},
 				)
@@ -420,7 +422,8 @@ func TestFactory_NewFlow(t *testing.T) {
 			},
 			setupContext: func() (context.Context, *executor.Context) {
 				ctx := context.Background()
-				flowCtx := executor.NewContext("test", nil, nil)
+				exec := executor.NewExecutor(0)
+				flowCtx := executor.NewContext("test", nil, exec)
 				return ctx, flowCtx
 			},
 			wantErr:        true,
@@ -434,7 +437,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					intent:       "test intent",
 				}
 
-				mockConfig := &mockCommitConfigProvider{
+				mockConfig := &mockConfigProvider{
 					config: &commit.ResolvedConfig{
 						Profile:      nil,
 						SystemPrompt: "test prompt",
@@ -508,7 +511,7 @@ func TestFactory_NewFlow(t *testing.T) {
 					stdin:        "stdin intent",
 				}
 
-				mockConfig := &mockCommitConfigProvider{
+				mockConfig := &mockConfigProvider{
 					config: &commit.ResolvedConfig{
 						Profile:      nil,
 						SystemPrompt: "test prompt",
@@ -589,10 +592,8 @@ func TestFactory_NewFlow(t *testing.T) {
 				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}

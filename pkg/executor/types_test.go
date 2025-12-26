@@ -83,7 +83,7 @@ func TestContext_SendFeedback(t *testing.T) {
 	if received.Message != "error message" {
 		t.Errorf("expected message 'error message', got %q", received.Message)
 	}
-	if received.Error != testErr {
+	if !errors.Is(received.Error, testErr) {
 		t.Errorf("expected error to be set")
 	}
 }

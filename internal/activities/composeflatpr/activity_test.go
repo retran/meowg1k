@@ -19,8 +19,8 @@ import (
 
 // mockInvokeLLMFactory is a mock implementation of the invokeLLM factory for testing.
 type mockInvokeLLMFactory struct {
-	response string
 	err      error
+	response string
 }
 
 func (m *mockInvokeLLMFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {

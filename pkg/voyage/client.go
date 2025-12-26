@@ -22,9 +22,9 @@ const (
 
 // Client represents a client for the Voyage AI API.
 type Client struct {
+	httpClient *http.Client
 	baseURL    string
 	apiKey     string
-	httpClient *http.Client
 }
 
 // NewClient creates a new Voyage AI client with the given configuration.
@@ -52,24 +52,30 @@ func NewClient(baseURL, apiKey string, httpClient *http.Client) (*Client, error)
 
 // EmbeddingRequest represents a request to the Voyage AI embeddings endpoint.
 type EmbeddingRequest struct {
-	Input           []string `json:"input"`
 	Model           string   `json:"model"`
 	InputType       string   `json:"input_type,omitempty"`
-	OutputDimension *int     `json:"output_dimension,omitempty"`
+	Input           []string `json:"input"`
+	OutputDimension int      `json:"output_dimension,omitempty"`
+}
+
+// EmbeddingData represents a single embedding item in a response.
+type EmbeddingData struct {
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+// EmbeddingUsage represents token usage in a response.
+type EmbeddingUsage struct {
+	TotalTokens int `json:"total_tokens"`
 }
 
 // EmbeddingResponse represents a response from the Voyage AI embeddings endpoint.
 type EmbeddingResponse struct {
-	Object string `json:"object"`
-	Data   []struct {
-		Object    string    `json:"object"`
-		Index     int       `json:"index"`
-		Embedding []float64 `json:"embedding"`
-	} `json:"data"`
-	Model string `json:"model"`
-	Usage struct {
-		TotalTokens int `json:"total_tokens"`
-	} `json:"usage"`
+	Object string          `json:"object"`
+	Model  string          `json:"model"`
+	Data   []EmbeddingData `json:"data"`
+	Usage  EmbeddingUsage  `json:"usage"`
 }
 
 // ErrorResponse represents an error response from the Voyage AI API.
@@ -113,7 +119,7 @@ func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*E
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

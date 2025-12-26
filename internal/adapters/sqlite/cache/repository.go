@@ -7,21 +7,25 @@ package cache
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Repository stores cached LLM responses in SQLite.
 type Repository struct {
 	host ports.Host
 }
 
+// NewRepository creates a cache repository backed by SQLite.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{host: host}
 }
 
-func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) {
+// Get fetches a cache entry by key.
+func (r *Repository) Get(ctx context.Context, key string) (value string, found bool, err error) {
 	if r == nil {
 		return "", false, fmt.Errorf("repository is nil")
 	}
@@ -39,12 +43,11 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 		return "", false, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	var value string
 	err = db.QueryRowContext(ctx, `
 		SELECT value FROM llm_cache WHERE key = ?
 	`, key).Scan(&value)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 
@@ -55,6 +58,7 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 	return value, true, nil
 }
 
+// Set stores a cache entry by key.
 func (r *Repository) Set(ctx context.Context, key, value string) error {
 	if r == nil {
 		return fmt.Errorf("repository is nil")
@@ -85,6 +89,7 @@ func (r *Repository) Set(ctx context.Context, key, value string) error {
 	return nil
 }
 
+// Purge removes cache entries older than the TTL.
 func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 	if r == nil {
 		return fmt.Errorf("repository is nil")
@@ -113,8 +118,7 @@ func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		// Log but don't fail on this error
-		return nil
+		return fmt.Errorf("failed to read affected rows: %w", err)
 	}
 
 	if rowsAffected > 0 {

@@ -10,13 +10,13 @@ import (
 	"sync"
 )
 
-// Future represents a value that will be available in the future
+// Future represents a value that will be available in the future.
 type Future[T any] struct {
+	val  T
+	err  error
 	ch   chan result[T]
 	mu   sync.RWMutex
 	done bool
-	val  T
-	err  error
 }
 
 type result[T any] struct {
@@ -24,7 +24,7 @@ type result[T any] struct {
 	error error
 }
 
-// NewFuture creates a new Future
+// NewFuture creates a new Future.
 func NewFuture[T any]() *Future[T] {
 	return &Future[T]{
 		ch: make(chan result[T], 1),
@@ -77,7 +77,7 @@ func (f *Future[T]) CompleteWithError(err error) error {
 	return nil
 }
 
-// Get waits for the future to complete and returns the result
+// Get waits for the future to complete and returns the result.
 func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	var zero T
 	if f == nil {
@@ -103,11 +103,11 @@ func (f *Future[T]) Get(ctx context.Context) (T, error) {
 	case res := <-f.ch:
 		return res.value, res.error
 	case <-ctx.Done():
-		return zero, ctx.Err()
+		return zero, fmt.Errorf("context cancelled while waiting for future: %w", ctx.Err())
 	}
 }
 
-// IsDone returns true if the future is completed
+// IsDone returns true if the future is completed.
 func (f *Future[T]) IsDone() bool {
 	if f == nil {
 		return false
@@ -119,11 +119,11 @@ func (f *Future[T]) IsDone() bool {
 	return f.done
 }
 
-// TryGet returns the result if available, or nil if not ready
-func (f *Future[T]) TryGet() (T, error, bool) {
+// TryGet returns the result if available, or zero values if not ready.
+func (f *Future[T]) TryGet() (value T, ready bool, err error) {
 	var zero T
 	if f == nil {
-		return zero, fmt.Errorf("future is nil"), false
+		return zero, false, fmt.Errorf("future is nil")
 	}
 
 	f.mu.RLock()
@@ -132,16 +132,16 @@ func (f *Future[T]) TryGet() (T, error, bool) {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
 
-		return val, err, true
+		return val, true, err
 	}
 
 	f.mu.RUnlock()
 
 	select {
 	case res := <-f.ch:
-		return res.value, res.error, true
+		return res.value, true, res.error
 	default:
-		return zero, nil, false
+		return zero, false, nil
 	}
 }
 
@@ -189,7 +189,7 @@ func WaitAll[T any](ctx context.Context, futures ...*Future[T]) ([]T, []error) {
 }
 
 // WaitAny waits for any future to complete and returns its result and index
-// The returned index indicates which future completed first
+// The returned index indicates which future completed first.
 func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index int, err error) {
 	if ctx == nil {
 		return value, -1, fmt.Errorf("context is nil")
@@ -221,11 +221,11 @@ func WaitAny[T any](ctx context.Context, futures ...*Future[T]) (value T, index 
 	case res := <-resultCh:
 		return res.value, res.index, res.err
 	case <-ctx.Done():
-		return value, -1, ctx.Err()
+		return value, -1, fmt.Errorf("context cancelled while waiting for any future: %w", ctx.Err())
 	}
 }
 
-// WaitAllMap waits for all futures in a map and returns results with the same keys
+// WaitAllMap waits for all futures in a map and returns results with the same keys.
 func WaitAllMap[K comparable, T any](ctx context.Context, futures map[K]*Future[T]) (
 	results map[K]T, errors map[K]error,
 ) {

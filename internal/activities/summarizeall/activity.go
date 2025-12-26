@@ -29,7 +29,7 @@ type Factory struct {
 	fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.
@@ -54,14 +54,25 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", len(input.Changes)))
+		totalChanges := len(input.Changes)
+		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", totalChanges))
+
+		if totalChanges == 0 {
+			executorCtx.SendCompleted("Summarized 0 files")
+			return &Output{Summaries: []*summarizefile.Output{}}, nil
+		}
+
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
 
 		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
 		for _, change := range input.Changes {
 			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
 			fut := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
-				executorCtx.GetExecutor(),
 				ctx,
+				exec,
 				executorCtx,
 				change.Filename,
 				summarizeFile,

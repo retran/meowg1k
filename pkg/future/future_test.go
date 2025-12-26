@@ -63,7 +63,7 @@ func TestFuture_TryGet(t *testing.T) {
 	future := NewFuture[int]()
 
 	// Try to get result before completion
-	result, err, ready := future.TryGet()
+	result, ready, err := future.TryGet()
 	if ready {
 		t.Fatal("Expected not ready")
 	}
@@ -78,7 +78,7 @@ func TestFuture_TryGet(t *testing.T) {
 	_ = future.Complete(123)
 
 	// Try to get result after completion
-	result, err, ready = future.TryGet()
+	result, ready, err = future.TryGet()
 	if !ready {
 		t.Fatal("Expected ready")
 	}
@@ -126,25 +126,25 @@ func TestWaitAll(t *testing.T) {
 	}()
 
 	start := time.Now()
-	results, errors := WaitAll(ctx, future1, future2, future3)
+	results, errs := WaitAll(ctx, future1, future2, future3)
 	duration := time.Since(start)
 
 	// Check results
 	if len(results) != 3 {
 		t.Fatalf("Expected 3 results, got %d", len(results))
 	}
-	if len(errors) != 3 {
-		t.Fatalf("Expected 3 errors, got %d", len(errors))
+	if len(errs) != 3 {
+		t.Fatalf("Expected 3 errors, got %d", len(errs))
 	}
 
-	if results[0] != 10 || errors[0] != nil {
-		t.Fatalf("Future 1: expected (10, nil), got (%d, %v)", results[0], errors[0])
+	if results[0] != 10 || errs[0] != nil {
+		t.Fatalf("Future 1: expected (10, nil), got (%d, %v)", results[0], errs[0])
 	}
-	if results[1] != 20 || errors[1] != nil {
-		t.Fatalf("Future 2: expected (20, nil), got (%d, %v)", results[1], errors[1])
+	if results[1] != 20 || errs[1] != nil {
+		t.Fatalf("Future 2: expected (20, nil), got (%d, %v)", results[1], errs[1])
 	}
-	if results[2] != 30 || errors[2] != nil {
-		t.Fatalf("Future 3: expected (30, nil), got (%d, %v)", results[2], errors[2])
+	if results[2] != 30 || errs[2] != nil {
+		t.Fatalf("Future 3: expected (30, nil), got (%d, %v)", results[2], errs[2])
 	}
 
 	// Should complete in around 20ms (max delay), not 35ms (sum of delays)
@@ -219,25 +219,25 @@ func TestWaitAllMap(t *testing.T) {
 	}()
 
 	start := time.Now()
-	results, errors := WaitAllMap(ctx, futures)
+	results, errs := WaitAllMap(ctx, futures)
 	duration := time.Since(start)
 
 	// Check results
 	if len(results) != 3 {
 		t.Fatalf("Expected 3 results, got %d", len(results))
 	}
-	if len(errors) != 3 {
-		t.Fatalf("Expected 3 errors, got %d", len(errors))
+	if len(errs) != 3 {
+		t.Fatalf("Expected 3 errors, got %d", len(errs))
 	}
 
-	if results["double"] != 20 || errors["double"] != nil {
-		t.Fatalf("Double: expected (20, nil), got (%d, %v)", results["double"], errors["double"])
+	if results["double"] != 20 || errs["double"] != nil {
+		t.Fatalf("Double: expected (20, nil), got (%d, %v)", results["double"], errs["double"])
 	}
-	if results["triple"] != 60 || errors["triple"] != nil {
-		t.Fatalf("Triple: expected (60, nil), got (%d, %v)", results["triple"], errors["triple"])
+	if results["triple"] != 60 || errs["triple"] != nil {
+		t.Fatalf("Triple: expected (60, nil), got (%d, %v)", results["triple"], errs["triple"])
 	}
-	if results["quad"] != 80 || errors["quad"] != nil {
-		t.Fatalf("Quad: expected (80, nil), got (%d, %v)", results["quad"], errors["quad"])
+	if results["quad"] != 80 || errs["quad"] != nil {
+		t.Fatalf("Quad: expected (80, nil), got (%d, %v)", results["quad"], errs["quad"])
 	}
 
 	// Should complete in around 15ms (max delay), not 30ms (sum of delays)
@@ -395,7 +395,7 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	f1 := NewFuture[string]()
 	f1.Complete("completed")
 
-	result, err, ok := f1.TryGet()
+	result, ok, err := f1.TryGet()
 	if !ok {
 		t.Error("Expected TryGet to return true for completed future")
 	}
@@ -411,7 +411,7 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	testErr := errTestFuture
 	f2.CompleteWithError(testErr)
 
-	result2, err2, ok2 := f2.TryGet()
+	result2, ok2, err2 := f2.TryGet()
 	if !ok2 {
 		t.Error("Expected TryGet to return true for future with error")
 	}
@@ -573,7 +573,7 @@ func TestFutureZeroValue(t *testing.T) {
 		t.Error("Zero value future should not be done")
 	}
 
-	result, err, ok := f.TryGet()
+	result, ok, err := f.TryGet()
 	if ok {
 		t.Error("Zero value future TryGet should return false")
 	}

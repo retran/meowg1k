@@ -35,7 +35,7 @@ func TestGetModelInfo(t *testing.T) {
 
 	// Test unknown model
 	unknownInfo := service.Get("unknown-model")
-	expected := model2.ModelInfo{
+	expected := model2.Info{
 		Provider:         "unknown",
 		MaxContextTokens: 8192,
 		TokenizerType:    model2.TokenizerUnknown,

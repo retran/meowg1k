@@ -15,23 +15,27 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
+// Input defines the payload for computing embeddings across batches.
 type Input struct {
-	StateName       string
 	PreparedBatches *preparebatches.Output
+	StateName       string
 }
 
+// Output contains the computed embeddings and batch metadata.
 type Output struct {
 	StateName       string
 	PreparedBatches *preparebatches.Output
 	Embeddings      []gateway.Embedding
 }
 
+// Factory builds computeallembeddings activities.
 type Factory struct {
 	computeBatchFactory executor.ActivityFactory[*computeembeddingsbatch.Input, *computeembeddingsbatch.Output]
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a computeallembeddings activity factory.
 func NewFactory(
 	computeBatchFactory executor.ActivityFactory[*computeembeddingsbatch.Input, *computeembeddingsbatch.Output],
 ) (executor.ActivityFactory[*Input, *Output], error) {
@@ -44,6 +48,7 @@ func NewFactory(
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		numBatches := len(input.PreparedBatches.Batches)
@@ -74,7 +79,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			batchInput := &computeembeddingsbatch.Input{
 				ChunkTexts: batch.Texts,
 			}
-			fut := executor.ExecuteActivity(exec, ctx, executorCtx,
+			fut := executor.ExecuteActivity(ctx, exec, executorCtx,
 				fmt.Sprintf("Batch_%d-%d", batch.StartIndex, batch.EndIndex),
 				activity, batchInput)
 			futures[i] = fut

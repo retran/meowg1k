@@ -114,11 +114,9 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 		// but we can verify the error handling path
 		if err == nil {
 			t.Log("Unexpected success - this might indicate the test environment has network access")
-		} else {
+		} else if strings.Contains(err.Error(), "model is required") {
 			// Verify it's a network/API related error, not a validation error
-			if strings.Contains(err.Error(), "model is required") {
-				t.Error("Should not get validation error for valid request")
-			}
+			t.Error("Should not get validation error for valid request")
 		}
 	})
 
@@ -255,9 +253,9 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 		model          string
 		systemPrompt   string
 		userPrompt     string
+		errorSubstring string
 		maxTokens      int
 		expectingError bool
-		errorSubstring string
 	}{
 		{
 			name:           "Empty model",
@@ -309,18 +307,19 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 			ctx := context.Background()
 			_, err := gateway.GenerateContent(ctx, request)
 
-			if tc.expectingError && tc.errorSubstring != "" {
+			switch {
+			case tc.expectingError && tc.errorSubstring != "":
 				if err == nil {
 					t.Fatalf("Expected error containing '%s', got no error", tc.errorSubstring)
 				}
 				if !strings.Contains(err.Error(), tc.errorSubstring) {
 					t.Errorf("Expected error containing '%s', got: %v", tc.errorSubstring, err)
 				}
-			} else if tc.expectingError && tc.errorSubstring == "" {
+			case tc.expectingError:
 				if err == nil {
 					t.Fatal("Expected some error, got no error")
 				}
-			} else if !tc.expectingError && tc.errorSubstring != "" {
+			case tc.errorSubstring != "":
 				if err != nil && strings.Contains(err.Error(), tc.errorSubstring) {
 					t.Errorf("Did not expect error containing '%s', but got: %v", tc.errorSubstring, err)
 				}

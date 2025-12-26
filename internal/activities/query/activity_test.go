@@ -12,7 +12,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// mockRetrievalService is a mock implementation of retrieval.RetrievalService.
+// mockRetrievalService is a mock implementation of retrieval.Retriever.
 type mockRetrievalService struct {
 	SearchFn func(ctx context.Context, queryText string, snapshotPriority []string, topK int, minScore float32) ([]retrieval.SearchResult, error)
 }

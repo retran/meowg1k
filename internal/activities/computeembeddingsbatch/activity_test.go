@@ -16,8 +16,8 @@ import (
 
 // mockEmbeddingsGateway is a mock implementation of ports.EmbeddingsGateway.
 type mockEmbeddingsGateway struct {
-	mu                  sync.Mutex
 	ComputeEmbeddingsFn func(ctx context.Context, req *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error)
+	mu                  sync.Mutex
 }
 
 func (m *mockEmbeddingsGateway) ComputeEmbeddings(ctx context.Context, req *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {

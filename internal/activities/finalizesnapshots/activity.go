@@ -13,18 +13,21 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the payload for finalizing snapshots.
 type Input struct {
 	ScanResult       *scanworkspacestate.Output
 	ExistingVersions map[string]int64 // contentHash -> version_id (from deduplication)
 	NewVersions      map[string]int64 // contentHash -> version_id (from pipeline)
 }
 
+// Factory builds finalizesnapshots activities.
 type Factory struct {
 	indexService *index.Service
 }
 
 var _ executor.ActivityFactory[*Input, struct{}] = (*Factory)(nil)
 
+// NewFactory creates a finalizesnapshots activity factory.
 func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, struct{}], error) {
 	if indexService == nil {
 		return nil, fmt.Errorf("finalizesnapshots.NewFactory: indexService cannot be nil")
@@ -35,6 +38,7 @@ func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, s
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (struct{}, error) {
 		executorCtx.SendRunning("Finalizing snapshots")

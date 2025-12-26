@@ -15,13 +15,13 @@ import (
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// mockCacheForCaching is a simple mock for caching tests
+// mockCacheForCaching is a simple mock for caching tests.
 type mockCacheForCaching struct {
+	getError error
+	setError error
 	data     map[string]string
 	getCalls int
 	setCalls int
-	getError error
-	setError error
 }
 
 func newMockCacheForCaching() *mockCacheForCaching {
@@ -30,12 +30,12 @@ func newMockCacheForCaching() *mockCacheForCaching {
 	}
 }
 
-func (m *mockCacheForCaching) Get(ctx context.Context, key string) (string, bool, error) {
+func (m *mockCacheForCaching) Get(ctx context.Context, key string) (value string, found bool, err error) {
 	m.getCalls++
 	if m.getError != nil {
 		return "", false, m.getError
 	}
-	value, found := m.data[key]
+	value, found = m.data[key]
 	return value, found, nil
 }
 
@@ -52,10 +52,10 @@ func (m *mockCacheForCaching) Purge(ctx context.Context, ttl time.Duration) erro
 	return nil
 }
 
-// mockGenGatewayForCaching is a simple mock for testing
+// mockGenGatewayForCaching is a simple mock for testing.
 type mockGenGatewayForCaching struct {
-	response  string
 	err       error
+	response  string
 	callCount int
 }
 
@@ -122,7 +122,7 @@ func TestCachingGenerationGateway_GatewayError(t *testing.T) {
 
 	result, err := gateway.GenerateContent(context.Background(), request)
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, result)
 	assert.Equal(t, 0, mockCache.setCalls, "Should not cache errors")
 }

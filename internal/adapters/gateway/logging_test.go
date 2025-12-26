@@ -14,10 +14,10 @@ import (
 	"github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// mockTraceLogger implements TraceLogger for testing
+// mockTraceLogger implements TraceLogger for testing.
 type mockTraceLogger struct {
-	mu              sync.Mutex
 	apiInteractions []*tracelog.APIInteractionEntry
+	mu              sync.Mutex
 }
 
 func (m *mockTraceLogger) LogAPIInteraction(entry *tracelog.APIInteractionEntry) error {
@@ -33,10 +33,10 @@ func (m *mockTraceLogger) getInteractions() []*tracelog.APIInteractionEntry {
 	return append([]*tracelog.APIInteractionEntry{}, m.apiInteractions...)
 }
 
-// mockLoggingGenerationGateway implements ports.GenerationGateway for testing
+// mockLoggingGenerationGateway implements ports.GenerationGateway for testing.
 type mockLoggingGenerationGateway struct {
-	response string
 	err      error
+	response string
 }
 
 func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
@@ -46,11 +46,11 @@ func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, requ
 	return m.response, nil
 }
 
-// mockLoggingEmbeddingsGateway implements ports.EmbeddingsGateway for testing
+// mockLoggingEmbeddingsGateway implements ports.EmbeddingsGateway for testing.
 type mockLoggingEmbeddingsGateway struct {
+	err        error
 	embeddings []gateway.Embedding
 	distance   float64
-	err        error
 }
 
 func (m *mockLoggingEmbeddingsGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {

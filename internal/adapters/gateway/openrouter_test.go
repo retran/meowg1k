@@ -16,6 +16,8 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+const httpMethodPost = "POST"
+
 func TestNewOpenRouterGateway(t *testing.T) {
 	t.Run("Valid parameters", func(t *testing.T) {
 		ctx := context.Background()
@@ -87,7 +89,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 	t.Run("Successful generation", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Verify request method and path
-			if r.Method != "POST" {
+			if r.Method != httpMethodPost {
 				t.Errorf("Expected POST request, got %s", r.Method)
 			}
 			if !strings.HasSuffix(r.URL.Path, "/chat/completions") {

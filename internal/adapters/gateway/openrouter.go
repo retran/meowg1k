@@ -15,11 +15,11 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// openrouterGateway implements gateway interfaces for OpenRouter API
+// openrouterGateway implements gateway interfaces for OpenRouter API.
 type openrouterGateway struct {
+	client  *http.Client
 	baseURL string
 	apiKey  string
-	client  *http.Client
 }
 
 // NewOpenRouterGateway creates a new OpenRouter gateway with a shared HTTP client.
@@ -50,27 +50,27 @@ func NewOpenRouterGateway(
 	}, nil
 }
 
-// OpenRouter API request/response structures
+// OpenRouter API request/response structures.
 type openrouterMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
 type openrouterRequest struct {
-	Model             string              `json:"model"`
-	Messages          []openrouterMessage `json:"messages"`
-	MaxTokens         int                 `json:"max_tokens,omitempty"`
+	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
+	TopA              *float64            `json:"top_a,omitempty"`
+	N                 *int                `json:"n,omitempty"`
 	Temperature       *float64            `json:"temperature,omitempty"`
 	TopP              *float64            `json:"top_p,omitempty"`
 	TopK              *int                `json:"top_k,omitempty"`
-	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
-	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
 	RepetitionPenalty *float64            `json:"repetition_penalty,omitempty"`
-	MinP              *float64            `json:"min_p,omitempty"`
-	TopA              *float64            `json:"top_a,omitempty"`
+	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
 	Seed              *int                `json:"seed,omitempty"`
+	MinP              *float64            `json:"min_p,omitempty"`
+	Model             string              `json:"model"`
+	Messages          []openrouterMessage `json:"messages"`
 	Stop              []string            `json:"stop,omitempty"`
-	N                 *int                `json:"n,omitempty"`
+	MaxTokens         int                 `json:"max_tokens,omitempty"`
 }
 
 type openrouterChoice struct {
@@ -80,15 +80,15 @@ type openrouterChoice struct {
 }
 
 type openrouterResponse struct {
-	Choices []openrouterChoice `json:"choices"`
-	Error   *struct {
+	Error *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+	Choices []openrouterChoice `json:"choices"`
 }
 
-// GenerateContent sends a content generation request to OpenRouter API
+// GenerateContent sends a content generation request to OpenRouter API.
 func (g *openrouterGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
@@ -101,60 +101,8 @@ func (g *openrouterGateway) GenerateContent(
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
-	// Build messages
-	messages := []openrouterMessage{}
-	if request.SystemPrompt() != "" {
-		messages = append(messages, openrouterMessage{
-			Role:    "system",
-			Content: request.SystemPrompt(),
-		})
-	}
-	messages = append(messages, openrouterMessage{
-		Role:    "user",
-		Content: request.UserPrompt(),
-	})
-
-	// Build request with all supported parameters
-	reqBody := openrouterRequest{
-		Model:     request.Model(),
-		Messages:  messages,
-		MaxTokens: request.MaxOutputTokens(),
-	}
-
-	// Set optional parameters
-	if temp := request.Temperature(); temp != nil {
-		reqBody.Temperature = temp
-	}
-	if topP := request.TopP(); topP != nil {
-		reqBody.TopP = topP
-	}
-	if topK := request.TopK(); topK != nil {
-		reqBody.TopK = topK
-	}
-	if fp := request.FrequencyPenalty(); fp != nil {
-		reqBody.FrequencyPenalty = fp
-	}
-	if pp := request.PresencePenalty(); pp != nil {
-		reqBody.PresencePenalty = pp
-	}
-	if rp := request.RepetitionPenalty(); rp != nil {
-		reqBody.RepetitionPenalty = rp
-	}
-	if minP := request.MinP(); minP != nil {
-		reqBody.MinP = minP
-	}
-	if topA := request.TopA(); topA != nil {
-		reqBody.TopA = topA
-	}
-	if seed := request.Seed(); seed != nil {
-		reqBody.Seed = seed
-	}
-	if stop := request.Stop(); len(stop) > 0 {
-		reqBody.Stop = stop
-	}
-	if n := request.CandidateCount(); n != nil {
-		reqBody.N = n
-	}
+	messages := buildOpenRouterMessages(request)
+	reqBody := buildOpenRouterRequest(request, messages)
 
 	// Marshal request
 	jsonData, err := json.Marshal(reqBody)
@@ -184,26 +132,97 @@ func (g *openrouterGateway) GenerateContent(
 	if err != nil {
 		return "", fmt.Errorf("failed to send request to OpenRouter: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
-	// Read response
+	return parseOpenRouterResponse(resp)
+}
+
+func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
+	messages := []openrouterMessage{}
+	if request.SystemPrompt() != "" {
+		messages = append(messages, openrouterMessage{
+			Role:    "system",
+			Content: request.SystemPrompt(),
+		})
+	}
+	messages = append(messages, openrouterMessage{
+		Role:    "user",
+		Content: request.UserPrompt(),
+	})
+	return messages
+}
+
+func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []openrouterMessage) openrouterRequest {
+	reqBody := openrouterRequest{
+		Model:     request.Model(),
+		Messages:  messages,
+		MaxTokens: request.MaxOutputTokens(),
+	}
+
+	applyOpenRouterSampling(&reqBody, request)
+	applyOpenRouterPenalties(&reqBody, request)
+	applyOpenRouterControlParams(&reqBody, request)
+
+	return reqBody
+}
+
+func applyOpenRouterSampling(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if temp := request.Temperature(); temp != nil {
+		reqBody.Temperature = temp
+	}
+	if topP := request.TopP(); topP != nil {
+		reqBody.TopP = topP
+	}
+	if topK := request.TopK(); topK != nil {
+		reqBody.TopK = topK
+	}
+	if topA := request.TopA(); topA != nil {
+		reqBody.TopA = topA
+	}
+	if minP := request.MinP(); minP != nil {
+		reqBody.MinP = minP
+	}
+}
+
+func applyOpenRouterPenalties(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if fp := request.FrequencyPenalty(); fp != nil {
+		reqBody.FrequencyPenalty = fp
+	}
+	if pp := request.PresencePenalty(); pp != nil {
+		reqBody.PresencePenalty = pp
+	}
+	if rp := request.RepetitionPenalty(); rp != nil {
+		reqBody.RepetitionPenalty = rp
+	}
+}
+
+func applyOpenRouterControlParams(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if seed := request.Seed(); seed != nil {
+		reqBody.Seed = seed
+	}
+	if stop := request.Stop(); len(stop) > 0 {
+		reqBody.Stop = stop
+	}
+	if n := request.CandidateCount(); n != nil {
+		reqBody.N = n
+	}
+}
+
+func parseOpenRouterResponse(resp *http.Response) (string, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("OpenRouter API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	var openrouterResp openrouterResponse
 	if err := json.Unmarshal(body, &openrouterResp); err != nil {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Check for API error
 	if openrouterResp.Error != nil {
 		return "", fmt.Errorf("OpenRouter API error: %s (type: %s, code: %s)",
 			openrouterResp.Error.Message,
@@ -212,7 +231,6 @@ func (g *openrouterGateway) GenerateContent(
 		)
 	}
 
-	// Extract content
 	if len(openrouterResp.Choices) == 0 {
 		return "", fmt.Errorf("no choices returned from OpenRouter API")
 	}

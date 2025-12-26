@@ -85,7 +85,10 @@ func (s *Service) GetWithTimeout(timeout time.Duration) *http.Client {
 		return http.DefaultClient
 	}
 
-	baseTransport := s.client.Transport.(*http.Transport)
+	baseTransport, ok := s.client.Transport.(*http.Transport)
+	if !ok {
+		return s.client
+	}
 
 	// Clone the transport with adjusted timeouts
 	transport := &http.Transport{

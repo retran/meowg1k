@@ -14,11 +14,13 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
+// Input defines the request payload for chunking multiple files.
 type Input struct {
 	StateName string
 	Files     []domainindex.FileToProcess
 }
 
+// FileChunkResult captures chunk data for a single file.
 type FileChunkResult struct {
 	FilePath    string
 	ContentHash string
@@ -26,6 +28,7 @@ type FileChunkResult struct {
 	Chunks      []domainindex.ChunkData
 }
 
+// Output contains the aggregated chunk results and index mappings.
 type Output struct {
 	StateName        string
 	FileChunks       []FileChunkResult
@@ -33,12 +36,14 @@ type Output struct {
 	ChunkToFileIndex []int // Maps chunk index to file index in FileChunks
 }
 
+// Factory builds chunkallfiles activities.
 type Factory struct {
 	chunkFileFactory executor.ActivityFactory[*chunkfile.Input, *chunkfile.Output]
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a chunkallfiles activity factory.
 func NewFactory(
 	chunkFileFactory executor.ActivityFactory[*chunkfile.Input, *chunkfile.Output],
 ) (executor.ActivityFactory[*Input, *Output], error) {
@@ -51,6 +56,7 @@ func NewFactory(
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Chunking %d files (%s)", len(input.Files), input.StateName))
@@ -61,8 +67,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		type chunkFuture struct {
-			file   domainindex.FileToProcess
 			future *future.Future[*chunkfile.Output]
+			file   domainindex.FileToProcess
 		}
 		chunkFutures := make([]chunkFuture, 0, len(input.Files))
 
@@ -72,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				FilePath: file.FilePath,
 				Content:  file.State.Content,
 			}
-			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Chunk_%s", file.FilePath), activity, fileInput)
+			fut := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Chunk_%s", file.FilePath), activity, fileInput)
 			chunkFutures = append(chunkFutures, chunkFuture{
 				file:   file,
 				future: fut,

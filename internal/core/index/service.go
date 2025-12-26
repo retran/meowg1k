@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package index provides core indexing operations for documents and snapshots.
 package index
 
 import (
@@ -14,14 +15,16 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Service coordinates index persistence and snapshot reconciliation.
 type Service struct {
 	indexRepo    ports.IndexRepository
 	snapshotRepo ports.SnapshotRepository
 }
 
-// Ensure Service implements the IndexService interface
+// Ensure Service implements the IndexService interface.
 var _ ports.IndexService = (*Service)(nil)
 
+// NewService creates a new index service.
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,
@@ -39,12 +42,14 @@ func NewService(
 	}, nil
 }
 
+// PrepareOutput contains files selected for indexing and lookup maps.
 type PrepareOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
+// PrepareForProcessing normalizes workspace state for indexing.
 func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
 	wsState, ok := workspaceState.(*scanworkspacestate.Output)
 	if !ok {
@@ -61,57 +66,13 @@ func (s *Service) prepareForProcessingImpl(
 		return nil, fmt.Errorf("workspaceState cannot be nil")
 	}
 
-	uniqueContentHashes := make(map[string]struct {
-		fileState domainindex.FileState
-		firstPath string
-	})
+	uniqueContentHashes := make(map[string]contentHashEntry)
 	encounterOrder := make([]string, 0)
 	contentHashMap := make(map[string]string)
 
-	for filePath, fileState := range workspaceState.HeadState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
-				firstPath string
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
-
-	for filePath, fileState := range workspaceState.StageState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
-				firstPath string
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
-
-	for filePath, fileState := range workspaceState.WorkdirState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
-				firstPath string
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
+	s.collectContentHashes(workspaceState.HeadState, uniqueContentHashes, &encounterOrder, contentHashMap)
+	s.collectContentHashes(workspaceState.StageState, uniqueContentHashes, &encounterOrder, contentHashMap)
+	s.collectContentHashes(workspaceState.WorkdirState, uniqueContentHashes, &encounterOrder, contentHashMap)
 
 	contentHashList := append([]string(nil), encounterOrder...)
 
@@ -145,6 +106,35 @@ func (s *Service) prepareForProcessingImpl(
 	}, nil
 }
 
+type contentHashEntry struct {
+	firstPath string
+	fileState domainindex.FileState
+}
+
+func (s *Service) collectContentHashes(
+	state map[string]domainindex.FileState,
+	uniqueContentHashes map[string]contentHashEntry,
+	encounterOrder *[]string,
+	contentHashMap map[string]string,
+) {
+	for filePath, fileState := range state {
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
+		contentHashMap[filePath] = fileState.ContentHash
+		if _, exists := uniqueContentHashes[fileState.ContentHash]; exists {
+			continue
+		}
+
+		uniqueContentHashes[fileState.ContentHash] = contentHashEntry{
+			fileState: fileState,
+			firstPath: filePath,
+		}
+		*encounterOrder = append(*encounterOrder, fileState.ContentHash)
+	}
+}
+
+// SaveVersionInput defines the payload for saving a new document version.
 type SaveVersionInput struct {
 	FilePath    string
 	Content     []byte
@@ -153,6 +143,7 @@ type SaveVersionInput struct {
 	Embeddings  []gateway.Embedding
 }
 
+// SaveVersionOutput reports the stored version ID.
 type SaveVersionOutput struct {
 	FilePath  string
 	VersionID int64
@@ -197,7 +188,7 @@ func (s *Service) saveNewVersionImpl(
 	}
 
 	// Save document version and chunks in a single transaction
-	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, docVersion, input.Content, chunks)
+	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, &docVersion, input.Content, chunks)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add document version with chunks: %w", err)
 	}
@@ -208,6 +199,7 @@ func (s *Service) saveNewVersionImpl(
 	}, nil
 }
 
+// FinalizeInput defines the payload for snapshot finalization.
 type FinalizeInput struct {
 	ScanResult       *scanworkspacestate.Output
 	ExistingVersions map[string]int64
@@ -283,12 +275,20 @@ func (s *Service) finalizeSnapshot(
 
 // isLikelyBinary checks if content appears to be binary (non-text) data.
 func isLikelyBinary(content []byte) bool {
-	return false // Simplified to always return true for this context
+	for _, b := range content {
+		if b == 0 {
+			return true
+		}
+		if b < 0x09 || (b > 0x0D && b < 0x20) {
+			return true
+		}
+	}
+	return false
 }
 
 // Interface wrapper methods for ports.IndexService
 
-// SaveNewVersion implements ports.IndexService
+// SaveNewVersion implements ports.IndexService.
 func (s *Service) SaveNewVersion(ctx context.Context, input interface{}) (interface{}, error) {
 	saveInput, ok := input.(*SaveVersionInput)
 	if !ok {
@@ -297,7 +297,7 @@ func (s *Service) SaveNewVersion(ctx context.Context, input interface{}) (interf
 	return s.saveNewVersionImpl(ctx, saveInput)
 }
 
-// FinalizeLiveSnapshots implements ports.IndexService
+// FinalizeLiveSnapshots implements ports.IndexService.
 func (s *Service) FinalizeLiveSnapshots(ctx context.Context, input interface{}) error {
 	finalizeInput, ok := input.(*FinalizeInput)
 	if !ok {

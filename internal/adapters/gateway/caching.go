@@ -21,9 +21,9 @@ type cachingGenerationGateway struct {
 }
 
 // newCachingGenerationGateway creates a new caching generation gateway.
-func newCachingGenerationGateway(gateway ports.GenerationGateway, cache ports.CacheRepository, updateCache bool) ports.GenerationGateway {
+func newCachingGenerationGateway(innerGateway ports.GenerationGateway, cache ports.CacheRepository, updateCache bool) ports.GenerationGateway {
 	return &cachingGenerationGateway{
-		gateway:     gateway,
+		gateway:     innerGateway,
 		cache:       cache,
 		updateCache: updateCache,
 	}
@@ -56,7 +56,7 @@ func (g *cachingGenerationGateway) GenerateContent(
 
 	result, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
 	if err := g.cache.Set(ctx, cacheKey, result); err != nil {

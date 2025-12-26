@@ -29,7 +29,7 @@ type Factory struct {
 	fileDiffActivityFactory executor.ActivityFactory[*fetchfilediff.Input, *git.FileChange]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new FetchAllDiffs activity factory with the provided file diff activity factory.
@@ -56,12 +56,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files", len(input.Files)))
 
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
+
 		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchFileDiff := f.fileDiffActivityFactory.NewActivity()
 			fut := executor.ExecuteActivity[*fetchfilediff.Input, *git.FileChange](
-				executorCtx.GetExecutor(),
 				ctx,
+				exec,
 				executorCtx,
 				file,
 				fetchFileDiff,

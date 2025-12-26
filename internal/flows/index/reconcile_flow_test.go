@@ -20,7 +20,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock activity factory
+// Mock activity factory.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -47,19 +47,19 @@ func TestNewFactory(t *testing.T) {
 	validBuildVector := &mockActivityFactory[struct{}, struct{}]{}
 
 	tests := []struct {
-		name                         string
+		computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
 		cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
 		scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
 		deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
 		chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
 		prepareBatchesFactory        executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
-		computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
 		distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
 		finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
 		buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
+		name                         string
+		expectedErrMsg               string
 		batchSize                    int
 		wantErr                      bool
-		expectedErrMsg               string
 	}{
 		{
 			name:                         "nil cleanupFactory",
@@ -260,20 +260,22 @@ func TestNewFactory(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
+					return
 				}
 				if factory != nil {
 					t.Errorf("expected nil factory but got %v", factory)
 				}
-				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
+				if tt.expectedErrMsg != "" && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
-				if factory == nil {
-					t.Errorf("expected non-nil factory but got nil")
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("expected no error but got: %v", err)
+			}
+			if factory == nil {
+				t.Errorf("expected non-nil factory but got nil")
 			}
 		})
 	}
@@ -281,11 +283,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",
@@ -748,10 +750,8 @@ func TestFactory_NewFlow(t *testing.T) {
 				if tt.expectedErrMsg != "" && err != nil && !strings.Contains(err.Error(), tt.expectedErrMsg) {
 					t.Errorf("expected error message to contain %q, got %q", tt.expectedErrMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("expected no error but got: %v", err)
 			}
 		})
 	}

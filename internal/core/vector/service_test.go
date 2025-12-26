@@ -17,7 +17,7 @@ import (
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
 
-// Mock repositories for BuildAndSave testing
+// Mock repositories for BuildAndSave testing.
 type mockIndexRepositoryForBuild struct {
 	chunks map[int64][]domainindex.Chunk
 	err    error
@@ -30,12 +30,12 @@ func (m *mockIndexRepositoryForBuild) GetChunksByVersionID(ctx context.Context, 
 	return m.chunks[versionID], nil
 }
 
-// Implement other required methods (not used in BuildAndSave)
-func (m *mockIndexRepositoryForBuild) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
+// Implement other required methods (not used in BuildAndSave).
+func (m *mockIndexRepositoryForBuild) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
 	return 0, errors.New("not implemented")
 }
 
-func (m *mockIndexRepositoryForBuild) AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+func (m *mockIndexRepositoryForBuild) AddDocumentVersionWithChunks(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 	return 0, errors.New("not implemented")
 }
 
@@ -80,8 +80,8 @@ func (m *mockIndexRepositoryForBuild) Checkpoint(ctx context.Context) error {
 }
 
 type mockSnapshotRepositoryForBuild struct {
-	versionIDs []int64
 	err        error
+	versionIDs []int64
 }
 
 func (m *mockSnapshotRepositoryForBuild) GetVersionIDsForSnapshot(ctx context.Context, snapshotName string) ([]int64, error) {
@@ -91,7 +91,7 @@ func (m *mockSnapshotRepositoryForBuild) GetVersionIDsForSnapshot(ctx context.Co
 	return m.versionIDs, nil
 }
 
-// Implement other required methods (not used in BuildAndSave)
+// Implement other required methods (not used in BuildAndSave).
 func (m *mockSnapshotRepositoryForBuild) ClearSnapshotLinks(ctx context.Context, commitHash string) error {
 	return errors.New("not implemented")
 }

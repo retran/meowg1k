@@ -15,10 +15,12 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Repository stores rate limit bucket state in SQLite.
 type Repository struct {
 	host ports.Host
 }
 
+// NewRepository creates a rate limit repository backed by SQLite.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{
 		host: host,
@@ -58,62 +60,23 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	configMap := make(map[string]ratelimit.BucketConfig)
 	for _, config := range configs {
 		configMap[config.ID] = config
 	}
 
-	type bucketState struct {
-		id        string
-		newTokens int
-		newRefill time.Time
-	}
-	var statesToUpdate []bucketState
-
-	for _, req := range requests {
-		if req.Count <= 0 {
-			continue
-		}
-
-		config, ok := configMap[req.ID]
-		if !ok {
-			return fmt.Errorf("config for bucket %s not found", req.ID)
-		}
-
-		var currentTokens int
-		var lastRefillNano int64
-		err := tx.QueryRowContext(ctx, "SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?", req.ID).Scan(&currentTokens, &lastRefillNano)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("bucket %q not initialized: bucket not found", req.ID)
-			}
-			return fmt.Errorf("failed to read bucket %q: %w", req.ID, err)
-		}
-
-		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, time.Unix(0, lastRefillNano), config.RefillEvery)
-
-		if refilledTokens < req.Count {
-			return &ratelimit.NotEnoughTokensError{
-				BucketID: req.ID,
-				Need:     req.Count,
-				Have:     refilledTokens,
-			}
-		}
-
-		statesToUpdate = append(statesToUpdate, bucketState{
-			id:        req.ID,
-			newTokens: refilledTokens - req.Count,
-			newRefill: newLastRefill,
-		})
+	statesToUpdate, err := collectBucketUpdates(ctx, tx, configMap, requests)
+	if err != nil {
+		return err
 	}
 
 	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, state := range statesToUpdate {
 		_, err := stmt.ExecContext(ctx, state.newTokens, state.newRefill.UnixNano(), state.id)
@@ -136,6 +99,69 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	return nil
 }
 
+type bucketState struct {
+	newRefill time.Time
+	id        string
+	newTokens int
+}
+
+func collectBucketUpdates(
+	ctx context.Context,
+	tx *sql.Tx,
+	configMap map[string]ratelimit.BucketConfig,
+	requests []ratelimit.AcquisitionRequest,
+) ([]bucketState, error) {
+	statesToUpdate := make([]bucketState, 0, len(requests))
+
+	for _, req := range requests {
+		if req.Count <= 0 {
+			continue
+		}
+
+		config, ok := configMap[req.ID]
+		if !ok {
+			return nil, fmt.Errorf("config for bucket %s not found", req.ID)
+		}
+
+		currentTokens, lastRefill, err := fetchBucketState(ctx, tx, req.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, lastRefill, config.RefillEvery)
+		if refilledTokens < req.Count {
+			return nil, &ratelimit.NotEnoughTokensError{
+				BucketID: req.ID,
+				Need:     req.Count,
+				Have:     refilledTokens,
+			}
+		}
+
+		statesToUpdate = append(statesToUpdate, bucketState{
+			id:        req.ID,
+			newTokens: refilledTokens - req.Count,
+			newRefill: newLastRefill,
+		})
+	}
+
+	return statesToUpdate, nil
+}
+
+func fetchBucketState(ctx context.Context, tx *sql.Tx, bucketID string) (int, time.Time, error) {
+	var currentTokens int
+	var lastRefillNano int64
+	err := tx.QueryRowContext(ctx, "SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?", bucketID).
+		Scan(&currentTokens, &lastRefillNano)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, time.Time{}, fmt.Errorf("bucket %q not initialized: bucket not found", bucketID)
+		}
+		return 0, time.Time{}, fmt.Errorf("failed to read bucket %q: %w", bucketID, err)
+	}
+
+	return currentTokens, time.Unix(0, lastRefillNano), nil
+}
+
 // InitializeBuckets initializes the rate limit buckets in the database.
 func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error {
 	db, err := r.host.GetMainDB()
@@ -148,13 +174,13 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for init: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO rate_limit_buckets (id, tokens, last_refill) VALUES (?, ?, ?)")
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert statement for init: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, config := range configs {
 		_, err := stmt.ExecContext(ctx, config.ID, config.Capacity, time.Now().UnixNano())
@@ -189,13 +215,13 @@ func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.Bucke
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for reset: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement for reset: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, config := range configs {
 		_, err := stmt.ExecContext(ctx, config.Capacity, time.Now().UnixNano(), config.ID)

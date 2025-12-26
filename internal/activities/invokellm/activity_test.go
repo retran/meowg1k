@@ -16,8 +16,8 @@ import (
 
 // mockGenerationGateway is a mock implementation of GenerationGateway for testing.
 type mockGenerationGateway struct {
-	Content string
 	Err     error
+	Content string
 }
 
 func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {
@@ -33,7 +33,7 @@ type mockGenerationGatewayFactory struct {
 	Err     error
 }
 
-func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}

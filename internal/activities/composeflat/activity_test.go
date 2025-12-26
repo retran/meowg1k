@@ -13,10 +13,10 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock activity factory for content generation
+// Mock activity factory for content generation.
 type mockContentGenerationFactory struct {
-	response string
 	err      error
+	response string
 }
 
 func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {

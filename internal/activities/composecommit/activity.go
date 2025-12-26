@@ -19,8 +19,8 @@ import (
 type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
+	Intent       string
 	Summaries    []*summarizefile.Output
-	Intent       string // Optional developer intent
 }
 
 // Output defines the output structure for the ComposeCommit activity.
@@ -33,7 +33,7 @@ type Factory struct {
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposeCommit activity factory with the provided content generation activity factory.
@@ -60,40 +60,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning("Composing commit message")
 
-		var contentBuilder strings.Builder
-		contentBuilder.WriteString("File Change Summaries:\n\n")
+		content := buildCommitPrompt(input.Summaries, input.Intent)
 
-		for _, summary := range input.Summaries {
-			if summary.Skipped {
-				contentBuilder.WriteString(fmt.Sprintf("- %s: (skipped)\n", summary.Filename))
-			} else {
-				contentBuilder.WriteString(fmt.Sprintf("- %s: %s\n", summary.Filename, summary.Summary))
-			}
-		}
-
-		if input.Intent != "" {
-			contentBuilder.WriteString(fmt.Sprintf("\nDeveloper Intent: %s\n", input.Intent))
-		}
-
-		content := contentBuilder.String()
-
-		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-
-		invokeInput := &invokellm.Input{
+		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &invokellm.Input{
 			Profile:      input.Profile,
 			SystemPrompt: input.SystemPrompt,
 			UserPrompt:   content,
-		}
-
-		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
-			executorCtx.GetExecutor(),
-			ctx,
-			executorCtx,
-			"GenerateContent",
-			contentGenerationActivity,
-			invokeInput,
-		)
-		invokeOutput, err := invokeFuture.Get(ctx)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate commit message: %w", err)
 		}
@@ -104,4 +77,53 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			CommitMessage: invokeOutput.Content,
 		}, nil
 	}
+}
+
+func buildCommitPrompt(summaries []*summarizefile.Output, intent string) string {
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString("File Change Summaries:\n\n")
+
+	for _, summary := range summaries {
+		if summary.Skipped {
+			contentBuilder.WriteString(fmt.Sprintf("- %s: (skipped)\n", summary.Filename))
+		} else {
+			contentBuilder.WriteString(fmt.Sprintf("- %s: %s\n", summary.Filename, summary.Summary))
+		}
+	}
+
+	if intent != "" {
+		contentBuilder.WriteString(fmt.Sprintf("\nDeveloper Intent: %s\n", intent))
+	}
+
+	return contentBuilder.String()
+}
+
+func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	exec, err := requireExecutor(executorCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
+	invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+		ctx,
+		exec,
+		executorCtx,
+		"GenerateContent",
+		contentGenerationActivity,
+		input,
+	)
+	output, err := invokeFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("invoke LLM: %w", err)
+	}
+	return output, nil
+}
+
+func requireExecutor(executorCtx *executor.Context) (executor.Executor, error) {
+	exec := executorCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in context")
+	}
+	return exec, nil
 }

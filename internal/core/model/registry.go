@@ -7,9 +7,10 @@ import model2 "github.com/retran/meowg1k/internal/domain/model"
 
 // Registry is the private implementation of the Registry interface.
 type Registry struct {
-	models map[string]model2.ModelInfo
+	models map[string]model2.Info
 }
 
+// NewRegistry creates a model registry with built-in definitions.
 func NewRegistry() *Registry {
 	return &Registry{
 		models: models,
@@ -17,10 +18,10 @@ func NewRegistry() *Registry {
 }
 
 // Get returns information about a specific model.
-func (r *Registry) Get(modelName string) model2.ModelInfo {
+func (r *Registry) Get(modelName string) model2.Info {
 	if r == nil || r.models == nil {
 		// Return sensible defaults for nil service
-		return model2.ModelInfo{
+		return model2.Info{
 			Provider:         "unknown",
 			MaxContextTokens: 8192,
 			TokenizerType:    model2.TokenizerUnknown,
@@ -33,7 +34,7 @@ func (r *Registry) Get(modelName string) model2.ModelInfo {
 	}
 
 	// Return sensible defaults for unknown models
-	return model2.ModelInfo{
+	return model2.Info{
 		Provider:         "unknown",
 		MaxContextTokens: 8192,
 		TokenizerType:    model2.TokenizerUnknown,
@@ -83,7 +84,7 @@ func (r *Registry) ListKnownModels() []string {
 }
 
 // models contains information about all known models.
-var models = map[string]model2.ModelInfo{
+var models = map[string]model2.Info{
 	// OpenAI models (provider: openai)
 	"gpt-5": {
 		Provider:         "openai",

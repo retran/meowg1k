@@ -143,7 +143,7 @@ func TestPlainTextStrategy_Chunk_WithOverlap(t *testing.T) {
 	// Verify chunks have some overlap (except first chunk)
 	for i := 1; i < len(chunks); i++ {
 		// Overlap should exist between consecutive chunks
-		if len(chunks[i].TextContent) == 0 {
+		if chunks[i].TextContent == "" {
 			t.Errorf("Chunk %d is empty", i)
 		}
 	}
@@ -284,8 +284,8 @@ func TestPlainTextStrategy_CreateOverlap(t *testing.T) {
 
 	testCases := []struct {
 		name         string
-		currentRunes []rune
 		currentText  string
+		currentRunes []rune
 		expectedLen  int
 	}{
 		{

@@ -13,13 +13,13 @@ import (
 
 // Service is the concrete implementation of the registry service.
 type Service struct {
-	providers map[provider.Provider]provider.ProviderDefinition
+	providers map[provider.Provider]provider.Definition
 }
 
 // NewService creates a new provider registry service with default providers.
 func NewService() *Service {
 	s := &Service{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			provider.Gemini: {
 				Type:            provider.Gemini,
 				Name:            "Google Gemini",
@@ -107,14 +107,14 @@ func NewService() *Service {
 }
 
 // Get retrieves a provider definition by provider type.
-func (s *Service) Get(providerType provider.Provider) (provider.ProviderDefinition, error) {
+func (s *Service) Get(providerType provider.Provider) (provider.Definition, error) {
 	if s == nil {
-		return provider.ProviderDefinition{}, fmt.Errorf("provider service is nil")
+		return provider.Definition{}, fmt.Errorf("provider service is nil")
 	}
 
 	providerDefinition, exists := s.providers[providerType]
 	if !exists {
-		return provider.ProviderDefinition{}, fmt.Errorf("provider not found: %s", providerType)
+		return provider.Definition{}, fmt.Errorf("provider not found: %s", providerType)
 	}
 
 	return providerDefinition, nil

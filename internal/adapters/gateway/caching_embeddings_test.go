@@ -14,10 +14,10 @@ import (
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// mockEmbGatewayForCaching is a simple mock for testing embeddings
+// mockEmbGatewayForCaching is a simple mock for testing embeddings.
 type mockEmbGatewayForCaching struct {
-	embeddings []domainGateway.Embedding
 	err        error
+	embeddings []domainGateway.Embedding
 	callCount  int
 }
 
@@ -88,7 +88,7 @@ func TestCachingEmbeddingsGateway_GatewayError(t *testing.T) {
 
 	result, err := gateway.ComputeEmbeddings(context.Background(), request)
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, result)
 	assert.Equal(t, 0, mockCache.setCalls, "Should not cache errors")
 }
