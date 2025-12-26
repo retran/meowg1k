@@ -612,10 +612,10 @@ func TestCommandServiceErrorPropagation(t *testing.T) {
 		fn   func() (interface{}, error)
 		name string
 	}{
-		{"GetConfigPath", func() (interface{}, error) { return service.GetConfigPath() }},
-		{"GetTaskName", func() (interface{}, error) { return service.GetTaskName() }},
-		{"GetUserPrompt", func() (interface{}, error) { return service.GetUserPrompt() }},
-		{"GetSilentFlag", func() (interface{}, error) { return service.GetSilentFlag() }},
+		{func() (interface{}, error) { return service.GetConfigPath() }, "GetConfigPath"},
+		{func() (interface{}, error) { return service.GetTaskName() }, "GetTaskName"},
+		{func() (interface{}, error) { return service.GetUserPrompt() }, "GetUserPrompt"},
+		{func() (interface{}, error) { return service.GetSilentFlag() }, "GetSilentFlag"},
 	}
 
 	for _, tc := range testCases {

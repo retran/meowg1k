@@ -100,19 +100,19 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			mockResponse: EmbeddingResponse{
 				Object: "list",
 				Data: []struct {
+					Embedding []float64 `json:"embedding"`
 					Object    string    `json:"object"`
 					Index     int       `json:"index"`
-					Embedding []float64 `json:"embedding"`
 				}{
 					{
+						Embedding: []float64{0.1, 0.2, 0.3},
 						Object:    "embedding",
 						Index:     0,
-						Embedding: []float64{0.1, 0.2, 0.3},
 					},
 					{
+						Embedding: []float64{0.4, 0.5, 0.6},
 						Object:    "embedding",
 						Index:     1,
-						Embedding: []float64{0.4, 0.5, 0.6},
 					},
 				},
 				Model: "voyage-3.5",
@@ -134,14 +134,14 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			mockResponse: EmbeddingResponse{
 				Object: "list",
 				Data: []struct {
+					Embedding []float64 `json:"embedding"`
 					Object    string    `json:"object"`
 					Index     int       `json:"index"`
-					Embedding []float64 `json:"embedding"`
 				}{
 					{
+						Embedding: []float64{0.1, 0.2, 0.3},
 						Object:    "embedding",
 						Index:     0,
-						Embedding: []float64{0.1, 0.2, 0.3},
 					},
 				},
 				Model: DefaultModel,

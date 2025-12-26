@@ -341,10 +341,10 @@ func TestTruncateString(t *testing.T) {
 		name     string
 		max      int
 	}{
-		{"short string", "Hello", 10, "Hello"},
-		{"exact length", "Hello", 5, "Hello"},
-		{"too long", "Hello World", 8, "Hello..."},
-		{"empty string", "", 10, ""},
+		{"Hello", "Hello", "short string", 10},
+		{"Hello", "Hello", "exact length", 5},
+		{"Hello World", "Hello...", "too long", 8},
+		{"", "", "empty string", 10},
 	}
 
 	for _, tt := range tests {
