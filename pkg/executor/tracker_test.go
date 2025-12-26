@@ -336,10 +336,10 @@ func TestSanitizeDescription(t *testing.T) {
 
 func TestTruncateString(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    string
-		max      int
 		expected string
+		name     string
+		max      int
 	}{
 		{"short string", "Hello", 10, "Hello"},
 		{"exact length", "Hello", 5, "Hello"},

@@ -58,7 +58,7 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	for _, m := range migrations {
 		if m.Version > currentVersion {

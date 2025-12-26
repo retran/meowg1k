@@ -68,5 +68,5 @@ func init() {
 	rootCmd.AddCommand(prCmd)
 	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the Pull Request (can also be provided via stdin)")
 	prCmd.Flags().StringP("base", "b", "", "Base branch to compare against (required)")
-	_ = prCmd.MarkFlagRequired("base")
+	_ = prCmd.MarkFlagRequired("base") //nolint:errcheck // Flag definition errors are caught at startup
 }

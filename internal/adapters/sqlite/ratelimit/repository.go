@@ -58,7 +58,7 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	configMap := make(map[string]ratelimit.BucketConfig)
 	for _, config := range configs {
@@ -113,7 +113,7 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, state := range statesToUpdate {
 		_, err := stmt.ExecContext(ctx, state.newTokens, state.newRefill.UnixNano(), state.id)
@@ -148,13 +148,13 @@ func (r *Repository) InitializeBuckets(ctx context.Context, configs []ratelimit.
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for init: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	stmt, err := tx.PrepareContext(ctx, "INSERT OR IGNORE INTO rate_limit_buckets (id, tokens, last_refill) VALUES (?, ?, ?)")
 	if err != nil {
 		return fmt.Errorf("failed to prepare insert statement for init: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, config := range configs {
 		_, err := stmt.ExecContext(ctx, config.ID, config.Capacity, time.Now().UnixNano())
@@ -189,13 +189,13 @@ func (r *Repository) ResetBuckets(ctx context.Context, configs []ratelimit.Bucke
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction for reset: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
 	if err != nil {
 		return fmt.Errorf("failed to prepare update statement for reset: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, config := range configs {
 		_, err := stmt.ExecContext(ctx, config.Capacity, time.Now().UnixNano(), config.ID)

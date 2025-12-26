@@ -140,7 +140,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open root directory: %w", err)
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {

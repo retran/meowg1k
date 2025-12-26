@@ -609,8 +609,8 @@ func TestCommandServiceErrorPropagation(t *testing.T) {
 
 	// These should all return errors since flags aren't defined
 	testCases := []struct {
-		name string
 		fn   func() (interface{}, error)
+		name string
 	}{
 		{"GetConfigPath", func() (interface{}, error) { return service.GetConfigPath() }},
 		{"GetTaskName", func() (interface{}, error) { return service.GetTaskName() }},

@@ -186,7 +186,7 @@ func (c *Client) Complete(ctx context.Context, req *CompletionRequest) (*Complet
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -241,7 +241,7 @@ func (c *Client) Embedding(ctx context.Context, req *EmbeddingRequest) (*Embeddi
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -324,7 +324,7 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -22,9 +22,9 @@ const (
 
 // Client represents a client for the Voyage AI API.
 type Client struct {
+	httpClient *http.Client
 	baseURL    string
 	apiKey     string
-	httpClient *http.Client
 }
 
 // NewClient creates a new Voyage AI client with the given configuration.
@@ -60,14 +60,14 @@ type EmbeddingRequest struct {
 
 // EmbeddingResponse represents a response from the Voyage AI embeddings endpoint.
 type EmbeddingResponse struct {
-	Object string `json:"object"`
-	Data   []struct {
+	Data []struct {
+		Embedding []float64 `json:"embedding"`
 		Object    string    `json:"object"`
 		Index     int       `json:"index"`
-		Embedding []float64 `json:"embedding"`
 	} `json:"data"`
-	Model string `json:"model"`
-	Usage struct {
+	Object string `json:"object"`
+	Model  string `json:"model"`
+	Usage  struct {
 		TotalTokens int `json:"total_tokens"`
 	} `json:"usage"`
 }
@@ -113,7 +113,7 @@ func (c *Client) CreateEmbeddings(ctx context.Context, req EmbeddingRequest) (*E
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

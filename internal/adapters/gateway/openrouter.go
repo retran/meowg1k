@@ -184,7 +184,7 @@ func (g *openrouterGateway) GenerateContent(
 	if err != nil {
 		return "", fmt.Errorf("failed to send request to OpenRouter: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)

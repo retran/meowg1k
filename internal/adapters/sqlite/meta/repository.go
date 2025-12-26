@@ -76,7 +76,7 @@ func (r *Repository) SetValue(ctx context.Context, key string, value []byte) err
 			`INSERT INTO meta_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 			key, sentinel,
 		); err != nil {
-			_ = r.removeBlob(blobDir, fileName) // best effort cleanup on failure
+			_ = r.removeBlob(blobDir, fileName) //nolint:errcheck // Best effort cleanup on failure
 			return fmt.Errorf("failed to set meta value for key '%s': %w", key, err)
 		}
 
@@ -199,7 +199,7 @@ func resolveBlobDir(db *sql.DB) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to query database list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for rows.Next() {
 		var seq int64
@@ -325,16 +325,16 @@ func (r *Repository) writeBlob(dir, name string, data []byte) error {
 		return fmt.Errorf("failed to create temp blob file: %w", err)
 	}
 	defer func() {
-		_ = os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name()) //nolint:errcheck // Defer cleanup errors are not critical
 	}()
 
 	if _, err := tmpFile.Write(data); err != nil {
-		_ = tmpFile.Close()
+		_ = tmpFile.Close() //nolint:errcheck // Error on close after write error is not critical
 		return fmt.Errorf("failed to write blob data: %w", err)
 	}
 
 	if err := tmpFile.Sync(); err != nil {
-		_ = tmpFile.Close()
+		_ = tmpFile.Close() //nolint:errcheck // Error on close after sync error is not critical
 		return fmt.Errorf("failed to sync blob data: %w", err)
 	}
 

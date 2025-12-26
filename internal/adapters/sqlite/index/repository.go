@@ -39,7 +39,7 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 	if err != nil {
 		return 0, fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO content_blobs (content_hash, content) VALUES (?, ?) ON CONFLICT(content_hash) DO NOTHING`,
@@ -81,7 +81,7 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domai
 	if err != nil {
 		return 0, fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	// Insert content blob
 	_, err = tx.ExecContext(ctx,
@@ -117,7 +117,7 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domai
 		if err != nil {
 			return 0, fmt.Errorf("failed to prepare chunk insert statement: %w", err)
 		}
-		defer stmt.Close()
+		defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 		for _, chunk := range chunks {
 			embeddingBytes, err := encodeEmbedding(chunk.Embedding)
@@ -154,7 +154,7 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 	if err != nil {
 		return fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO chunks (
@@ -165,7 +165,7 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 	if err != nil {
 		return fmt.Errorf("failed to prepare chunk insert statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for _, chunk := range chunks {
 		embeddingBytes, err := encodeEmbedding(chunk.Embedding)
@@ -205,7 +205,7 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 	if err != nil {
 		return nil, fmt.Errorf("failed to query embeddings: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	embeddings := make(map[int64]gateway.Embedding)
 	for rows.Next() {
@@ -290,7 +290,7 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 	if err != nil {
 		return nil, fmt.Errorf("failed to query versions by content hashes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	result := make(map[string]*domainindex.DocumentVersion)
 	for rows.Next() {
@@ -369,7 +369,7 @@ func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string
 	if err != nil {
 		return nil, fmt.Errorf("failed to query versions by file path: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	var versions []domainindex.DocumentVersion
 	for rows.Next() {
@@ -404,7 +404,7 @@ func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query chunks by version ID: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	var chunks []domainindex.Chunk
 	for rows.Next() {
@@ -466,7 +466,7 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 	if err != nil {
 		return nil, fmt.Errorf("failed to query chunks by IDs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	var chunks []domainindex.Chunk
 	for rows.Next() {
@@ -547,7 +547,7 @@ func (r *Repository) GetVersionIDsForSnapshot(ctx context.Context, commitHash st
 	if err != nil {
 		return nil, fmt.Errorf("failed to query version IDs for snapshot %s: %w", commitHash, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	var versionIDs []int64
 	for rows.Next() {
@@ -615,7 +615,7 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to query versions by IDs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	var versions []domainindex.DocumentVersion
 	for rows.Next() {

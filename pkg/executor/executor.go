@@ -26,27 +26,27 @@ func ExecuteActivity[T, K any](
 
 	// Validate inputs
 	if e == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if ctx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if parentCtx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if name == "" {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if activity == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
@@ -65,17 +65,17 @@ func ExecuteActivity[T, K any](
 	go func() {
 		result, err := untypedFuture.Get(ctx)
 		if err != nil {
-			_ = typedFuture.CompleteWithError(err)
+			_ = typedFuture.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 			return
 		}
 
 		typedResult, ok := result.(K)
 		if !ok {
-			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result))
+			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result)) //nolint:errcheck // Future completion errors are logged elsewhere
 			return
 		}
 
-		_ = typedFuture.Complete(typedResult)
+		_ = typedFuture.Complete(typedResult) //nolint:errcheck // Future completion errors are logged elsewhere
 	}()
 
 	return typedFuture
@@ -170,9 +170,9 @@ func (e *executorImpl) ExecuteFlow(
 	go func() {
 		err := e.executeFlowImpl(ctx, executorCtx, flow)
 		if err != nil {
-			_ = fut.CompleteWithError(err)
+			_ = fut.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 		} else {
-			_ = fut.Complete(nil)
+			_ = fut.Complete(nil) //nolint:errcheck // Future completion errors are logged elsewhere
 		}
 	}()
 
@@ -197,32 +197,32 @@ func (e *executorImpl) ExecuteActivity(
 
 	// Validate inputs before starting goroutine
 	if e == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("executor is nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("executor is nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if ctx == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("context cannot be nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if parentCtx == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("parent context is nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("parent context is nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if activityName == "" {
-		_ = fut.CompleteWithError(fmt.Errorf("activity name %q is empty", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("activity name %q is empty", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if activity == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("activity is nil for activity name %q", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("activity is nil for activity name %q", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if e.RetryPolicy == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("retry policy is nil for activity %q", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("retry policy is nil for activity %q", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
@@ -237,16 +237,16 @@ func (e *executorImpl) ExecuteActivity(
 			case e.workerSemaphore <- struct{}{}:
 				defer func() { <-e.workerSemaphore }()
 			case <-ctx.Done():
-				_ = fut.CompleteWithError(fmt.Errorf("activity %q canceled while waiting for worker slot: %w", fullActivityName, ctx.Err()))
+				_ = fut.CompleteWithError(fmt.Errorf("activity %q canceled while waiting for worker slot: %w", fullActivityName, ctx.Err())) //nolint:errcheck // Future completion errors are logged elsewhere
 				return
 			}
 		}
 
 		result, err := e.executeActivityImpl(ctx, activityCtx, activity, input, e.RetryPolicy)
 		if err != nil {
-			_ = fut.CompleteWithError(err)
+			_ = fut.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 		} else {
-			_ = fut.Complete(result)
+			_ = fut.Complete(result) //nolint:errcheck // Future completion errors are logged elsewhere
 		}
 	}()
 

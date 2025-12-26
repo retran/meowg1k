@@ -81,7 +81,9 @@ func (g *loggingGenerationGateway) GenerateContent(
 	}
 
 	// Log asynchronously to avoid blocking (ignore errors)
-	go g.logger.LogAPIInteraction(entry)
+	go func() {
+		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
+	}()
 
 	if err != nil {
 		return content, fmt.Errorf("content generation failed: %w", err)
@@ -152,7 +154,9 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 	}
 
 	// Log asynchronously to avoid blocking (ignore errors)
-	go g.logger.LogAPIInteraction(entry)
+	go func() {
+		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
+	}()
 
 	if err != nil {
 		return embeddings, fmt.Errorf("embeddings computation failed: %w", err)

@@ -52,7 +52,7 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 		// Nothing to index, so we can exit early.
 		// Also clean up any existing index dump if present.
 		key := fmt.Sprintf("idx_dump_%s", snapshotName)
-		_ = s.metaRepo.DeleteValue(ctx, key) // Ignore error if key doesn't exist
+		_ = s.metaRepo.DeleteValue(ctx, key) //nolint:errcheck // Ignore error if key doesn't exist
 		return nil
 	}
 
