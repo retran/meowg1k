@@ -41,6 +41,7 @@ func newVoyageGateway(apiKey string, httpClient *http.Client) (ports.EmbeddingsG
 }
 
 const (
+	// DefaultTaskType is the fallback input_type used by Voyage embeddings.
 	DefaultTaskType = "query"
 )
 

@@ -45,7 +45,7 @@ func NewFactory(stagedChangesReader StagedChangesReader) (*Factory, error) {
 
 // NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
 			return nil, fmt.Errorf("fetch file diff factory is nil")
 		}
@@ -69,9 +69,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 
 		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(originalFilename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "not in 'HEAD'") ||
-				strings.Contains(err.Error(), "invalid object name 'HEAD'") {
+			if isMissingOriginalContent(err) {
 				originalFileContent = "" // File is new or was deleted, or this is the initial commit
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
@@ -80,8 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 
 		stagedFileContent, err := f.stagedChangesReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "unknown revision or path not in the working tree") {
+			if isMissingStagedContent(err) {
 				// File was deleted - return with empty staged content but include original content and diff
 				executorCtx.SendCompleted("Deleted")
 				return &git.FileChange{
@@ -104,6 +101,34 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			ChangedFileContent:  stagedFileContent,
 		}, nil
 	}
+}
+
+func isMissingOriginalContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"not in 'HEAD'",
+		"invalid object name 'HEAD'",
+	})
+}
+
+func isMissingStagedContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"unknown revision or path not in the working tree",
+	})
+}
+
+func hasAnySubstring(err error, substrings []string) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, substr := range substrings {
+		if strings.Contains(message, substr) {
+			return true
+		}
+	}
+	return false
 }
 
 func extractRename(diff string) (string, string) {

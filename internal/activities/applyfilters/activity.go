@@ -47,7 +47,7 @@ func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*
 
 // NewActivity creates and returns the ApplyFilters activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Applying filters")
 
 		if input == nil {

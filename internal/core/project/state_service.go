@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package project provides services for inspecting git and workspace state.
 package project
 
 import (
@@ -17,12 +18,14 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// StateService computes file states for git and workspace snapshots.
 type StateService struct {
 	gitService       ports.GitService
 	filterService    ports.FilterService
 	workspaceService ports.WorkspaceService
 }
 
+// NewStateService creates a new StateService.
 func NewStateService(gitService ports.GitService, filterService ports.FilterService, workspaceService ports.WorkspaceService) *StateService {
 	return &StateService{
 		gitService:       gitService,
@@ -31,6 +34,7 @@ func NewStateService(gitService ports.GitService, filterService ports.FilterServ
 	}
 }
 
+// GetHeadState returns the state of files in HEAD.
 func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error) {
 	// Get list of files in HEAD
 	files, err := s.gitService.ListFiles("HEAD")

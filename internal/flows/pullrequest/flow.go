@@ -21,8 +21,8 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// PullRequestConfigProvider provides pull request configuration.
-type PullRequestConfigProvider interface {
+// ConfigProvider provides pull request configuration.
+type ConfigProvider interface {
 	Get() (*pullrequest.ResolvedConfig, error)
 }
 
@@ -41,7 +41,7 @@ type Factory struct {
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
 	composeFlatPRFactory       executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
-	prConfigProvider           PullRequestConfigProvider
+	prConfigProvider           ConfigProvider
 	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
 }
@@ -54,7 +54,7 @@ func NewFactory(
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composePRFactory executor.ActivityFactory[*composepr.Input, *composepr.Output],
 	composeFlatPRFactory executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output],
-	prConfigProvider PullRequestConfigProvider,
+	prConfigProvider ConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
@@ -122,6 +122,11 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("flow context is nil")
 		}
 
+		exec := flowCtx.GetExecutor()
+		if exec == nil {
+			return fmt.Errorf("executor not available in context")
+		}
+
 		flowCtx.SendRunning("Composing Pull Request description")
 
 		// Get the base branch to compare against
@@ -137,8 +142,8 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Phase 1: List files changed in branch
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
 		branchFilesFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
 			ctx,
+			exec,
 			flowCtx,
 			"ListBranchFiles",
 			listBranchFiles,
@@ -155,8 +160,8 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
 		filteredFilesFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
 			ctx,
+			exec,
 			flowCtx,
 			"ApplyFilters",
 			applyFilters,
@@ -173,8 +178,8 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Phase 3: Fetch diffs for all files
 		fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
 		fetchAllBranchDiffsFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
 			ctx,
+			exec,
 			flowCtx,
 			"FetchAllBranchDiffs",
 			fetchAllBranchDiffs,
@@ -219,8 +224,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Flat strategy: send full diff directly to LLM
 			composeFlatPR := f.composeFlatPRFactory.NewActivity()
 			flatPRFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ComposeFlatPR",
 				composeFlatPR,
@@ -242,8 +247,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Summarize strategy (default): use map-reduce approach
 			summarizeAll := f.summarizeAllFactory.NewActivity()
 			summarizeAllFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"SummarizeAll",
 				summarizeAll,
@@ -259,8 +264,8 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			composePR := f.composePRFactory.NewActivity()
 			prFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ComposePR",
 				composePR,

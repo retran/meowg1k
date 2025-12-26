@@ -57,12 +57,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
 
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
+
 		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
 			fut := executor.ExecuteActivity[*fetchbranchfilediff.Input, *git.FileChange](
-				executorCtx.GetExecutor(),
 				ctx,
+				exec,
 				executorCtx,
 				file,
 				fetchBranchFileDiff,

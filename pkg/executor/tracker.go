@@ -238,6 +238,8 @@ func (t *Tracker) updateExecution(feedback *Feedback) {
 	}
 
 	switch feedback.Status {
+	case StatusPending:
+		exec.Message = sanitizeDescription(feedback.Message)
 	case StatusRunning:
 		exec.Message = sanitizeDescription(feedback.Message)
 	case StatusCompleted:
@@ -263,14 +265,14 @@ func (t *Tracker) formatLine(exec *Execution, style lineStyle) string {
 
 	var icon, color string
 	switch exec.Status {
+	case StatusPending:
+		icon, color = iconPending, colorGray
 	case StatusRunning:
 		icon, color = iconRunning, colorCyan
 	case StatusCompleted:
 		icon, color = iconCompleted, colorGreen
 	case StatusFailed:
 		icon, color = iconFailed, colorRed
-	default: // executor.StatusPending
-		icon, color = iconPending, colorGray
 	}
 
 	displayName := exec.Message
@@ -307,6 +309,8 @@ func (t *Tracker) getChildProgressInfo(exec *Execution) string {
 	for _, childName := range exec.Children {
 		if child, exists := t.executions[childName]; exists {
 			switch child.Status {
+			case StatusPending:
+				// Pending children are not included in progress counts.
 			case StatusCompleted:
 				completed++
 			case StatusFailed:

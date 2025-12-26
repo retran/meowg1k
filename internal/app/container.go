@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/ncruces/go-sqlite3/driver"
-	_ "github.com/ncruces/go-sqlite3/embed"
+	_ "github.com/ncruces/go-sqlite3/driver" // Register SQLite driver.
+	_ "github.com/ncruces/go-sqlite3/embed"  // Embed SQLite shared library.
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/adapters/command"
@@ -123,47 +123,14 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		ctx = context.Background()
 	}
 
-	logDir, err := getLogDir()
+	logger, logFile, err := buildLogger()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get log directory: %w", err)
+		return nil, err
 	}
 
-	if err = os.MkdirAll(logDir, 0o750); err != nil {
-		return nil, fmt.Errorf("failed to create log directory: %w", err)
-	}
-
-	if err = validateLogPath(logDir, logFileName); err != nil {
-		return nil, fmt.Errorf("invalid log path: %w", err)
-	}
-
-	root, err := os.OpenRoot(logDir)
+	shutdownService, err := createShutdownService(ctx, logger, logFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open root directory: %w", err)
-	}
-	defer func() { _ = root.Close() }() //nolint:errcheck // Defer close errors are not critical
-
-	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %w", err)
-	}
-
-	logger := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
-	shutdownService := shutdown.NewService(logger, ctx, 10*time.Second)
-
-	err = shutdownService.Register(func(ctx context.Context) error {
-		if logFile != nil {
-			if err = logFile.Close(); err != nil {
-				return fmt.Errorf("failed to close log file: %w", err)
-			}
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to register log file shutdown callback: %w", err)
+		return nil, err
 	}
 
 	commandService, err := command.NewService(cmd)
@@ -179,20 +146,13 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	}
 
 	outputService := output.NewService(domainOutput.Stdout)
-	err = shutdownService.Register(func(ctx context.Context) error {
-		return outputService.Flush()
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to register output service shutdown callback: %w", err)
+	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
+		return nil, err
 	}
 
-	// Initialize trace logger
 	traceLogger := tracelog.NewLogger(workspaceService)
-	err = shutdownService.Register(func(ctx context.Context) error {
-		return traceLogger.Close()
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to register trace logger shutdown callback: %w", err)
+	if err := registerTraceShutdown(shutdownService, traceLogger); err != nil {
+		return nil, err
 	}
 
 	dbPathService, err := path.NewService(workspaceService)
@@ -205,13 +165,8 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client service: %w", err)
 	}
-
-	// Register HTTP client cleanup on shutdown
-	err = shutdownService.Register(func(ctx context.Context) error {
-		return httpClientService.Close()
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to register HTTP client service shutdown callback: %w", err)
+	if err := registerHTTPClientShutdown(shutdownService, httpClientService); err != nil {
+		return nil, err
 	}
 
 	container.Logger = logger
@@ -227,6 +182,82 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	cmd.SetContext(shutdownCtx)
 
 	return container, nil
+}
+
+func buildLogger() (*slog.Logger, *os.File, error) {
+	logDir, err := getLogDir()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get log directory: %w", err)
+	}
+
+	if err = os.MkdirAll(logDir, 0o750); err != nil {
+		return nil, nil, fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	if err = validateLogPath(logDir, logFileName); err != nil {
+		return nil, nil, fmt.Errorf("invalid log path: %w", err)
+	}
+
+	root, err := os.OpenRoot(logDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open root directory: %w", err)
+	}
+	defer func() { _ = root.Close() }() //nolint:errcheck // Defer close errors are not critical
+
+	logFile, err := root.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to open log file: %w", err)
+	}
+
+	logger := slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
+	return logger, logFile, nil
+}
+
+func createShutdownService(ctx context.Context, logger *slog.Logger, logFile *os.File) (*shutdown.Service, error) {
+	shutdownService := shutdown.NewService(ctx, logger, 10*time.Second)
+	err := shutdownService.Register(func(_ context.Context) error {
+		if logFile == nil {
+			return nil
+		}
+		if err := logFile.Close(); err != nil {
+			return fmt.Errorf("failed to close log file: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to register log file shutdown callback: %w", err)
+	}
+	return shutdownService, nil
+}
+
+func registerOutputShutdown(shutdownService *shutdown.Service, outputService *output.Service) error {
+	if err := shutdownService.Register(func(_ context.Context) error {
+		return outputService.Flush()
+	}); err != nil {
+		return fmt.Errorf("failed to register output service shutdown callback: %w", err)
+	}
+	return nil
+}
+
+func registerTraceShutdown(shutdownService *shutdown.Service, traceLogger *tracelog.Logger) error {
+	if err := shutdownService.Register(func(_ context.Context) error {
+		return traceLogger.Close()
+	}); err != nil {
+		return fmt.Errorf("failed to register trace logger shutdown callback: %w", err)
+	}
+	return nil
+}
+
+func registerHTTPClientShutdown(shutdownService *shutdown.Service, httpClientService ports.HTTPClientService) error {
+	if err := shutdownService.Register(func(_ context.Context) error {
+		return httpClientService.Close()
+	}); err != nil {
+		return fmt.Errorf("failed to register HTTP client service shutdown callback: %w", err)
+	}
+	return nil
 }
 
 // initDB initializes the database host and rate limit repository if not already initialized.
@@ -253,7 +284,7 @@ func (c *Container) initDB() error {
 			}
 		}
 
-		if err := c.ShutdownService.Register(func(ctx context.Context) error {
+		if err := c.ShutdownService.Register(func(_ context.Context) error {
 			if err := dbHost.Close(); err != nil {
 				return fmt.Errorf("failed to close database host: %w", err)
 			}

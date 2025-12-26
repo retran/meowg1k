@@ -48,17 +48,9 @@ func NewService(filePathResolver FilePathResolver, workspaceDirResolver Workspac
 	service := &Service{}
 	v := viper.New()
 
-	configLoaded := false
-
-	// 1. Load config from XDG_CONFIG_HOME or HOME (if it exists, if not just ignore)
-	if err := loadDefaultConfigFiles(v); err != nil {
-		var noConfigFoundErr *noConfigurationFileFoundError
-		if !errors.As(err, &noConfigFoundErr) {
-			return nil, fmt.Errorf("failed to load default config file: %w", err)
-		}
-		// It's okay if no default config is found, we can proceed.
-	} else {
-		configLoaded = true
+	configLoaded, err := loadBaseConfig(v)
+	if err != nil {
+		return nil, err
 	}
 
 	// 2. If a config is passed through a parameter - load it and merge it with the main one
@@ -68,33 +60,18 @@ func NewService(filePathResolver FilePathResolver, workspaceDirResolver Workspac
 	}
 
 	if configPath != "" {
-		v.SetConfigFile(configPath)
-		if err := v.MergeInConfig(); err != nil {
-			var configFileNotFoundError viper.ConfigFileNotFoundError
-			if errors.As(err, &configFileNotFoundError) {
-				return nil, fmt.Errorf("specified config file not found: %s", configPath)
-			}
-			return nil, fmt.Errorf("failed to merge specified config file: %w", err)
+		if err := mergeSpecifiedConfig(v, configPath); err != nil {
+			return nil, err
 		}
 		configLoaded = true
 	} else {
 		// 3. If not passed - load from .meowg1k.yaml from the root of the working directory
-		workspaceDir, err := workspaceDirResolver.Get()
+		loaded, err := mergeWorkspaceConfig(v, workspaceDirResolver)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get workspace directory: %w", err)
+			return nil, err
 		}
-
-		if workspaceDir != "" {
-			v.AddConfigPath(workspaceDir)
-			v.SetConfigName("." + projectName)
-			if err := v.MergeInConfig(); err != nil {
-				var configFileNotFoundError viper.ConfigFileNotFoundError
-				if !errors.As(err, &configFileNotFoundError) {
-					return nil, fmt.Errorf("failed to merge workspace config file: %w", err)
-				}
-			} else {
-				configLoaded = true
-			}
+		if loaded {
+			configLoaded = true
 		}
 	}
 
@@ -118,6 +95,50 @@ type noConfigurationFileFoundError struct {
 
 func (e *noConfigurationFileFoundError) Error() string {
 	return e.message
+}
+
+func loadBaseConfig(v *viper.Viper) (bool, error) {
+	if err := loadDefaultConfigFiles(v); err != nil {
+		var noConfigFoundErr *noConfigurationFileFoundError
+		if errors.As(err, &noConfigFoundErr) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to load default config file: %w", err)
+	}
+	return true, nil
+}
+
+func mergeSpecifiedConfig(v *viper.Viper, configPath string) error {
+	v.SetConfigFile(configPath)
+	if err := v.MergeInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			return fmt.Errorf("specified config file not found: %s", configPath)
+		}
+		return fmt.Errorf("failed to merge specified config file: %w", err)
+	}
+	return nil
+}
+
+func mergeWorkspaceConfig(v *viper.Viper, workspaceDirResolver WorkspaceDirResolver) (bool, error) {
+	workspaceDir, err := workspaceDirResolver.Get()
+	if err != nil {
+		return false, fmt.Errorf("failed to get workspace directory: %w", err)
+	}
+	if workspaceDir == "" {
+		return false, nil
+	}
+
+	v.AddConfigPath(workspaceDir)
+	v.SetConfigName("." + projectName)
+	if err := v.MergeInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to merge workspace config file: %w", err)
+	}
+	return true, nil
 }
 
 // loadDefaultConfigFiles loads configuration files from standard locations.

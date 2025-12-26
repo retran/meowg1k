@@ -15,10 +15,12 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Repository stores rate limit bucket state in SQLite.
 type Repository struct {
 	host ports.Host
 }
 
+// NewRepository creates a rate limit repository backed by SQLite.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{
 		host: host,
@@ -65,48 +67,9 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 		configMap[config.ID] = config
 	}
 
-	type bucketState struct {
-		newRefill time.Time
-		id        string
-		newTokens int
-	}
-	var statesToUpdate []bucketState
-
-	for _, req := range requests {
-		if req.Count <= 0 {
-			continue
-		}
-
-		config, ok := configMap[req.ID]
-		if !ok {
-			return fmt.Errorf("config for bucket %s not found", req.ID)
-		}
-
-		var currentTokens int
-		var lastRefillNano int64
-		err := tx.QueryRowContext(ctx, "SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?", req.ID).Scan(&currentTokens, &lastRefillNano)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return fmt.Errorf("bucket %q not initialized: bucket not found", req.ID)
-			}
-			return fmt.Errorf("failed to read bucket %q: %w", req.ID, err)
-		}
-
-		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, time.Unix(0, lastRefillNano), config.RefillEvery)
-
-		if refilledTokens < req.Count {
-			return &ratelimit.NotEnoughTokensError{
-				BucketID: req.ID,
-				Need:     req.Count,
-				Have:     refilledTokens,
-			}
-		}
-
-		statesToUpdate = append(statesToUpdate, bucketState{
-			id:        req.ID,
-			newTokens: refilledTokens - req.Count,
-			newRefill: newLastRefill,
-		})
+	statesToUpdate, err := collectBucketUpdates(ctx, tx, configMap, requests)
+	if err != nil {
+		return err
 	}
 
 	stmt, err := tx.PrepareContext(ctx, "UPDATE rate_limit_buckets SET tokens = ?, last_refill = ? WHERE id = ?")
@@ -134,6 +97,69 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	}
 
 	return nil
+}
+
+type bucketState struct {
+	newRefill time.Time
+	id        string
+	newTokens int
+}
+
+func collectBucketUpdates(
+	ctx context.Context,
+	tx *sql.Tx,
+	configMap map[string]ratelimit.BucketConfig,
+	requests []ratelimit.AcquisitionRequest,
+) ([]bucketState, error) {
+	statesToUpdate := make([]bucketState, 0, len(requests))
+
+	for _, req := range requests {
+		if req.Count <= 0 {
+			continue
+		}
+
+		config, ok := configMap[req.ID]
+		if !ok {
+			return nil, fmt.Errorf("config for bucket %s not found", req.ID)
+		}
+
+		currentTokens, lastRefill, err := fetchBucketState(ctx, tx, req.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		refilledTokens, newLastRefill := refill(currentTokens, config.Capacity, config.RefillRate, lastRefill, config.RefillEvery)
+		if refilledTokens < req.Count {
+			return nil, &ratelimit.NotEnoughTokensError{
+				BucketID: req.ID,
+				Need:     req.Count,
+				Have:     refilledTokens,
+			}
+		}
+
+		statesToUpdate = append(statesToUpdate, bucketState{
+			id:        req.ID,
+			newTokens: refilledTokens - req.Count,
+			newRefill: newLastRefill,
+		})
+	}
+
+	return statesToUpdate, nil
+}
+
+func fetchBucketState(ctx context.Context, tx *sql.Tx, bucketID string) (int, time.Time, error) {
+	var currentTokens int
+	var lastRefillNano int64
+	err := tx.QueryRowContext(ctx, "SELECT tokens, last_refill FROM rate_limit_buckets WHERE id = ?", bucketID).
+		Scan(&currentTokens, &lastRefillNano)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, time.Time{}, fmt.Errorf("bucket %q not initialized: bucket not found", bucketID)
+		}
+		return 0, time.Time{}, fmt.Errorf("failed to read bucket %q: %w", bucketID, err)
+	}
+
+	return currentTokens, time.Unix(0, lastRefillNano), nil
 }
 
 // InitializeBuckets initializes the rate limit buckets in the database.

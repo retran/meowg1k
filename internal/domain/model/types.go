@@ -52,8 +52,8 @@ const (
 	TokenizerUnknown Tokenizer = "unknown"
 )
 
-// ModelInfo contains comprehensive information about a specific AI model.
-type ModelInfo struct {
+// Info contains comprehensive information about a specific AI model.
+type Info struct {
 	Provider              string
 	TokenizerType         Tokenizer
 	Description           string

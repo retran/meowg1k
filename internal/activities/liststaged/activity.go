@@ -45,7 +45,7 @@ func NewFactory(stagedFileListReader StagedFileListReader) (*Factory, error) {
 
 // NewActivity creates and returns the ListStaged activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		if f == nil {
 			return nil, fmt.Errorf("list staged factory is nil")
 		}

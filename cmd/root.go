@@ -14,6 +14,7 @@ import (
 	"github.com/retran/meowg1k/internal/app"
 )
 
+// Execute runs the root command.
 func Execute() error {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -25,7 +26,7 @@ func Execute() error {
 var rootCmd = &cobra.Command{
 	Use:   "meow",
 	Short: "'meow' — your fast, script-friendly AI companion",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd == nil {
 			return fmt.Errorf("command cannot be nil")
 		}
@@ -41,7 +42,7 @@ var rootCmd = &cobra.Command{
 
 		return nil
 	},
-	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPostRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd == nil {
 			return fmt.Errorf("command cannot be nil")
 		}

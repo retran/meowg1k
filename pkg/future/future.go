@@ -119,11 +119,11 @@ func (f *Future[T]) IsDone() bool {
 	return f.done
 }
 
-// TryGet returns the result if available, or nil if not ready.
-func (f *Future[T]) TryGet() (T, error, bool) {
+// TryGet returns the result if available, or zero values if not ready.
+func (f *Future[T]) TryGet() (T, bool, error) {
 	var zero T
 	if f == nil {
-		return zero, fmt.Errorf("future is nil"), false
+		return zero, false, fmt.Errorf("future is nil")
 	}
 
 	f.mu.RLock()
@@ -132,16 +132,16 @@ func (f *Future[T]) TryGet() (T, error, bool) {
 		val, err := f.val, f.err
 		f.mu.RUnlock()
 
-		return val, err, true
+		return val, true, err
 	}
 
 	f.mu.RUnlock()
 
 	select {
 	case res := <-f.ch:
-		return res.value, res.error, true
+		return res.value, true, res.error
 	default:
-		return zero, nil, false
+		return zero, false, nil
 	}
 }
 

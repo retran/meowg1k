@@ -14,18 +14,21 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// IndexDump stores serialized HNSW data with ID mappings.
 type IndexDump struct {
 	IDToChunkID map[uint32]int64
 	ChunkIDToID map[int64]uint32
 	HNSWData    []byte
 }
 
+// Service builds and stores vector indices for snapshots.
 type Service struct {
 	indexRepo    ports.IndexRepository
 	snapshotRepo ports.SnapshotRepository
 	metaRepo     ports.MetaRepository
 }
 
+// NewService creates a new vector index service.
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,

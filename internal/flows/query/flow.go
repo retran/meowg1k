@@ -115,7 +115,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("executor not available in context")
 		}
 
-		queryFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "Query", queryActivity, queryInput)
+		queryFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Query", queryActivity, queryInput)
 		queryOutput, err := queryFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("query failed: %w", err)

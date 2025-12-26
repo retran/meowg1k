@@ -15,8 +15,8 @@ import (
 // ExecuteActivity is a generic wrapper around the executor's ExecuteActivity method.
 // It provides compile-time type safety for activity inputs and outputs.
 func ExecuteActivity[T, K any](
-	e Executor,
 	ctx context.Context,
+	e Executor,
 	parentCtx *Context,
 	name string,
 	activity Activity[T, K],
@@ -109,7 +109,7 @@ var _ Executor = (*executorImpl)(nil)
 // NewExecutor creates a new activity executor with the given configuration
 // concurrency limits the number of activities that can run in parallel
 // If concurrency <= 0, no limit is applied.
-func NewExecutor(concurrency int) *executorImpl {
+func NewExecutor(concurrency int) Executor {
 	var semaphore chan struct{}
 	if concurrency > 0 {
 		semaphore = make(chan struct{}, concurrency)

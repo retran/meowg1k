@@ -12,34 +12,40 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the payload for preparing embedding batches.
 type Input struct {
 	ChunkResults *chunkallfiles.Output
 	StateName    string
 	BatchSize    int
 }
 
+// Batch represents a slice of chunk texts for embedding requests.
 type Batch struct {
 	Texts      []string
 	StartIndex int
 	EndIndex   int
 }
 
+// Output contains the prepared batches and original chunk results.
 type Output struct {
 	StateName    string
 	ChunkResults *chunkallfiles.Output
 	Batches      []Batch
 }
 
+// Factory builds preparebatches activities.
 type Factory struct{}
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a preparebatches activity factory.
 func NewFactory() (executor.ActivityFactory[*Input, *Output], error) {
 	return &Factory{}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		totalChunks := len(input.ChunkResults.AllChunkTexts)
 
 		executorCtx.SendRunning(fmt.Sprintf("Preparing batches: %d chunks (%s)", totalChunks, input.StateName))

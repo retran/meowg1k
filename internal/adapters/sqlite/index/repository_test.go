@@ -50,7 +50,7 @@ func setupTestDB(t *testing.T) (*sql.DB, ports.Host) {
 
 	// Run migrations
 	for _, migration := range Migrations {
-		tx, err := db.Begin()
+		tx, err := db.BeginTx(context.Background(), nil)
 		if err != nil {
 			t.Fatalf("failed to begin transaction for migration %d: %v", migration.Version, err)
 		}

@@ -28,8 +28,8 @@ type SearchResult struct {
 	Score             float32
 }
 
-// RetrievalService defines the interface for high-level RAG operations.
-type RetrievalService interface {
+// Retriever defines the interface for high-level RAG operations.
+type Retriever interface {
 	// RetrieveContext performs vector search across multiple snapshots and assembles context.
 	// Returns a formatted context string suitable for LLM input.
 	RetrieveContext(ctx context.Context, queryText string, snapshotPriority []string, topK int, minScore float32) (string, error)
@@ -39,10 +39,10 @@ type RetrievalService interface {
 	Search(ctx context.Context, queryText string, snapshotPriority []string, topK int, minScore float32) ([]SearchResult, error)
 }
 
-// Service implements RetrievalService for RAG operations.
+// Service implements Retriever for RAG operations.
 type Service struct {
 	embeddingsGW      ports.EmbeddingsGateway
-	vectorSearchSvc   vector.VectorSearchService
+	vectorSearchSvc   vector.Searcher
 	indexRepo         ports.IndexRepository
 	embeddingModel    string
 	embeddingTaskType gateway.TaskType
@@ -51,7 +51,7 @@ type Service struct {
 // NewService creates a new retrieval service instance.
 func NewService(
 	embeddingsGW ports.EmbeddingsGateway,
-	vectorSearchSvc vector.VectorSearchService,
+	vectorSearchSvc vector.Searcher,
 	indexRepo ports.IndexRepository,
 	embeddingModel string,
 	embeddingTaskType gateway.TaskType,

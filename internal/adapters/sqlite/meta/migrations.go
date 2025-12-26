@@ -4,6 +4,7 @@
 package meta
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -15,7 +16,9 @@ var Migrations = []migrations.Migration{
 	{
 		Version: 1,
 		Up: func(tx *sql.Tx) error {
-			_, err := tx.Exec(`
+			ctx := context.Background()
+
+			_, err := tx.ExecContext(ctx, `
 				CREATE TABLE meta_kv (
 					key TEXT PRIMARY KEY,
 					value BLOB NOT NULL

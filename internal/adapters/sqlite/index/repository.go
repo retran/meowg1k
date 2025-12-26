@@ -16,6 +16,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Repository persists document versions and chunks in SQLite.
 type Repository struct {
 	host ports.Host
 }
@@ -25,10 +26,12 @@ var (
 	_ ports.SnapshotRepository = (*Repository)(nil)
 )
 
+// NewRepository creates an index repository backed by SQLite.
 func NewRepository(host ports.Host) *Repository {
 	return &Repository{host: host}
 }
 
+// AddDocumentVersion inserts a document version and content blob.
 func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
 	db, err := r.host.GetProjectDB()
 	if err != nil {
@@ -108,32 +111,8 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domai
 
 	// Insert chunks if any
 	if len(chunks) > 0 {
-		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO chunks (
-				document_version_id, chunk_type, text_content,
-				start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`)
-		if err != nil {
-			return 0, fmt.Errorf("failed to prepare chunk insert statement: %w", err)
-		}
-		defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
-
-		for _, chunk := range chunks {
-			embeddingBytes, err := encodeEmbedding(chunk.Embedding)
-			if err != nil {
-				return 0, fmt.Errorf("could not encode embedding for chunk: %w", err)
-			}
-
-			_, err = stmt.ExecContext(ctx,
-				versionID, chunk.ChunkType, chunk.TextContent,
-				chunk.StartByte, chunk.EndByte, chunk.StartRune, chunk.EndRune,
-				chunk.StartLine, chunk.EndLine,
-				embeddingBytes,
-			)
-			if err != nil {
-				return 0, fmt.Errorf("failed to execute chunk insert: %w", err)
-			}
+		if err := insertChunks(ctx, tx, versionID, chunks); err != nil {
+			return 0, err
 		}
 	}
 
@@ -144,6 +123,39 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domai
 	return versionID, nil
 }
 
+func insertChunks(ctx context.Context, tx *sql.Tx, versionID int64, chunks []domainindex.Chunk) error {
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO chunks (
+			document_version_id, chunk_type, text_content,
+			start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare chunk insert statement: %w", err)
+	}
+	defer func() { _ = stmt.Close() }() //nolint:errcheck // Defer close errors are not critical
+
+	for _, chunk := range chunks {
+		embeddingBytes, err := encodeEmbedding(chunk.Embedding)
+		if err != nil {
+			return fmt.Errorf("could not encode embedding for chunk: %w", err)
+		}
+
+		_, err = stmt.ExecContext(ctx,
+			versionID, chunk.ChunkType, chunk.TextContent,
+			chunk.StartByte, chunk.EndByte, chunk.StartRune, chunk.EndRune,
+			chunk.StartLine, chunk.EndLine,
+			embeddingBytes,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to execute chunk insert: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// AddChunks inserts chunk records into the database.
 func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) error {
 	db, err := r.host.GetProjectDB()
 	if err != nil {
@@ -406,32 +418,7 @@ func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) 
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
-	var chunks []domainindex.Chunk
-	for rows.Next() {
-		var chunk domainindex.Chunk
-		var embeddingBytes []byte
-		if err := rows.Scan(
-			&chunk.ID, &chunk.DocumentVersionID, &chunk.ChunkType, &chunk.TextContent,
-			&chunk.StartByte, &chunk.EndByte, &chunk.StartRune, &chunk.EndRune,
-			&chunk.StartLine, &chunk.EndLine, &embeddingBytes,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan chunk: %w", err)
-		}
-
-		embedding, err := decodeEmbedding(embeddingBytes)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode embedding for chunk id %d: %w", chunk.ID, err)
-		}
-		chunk.Embedding = embedding
-
-		chunks = append(chunks, chunk)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error during rows iteration: %w", err)
-	}
-
-	return chunks, nil
+	return scanChunks(rows)
 }
 
 // GetChunksByIDs retrieves chunks by their IDs.
@@ -468,6 +455,10 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
+	return scanChunks(rows)
+}
+
+func scanChunks(rows *sql.Rows) ([]domainindex.Chunk, error) {
 	var chunks []domainindex.Chunk
 	for rows.Next() {
 		var chunk domainindex.Chunk

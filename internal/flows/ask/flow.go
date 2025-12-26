@@ -173,7 +173,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			MinScore:         minScore,
 		}
 
-		retrieveContextFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
+		retrieveContextFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
 		retrieveContextOutput, err := retrieveContextFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("context retrieval failed: %w", err)
@@ -209,7 +209,7 @@ Instructions:
 			UserPrompt:   userPrompt,
 		}
 
-		invokeLLMFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
+		invokeLLMFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
 		invokeLLMOutput, err := invokeLLMFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("answer generation failed: %w", err)

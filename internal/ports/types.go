@@ -104,7 +104,7 @@ type HTTPClientService interface {
 	Validate() error
 }
 
-// Repository defines the interface for rate limit data storage.
+// RateLimitRepository defines the interface for rate limit data storage.
 type RateLimitRepository interface {
 	// AcquireTokens attempts to acquire tokens from the specified buckets.
 	AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error

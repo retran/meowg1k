@@ -330,7 +330,9 @@ type Embedding []float64
 // to produce higher-quality embeddings tailored to the specific task.
 type TaskType string
 
+// TaskType values for embedding requests.
 const (
+	// SemanticSimilarity indicates embeddings optimized for similarity search.
 	SemanticSimilarity TaskType = "SEMANTIC_SIMILARITY"
 	Classification     TaskType = "CLASSIFICATION"
 	Clustering         TaskType = "CLUSTERING"

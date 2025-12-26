@@ -85,7 +85,7 @@ func TestNewFactory(t *testing.T) {
 		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 		composePRFactory           executor.ActivityFactory[*composepr.Input, *composepr.Output]
 		composeFlatPRFactory       executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
-		prConfigProvider           PullRequestConfigProvider
+		prConfigProvider           ConfigProvider
 		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
 		name                       string

@@ -23,8 +23,8 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// CommitConfigProvider provides commit message configuration.
-type CommitConfigProvider interface {
+// ConfigProvider provides commit message configuration.
+type ConfigProvider interface {
 	Get() (*commit.ResolvedConfig, error)
 }
 
@@ -45,7 +45,7 @@ type Factory struct {
 	summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
 	composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
 	composeFlatCommitFactory   executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
-	commitConfigProvider       CommitConfigProvider
+	commitConfigProvider       ConfigProvider
 	commandParametersReader    CommandParametersReader
 	outputWriter               ports.OutputWriter
 }
@@ -60,7 +60,7 @@ func NewFactory(
 	summarizeAllFactory executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output],
 	composeCommitFactory executor.ActivityFactory[*composecommit.Input, *composecommit.Output],
 	composeFlatCommitFactory executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output],
-	commitConfigProvider CommitConfigProvider,
+	commitConfigProvider ConfigProvider,
 	commandParametersReader CommandParametersReader,
 	outputWriter ports.OutputWriter,
 ) (*Factory, error) {
@@ -138,6 +138,11 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("flow context is nil")
 		}
 
+		exec := flowCtx.GetExecutor()
+		if exec == nil {
+			return fmt.Errorf("executor not available in context")
+		}
+
 		flowCtx.SendRunning("Composing commit message")
 
 		// Check if we're in squash mode (branch comparison)
@@ -153,8 +158,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Squash mode: list files changed in branch
 			listBranchFiles := f.listBranchFilesFactory.NewActivity()
 			branchFilesFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ListBranchFiles",
 				listBranchFiles,
@@ -172,8 +177,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Normal mode: list staged files
 			listStaged := f.listStagedFactory.NewActivity()
 			stagedFilesFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ListStagedFiles",
 				listStaged,
@@ -190,8 +195,8 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Phase 2: Apply filters
 		applyFilters := f.applyFiltersFactory.NewActivity()
 		filteredFilesFuture := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
 			ctx,
+			exec,
 			flowCtx,
 			"ApplyFilters",
 			applyFilters,
@@ -212,8 +217,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Squash mode: fetch branch diffs
 			fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
 			fetchAllBranchDiffsFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"FetchAllBranchDiffs",
 				fetchAllBranchDiffs,
@@ -233,8 +238,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Normal mode: fetch staged diffs
 			fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
 			fetchAllDiffsFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"FetchAllDiffs",
 				fetchAllDiffs,
@@ -278,8 +283,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Flat strategy: send full diff directly to LLM
 			composeFlatCommit := f.composeFlatCommitFactory.NewActivity()
 			flatCommitFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ComposeFlatCommit",
 				composeFlatCommit,
@@ -301,8 +306,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			// Summarize strategy (default): use map-reduce approach
 			summarizeAll := f.summarizeAllFactory.NewActivity()
 			summarizeAllFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"SummarizeAll",
 				summarizeAll,
@@ -318,8 +323,8 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			composeCommit := f.composeCommitFactory.NewActivity()
 			commitFuture := executor.ExecuteActivity(
-				flowCtx.GetExecutor(),
 				ctx,
+				exec,
 				flowCtx,
 				"ComposeCommit",
 				composeCommit,

@@ -47,7 +47,7 @@ func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 
 // NewActivity creates and returns the FetchBranchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
 			return nil, fmt.Errorf("fetch branch file diff factory is nil")
 		}
@@ -66,10 +66,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		// For branch diff, we get content from target branch (base) and current HEAD
 		originalFileContent, err := f.branchDiffReader.ReadOriginalFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "not in 'HEAD'") ||
-				strings.Contains(err.Error(), "invalid object name 'HEAD'") ||
-				strings.Contains(err.Error(), "path not in the working tree") {
+			if isMissingOriginalContent(err) {
 				originalFileContent = "" // File is new or this is the initial commit
 			} else {
 				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
@@ -77,8 +74,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		} // For branch diff, "staged" content is actually current HEAD content
 		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "path not in the working tree") {
+			if isMissingStagedContent(err) {
 				// File was deleted - return with empty staged content
 				executorCtx.SendCompleted("Deleted")
 				return &git.FileChange{
@@ -101,4 +97,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			ChangedFileContent:  stagedFileContent,
 		}, nil
 	}
+}
+
+func isMissingOriginalContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"not in 'HEAD'",
+		"invalid object name 'HEAD'",
+		"path not in the working tree",
+	})
+}
+
+func isMissingStagedContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"path not in the working tree",
+	})
+}
+
+func hasAnySubstring(err error, substrings []string) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, substr := range substrings {
+		if strings.Contains(message, substr) {
+			return true
+		}
+	}
+	return false
 }

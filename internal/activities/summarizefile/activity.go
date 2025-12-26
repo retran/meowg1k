@@ -105,6 +105,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		content := strings.Join(contentParts, "")
 
 		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
 
 		invokeInput := &invokellm.Input{
 			Profile:      config.Profile,
@@ -113,8 +117,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
-			executorCtx.GetExecutor(),
 			ctx,
+			exec,
 			executorCtx,
 			"GenerateContent",
 			contentGenerationActivity,

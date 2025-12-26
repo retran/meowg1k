@@ -4,6 +4,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -112,13 +113,13 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	}
 
 	// Initialize git repo
-	if initErr := exec.Command("git", "init").Run(); initErr != nil {
+	if initErr := exec.CommandContext(context.Background(), "git", "init").Run(); initErr != nil {
 		t.Skipf("Failed to init git repo: %v", initErr)
 	}
 
 	// Configure git user (required for commits)
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -143,7 +144,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	err = exec.Command("git", "add", testFile).Run()
+	err = exec.CommandContext(context.Background(), "git", "add", testFile).Run()
 	if err != nil {
 		t.Fatalf("Failed to stage test file: %v", err)
 	}
@@ -176,7 +177,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	}
 
 	// Commit the file to test ReadOriginalFileContent
-	if commitErr := exec.Command("git", "commit", "-m", "Initial commit").Run(); commitErr != nil {
+	if commitErr := exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run(); commitErr != nil {
 		t.Fatalf("Failed to commit: %v", commitErr)
 	}
 
@@ -229,7 +230,7 @@ func TestServiceImpl_ReadStagedFilesEmptyOutput(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
@@ -275,14 +276,14 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
 	// Configure git user
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -298,7 +299,7 @@ func TestServiceImpl_ReadStagedFilesMultipleFiles(t *testing.T) {
 		if writeErr != nil {
 			t.Fatalf("Failed to create %s: %v", filename, writeErr)
 		}
-		err = exec.Command("git", "add", filename).Run()
+		err = exec.CommandContext(context.Background(), "git", "add", filename).Run()
 		if err != nil {
 			t.Fatalf("Failed to stage %s: %v", filename, err)
 		}
@@ -346,19 +347,19 @@ func TestServiceImpl_GetCurrentBranch(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
 	// Configure git user
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit
 	os.WriteFile("test.txt", []byte("test"), 0o644)
-	exec.Command("git", "add", "test.txt").Run()
-	exec.Command("git", "commit", "-m", "Initial commit").Run()
+	exec.CommandContext(context.Background(), "git", "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -397,27 +398,27 @@ func TestServiceImpl_GetChangedFilesInBranch(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
 	// Configure git user
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit on main branch
 	os.WriteFile("base.txt", []byte("base content"), 0o644)
-	exec.Command("git", "add", "base.txt").Run()
-	exec.Command("git", "commit", "-m", "Initial commit").Run()
+	exec.CommandContext(context.Background(), "git", "add", "base.txt").Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	// Create a new branch
-	exec.Command("git", "checkout", "-b", "feature").Run()
+	exec.CommandContext(context.Background(), "git", "checkout", "-b", "feature").Run()
 
 	// Add changes in feature branch
 	os.WriteFile("feature.txt", []byte("feature content"), 0o644)
-	exec.Command("git", "add", "feature.txt").Run()
-	exec.Command("git", "commit", "-m", "Add feature file").Run()
+	exec.CommandContext(context.Background(), "git", "add", "feature.txt").Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Add feature file").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -459,19 +460,19 @@ func TestServiceImpl_GetChangedFilesInBranchEmpty(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
 	// Configure git user
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit
 	os.WriteFile("test.txt", []byte("test"), 0o644)
-	exec.Command("git", "add", "test.txt").Run()
-	exec.Command("git", "commit", "-m", "Initial commit").Run()
+	exec.CommandContext(context.Background(), "git", "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -510,28 +511,28 @@ func TestServiceImpl_GetBranchDiff(t *testing.T) {
 	}
 
 	// Initialize git repo
-	err = exec.Command("git", "init").Run()
+	err = exec.CommandContext(context.Background(), "git", "init").Run()
 	if err != nil {
 		t.Skipf("Failed to init git repo: %v", err)
 	}
 
 	// Configure git user
-	exec.Command("git", "config", "user.name", "Test User").Run()
-	exec.Command("git", "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit on main branch
 	testFile := "test.txt"
 	os.WriteFile(testFile, []byte("line 1\nline 2\n"), 0o644)
-	exec.Command("git", "add", testFile).Run()
-	exec.Command("git", "commit", "-m", "Initial commit").Run()
+	exec.CommandContext(context.Background(), "git", "add", testFile).Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	// Create a new branch
-	exec.Command("git", "checkout", "-b", "feature").Run()
+	exec.CommandContext(context.Background(), "git", "checkout", "-b", "feature").Run()
 
 	// Modify the file in feature branch
 	os.WriteFile(testFile, []byte("line 1\nline 2 modified\nline 3\n"), 0o644)
-	exec.Command("git", "add", testFile).Run()
-	exec.Command("git", "commit", "-m", "Modify file").Run()
+	exec.CommandContext(context.Background(), "git", "add", testFile).Run()
+	exec.CommandContext(context.Background(), "git", "commit", "-m", "Modify file").Run()
 
 	workspaceService := &mockWorkspaceService{}
 	service, err := NewService(workspaceService)
@@ -567,14 +568,14 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Initialize a git repo in temp directory
-	initCmd := exec.Command("git", "init", tmpDir)
+	initCmd := exec.CommandContext(context.Background(), "git", "init", tmpDir)
 	if err := initCmd.Run(); err != nil {
 		t.Skipf("Cannot init git repo: %v", err)
 	}
 
 	// Configure git
-	exec.Command("git", "-C", tmpDir, "config", "user.name", "Test User").Run()
-	exec.Command("git", "-C", tmpDir, "config", "user.email", "test@example.com").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "config", "user.email", "test@example.com").Run()
 
 	// Create a test file and commit it
 	testFile := tmpDir + "/test.txt"
@@ -582,8 +583,8 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
-	exec.Command("git", "-C", tmpDir, "add", "test.txt").Run()
-	exec.Command("git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
 
 	// Create mock workspace service that returns our temp directory
 	mockWS := &customWorkspaceService{dir: tmpDir}
@@ -603,7 +604,7 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 	if err := os.WriteFile(testFile, []byte("modified content\n"), 0o644); err != nil {
 		t.Fatalf("Failed to modify test file: %v", err)
 	}
-	exec.Command("git", "-C", tmpDir, "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", "test.txt").Run()
 
 	// Read staged files - should work from the custom workspace
 	files, err := service.ReadStagedFiles()

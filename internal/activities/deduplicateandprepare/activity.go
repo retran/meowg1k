@@ -15,22 +15,26 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the payload for deduplicating workspace files.
 type Input struct {
 	WorkspaceState *scanworkspacestate.Output
 }
 
+// Output contains the deduplicated file metadata and mappings.
 type Output struct {
 	ExistingVersions map[string]int64
 	ContentHashMap   map[string]string
 	FilesToProcess   []domainindex.FileToProcess
 }
 
+// Factory builds deduplicateandprepare activities.
 type Factory struct {
 	indexService ports.IndexService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a deduplicateandprepare activity factory.
 func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Input, *Output], error) {
 	if indexService == nil {
 		return nil, fmt.Errorf("deduplicateandprepare.NewFactory: indexService cannot be nil")
@@ -41,6 +45,7 @@ func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Inpu
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Deduplicating files")

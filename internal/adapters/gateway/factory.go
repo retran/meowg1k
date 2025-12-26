@@ -16,6 +16,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Factory constructs provider-specific gateways with shared dependencies.
 type Factory struct {
 	cacheRepo         ports.CacheRepository
 	flagReader        ports.FlagReader
@@ -153,65 +154,9 @@ func (f *Factory) NewGenerationGateway(
 		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
-	var gateway ports.GenerationGateway
-	var err error
-
-	switch profile.Provider {
-	case provider.Gemini:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("gemini provider requires an API key for model %q", profile.Model)
-		}
-
-		gateway, err = newGeminiGateway(ctx, profile.APIKey)
-	case provider.Llama:
-		if profile.BaseURL == "" {
-			return nil, fmt.Errorf("llama provider requires a base URL for model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for llama.cpp
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway, err = newLlamaGateway(profile.BaseURL, profile.APIKey, httpClient)
-	case provider.OpenAI:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openai provider requires an API key for model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for OpenAI
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient)
-	case provider.OpenRouter:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openrouter provider requires an API key for model %q", profile.Model)
-		}
-
-		// Use dedicated OpenRouter gateway to support all OpenRouter-specific parameters
-		// Use HTTP client with profile-specific timeout
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway, err = NewOpenRouterGateway(ctx, profile.BaseURL, profile.APIKey, httpClient)
-	case provider.Anthropic:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("anthropic provider requires an API key for model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for Anthropic
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway, err = newAnthropicGateway(profile.APIKey, httpClient)
-	case provider.Voyage:
-		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
-	case provider.OpenAICompatible:
-		if profile.BaseURL == "" {
-			return nil, fmt.Errorf("openai-compatible provider requires a base URL for model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for OpenAI-compatible
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient)
-	default:
-		return nil, fmt.Errorf("provider must be specified for model %q", profile.Model)
-	}
-
+	gateway, err := f.buildGenerationGateway(ctx, profile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
+		return nil, err
 	}
 
 	// Determine max concurrency based on rate limits
@@ -260,66 +205,9 @@ func (f *Factory) NewEmbeddingsGateway(
 		return nil, fmt.Errorf("profile cannot be nil")
 	}
 
-	var gateway ports.EmbeddingsGateway
-	var err error
-
-	switch profile.Provider {
-	case provider.Gemini:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", profile.Model)
-		}
-
-		gateway, err = newGeminiGateway(ctx, profile.APIKey)
-	case provider.Llama:
-		if profile.BaseURL == "" {
-			return nil, fmt.Errorf("llama provider requires a base URL for embeddings model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for llama.cpp embeddings
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		llamaGW, llamaErr := newLlamaGateway(profile.BaseURL, profile.APIKey, httpClient)
-		if llamaErr != nil {
-			return nil, fmt.Errorf("failed to create llama gateway for embeddings model %q: %w", profile.Model, llamaErr)
-		}
-
-		// llamaGateway implements both GenerationGateway and EmbeddingsGateway
-		var ok bool
-		gateway, ok = llamaGW.(ports.EmbeddingsGateway)
-		if !ok {
-			return nil, fmt.Errorf("llama gateway does not implement EmbeddingsGateway for model %q", profile.Model)
-		}
-	case provider.Anthropic:
-		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
-	case provider.OpenAI:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openai provider requires an API key for embeddings model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for OpenAI embeddings
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient)
-	case provider.OpenRouter:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("openrouter provider requires an API key for embeddings model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for OpenRouter embeddings
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway = newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient)
-	case provider.Voyage:
-		if profile.APIKey == "" {
-			return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", profile.Model)
-		}
-
-		// Use HTTP client with profile-specific timeout for voyage embeddings
-		httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
-		gateway, err = newVoyageGateway(profile.APIKey, httpClient)
-	default:
-		return nil, fmt.Errorf("provider must be specified for embeddings model %q", profile.Model)
-	}
-
+	gateway, err := f.buildEmbeddingsGateway(ctx, profile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", profile.Provider, profile.Model, err)
+		return nil, err
 	}
 
 	limiter, err := f.getRateLimiter(profile)
@@ -342,5 +230,185 @@ func (f *Factory) NewEmbeddingsGateway(
 	}
 	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, commandName, profile.Name, string(profile.Provider))
 
+	return gateway, nil
+}
+
+func (f *Factory) buildGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	switch profile.Provider {
+	case provider.Gemini:
+		return f.newGeminiGenerationGateway(ctx, profile)
+	case provider.Llama:
+		return f.newLlamaGenerationGateway(profile)
+	case provider.OpenAI:
+		return f.newOpenAIGenerationGateway(profile)
+	case provider.OpenRouter:
+		return f.newOpenRouterGenerationGateway(ctx, profile)
+	case provider.Anthropic:
+		return f.newAnthropicGenerationGateway(profile)
+	case provider.Voyage:
+		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
+	case provider.OpenAICompatible:
+		return f.newOpenAICompatibleGenerationGateway(profile)
+	default:
+		return nil, fmt.Errorf("provider must be specified for model %q", profile.Model)
+	}
+}
+
+func (f *Factory) buildEmbeddingsGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	switch profile.Provider {
+	case provider.Gemini:
+		return f.newGeminiEmbeddingsGateway(ctx, profile)
+	case provider.Llama:
+		return f.newLlamaEmbeddingsGateway(profile)
+	case provider.Anthropic:
+		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
+	case provider.OpenAI:
+		return f.newOpenAIEmbeddingsGateway(profile)
+	case provider.OpenAICompatible:
+		return f.newOpenAICompatibleEmbeddingsGateway(profile)
+	case provider.OpenRouter:
+		return f.newOpenRouterEmbeddingsGateway(profile)
+	case provider.Voyage:
+		return f.newVoyageEmbeddingsGateway(profile)
+	default:
+		return nil, fmt.Errorf("provider must be specified for embeddings model %q", profile.Model)
+	}
+}
+
+func (f *Factory) newGeminiGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("gemini provider requires an API key for model %q", profile.Model)
+	}
+	gateway, err := newGeminiGateway(ctx, profile.APIKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newLlamaGenerationGateway(profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.BaseURL == "" {
+		return nil, fmt.Errorf("llama provider requires a base URL for model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	gateway, err := newLlamaGateway(profile.BaseURL, profile.APIKey, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newOpenAIGenerationGateway(profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("openai provider requires an API key for model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	return newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient), nil
+}
+
+func (f *Factory) newOpenAICompatibleGenerationGateway(profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.BaseURL == "" {
+		return nil, fmt.Errorf("openai-compatible provider requires a base URL for model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	return newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient), nil
+}
+
+func (f *Factory) newOpenRouterGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("openrouter provider requires an API key for model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	gateway, err := NewOpenRouterGateway(ctx, profile.BaseURL, profile.APIKey, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newAnthropicGenerationGateway(profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("anthropic provider requires an API key for model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	gateway, err := newAnthropicGateway(profile.APIKey, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newGeminiEmbeddingsGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", profile.Model)
+	}
+
+	gateway, err := newGeminiGateway(ctx, profile.APIKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newLlamaEmbeddingsGateway(profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.BaseURL == "" {
+		return nil, fmt.Errorf("llama provider requires a base URL for embeddings model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	llamaGW, err := newLlamaGateway(profile.BaseURL, profile.APIKey, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create llama gateway for embeddings model %q: %w", profile.Model, err)
+	}
+
+	gateway, ok := llamaGW.(ports.EmbeddingsGateway)
+	if !ok {
+		return nil, fmt.Errorf("llama gateway does not implement EmbeddingsGateway for model %q", profile.Model)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newOpenAIEmbeddingsGateway(profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("openai provider requires an API key for embeddings model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	return newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient), nil
+}
+
+func (f *Factory) newOpenAICompatibleEmbeddingsGateway(profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.BaseURL == "" {
+		return nil, fmt.Errorf("openai-compatible provider requires a base URL for embeddings model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	return newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient), nil
+}
+
+func (f *Factory) newOpenRouterEmbeddingsGateway(profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("openrouter provider requires an API key for embeddings model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	return newOpenAIGateway(profile.BaseURL, profile.APIKey, httpClient), nil
+}
+
+func (f *Factory) newVoyageEmbeddingsGateway(profile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
+	if profile.APIKey == "" {
+		return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", profile.Model)
+	}
+
+	httpClient := f.httpClientService.GetWithTimeout(profile.Timeout)
+	gateway, err := newVoyageGateway(profile.APIKey, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", profile.Provider, profile.Model, err)
+	}
 	return gateway, nil
 }

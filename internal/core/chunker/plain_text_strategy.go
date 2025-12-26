@@ -191,7 +191,7 @@ func (s *PlainTextStrategy) Chunk(content []byte) ([]domainindex.ChunkData, erro
 // finalizeChunk creates a ChunkData from the current chunk state.
 func (s *PlainTextStrategy) finalizeChunk(
 	text string,
-	runes []rune,
+	_ []rune,
 	startByte, startRune, startLine int,
 	endByte, endRune, endLine int,
 ) domainindex.ChunkData {

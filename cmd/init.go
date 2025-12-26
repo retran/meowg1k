@@ -30,7 +30,7 @@ After initialization, you should set the MEOW_GEMINI_API_KEY environment variabl
   export MEOW_GEMINI_API_KEY="your-api-key-here"
 
 You can get a free API key from: https://aistudio.google.com/app/apikey`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		force, err := cmd.Flags().GetBool("force")
 		if err != nil {
 			return fmt.Errorf("failed to get force flag: %w", err)

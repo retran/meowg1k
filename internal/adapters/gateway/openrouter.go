@@ -101,60 +101,8 @@ func (g *openrouterGateway) GenerateContent(
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
-	// Build messages
-	messages := []openrouterMessage{}
-	if request.SystemPrompt() != "" {
-		messages = append(messages, openrouterMessage{
-			Role:    "system",
-			Content: request.SystemPrompt(),
-		})
-	}
-	messages = append(messages, openrouterMessage{
-		Role:    "user",
-		Content: request.UserPrompt(),
-	})
-
-	// Build request with all supported parameters
-	reqBody := openrouterRequest{
-		Model:     request.Model(),
-		Messages:  messages,
-		MaxTokens: request.MaxOutputTokens(),
-	}
-
-	// Set optional parameters
-	if temp := request.Temperature(); temp != nil {
-		reqBody.Temperature = temp
-	}
-	if topP := request.TopP(); topP != nil {
-		reqBody.TopP = topP
-	}
-	if topK := request.TopK(); topK != nil {
-		reqBody.TopK = topK
-	}
-	if fp := request.FrequencyPenalty(); fp != nil {
-		reqBody.FrequencyPenalty = fp
-	}
-	if pp := request.PresencePenalty(); pp != nil {
-		reqBody.PresencePenalty = pp
-	}
-	if rp := request.RepetitionPenalty(); rp != nil {
-		reqBody.RepetitionPenalty = rp
-	}
-	if minP := request.MinP(); minP != nil {
-		reqBody.MinP = minP
-	}
-	if topA := request.TopA(); topA != nil {
-		reqBody.TopA = topA
-	}
-	if seed := request.Seed(); seed != nil {
-		reqBody.Seed = seed
-	}
-	if stop := request.Stop(); len(stop) > 0 {
-		reqBody.Stop = stop
-	}
-	if n := request.CandidateCount(); n != nil {
-		reqBody.N = n
-	}
+	messages := buildOpenRouterMessages(request)
+	reqBody := buildOpenRouterRequest(request, messages)
 
 	// Marshal request
 	jsonData, err := json.Marshal(reqBody)
@@ -186,24 +134,95 @@ func (g *openrouterGateway) GenerateContent(
 	}
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
-	// Read response
+	return parseOpenRouterResponse(resp)
+}
+
+func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
+	messages := []openrouterMessage{}
+	if request.SystemPrompt() != "" {
+		messages = append(messages, openrouterMessage{
+			Role:    "system",
+			Content: request.SystemPrompt(),
+		})
+	}
+	messages = append(messages, openrouterMessage{
+		Role:    "user",
+		Content: request.UserPrompt(),
+	})
+	return messages
+}
+
+func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []openrouterMessage) openrouterRequest {
+	reqBody := openrouterRequest{
+		Model:     request.Model(),
+		Messages:  messages,
+		MaxTokens: request.MaxOutputTokens(),
+	}
+
+	applyOpenRouterSampling(&reqBody, request)
+	applyOpenRouterPenalties(&reqBody, request)
+	applyOpenRouterControlParams(&reqBody, request)
+
+	return reqBody
+}
+
+func applyOpenRouterSampling(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if temp := request.Temperature(); temp != nil {
+		reqBody.Temperature = temp
+	}
+	if topP := request.TopP(); topP != nil {
+		reqBody.TopP = topP
+	}
+	if topK := request.TopK(); topK != nil {
+		reqBody.TopK = topK
+	}
+	if topA := request.TopA(); topA != nil {
+		reqBody.TopA = topA
+	}
+	if minP := request.MinP(); minP != nil {
+		reqBody.MinP = minP
+	}
+}
+
+func applyOpenRouterPenalties(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if fp := request.FrequencyPenalty(); fp != nil {
+		reqBody.FrequencyPenalty = fp
+	}
+	if pp := request.PresencePenalty(); pp != nil {
+		reqBody.PresencePenalty = pp
+	}
+	if rp := request.RepetitionPenalty(); rp != nil {
+		reqBody.RepetitionPenalty = rp
+	}
+}
+
+func applyOpenRouterControlParams(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	if seed := request.Seed(); seed != nil {
+		reqBody.Seed = seed
+	}
+	if stop := request.Stop(); len(stop) > 0 {
+		reqBody.Stop = stop
+	}
+	if n := request.CandidateCount(); n != nil {
+		reqBody.N = n
+	}
+}
+
+func parseOpenRouterResponse(resp *http.Response) (string, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("OpenRouter API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	var openrouterResp openrouterResponse
 	if err := json.Unmarshal(body, &openrouterResp); err != nil {
 		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Check for API error
 	if openrouterResp.Error != nil {
 		return "", fmt.Errorf("OpenRouter API error: %s (type: %s, code: %s)",
 			openrouterResp.Error.Message,
@@ -212,7 +231,6 @@ func (g *openrouterGateway) GenerateContent(
 		)
 	}
 
-	// Extract content
 	if len(openrouterResp.Choices) == 0 {
 		return "", fmt.Errorf("no choices returned from OpenRouter API")
 	}

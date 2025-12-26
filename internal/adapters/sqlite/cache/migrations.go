@@ -4,6 +4,7 @@
 package cache
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -15,7 +16,9 @@ var Migrations = []migrations.Migration{
 	{
 		Version: 2,
 		Up: func(tx *sql.Tx) error {
-			_, err := tx.Exec(`
+			ctx := context.Background()
+
+			_, err := tx.ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS llm_cache (
 					key TEXT PRIMARY KEY,
 					value TEXT NOT NULL,
@@ -27,7 +30,7 @@ var Migrations = []migrations.Migration{
 			}
 
 			// Create index on created_at to optimize purge operations
-			_, err = tx.Exec(`
+			_, err = tx.ExecContext(ctx, `
 				CREATE INDEX IF NOT EXISTS idx_llm_cache_created_at
 				ON llm_cache(created_at);
 			`)

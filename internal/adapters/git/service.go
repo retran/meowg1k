@@ -5,6 +5,7 @@
 package git
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -49,7 +50,7 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 
 	finalArgs := append([]string{"-C", g.workspaceDir}, args...)
 	// #nosec G204 - git command with controlled arguments, not shell execution
-	cmd := exec.Command("git", finalArgs...)
+	cmd := exec.CommandContext(context.Background(), "git", finalArgs...)
 
 	out, err := cmd.Output()
 	if err != nil {

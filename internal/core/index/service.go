@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package index provides core indexing operations for documents and snapshots.
 package index
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Service coordinates index persistence and snapshot reconciliation.
 type Service struct {
 	indexRepo    ports.IndexRepository
 	snapshotRepo ports.SnapshotRepository
@@ -22,6 +24,7 @@ type Service struct {
 // Ensure Service implements the IndexService interface.
 var _ ports.IndexService = (*Service)(nil)
 
+// NewService creates a new index service.
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,
@@ -39,12 +42,14 @@ func NewService(
 	}, nil
 }
 
+// PrepareOutput contains files selected for indexing and lookup maps.
 type PrepareOutput struct {
 	ExistingVersions map[string]int64
 	ContentHashMap   map[string]string
 	FilesToProcess   []domainindex.FileToProcess
 }
 
+// PrepareForProcessing normalizes workspace state for indexing.
 func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
 	wsState, ok := workspaceState.(*scanworkspacestate.Output)
 	if !ok {
@@ -145,6 +150,7 @@ func (s *Service) prepareForProcessingImpl(
 	}, nil
 }
 
+// SaveVersionInput defines the payload for saving a new document version.
 type SaveVersionInput struct {
 	FilePath    string
 	Content     []byte
@@ -153,6 +159,7 @@ type SaveVersionInput struct {
 	Embeddings  []gateway.Embedding
 }
 
+// SaveVersionOutput reports the stored version ID.
 type SaveVersionOutput struct {
 	FilePath  string
 	VersionID int64
@@ -208,6 +215,7 @@ func (s *Service) saveNewVersionImpl(
 	}, nil
 }
 
+// FinalizeInput defines the payload for snapshot finalization.
 type FinalizeInput struct {
 	ScanResult       *scanworkspacestate.Output
 	ExistingVersions map[string]int64
@@ -283,7 +291,15 @@ func (s *Service) finalizeSnapshot(
 
 // isLikelyBinary checks if content appears to be binary (non-text) data.
 func isLikelyBinary(content []byte) bool {
-	return false // Simplified to always return true for this context
+	for _, b := range content {
+		if b == 0 {
+			return true
+		}
+		if b < 0x09 || (b > 0x0D && b < 0x20) {
+			return true
+		}
+	}
+	return false
 }
 
 // Interface wrapper methods for ports.IndexService

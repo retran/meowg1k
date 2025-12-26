@@ -65,55 +65,84 @@ import (
 
 // CreateCommitFlow creates a complete commit flow with all dependencies.
 func (c *Container) CreateCommitFlow() (executor.Flow, error) {
-	workspaceService := workspace.NewService(c.CommandService)
-	gitService, err := git.NewService(workspaceService)
+	services, err := c.buildCommitServices()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create git service: %w", err)
+		return nil, err
 	}
 
-	filterService, err := filter.NewService(c.ConfigService)
+	factories, err := buildCommitActivityFactories(services)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create filter service: %w", err)
+		return nil, err
 	}
 
-	providerService := provider.NewService()
-
-	modelService, err := model.NewService(c.ConfigService, providerService)
+	flowFactory, err := commitFlow.NewFactory(
+		factories.listStagedActivityFactory,
+		factories.listBranchFilesActivityFactory,
+		factories.applyFiltersActivityFactory,
+		factories.fetchAllDiffsFactory,
+		factories.fetchAllBranchDiffsFactory,
+		factories.summarizeAllFactory,
+		factories.composeCommitFactory,
+		factories.composeFlatCommitFactory,
+		services.commitConfigService,
+		c.CommandService,
+		c.OutputService,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create model service: %w", err)
+		return nil, fmt.Errorf("failed to create commit flow factory: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	return flowFactory.NewFlow(), nil
+}
+
+type commitServices struct {
+	gitService          *git.Service
+	filterService       *filter.Service
+	summarizeService    *summarize.Service
+	profileService      *profile.Service
+	commitConfigService *commit.Service
+	invokeLLMFactory    executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+}
+
+type commitActivityFactories struct {
+	listStagedActivityFactory      executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
+	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
+	fetchAllDiffsFactory           executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]
+	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
+	applyFiltersActivityFactory    executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
+	summarizeAllFactory            executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+	composeCommitFactory           executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+	composeFlatCommitFactory       executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
+}
+
+func (c *Container) buildCommitServices() (*commitServices, error) {
+	common, err := c.buildCommonFlowServices()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, err
 	}
 
-	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create summarize service: %w", err)
-	}
-
-	commitConfigService, err := commit.NewService(c.ConfigService, profileService)
+	commitConfigService, err := commit.NewService(c.ConfigService, common.profileService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
 
-	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, c.CommandService, c.GetHTTPClientService())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
-	}
+	return &commitServices{
+		gitService:          common.gitService,
+		filterService:       common.filterService,
+		summarizeService:    common.summarizeService,
+		profileService:      common.profileService,
+		commitConfigService: commitConfigService,
+		invokeLLMFactory:    common.invokeLLMFactory,
+	}, nil
+}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
-	}
-
-	listStagedActivityFactory, err := liststaged.NewFactory(gitService)
+func buildCommitActivityFactories(services *commitServices) (*commitActivityFactories, error) {
+	listStagedActivityFactory, err := liststaged.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list staged activity factory: %w", err)
 	}
 
-	fetchFileDiffActivityFactory, err := fetchfilediff.NewFactory(gitService)
+	fetchFileDiffActivityFactory, err := fetchfilediff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch file diff activity factory: %w", err)
 	}
@@ -123,26 +152,27 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create fetch all diffs factory: %w", err)
 	}
 
-	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
+	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
-	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
+	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
+
 	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
-	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
+	applyFiltersActivityFactory, err := applyfilters.NewFactory(services.filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
-	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
+	summarizeFileFactory, err := summarizefile.NewFactory(services.invokeLLMFactory, services.summarizeService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
@@ -152,34 +182,26 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
-	composeCommitFactory, err := composecommit.NewFactory(invokeLLMFactory)
+	composeCommitFactory, err := composecommit.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
 	}
 
-	composeFlatCommitFactory, err := composeflatcommit.NewFactory(invokeLLMFactory)
+	composeFlatCommitFactory, err := composeflatcommit.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose flat commit factory: %w", err)
 	}
 
-	flowFactory, err := commitFlow.NewFactory(
-		listStagedActivityFactory,
-		listBranchFilesActivityFactory,
-		applyFiltersActivityFactory,
-		fetchAllDiffsFactory,
-		fetchAllBranchDiffsFactory,
-		summarizeAllFactory,
-		composeCommitFactory,
-		composeFlatCommitFactory,
-		commitConfigService,
-		c.CommandService,
-		c.OutputService,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create commit flow factory: %w", err)
-	}
-
-	return flowFactory.NewFlow(), nil
+	return &commitActivityFactories{
+		listStagedActivityFactory:      listStagedActivityFactory,
+		listBranchFilesActivityFactory: listBranchFilesActivityFactory,
+		fetchAllDiffsFactory:           fetchAllDiffsFactory,
+		fetchAllBranchDiffsFactory:     fetchAllBranchDiffsFactory,
+		applyFiltersActivityFactory:    applyFiltersActivityFactory,
+		summarizeAllFactory:            summarizeAllFactory,
+		composeCommitFactory:           composeCommitFactory,
+		composeFlatCommitFactory:       composeFlatCommitFactory,
+	}, nil
 }
 
 // CreateGenerateFlow creates a complete generate flow with all dependencies.
@@ -239,6 +261,82 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 
 // CreatePullRequestFlow creates a complete pull request flow with all dependencies.
 func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
+	services, err := c.buildPullRequestServices()
+	if err != nil {
+		return nil, err
+	}
+
+	factories, err := buildPullRequestActivityFactories(services)
+	if err != nil {
+		return nil, err
+	}
+
+	flowFactory, err := pr.NewFactory(
+		factories.listBranchFilesActivityFactory,
+		factories.applyFiltersActivityFactory,
+		factories.fetchAllBranchDiffsFactory,
+		factories.summarizeAllFactory,
+		factories.composePRFactory,
+		factories.composeFlatPRFactory,
+		services.prConfigService,
+		c.CommandService,
+		c.OutputService,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pullrequest flow factory: %w", err)
+	}
+
+	return flowFactory.NewFlow(), nil
+}
+
+type pullRequestServices struct {
+	gitService       *git.Service
+	filterService    *filter.Service
+	summarizeService *summarize.Service
+	profileService   *profile.Service
+	prConfigService  *pullrequest.Service
+	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+}
+
+type pullRequestActivityFactories struct {
+	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
+	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
+	applyFiltersActivityFactory    executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
+	summarizeAllFactory            executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+	composePRFactory               executor.ActivityFactory[*composepr.Input, *composepr.Output]
+	composeFlatPRFactory           executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
+}
+
+func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
+	common, err := c.buildCommonFlowServices()
+	if err != nil {
+		return nil, err
+	}
+
+	prConfigService, err := pullrequest.NewService(c.ConfigService, common.profileService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PR config service: %w", err)
+	}
+
+	return &pullRequestServices{
+		gitService:       common.gitService,
+		filterService:    common.filterService,
+		summarizeService: common.summarizeService,
+		profileService:   common.profileService,
+		prConfigService:  prConfigService,
+		invokeLLMFactory: common.invokeLLMFactory,
+	}, nil
+}
+
+type commonFlowServices struct {
+	gitService       *git.Service
+	filterService    *filter.Service
+	summarizeService *summarize.Service
+	profileService   *profile.Service
+	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+}
+
+func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 	workspaceService := workspace.NewService(c.CommandService)
 	gitService, err := git.NewService(workspaceService)
 	if err != nil {
@@ -251,7 +349,6 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 	}
 
 	providerService := provider.NewService()
-
 	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
@@ -267,11 +364,6 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
 
-	prConfigService, err := pullrequest.NewService(c.ConfigService, profileService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PR config service: %w", err)
-	}
-
 	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, c.CommandService, c.GetHTTPClientService())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
@@ -282,13 +374,22 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
-	// Activities for branch diff mode
-	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(gitService)
+	return &commonFlowServices{
+		gitService:       gitService,
+		filterService:    filterService,
+		summarizeService: summarizeService,
+		profileService:   profileService,
+		invokeLLMFactory: invokeLLMFactory,
+	}, nil
+}
+
+func buildPullRequestActivityFactories(services *pullRequestServices) (*pullRequestActivityFactories, error) {
+	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
-	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(gitService)
+	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
@@ -298,13 +399,12 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
-	// Common activities
-	applyFiltersActivityFactory, err := applyfilters.NewFactory(filterService)
+	applyFiltersActivityFactory, err := applyfilters.NewFactory(services.filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
-	summarizeFileFactory, err := summarizefile.NewFactory(invokeLLMFactory, summarizeService)
+	summarizeFileFactory, err := summarizefile.NewFactory(services.invokeLLMFactory, services.summarizeService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
@@ -314,32 +414,24 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
-	composePRFactory, err := composepr.NewFactory(invokeLLMFactory)
+	composePRFactory, err := composepr.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose pullrequest factory: %w", err)
 	}
 
-	composeFlatPRFactory, err := composeflatpr.NewFactory(invokeLLMFactory)
+	composeFlatPRFactory, err := composeflatpr.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose flat pullrequest factory: %w", err)
 	}
 
-	flowFactory, err := pr.NewFactory(
-		listBranchFilesActivityFactory,
-		applyFiltersActivityFactory,
-		fetchAllBranchDiffsFactory,
-		summarizeAllFactory,
-		composePRFactory,
-		composeFlatPRFactory,
-		prConfigService,
-		c.CommandService,
-		c.OutputService,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create pullrequest flow factory: %w", err)
-	}
-
-	return flowFactory.NewFlow(), nil
+	return &pullRequestActivityFactories{
+		listBranchFilesActivityFactory: listBranchFilesActivityFactory,
+		fetchAllBranchDiffsFactory:     fetchAllBranchDiffsFactory,
+		applyFiltersActivityFactory:    applyFiltersActivityFactory,
+		summarizeAllFactory:            summarizeAllFactory,
+		composePRFactory:               composePRFactory,
+		composeFlatPRFactory:           composeFlatPRFactory,
+	}, nil
 }
 
 // CreateIndexReconcileFlow creates a complete index reconciliation flow with all dependencies.

@@ -67,7 +67,7 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		Level: slog.LevelInfo,
 	}))
 
-	shutdownService := shutdown.NewService(logger, ctx, 10*time.Second)
+	shutdownService := shutdown.NewService(ctx, logger, 10*time.Second)
 
 	commandService, err := command.NewService(cmd)
 	if err != nil {

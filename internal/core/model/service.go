@@ -15,21 +15,21 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// ProviderDefinitionResolver retrieves provider definitions.
-type ProviderDefinitionResolver interface {
-	Get(providerType provider.Provider) (provider.ProviderDefinition, error)
+// DefinitionResolver retrieves provider definitions.
+type DefinitionResolver interface {
+	Get(providerType provider.Provider) (provider.Definition, error)
 }
 
 // Service resolves and caches model configurations.
 type Service struct {
-	providerDefinitionResolver ProviderDefinitionResolver
+	providerDefinitionResolver DefinitionResolver
 	configResolver             ports.ConfigResolver
 	resolvedModels             map[model.Model]*model.ResolvedModel
 	mu                         sync.RWMutex
 }
 
 // NewService creates a new model resolver service.
-func NewService(configResolver ports.ConfigResolver, providerDefinitionResolver ProviderDefinitionResolver) (*Service, error) {
+func NewService(configResolver ports.ConfigResolver, providerDefinitionResolver DefinitionResolver) (*Service, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}

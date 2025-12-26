@@ -62,6 +62,21 @@ func (g *openaiGateway) GenerateContent(
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
+	params := buildOpenAIChatParams(request)
+
+	response, err := g.client.Chat.Completions.New(ctx, params)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("failed to generate content: no choices returned from OpenAI-compatible API for model %q", request.Model())
+	}
+
+	return response.Choices[0].Message.Content, nil
+}
+
+func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatCompletionNewParams {
 	params := openai.ChatCompletionNewParams{
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.SystemMessage(request.SystemPrompt()),
@@ -71,7 +86,17 @@ func (g *openaiGateway) GenerateContent(
 		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
 	}
 
-	// Set generation parameters if provided
+	applyOpenAISamplingParams(&params, request)
+	applyOpenAIResponseParams(&params, request)
+	applyOpenAICandidateParams(&params, request)
+	applyOpenAILogprobParams(&params, request)
+	applyOpenAILogitBias(&params, request)
+	applyOpenAISystemParams(&params, request)
+
+	return params
+}
+
+func applyOpenAISamplingParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if temperature := request.Temperature(); temperature != nil {
 		params.Temperature = openai.Float(*temperature)
 	}
@@ -97,37 +122,36 @@ func (g *openaiGateway) GenerateContent(
 			OfStringArray: stop,
 		}
 	}
+}
 
-	// ResponseFormat for structured outputs
-	// Note: The OpenAI SDK has different structures for ResponseFormat
-	// This would need specific SDK methods or types that may vary by SDK version
-	// For now, we document this as available but may need SDK-specific implementation
+func applyOpenAIResponseParams(_ *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if responseFormat := request.ResponseFormat(); responseFormat != nil {
-		// TODO: Implement ResponseFormat based on OpenAI SDK version
-		// The exact structure depends on the SDK being used
+		// TODO: Implement ResponseFormat based on OpenAI SDK version.
 		_ = responseFormat
 	}
 
-	// ResponseSchema may be used with response_format in OpenAI
 	if responseSchema := request.ResponseSchema(); responseSchema != nil {
-		// TODO: Implement ResponseSchema integration with ResponseFormat
+		// TODO: Implement ResponseSchema integration with ResponseFormat.
 		_ = responseSchema
 	}
+}
 
-	// Number of completions to generate
+func applyOpenAICandidateParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if candidateCount := request.CandidateCount(); candidateCount != nil {
 		params.N = openai.Int(int64(*candidateCount))
 	}
+}
 
-	// LogProbs parameters
+func applyOpenAILogprobParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if logProbs := request.LogProbs(); logProbs != nil && *logProbs {
 		params.Logprobs = openai.Bool(true)
 		if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
 			params.TopLogprobs = openai.Int(int64(*topLogProbs))
 		}
 	}
+}
 
-	// LogitBias for token likelihood modification
+func applyOpenAILogitBias(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if logitBias := request.LogitBias(); len(logitBias) > 0 {
 		biasMap := make(map[string]int64)
 		for k, v := range logitBias {
@@ -135,45 +159,29 @@ func (g *openaiGateway) GenerateContent(
 		}
 		params.LogitBias = biasMap
 	}
+}
 
-	// ServiceTier (e.g., "auto", "default")
+func applyOpenAISystemParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
 	if serviceTier := request.ServiceTier(); serviceTier != nil {
 		params.ServiceTier = openai.ChatCompletionNewParamsServiceTier(*serviceTier)
 	}
 
-	// User identifier for tracking
 	if user := request.User(); user != nil {
 		params.User = openai.String(*user)
 	}
 
-	// OpenRouter-specific parameters (also supported by some other providers)
-	// These will be passed through to the provider if supported
 	if repetitionPenalty := request.RepetitionPenalty(); repetitionPenalty != nil {
-		// Note: This is OpenRouter/Llama.cpp specific
-		// The OpenAI SDK may not have direct support, but it can be passed as extra params
-		_ = repetitionPenalty // TODO: Add as extra param if SDK supports it
+		// TODO: Add as extra param if SDK supports it.
+		_ = repetitionPenalty
 	}
 
 	if minP := request.MinP(); minP != nil {
-		// Note: This is OpenRouter/Llama.cpp specific
-		_ = minP // TODO: Add as extra param if SDK supports it
+		_ = minP // TODO: Add as extra param if SDK supports it.
 	}
 
 	if topA := request.TopA(); topA != nil {
-		// Note: This is OpenRouter specific
-		_ = topA // TODO: Add as extra param if SDK supports it
+		_ = topA // TODO: Add as extra param if SDK supports it.
 	}
-
-	response, err := g.client.Chat.Completions.New(ctx, params)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)
-	}
-
-	if len(response.Choices) == 0 {
-		return "", fmt.Errorf("failed to generate content: no choices returned from OpenAI-compatible API for model %q", request.Model())
-	}
-
-	return response.Choices[0].Message.Content, nil
 }
 
 // ComputeEmbeddings sends a request to the OpenAI-compatible API to compute embeddings for the given text chunks.

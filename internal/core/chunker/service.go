@@ -12,10 +12,12 @@ import (
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
 
+// Service selects chunking strategies based on file extensions.
 type Service struct {
 	strategies map[string]Strategy
 }
 
+// NewService creates a chunker service with default strategies.
 func NewService(maxChunkRunes, overlapRunes int) *Service {
 	plainTextStrategy := NewPlainTextStrategy(maxChunkRunes, overlapRunes)
 
@@ -28,6 +30,7 @@ func NewService(maxChunkRunes, overlapRunes int) *Service {
 	}
 }
 
+// Chunk splits file content into chunks using the matching strategy.
 func (s *Service) Chunk(content []byte, filePath string) ([]domainindex.ChunkData, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 

@@ -18,6 +18,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Factory builds index reconciliation flows.
 type Factory struct {
 	cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
 	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
@@ -31,6 +32,7 @@ type Factory struct {
 	batchSize                    int
 }
 
+// NewFactory creates a reconciliation flow factory.
 func NewFactory(
 	cleanupFactory executor.ActivityFactory[struct{}, struct{}],
 	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],
@@ -123,13 +125,13 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		cleanupActivity := f.cleanupFactory.NewActivity()
-		cleanupFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "Cleanup", cleanupActivity, struct{}{})
+		cleanupFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{})
 		if _, err := cleanupFuture.Get(ctx); err != nil {
 			return fmt.Errorf("cleanup failed: %w", err)
 		}
 
 		scanActivity := f.scanStateFactory.NewActivity()
-		scanFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ScanState", scanActivity, struct{}{})
+		scanFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
 		scanResult, err := scanFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("workspace scan failed: %w", err)
@@ -140,7 +142,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		deduplicateInput := &deduplicateandprepare.Input{
 			WorkspaceState: scanResult,
 		}
-		deduplicateFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
+		deduplicateFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
 		deduplicateResult, err := deduplicateFuture.Get(ctx)
 		if err != nil {
 			return fmt.Errorf("deduplication failed: %w", err)
@@ -156,7 +158,7 @@ func (f *Factory) NewFlow() executor.Flow {
 				StateName: "Deduplicated",
 				Files:     deduplicateResult.FilesToProcess,
 			}
-			chunkFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
+			chunkFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
 			chunkResults, err := chunkFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("chunking failed: %w", err)
@@ -169,7 +171,7 @@ func (f *Factory) NewFlow() executor.Flow {
 				ChunkResults: chunkResults,
 				BatchSize:    f.batchSize,
 			}
-			prepareBatchesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
+			prepareBatchesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
 			preparedBatches, err := prepareBatchesFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("batch preparation failed: %w", err)
@@ -181,7 +183,7 @@ func (f *Factory) NewFlow() executor.Flow {
 				StateName:       "Deduplicated",
 				PreparedBatches: preparedBatches,
 			}
-			computeFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
+			computeFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
 			embeddingResults, err := computeFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("embedding computation failed: %w", err)
@@ -193,7 +195,7 @@ func (f *Factory) NewFlow() executor.Flow {
 				StateName:        "Deduplicated",
 				EmbeddingResults: embeddingResults,
 			}
-			saveFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
+			saveFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
 			saveResults, err := saveFuture.Get(ctx)
 			if err != nil {
 				return fmt.Errorf("save failed: %w", err)
@@ -216,7 +218,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			ExistingVersions: deduplicateResult.ExistingVersions,
 			NewVersions:      newVersions,
 		}
-		finalizeSnapshotsFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
+		finalizeSnapshotsFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
 		if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
 			return fmt.Errorf("snapshots finalization failed: %w", err)
 		}
@@ -224,7 +226,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		// Step 5.1.7: Build vector indices
 		// Build HNSW indices for all three snapshots in parallel
 		buildVectorIndicesActivity := f.buildVectorIndicesFactory.NewActivity()
-		vectorIndicesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
+		vectorIndicesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
 		if _, err := vectorIndicesFuture.Get(ctx); err != nil {
 			return fmt.Errorf("vector indices build failed: %w", err)
 		}

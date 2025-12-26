@@ -154,7 +154,7 @@ func TestRepository_LargeValueStoredExternally(t *testing.T) {
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(`CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
 		t.Fatalf("failed to create table: %v", err)
 	}
 

@@ -56,12 +56,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", len(input.Changes)))
 
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
+
 		summarizeFutures := make([]*future.Future[*summarizefile.Output], 0, len(input.Changes))
 		for _, change := range input.Changes {
 			summarizeFile := f.fileSummarizationActivityFactory.NewActivity()
 			fut := executor.ExecuteActivity[*summarizefile.Input, *summarizefile.Output](
-				executorCtx.GetExecutor(),
 				ctx,
+				exec,
 				executorCtx,
 				change.Filename,
 				summarizeFile,

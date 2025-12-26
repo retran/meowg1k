@@ -20,7 +20,7 @@ import (
 
 var errMockProfileNotFound = errors.New("mock profile not found")
 
-// mockTaskParametersReader is a mock implementation of TaskParametersReader for testing.
+// mockTaskParametersReader is a mock implementation of ParametersReader for testing.
 type mockTaskParametersReader struct {
 	Err        error
 	TaskName   string

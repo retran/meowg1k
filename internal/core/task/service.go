@@ -14,8 +14,8 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// TaskParametersReader reads task parameters from command line.
-type TaskParametersReader interface {
+// ParametersReader reads task parameters from command line.
+type ParametersReader interface {
 	GetTaskName() (string, error)
 	GetUserPrompt() (string, error)
 }
@@ -101,7 +101,7 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 
 // NewService creates a new task configuration service.
 func NewService(
-	taskParametersReader TaskParametersReader,
+	taskParametersReader ParametersReader,
 	configResolver ports.ConfigResolver,
 	profileResolver ports.ProfileResolver,
 ) (*Service, error) {

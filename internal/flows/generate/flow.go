@@ -90,6 +90,11 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return fmt.Errorf("flow context is nil")
 		}
 
+		exec := flowCtx.GetExecutor()
+		if exec == nil {
+			return fmt.Errorf("executor not available in context")
+		}
+
 		task, err := f.taskConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to get task config: %w", err)
@@ -115,8 +120,8 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		}
 
 		future := executor.ExecuteActivity(
-			flowCtx.GetExecutor(),
 			ctx,
+			exec,
 			flowCtx,
 			"InvokeLLM",
 			activity,

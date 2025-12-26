@@ -69,6 +69,18 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 		return "", fmt.Errorf("request cannot be nil")
 	}
 
+	prompt := buildLlamaPrompt(request)
+	req := newLlamaCompletionRequest(prompt, request)
+
+	response, err := g.client.Complete(ctx, req)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
+	}
+
+	return response.Content, nil
+}
+
+func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	var promptBuilder strings.Builder
 
 	if request.SystemPrompt() != "" {
@@ -80,43 +92,61 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	promptBuilder.WriteString(userPromptStart)
 	promptBuilder.WriteString(request.UserPrompt())
 	promptBuilder.WriteString(userPromptEnd)
-
 	promptBuilder.WriteString(assistantStart)
 
-	prompt := promptBuilder.String()
+	return promptBuilder.String()
+}
 
+func newLlamaCompletionRequest(prompt string, request *gateway.GenerateContentRequest) *llama.CompletionRequest {
 	req := &llama.CompletionRequest{
 		Prompt:   prompt,
 		NPredict: -1,
 	}
 
-	// Set stop sequences - merge defaults with user-provided ones
+	applyLlamaStopSequences(req, request)
+	applyLlamaSamplingParams(req, request)
+	applyLlamaPenalties(req, request)
+	applyLlamaAdvancedParams(req, request)
+	applyLlamaResponseParams(req, request)
+	applyLlamaLogprobs(req, request)
+
+	return req
+}
+
+func applyLlamaStopSequences(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	defaultStops := []string{"<|endoftext|>", "<|im_end|>"}
 	if stop := request.Stop(); len(stop) > 0 {
 		req.Stop = append(defaultStops, stop...)
-	} else {
-		req.Stop = defaultStops
+		return
 	}
+	req.Stop = defaultStops
+}
 
-	// Set generation parameters if provided, otherwise use defaults
+func applyLlamaSamplingParams(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	if temperature := request.Temperature(); temperature != nil {
 		req.Temperature = *temperature
 	} else {
-		req.Temperature = 0.8 // default
+		req.Temperature = 0.8
 	}
 
 	if topK := request.TopK(); topK != nil {
 		req.TopK = *topK
 	} else {
-		req.TopK = 40 // default
+		req.TopK = 40
 	}
 
 	if topP := request.TopP(); topP != nil {
 		req.TopP = *topP
 	} else {
-		req.TopP = 0.95 // default
+		req.TopP = 0.95
 	}
 
+	if seed := request.Seed(); seed != nil {
+		req.Seed = *seed
+	}
+}
+
+func applyLlamaPenalties(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	if frequencyPenalty := request.FrequencyPenalty(); frequencyPenalty != nil {
 		req.FrequencyPenalty = *frequencyPenalty
 	}
@@ -125,15 +155,12 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 		req.PresencePenalty = *presencePenalty
 	}
 
-	if seed := request.Seed(); seed != nil {
-		req.Seed = *seed
-	}
-
-	// OpenRouter/Llama.cpp specific parameters
 	if repetitionPenalty := request.RepetitionPenalty(); repetitionPenalty != nil {
 		req.RepeatPenalty = *repetitionPenalty
 	}
+}
 
+func applyLlamaAdvancedParams(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	if minP := request.MinP(); minP != nil {
 		req.MinP = *minP
 	}
@@ -157,39 +184,26 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 	if grammar := request.Grammar(); grammar != nil {
 		req.Grammar = *grammar
 	}
+}
 
-	// Use JSONSchema if ResponseSchema is provided
+func applyLlamaResponseParams(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	if responseSchema := request.ResponseSchema(); responseSchema != nil {
 		req.JSONSchema = responseSchema
 	}
 
-	// Use LogitBias if provided
 	if logitBias := request.LogitBias(); len(logitBias) > 0 {
 		req.LogitBias = logitBias
 	}
+}
 
-	// Use NProbs for log probabilities if requested
+func applyLlamaLogprobs(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	if logProbs := request.LogProbs(); logProbs != nil && *logProbs {
 		if topLogProbs := request.TopLogProbs(); topLogProbs != nil {
 			req.NProbs = *topLogProbs
 		} else {
-			req.NProbs = 5 // default
+			req.NProbs = 5
 		}
 	}
-
-	// Note: Some parameters are not supported by llama.cpp completion API:
-	// - TopA: Not directly supported by llama.cpp
-	// - ResponseFormat: Would need custom implementation (but JSONSchema is supported)
-	// - CandidateCount: llama.cpp returns single completion
-	// - ServiceTier: Not applicable for local models
-	// - User: Not applicable for local models
-
-	response, err := g.client.Complete(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
-	}
-
-	return response.Content, nil
 }
 
 // ComputeEmbeddings computes embeddings for the provided chunks using the llama.cpp /embedding endpoint.

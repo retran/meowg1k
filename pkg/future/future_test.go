@@ -63,7 +63,7 @@ func TestFuture_TryGet(t *testing.T) {
 	future := NewFuture[int]()
 
 	// Try to get result before completion
-	result, err, ready := future.TryGet()
+	result, ready, err := future.TryGet()
 	if ready {
 		t.Fatal("Expected not ready")
 	}
@@ -78,7 +78,7 @@ func TestFuture_TryGet(t *testing.T) {
 	_ = future.Complete(123)
 
 	// Try to get result after completion
-	result, err, ready = future.TryGet()
+	result, ready, err = future.TryGet()
 	if !ready {
 		t.Fatal("Expected ready")
 	}
@@ -395,7 +395,7 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	f1 := NewFuture[string]()
 	f1.Complete("completed")
 
-	result, err, ok := f1.TryGet()
+	result, ok, err := f1.TryGet()
 	if !ok {
 		t.Error("Expected TryGet to return true for completed future")
 	}
@@ -411,7 +411,7 @@ func TestFutureTryGetEdgeCases(t *testing.T) {
 	testErr := errTestFuture
 	f2.CompleteWithError(testErr)
 
-	result2, err2, ok2 := f2.TryGet()
+	result2, ok2, err2 := f2.TryGet()
 	if !ok2 {
 		t.Error("Expected TryGet to return true for future with error")
 	}
@@ -573,7 +573,7 @@ func TestFutureZeroValue(t *testing.T) {
 		t.Error("Zero value future should not be done")
 	}
 
-	result, err, ok := f.TryGet()
+	result, ok, err := f.TryGet()
 	if ok {
 		t.Error("Zero value future TryGet should return false")
 	}

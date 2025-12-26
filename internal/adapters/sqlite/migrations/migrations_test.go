@@ -4,6 +4,7 @@
 package migrations
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -64,7 +65,7 @@ func TestRunMigrations_EmptyMigrations(t *testing.T) {
 
 	// Verify schema_versions table was created
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestRunMigrations_SingleMigration(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE test_table (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE test_table (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -99,7 +100,7 @@ func TestRunMigrations_SingleMigration(t *testing.T) {
 
 	// Verify migration was applied
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -109,7 +110,7 @@ func TestRunMigrations_SingleMigration(t *testing.T) {
 
 	// Verify table was created
 	var tableName string
-	err = db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='test_table'").Scan(&tableName)
+	err = db.QueryRowContext(context.Background(), "SELECT name FROM sqlite_master WHERE type='table' AND name='test_table'").Scan(&tableName)
 	if err != nil {
 		t.Fatalf("test_table was not created: %v", err)
 	}
@@ -128,14 +129,14 @@ func TestRunMigrations_MultipleMigrations(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE users (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
 		{
 			Version: 2,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE posts (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -148,7 +149,7 @@ func TestRunMigrations_MultipleMigrations(t *testing.T) {
 
 	// Verify final version
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestRunMigrations_MultipleMigrations(t *testing.T) {
 
 	// Verify both tables were created
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('users', 'posts')").Scan(&count)
+	err = db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('users', 'posts')").Scan(&count)
 	if err != nil {
 		t.Fatalf("failed to count tables: %v", err)
 	}
@@ -180,7 +181,7 @@ func TestRunMigrations_SkipsAppliedMigrations(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE users (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -196,14 +197,14 @@ func TestRunMigrations_SkipsAppliedMigrations(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE users (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
 		{
 			Version: 2,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE posts (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -216,7 +217,7 @@ func TestRunMigrations_SkipsAppliedMigrations(t *testing.T) {
 
 	// Verify final version
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -239,21 +240,21 @@ func TestRunMigrations_UnorderedMigrations(t *testing.T) {
 		{
 			Version: 3,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE comments (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE comments (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE users (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
 		{
 			Version: 2,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE posts (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -266,7 +267,7 @@ func TestRunMigrations_UnorderedMigrations(t *testing.T) {
 
 	// Verify final version
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -288,7 +289,7 @@ func TestRunMigrations_MigrationError(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE users (id INTEGER PRIMARY KEY)")
 				return err
 			},
 		},
@@ -296,7 +297,7 @@ func TestRunMigrations_MigrationError(t *testing.T) {
 			Version: 2,
 			Up: func(tx *sql.Tx) error {
 				// Intentional error: invalid SQL
-				_, err := tx.Exec("INVALID SQL STATEMENT")
+				_, err := tx.ExecContext(context.Background(), "INVALID SQL STATEMENT")
 				return err
 			},
 		},
@@ -309,7 +310,7 @@ func TestRunMigrations_MigrationError(t *testing.T) {
 
 	// Verify version is still 0 (transaction rolled back)
 	var version uint
-	err = db.QueryRow("SELECT version FROM schema_versions").Scan(&version)
+	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
 		t.Fatalf("failed to query schema version: %v", err)
 	}
@@ -353,7 +354,7 @@ func TestRunMigrations_InvalidDBPath(t *testing.T) {
 		{
 			Version: 1,
 			Up: func(tx *sql.Tx) error {
-				_, err := tx.Exec("CREATE TABLE test (id INTEGER)")
+				_, err := tx.ExecContext(context.Background(), "CREATE TABLE test (id INTEGER)")
 				return err
 			},
 		},
