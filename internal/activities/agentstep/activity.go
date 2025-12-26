@@ -17,6 +17,8 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+const stepPlan = "plan"
+
 // ToolRunner executes a tool call and returns a result.
 type ToolRunner interface {
 	RunTool(ctx context.Context, execCtx *executor.Context, tool, mode string, params json.RawMessage, profile *profile.ResolvedProfile, systemPrompt string) (*ToolResult, error)
@@ -84,7 +86,7 @@ func getStepDisplayName(stepName string) string {
 	switch strings.ToLower(stepName) {
 	case "research":
 		return "🧠 Researching..."
-	case "plan":
+	case stepPlan:
 		return "📝 Planning..."
 	case "execute":
 		return "🚀 Executing..."
@@ -105,7 +107,7 @@ func resolveStepName(stepConfig *agent.StepConfig) string {
 	return "unknown"
 }
 
-func (f *Factory) runStepLoop(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]toolSpec) (*Output, error) {
+func (f *Factory) runStepLoop(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]*ToolDescription) (*Output, error) {
 	toolResults := make([]*ToolResult, 0)
 	systemPrompt := stringValue(input.SystemPrompt)
 	goal := stringValue(input.Goal)
@@ -148,7 +150,7 @@ func validateInput(factory *Factory, input *Input) error {
 	return nil
 }
 
-func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]toolSpec, response *invokellm.Output) (*Output, *ToolResult, error) {
+func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]*ToolDescription, response *invokellm.Output) (*Output, *ToolResult, error) {
 	if len(response.ToolCalls) > 0 {
 		return handleToolCalls(ctx, execCtx, input, stepName, toolNameMap, response.ToolCalls)
 	}
@@ -180,21 +182,26 @@ func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input
 	}
 }
 
-func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolNameMap map[string]toolSpec, calls []gateway.ToolCall) (*Output, *ToolResult, error) {
+func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolNameMap map[string]*ToolDescription, calls []gateway.ToolCall) (*Output, *ToolResult, error) {
 	if len(calls) == 0 {
 		return nil, nil, fmt.Errorf("no tool calls provided")
 	}
 
 	// Execute tool calls sequentially
-	var combinedResults []map[string]interface{}
+	combinedResults := make([]map[string]interface{}, 0, len(calls))
 	for _, toolCall := range calls {
-		spec, ok := toolNameMap[strings.ToLower(toolCall.Name)]
+		toolDef, ok := toolNameMap[strings.ToLower(toolCall.Name)]
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown tool call %q", toolCall.Name)
 		}
-		if !input.StepConfig.AllowsToolMode(spec.Tool, spec.Mode) {
-			return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", spec.Tool, spec.Mode, stepName)
+		if !input.StepConfig.AllowsToolMode(toolDef.Tool, toolDef.Mode) {
+			return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", toolDef.Tool, toolDef.Mode, stepName)
 		}
+
+		// Send running status for this tool call
+		runningMsg := toolDef.GetRunningMessage(toolCall.Arguments)
+		execCtx.SendRunning(runningMsg)
+
 		args := toolCall.Arguments
 		if args == nil {
 			args = map[string]any{}
@@ -203,15 +210,19 @@ func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Inpu
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal tool call args for %q: %w", toolCall.Name, err)
 		}
-		result, err := input.ToolRunner.RunTool(ctx, execCtx, spec.Tool, spec.Mode, params, input.Profile, stringValue(input.SystemPrompt))
+		result, err := input.ToolRunner.RunTool(ctx, execCtx, toolDef.Tool, toolDef.Mode, params, input.Profile, stringValue(input.SystemPrompt))
 		if err != nil {
-			return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", spec.Tool, spec.Mode, err)
+			return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", toolDef.Tool, toolDef.Mode, err)
 		}
+
+		// Send completed status for this tool call
+		completedMsg := toolDef.GetCompletedMessage(result)
+		execCtx.SendCompleted(completedMsg)
 
 		// Accumulate results
 		toolResult := map[string]interface{}{
-			"tool":   spec.Tool,
-			"mode":   spec.Mode,
+			"tool":   toolDef.Tool,
+			"mode":   toolDef.Mode,
 			"result": result.Data,
 		}
 		combinedResults = append(combinedResults, toolResult)
@@ -329,19 +340,9 @@ func stringSliceValue(value *[]string) []string {
 	return *value
 }
 
-type toolSpec struct {
-	Tool string
-	Mode string
-}
-
-type toolSchema struct {
-	Parameters  map[string]any
-	Description string
-}
-
-func buildToolDefinitions(stepConfig *agent.StepConfig) (definitions []gateway.ToolDefinition, toolMap map[string]toolSpec) {
+func buildToolDefinitions(stepConfig *agent.StepConfig) (definitions []gateway.ToolDefinition, toolMap map[string]*ToolDescription) {
 	if stepConfig == nil || len(stepConfig.Tools) == 0 {
-		return nil, map[string]toolSpec{}
+		return nil, map[string]*ToolDescription{}
 	}
 
 	allowedTools := make(map[string]bool, len(stepConfig.Tools))
@@ -350,291 +351,24 @@ func buildToolDefinitions(stepConfig *agent.StepConfig) (definitions []gateway.T
 	}
 
 	definitions = make([]gateway.ToolDefinition, 0)
-	toolMap = make(map[string]toolSpec)
-	schemas := toolSchemas()
+	toolMap = make(map[string]*ToolDescription)
 
-	for tool, modes := range schemas {
-		if !allowedTools[tool] {
+	for toolName, toolModes := range toolRegistry {
+		if !allowedTools[toolName] {
 			continue
 		}
-
-		allowedModes := stepConfig.ToolModes[tool]
-		for mode, schema := range modes {
-			if len(allowedModes) > 0 && !allowedModes[mode] {
-				continue
-			}
-			name := strings.ToLower(fmt.Sprintf("%s_%s", tool, mode))
+		for modeName, toolDesc := range toolModes {
+			name := strings.ToLower(fmt.Sprintf("%s_%s", toolName, modeName))
+			toolMap[name] = toolDesc
 			definitions = append(definitions, gateway.ToolDefinition{
 				Name:        name,
-				Description: schema.Description,
-				Parameters:  schema.Parameters,
+				Description: toolDesc.Description,
+				Parameters:  toolDesc.Parameters,
 			})
-			toolMap[name] = toolSpec{Tool: tool, Mode: mode}
 		}
 	}
 
 	return definitions, toolMap
-}
-
-func toolSchemas() map[string]map[string]toolSchema {
-	return map[string]map[string]toolSchema{
-		"workspace": workspaceToolSchemas(),
-		"search":    searchToolSchemas(),
-		"git":       gitToolSchemas(),
-		"summarize": summarizeToolSchemas(),
-		"plan":      planToolSchemas(),
-		"memory":    memoryToolSchemas(),
-		"command":   commandToolSchemas(),
-		"patch":     patchToolSchemas(),
-	}
-}
-
-func workspaceToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"list": {
-			Description: "List workspace entries under a path.",
-			Parameters: schemaObject(map[string]any{
-				"path":          schemaString("Relative path to list."),
-				"depth":         schemaInteger("Maximum depth to traverse."),
-				"include_files": schemaBool("Whether to include files."),
-				"include_dirs":  schemaBool("Whether to include directories."),
-			}, nil),
-		},
-		"read": {
-			Description: "Read a file from the workspace.",
-			Parameters: schemaObject(map[string]any{
-				"path":       schemaString("Relative file path."),
-				"start_line": schemaInteger("Start line (1-based)."),
-				"end_line":   schemaInteger("End line (1-based)."),
-			}, []string{"path"}),
-		},
-		"write": {
-			Description: "Write content to a file in the workspace.",
-			Parameters: schemaObject(map[string]any{
-				"path":      schemaString("Relative file path."),
-				"content":   schemaString("File content."),
-				"create":    schemaBool("Create file if missing."),
-				"overwrite": schemaBool("Overwrite file if it exists."),
-			}, []string{"path", "content"}),
-		},
-		"replace": {
-			Description: "Replace text in a workspace file.",
-			Parameters: schemaObject(map[string]any{
-				"path":          schemaString("Relative file path."),
-				"old_text":      schemaString("Text to replace."),
-				"new_text":      schemaString("Replacement text."),
-				"occurrence":    schemaString("Replacement mode: all, first, single."),
-				"require_match": schemaBool("Require a match to succeed."),
-			}, []string{"path", "old_text", "new_text"}),
-		},
-		"delete": {
-			Description: "Delete a workspace file or directory.",
-			Parameters: schemaObject(map[string]any{
-				"path":      schemaString("Relative path to delete."),
-				"recursive": schemaBool("Allow recursive deletion for directories."),
-			}, []string{"path"}),
-		},
-		"mkdir": {
-			Description: "Create a workspace directory.",
-			Parameters: schemaObject(map[string]any{
-				"path":    schemaString("Relative path to create."),
-				"parents": schemaBool("Create parent directories."),
-			}, []string{"path"}),
-		},
-		"stat": {
-			Description: "Get file metadata for a workspace path.",
-			Parameters: schemaObject(map[string]any{
-				"path": schemaString("Relative path to stat."),
-			}, []string{"path"}),
-		},
-		"exists": {
-			Description: "Check whether a workspace path exists.",
-			Parameters: schemaObject(map[string]any{
-				"path": schemaString("Relative path to check."),
-			}, []string{"path"}),
-		},
-	}
-}
-
-func searchToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"embeddings": {
-			Description: "Search indexed workspace content.",
-			Parameters: schemaObject(map[string]any{
-				"query_text": schemaString("Search query text."),
-			}, []string{"query_text"}),
-		},
-	}
-}
-
-func gitToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"status": {
-			Description: "Get git status.",
-			Parameters:  schemaObject(map[string]any{}, nil),
-		},
-		"diff": {
-			Description: "Get git diff for a ref/path.",
-			Parameters: schemaObject(map[string]any{
-				"ref":  schemaString("Git ref."),
-				"path": schemaString("Optional path filter."),
-			}, nil),
-		},
-		"show": {
-			Description: "Show a git commit.",
-			Parameters: schemaObject(map[string]any{
-				"ref": schemaString("Git ref."),
-			}, nil),
-		},
-		"log": {
-			Description: "Show git log.",
-			Parameters: schemaObject(map[string]any{
-				"limit": schemaInteger("Maximum number of entries."),
-				"path":  schemaString("Optional path filter."),
-			}, nil),
-		},
-		"branch": {
-			Description: "List git branches.",
-			Parameters:  schemaObject(map[string]any{}, nil),
-		},
-		"current_branch": {
-			Description: "Get the current git branch.",
-			Parameters:  schemaObject(map[string]any{}, nil),
-		},
-		"stage": {
-			Description: "Stage git paths.",
-			Parameters: schemaObject(map[string]any{
-				"paths": schemaArray(schemaString("Path to stage.")),
-			}, []string{"paths"}),
-		},
-		"commit": {
-			Description: "Create a git commit.",
-			Parameters: schemaObject(map[string]any{
-				"message": schemaString("Commit message."),
-			}, []string{"message"}),
-		},
-	}
-}
-
-func summarizeToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"text": {
-			Description: "Summarize text content.",
-			Parameters: schemaObject(map[string]any{
-				"text": schemaString("Text to summarize."),
-			}, []string{"text"}),
-		},
-		"file": {
-			Description: "Summarize a workspace file.",
-			Parameters: schemaObject(map[string]any{
-				"path": schemaString("Relative file path."),
-			}, []string{"path"}),
-		},
-		"diff": {
-			Description: "Summarize a git diff.",
-			Parameters: schemaObject(map[string]any{
-				"ref":  schemaString("Git ref."),
-				"path": schemaString("Optional path filter."),
-			}, nil),
-		},
-	}
-}
-
-func planToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"add": {
-			Description: "Add a plan task.",
-			Parameters: schemaObject(map[string]any{
-				"text": schemaString("Task description."),
-			}, []string{"text"}),
-		},
-		"complete": {
-			Description: "Mark a plan task complete.",
-			Parameters: schemaObject(map[string]any{
-				"task_id": schemaInteger("Task ID."),
-			}, []string{"task_id"}),
-		},
-		"list": {
-			Description: "List plan tasks.",
-			Parameters:  schemaObject(map[string]any{}, nil),
-		},
-	}
-}
-
-func memoryToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"add": {
-			Description: "Add a memory note for later steps.",
-			Parameters: schemaObject(map[string]any{
-				"text": schemaString("Memory note to store."),
-			}, []string{"text"}),
-		},
-		"list": {
-			Description: "List stored memory notes.",
-			Parameters:  schemaObject(map[string]any{}, nil),
-		},
-	}
-}
-
-func commandToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"run": {
-			Description: "Run a shell command.",
-			Parameters: schemaObject(map[string]any{
-				"command": schemaString("Shell command to execute."),
-			}, []string{"command"}),
-		},
-	}
-}
-
-func patchToolSchemas() map[string]toolSchema {
-	return map[string]toolSchema{
-		"apply": {
-			Description: "Apply a unified diff patch.",
-			Parameters: schemaObject(map[string]any{
-				"diff": schemaString("Unified diff patch."),
-			}, []string{"diff"}),
-		},
-	}
-}
-
-func schemaObject(properties map[string]any, required []string) map[string]any {
-	schema := map[string]any{
-		"type":       "object",
-		"properties": properties,
-	}
-	if len(required) > 0 {
-		schema["required"] = required
-	}
-	return schema
-}
-
-func schemaString(description string) map[string]any {
-	return map[string]any{
-		"type":        "string",
-		"description": description,
-	}
-}
-
-func schemaInteger(description string) map[string]any {
-	return map[string]any{
-		"type":        "integer",
-		"description": description,
-	}
-}
-
-func schemaBool(description string) map[string]any {
-	return map[string]any{
-		"type":        "boolean",
-		"description": description,
-	}
-}
-
-func schemaArray(item map[string]any) map[string]any {
-	return map[string]any{
-		"type":  "array",
-		"items": item,
-	}
 }
 
 type agentResponse struct {

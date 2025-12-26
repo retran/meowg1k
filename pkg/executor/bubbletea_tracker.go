@@ -62,10 +62,8 @@ var (
 	styleRunning   = lipgloss.NewStyle().Foreground(lipgloss.Color("cyan"))
 	styleCompleted = lipgloss.NewStyle().Foreground(lipgloss.Color("green"))
 	styleFailed    = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
-	styleAgentStep = lipgloss.NewStyle().Foreground(lipgloss.Color("magenta")).Bold(true)
 	styleDuration  = lipgloss.NewStyle().Faint(true)
 	styleLLMBlock  = lipgloss.NewStyle().Faint(true).PaddingLeft(1).BorderLeft(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
-	styleIndent    = "  "
 )
 
 // NewBubbleTeaTracker creates a new Bubbletea-based progress tracker.
@@ -346,7 +344,13 @@ func (m *bubbleModel) View() string {
 
 	var sb strings.Builder
 
-	// Render completed/failed executions
+	m.renderCompletedExecutions(&sb)
+	m.renderDeepestRunningExecution(&sb)
+
+	return sb.String()
+}
+
+func (m *bubbleModel) renderCompletedExecutions(sb *strings.Builder) {
 	for _, name := range m.order {
 		exec, exists := m.executions[name]
 		if !exists || exec == nil || exec.Status == StatusRunning {
@@ -359,8 +363,9 @@ func (m *bubbleModel) View() string {
 			sb.WriteString("\n")
 		}
 	}
+}
 
-	// Show only the deepest running activity (most specific work being done)
+func (m *bubbleModel) renderDeepestRunningExecution(sb *strings.Builder) {
 	var deepestRunning *Execution
 	maxLevel := -1
 	for _, name := range m.order {
@@ -381,8 +386,6 @@ func (m *bubbleModel) View() string {
 			sb.WriteString("\n")
 		}
 	}
-
-	return sb.String()
 }
 
 func (m *bubbleModel) renderExecution(exec *Execution) string {
@@ -428,7 +431,7 @@ func (m *bubbleModel) renderExecution(exec *Execution) string {
 	return result.String()
 }
 
-// renderLLMResponse formats LLM response with proper markdown-like styling
+// renderLLMResponse formats LLM response with proper markdown-like styling.
 func (m *bubbleModel) renderLLMResponse(response string) string {
 	var result strings.Builder
 	maxWidth := m.width - 6 // Account for border and padding
@@ -471,7 +474,7 @@ func (m *bubbleModel) getIcon(exec *Execution) string {
 	}
 }
 
-// getHumanReadableName converts technical activity names to human-readable descriptions
+// getHumanReadableName converts technical activity names to human-readable descriptions.
 func getHumanReadableName(exec *Execution) string {
 	if exec == nil {
 		return ""
@@ -505,33 +508,6 @@ func (m *bubbleModel) getDuration(exec *Execution) string {
 	return styleDuration.Render(fmt.Sprintf(" (%s)", duration))
 }
 
-func (m *bubbleModel) isChildOfBatchOp(exec *Execution) bool {
-	if exec == nil || exec.ParentName == "" {
-		return false
-	}
-	_, exists := m.batchProgress[exec.ParentName]
-	return exists
-}
-
-func (m *bubbleModel) shouldAggregateToolCall(exec *Execution) bool {
-	if exec == nil || exec.ParentName == "" {
-		return false
-	}
-
-	name := exec.Name
-	if strings.Contains(name, "::Tool::") ||
-		strings.Contains(name, "memory.") ||
-		strings.Contains(name, "workspace.") ||
-		strings.Contains(name, "plan.") {
-		if exec.Status == StatusCompleted {
-			m.toolCallCount[exec.ParentName]++
-		}
-		return true
-	}
-
-	return false
-}
-
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
@@ -550,25 +526,6 @@ func copyExecutions(src map[string]*Execution) map[string]*Execution {
 }
 
 // Helper functions moved from old tracker
-
-func buildDisplayName(exec *Execution) string {
-	if exec == nil {
-		return ""
-	}
-
-	if exec.Result != "" {
-		return truncateString(exec.Result, maxMessageLength)
-	}
-	if exec.Message != "" {
-		return truncateString(exec.Message, maxMessageLength)
-	}
-
-	parts := strings.Split(exec.Name, "::")
-	if len(parts) == 0 {
-		return ""
-	}
-	return convertCamelToReadable(parts[len(parts)-1])
-}
 
 func sanitizeDescription(description string) string {
 	if description == "" {
@@ -621,51 +578,6 @@ func parseActivityHierarchy(activityName string) (parentName string, level int) 
 		parentName = strings.Join(parts[:level], "::")
 	}
 	return parentName, level
-}
-
-func isAgentStep(name string) bool {
-	return strings.Contains(name, "AgentStep") ||
-		strings.Contains(strings.ToLower(name), "agent step")
-}
-
-func isToolCall(name string) bool {
-	return strings.Contains(name, "::Tool::") ||
-		strings.Contains(name, "memory.") ||
-		strings.Contains(name, "workspace.") ||
-		strings.Contains(name, "plan.")
-}
-
-func formatAgentStepName(name string) string {
-	// Extract step type from messages like "Agent step: research"
-	if strings.Contains(name, "Agent step:") {
-		parts := strings.Split(name, ":")
-		if len(parts) >= 2 {
-			stepType := strings.TrimSpace(parts[1])
-			switch strings.ToLower(stepType) {
-			case "research":
-				return "🧠 Researching..."
-			case "plan":
-				return "📝 Planning..."
-			case "execute":
-				return "🚀 Executing..."
-			case "verify":
-				return "✅ Verifying..."
-			default:
-				return "🤖 " + strings.ToUpper(stepType[:1]) + stepType[1:] + "..."
-			}
-		}
-	}
-
-	// Handle completion messages
-	if strings.Contains(name, "completed:") || strings.Contains(name, "Completed:") {
-		parts := strings.Split(name, ":")
-		if len(parts) >= 2 {
-			stepType := strings.TrimSpace(parts[1])
-			return "Agent step completed: " + stepType
-		}
-	}
-
-	return name
 }
 
 // wordWrap wraps text to fit within the specified width.
