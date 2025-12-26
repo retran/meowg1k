@@ -48,7 +48,7 @@ func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Inpu
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning("Deduplicating files")
+		executorCtx.SendRunning("Deduplicating workspace files")
 
 		result, err := f.indexService.PrepareForProcessing(ctx, input.WorkspaceState)
 		if err != nil {

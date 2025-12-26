@@ -62,7 +62,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("topK must be positive, got %d", input.TopK)
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Searching: %q", input.QueryText))
+		executorCtx.SendRunning(fmt.Sprintf(
+			"Searching for %q (topK=%d, minScore=%.2f, snapshots=%d)",
+			input.QueryText,
+			input.TopK,
+			input.MinScore,
+			len(input.SnapshotPriority),
+		))
 
 		results, err := f.retrievalService.Search(
 			ctx,
@@ -75,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("%d results", len(results)))
+		executorCtx.SendCompleted(fmt.Sprintf("Found %d results (topK=%d)", len(results), input.TopK))
 
 		return &Output{
 			Results: results,

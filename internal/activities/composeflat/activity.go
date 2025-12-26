@@ -76,7 +76,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(f.activityName)
+		intentNote := ""
+		if strings.TrimSpace(input.Intent) != "" {
+			intentNote = " with intent"
+		}
+		executorCtx.SendRunning(fmt.Sprintf("%s from %d changes%s", f.activityName, len(input.Changes), intentNote))
 
 		if err := validateTokenBudget(input.Profile, input.Changes); err != nil {
 			return nil, err
@@ -93,7 +97,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to generate %s: %w", f.contentType, err)
 		}
 
-		executorCtx.SendCompleted("")
+		executorCtx.SendCompleted(fmt.Sprintf("Composed %s from %d changes%s", f.contentType, len(input.Changes), intentNote))
 
 		return &Output{
 			Content: invokeOutput.Content,

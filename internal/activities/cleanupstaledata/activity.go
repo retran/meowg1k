@@ -38,7 +38,7 @@ func NewFactory(snapshotRepo ports.SnapshotRepository, metaRepo ports.MetaReposi
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
-		executorCtx.SendRunning("Cleaning stale data")
+		executorCtx.SendRunning("Cleaning stale snapshot data")
 
 		if err := f.snapshotRepo.ClearSnapshotLinks(ctx, "_head_"); err != nil {
 			return struct{}{}, fmt.Errorf("failed to clear _head_ snapshot links: %w", err)
@@ -64,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to delete idx_dump_workdir: %w", err)
 		}
 
-		executorCtx.SendCompleted("Cleaned stale data")
+		executorCtx.SendCompleted("Cleaned stale snapshot data")
 		return struct{}{}, nil
 	}
 }

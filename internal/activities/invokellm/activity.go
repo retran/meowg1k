@@ -56,7 +56,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, err
 		}
 
-		executorCtx.SendRunning("Invoking LLM")
+		modelName := ""
+		if input.Profile != nil {
+			modelName = input.Profile.Model
+		}
+		if modelName == "" {
+			modelName = "unknown-model"
+		}
+		executorCtx.SendRunning(fmt.Sprintf("Invoking LLM (%s)", modelName))
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
@@ -71,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		metadata := map[string]any{}
 
-		executorCtx.SendCompleted("")
+		executorCtx.SendCompleted(fmt.Sprintf("LLM response received (%s)", modelName))
 
 		return &Output{
 			Content:   content,

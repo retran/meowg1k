@@ -34,7 +34,7 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (struct{}, error) {
-		executorCtx.SendRunning("Building indices")
+		executorCtx.SendRunning("Building vector indices")
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
@@ -58,7 +58,7 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to build _workdir_ index: %w", err)
 		}
 
-		executorCtx.SendCompleted("Indices ready")
+		executorCtx.SendCompleted("Vector indices ready")
 		return struct{}{}, nil
 	}
 }

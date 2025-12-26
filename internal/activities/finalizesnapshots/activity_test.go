@@ -86,7 +86,7 @@ func TestActivity(t *testing.T) {
             t.Fatalf("activity failed: %v", err)
         }
         // Use feedback handler instead of GetMessages()
-        if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "Finalized snapshots" {
+        if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "Finalized snapshots (existing: 1, new: 1)" {
             t.Errorf("unexpected completion message: %+v", feedbackMessages)
         }
     })

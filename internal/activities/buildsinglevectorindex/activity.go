@@ -33,13 +33,13 @@ func NewFactory(vectorIndexSvc ports.VectorIndexService) (executor.ActivityFacto
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[string, struct{}] {
 	return func(_ context.Context, executorCtx *executor.Context, snapshotName string) (struct{}, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Building index: %s", snapshotName))
+		executorCtx.SendRunning(fmt.Sprintf("Building index for %s", snapshotName))
 
 		if err := f.vectorIndexSvc.BuildAndSave(snapshotName); err != nil {
 			return struct{}{}, fmt.Errorf("failed to build vector index for %s: %w", snapshotName, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Built index: %s", snapshotName))
+		executorCtx.SendCompleted(fmt.Sprintf("Built index for %s", snapshotName))
 		return struct{}{}, nil
 	}
 }

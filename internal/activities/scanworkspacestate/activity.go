@@ -41,7 +41,7 @@ func NewFactory(projectStateSvc ports.ProjectStateService) (executor.ActivityFac
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[struct{}, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (*Output, error) {
-		executorCtx.SendRunning("Scanning workspace")
+		executorCtx.SendRunning("Scanning workspace state")
 
 		result := &Output{}
 
@@ -63,7 +63,7 @@ func (f *Factory) NewActivity() executor.Activity[struct{}, *Output] {
 		}
 		result.WorkdirState = workdirState
 
-		executorCtx.SendCompleted("Scanned workspace")
+		executorCtx.SendCompleted(fmt.Sprintf("Scanned workspace state: head=%d, stage=%d, workdir=%d", len(headState), len(stageState), len(workdirState)))
 		return result, nil
 	}
 }

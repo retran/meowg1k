@@ -141,10 +141,10 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Message != "Saving: test/file.go" {
+		if feedbackMessages[0].Message != "Saving document: test/file.go (1 chunks)" {
 			t.Errorf("unexpected running message: %s", feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Message != "Saved: test/file.go (1)" {
+		if feedbackMessages[1].Message != "Saved document: test/file.go (1 chunks)" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})
@@ -237,7 +237,7 @@ func TestActivity(t *testing.T) {
 		if output.FilePath != "test/empty.txt" {
 			t.Errorf("expected FilePath 'test/empty.txt', got '%s'", output.FilePath)
 		}
-		if feedbackMessages[1].Message != "Saved: test/empty.txt (0)" {
+		if feedbackMessages[1].Message != "Saved document: test/empty.txt (0 chunks)" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})
@@ -293,7 +293,7 @@ func TestActivity(t *testing.T) {
 		if output.VersionID != 789 {
 			t.Errorf("expected VersionID 789, got %d", output.VersionID)
 		}
-		if feedbackMessages[1].Message != "Saved: test/multi.go (2)" {
+		if feedbackMessages[1].Message != "Saved document: test/multi.go (2 chunks)" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})

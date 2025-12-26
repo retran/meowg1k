@@ -48,11 +48,12 @@ func NewFactory(fileIgnoreChecker FileIgnoreChecker) (executor.ActivityFactory[*
 // NewActivity creates and returns the ApplyFilters activity function.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning("Applying filters")
-
 		if input == nil {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
+
+		totalFiles := len(input.Files)
+		executorCtx.SendRunning(fmt.Sprintf("Filtering %d files", totalFiles))
 
 		filteredFiles := make([]string, 0, len(input.Files))
 
@@ -62,7 +63,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("%d files", len(filteredFiles)))
+		executorCtx.SendCompleted(fmt.Sprintf("Kept %d of %d files", len(filteredFiles), totalFiles))
 
 		return &Output{
 			Files: filteredFiles,

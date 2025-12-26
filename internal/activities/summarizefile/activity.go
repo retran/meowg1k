@@ -78,10 +78,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get summarization config for %s: %w", input.Filename, err)
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Summarizing %s", input.Filename))
+		executorCtx.SendRunning(fmt.Sprintf("Summarizing changes in %s", input.Filename))
 
 		if config == nil || config.Skip {
-			executorCtx.SendCompleted("Skipped")
+			executorCtx.SendCompleted(fmt.Sprintf("Skipped: %s", input.Filename))
 			return buildSkippedOutput(input.Filename), nil
 		}
 
@@ -96,7 +96,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)
 		}
 
-		executorCtx.SendCompleted(input.Filename)
+		executorCtx.SendCompleted(fmt.Sprintf("Summarized: %s", input.Filename))
 
 		return &Output{
 			Filename: input.Filename,

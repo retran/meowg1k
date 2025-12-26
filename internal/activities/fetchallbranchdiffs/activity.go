@@ -54,7 +54,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
+		executorCtx.SendRunning(fmt.Sprintf("Fetching diffs for %d files vs %s", len(input.Files), input.TargetBranch))
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
@@ -81,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			changes = append(changes, change)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs", len(changes)))
+		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diffs vs %s", len(changes), input.TargetBranch))
 
 		return &Output{
 			Changes: changes,

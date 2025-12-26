@@ -54,10 +54,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		totalChanges := len(input.Changes)
-		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", totalChanges))
+		executorCtx.SendRunning(fmt.Sprintf("Summarizing changes in %d files", totalChanges))
 
 		if totalChanges == 0 {
-			executorCtx.SendCompleted("Summarized 0 files")
+			executorCtx.SendCompleted("Summarized changes in 0 files")
 			return &Output{Summaries: []*summarizefile.Output{}}, nil
 		}
 
@@ -88,7 +88,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			summaries = append(summaries, summary)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Summarized %d files", len(summaries)))
+		executorCtx.SendCompleted(fmt.Sprintf("Summarized changes in %d files", len(summaries)))
 
 		return &Output{
 			Summaries: summaries,

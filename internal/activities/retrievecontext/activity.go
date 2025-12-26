@@ -62,7 +62,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("topK must be positive, got %d", input.TopK)
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Retrieving context for: %q", input.QueryText))
+		executorCtx.SendRunning(fmt.Sprintf(
+			"Retrieving context for %q (topK=%d, minScore=%.2f, snapshots=%d)",
+			input.QueryText,
+			input.TopK,
+			input.MinScore,
+			len(input.SnapshotPriority),
+		))
 
 		retrievedContext, err := f.retrievalService.RetrieveContext(
 			ctx,
@@ -76,9 +82,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		if retrievedContext == "" {
-			executorCtx.SendCompleted("No context found")
+			executorCtx.SendCompleted(fmt.Sprintf("No context found (topK=%d)", input.TopK))
 		} else {
-			executorCtx.SendCompleted("Context retrieved")
+			executorCtx.SendCompleted(fmt.Sprintf("Context retrieved (topK=%d)", input.TopK))
 		}
 
 		return &Output{

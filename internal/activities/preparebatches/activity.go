@@ -48,20 +48,19 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		totalChunks := len(input.ChunkResults.AllChunkTexts)
 
-		executorCtx.SendRunning(fmt.Sprintf("Preparing batches: %d chunks (%s)", totalChunks, input.StateName))
+		batchSize := input.BatchSize
+		if batchSize <= 0 {
+			batchSize = totalChunks
+		}
+		executorCtx.SendRunning(fmt.Sprintf("Preparing %d chunks in batches of %d (%s)", totalChunks, batchSize, input.StateName))
 
 		if totalChunks == 0 {
-			executorCtx.SendCompleted("No chunks")
+			executorCtx.SendCompleted(fmt.Sprintf("No chunks for %s", input.StateName))
 			return &Output{
 				StateName:    input.StateName,
 				ChunkResults: input.ChunkResults,
 				Batches:      []Batch{},
 			}, nil
-		}
-
-		batchSize := input.BatchSize
-		if batchSize <= 0 {
-			batchSize = totalChunks
 		}
 
 		numBatches := (totalChunks + batchSize - 1) / batchSize
@@ -80,7 +79,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			})
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d batches (%s)", numBatches, input.StateName))
+		executorCtx.SendCompleted(fmt.Sprintf("Prepared %d batches of up to %d (%s)", numBatches, batchSize, input.StateName))
 
 		return &Output{
 			StateName:    input.StateName,

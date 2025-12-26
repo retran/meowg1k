@@ -58,7 +58,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning("Composing commit message")
+		executorCtx.SendRunning(fmt.Sprintf("Composing commit message from %d summaries", len(input.Summaries)))
 
 		content := buildCommitPrompt(input.Summaries, input.Intent)
 
@@ -71,7 +71,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to generate commit message: %w", err)
 		}
 
-		executorCtx.SendCompleted("")
+		executorCtx.SendCompleted(fmt.Sprintf("Composed commit message from %d summaries", len(input.Summaries)))
 
 		return &Output{
 			CommitMessage: invokeOutput.Content,
