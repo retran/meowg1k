@@ -34,13 +34,13 @@ func TestActivity(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
 		chunkResults        *chunkallfiles.Output
+		name                string
+		expectedErrorSubstr string
+		expectedLastBatch   Batch
 		batchSize           int
 		expectedNumBatches  int
-		expectedLastBatch   Batch
 		expectError         bool
-		expectedErrorSubstr string
 	}{
 		{
 			name: "should process chunks and create batches",

@@ -79,7 +79,11 @@ func (s *Service) GetConfigPath() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("config")
+	val, err := s.cmd.Flags().GetString("config")
+	if err != nil {
+		return "", fmt.Errorf("failed to get config flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetWorkspacePath retrieves the workspace path from command flags.
@@ -92,7 +96,11 @@ func (s *Service) GetWorkspacePath() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("workspace")
+	val, err := s.cmd.Flags().GetString("workspace")
+	if err != nil {
+		return "", fmt.Errorf("failed to get workspace flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetTaskName retrieves the task name from command flags.
@@ -105,7 +113,11 @@ func (s *Service) GetTaskName() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("task")
+	val, err := s.cmd.Flags().GetString("task")
+	if err != nil {
+		return "", fmt.Errorf("failed to get task flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetUserPrompt retrieves the user prompt from command flags.
@@ -118,7 +130,11 @@ func (s *Service) GetUserPrompt() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("user-prompt")
+	val, err := s.cmd.Flags().GetString("user-prompt")
+	if err != nil {
+		return "", fmt.Errorf("failed to get user-prompt flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetSilentFlag retrieves the silent flag from command flags.
@@ -131,7 +147,11 @@ func (s *Service) GetSilentFlag() (bool, error) {
 		return false, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetBool("silent")
+	val, err := s.cmd.Flags().GetBool("silent")
+	if err != nil {
+		return false, fmt.Errorf("failed to get silent flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetIntentFlag retrieves the intent flag from command flags.
@@ -144,7 +164,11 @@ func (s *Service) GetIntentFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("intent")
+	val, err := s.cmd.Flags().GetString("intent")
+	if err != nil {
+		return "", fmt.Errorf("failed to get intent flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetTargetBranchFlag retrieves the target-branch flag from command flags.
@@ -157,7 +181,11 @@ func (s *Service) GetTargetBranchFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("target-branch")
+	val, err := s.cmd.Flags().GetString("target-branch")
+	if err != nil {
+		return "", fmt.Errorf("failed to get target-branch flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetBaseBranchFlag retrieves the base-branch flag from command flags.
@@ -170,7 +198,11 @@ func (s *Service) GetBaseBranchFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("base")
+	val, err := s.cmd.Flags().GetString("base")
+	if err != nil {
+		return "", fmt.Errorf("failed to get base flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetStdIn retrieves the standard input sent to the command.
@@ -192,7 +224,11 @@ func (s *Service) GetNoCacheFlag() (bool, error) {
 		return false, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetBool("no-cache")
+	val, err := s.cmd.Flags().GetBool("no-cache")
+	if err != nil {
+		return false, fmt.Errorf("failed to get no-cache flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetUpdateCacheFlag retrieves the update-cache flag from command flags.
@@ -205,7 +241,11 @@ func (s *Service) GetUpdateCacheFlag() (bool, error) {
 		return false, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetBool("update-cache")
+	val, err := s.cmd.Flags().GetBool("update-cache")
+	if err != nil {
+		return false, fmt.Errorf("failed to get update-cache flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetQueryTextFlag retrieves the query text from command arguments or stdin.
@@ -242,7 +282,11 @@ func (s *Service) GetSnapshotsFlag() ([]string, error) {
 		return nil, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetStringSlice("snapshots")
+	val, err := s.cmd.Flags().GetStringSlice("snapshots")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshots flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetTopKFlag retrieves the top-k flag from command flags.
@@ -255,7 +299,11 @@ func (s *Service) GetTopKFlag() (int, error) {
 		return 0, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetInt("top-k")
+	val, err := s.cmd.Flags().GetInt("top-k")
+	if err != nil {
+		return 0, fmt.Errorf("failed to get top-k flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetMinScoreFlag retrieves the min-score flag from command flags.
@@ -270,14 +318,14 @@ func (s *Service) GetMinScoreFlag() (float32, error) {
 
 	val, err := s.cmd.Flags().GetFloat32("min-score")
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to get min-score flag: %w", err)
 	}
 
 	return val, nil
 }
 
-// GetJsonFlag retrieves the json flag from command flags.
-func (s *Service) GetJsonFlag() (bool, error) {
+// GetJSONFlag retrieves the json flag from command flags.
+func (s *Service) GetJSONFlag() (bool, error) {
 	if s == nil {
 		return false, fmt.Errorf("command service is nil")
 	}
@@ -286,7 +334,11 @@ func (s *Service) GetJsonFlag() (bool, error) {
 		return false, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetBool("json")
+	val, err := s.cmd.Flags().GetBool("json")
+	if err != nil {
+		return false, fmt.Errorf("failed to get json flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetQuestionFlag retrieves the question from command arguments or stdin.
@@ -323,7 +375,11 @@ func (s *Service) GetProfileFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("profile")
+	val, err := s.cmd.Flags().GetString("profile")
+	if err != nil {
+		return "", fmt.Errorf("failed to get profile flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetShowContextFlag retrieves the show-context flag from command flags.
@@ -336,7 +392,11 @@ func (s *Service) GetShowContextFlag() (bool, error) {
 		return false, fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetBool("show-context")
+	val, err := s.cmd.Flags().GetBool("show-context")
+	if err != nil {
+		return false, fmt.Errorf("failed to get show-context flag: %w", err)
+	}
+	return val, nil
 }
 
 // GetSystemPromptFlag retrieves the system-prompt flag from command flags.
@@ -349,5 +409,9 @@ func (s *Service) GetSystemPromptFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	return s.cmd.Flags().GetString("system-prompt")
+	val, err := s.cmd.Flags().GetString("system-prompt")
+	if err != nil {
+		return "", fmt.Errorf("failed to get system-prompt flag: %w", err)
+	}
+	return val, nil
 }

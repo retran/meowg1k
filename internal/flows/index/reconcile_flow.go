@@ -15,9 +15,11 @@ import (
 	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
 	"github.com/retran/meowg1k/internal/activities/preparebatches"
 	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
+	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Factory builds index reconciliation flows.
 type Factory struct {
 	cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
 	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
@@ -31,6 +33,7 @@ type Factory struct {
 	batchSize                    int
 }
 
+// NewFactory creates a reconciliation flow factory.
 func NewFactory(
 	cleanupFactory executor.ActivityFactory[struct{}, struct{}],
 	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],
@@ -103,134 +106,190 @@ func NewFactory(
 // 100% consistency by rebuilding all snapshots and vector indices from scratch.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		if f == nil {
-			return fmt.Errorf("factory is nil")
-		}
-
-		if ctx == nil {
-			return fmt.Errorf("context is nil")
-		}
-
-		if flowCtx == nil {
-			return fmt.Errorf("flow context is nil")
-		}
-
 		flowCtx.SendRunning("Starting index reconciliation")
 
-		exec := flowCtx.GetExecutor()
-		if exec == nil {
-			return fmt.Errorf("executor not available in flow context")
-		}
-
-		cleanupActivity := f.cleanupFactory.NewActivity()
-		cleanupFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "Cleanup", cleanupActivity, struct{}{})
-		if _, err := cleanupFuture.Get(ctx); err != nil {
-			return fmt.Errorf("cleanup failed: %w", err)
-		}
-
-		scanActivity := f.scanStateFactory.NewActivity()
-		scanFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ScanState", scanActivity, struct{}{})
-		scanResult, err := scanFuture.Get(ctx)
+		exec, err := f.validateFlowContext(ctx, flowCtx)
 		if err != nil {
-			return fmt.Errorf("workspace scan failed: %w", err)
+			return err
 		}
 
-		flowCtx.SendRunning("Deduplicating files")
-		deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
-		deduplicateInput := &deduplicateandprepare.Input{
-			WorkspaceState: scanResult,
+		if err := f.runCleanup(ctx, flowCtx, exec); err != nil {
+			return err
 		}
-		deduplicateFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
-		deduplicateResult, err := deduplicateFuture.Get(ctx)
+
+		scanResult, err := f.runScan(ctx, flowCtx, exec)
 		if err != nil {
-			return fmt.Errorf("deduplication failed: %w", err)
+			return err
 		}
 
-		var newVersions map[string]int64
-		if len(deduplicateResult.FilesToProcess) > 0 {
-			flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files", len(deduplicateResult.FilesToProcess)))
-
-			// Phase 1: Chunk all unique files
-			chunkActivity := f.chunkAllFilesFactory.NewActivity()
-			chunkInput := &chunkallfiles.Input{
-				StateName: "Deduplicated",
-				Files:     deduplicateResult.FilesToProcess,
-			}
-			chunkFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
-			chunkResults, err := chunkFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("chunking failed: %w", err)
-			}
-
-			// Phase 2a: Prepare batches
-			prepareBatchesActivity := f.prepareBatchesFactory.NewActivity()
-			prepareBatchesInput := &preparebatches.Input{
-				StateName:    "Deduplicated",
-				ChunkResults: chunkResults,
-				BatchSize:    f.batchSize,
-			}
-			prepareBatchesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
-			preparedBatches, err := prepareBatchesFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("batch preparation failed: %w", err)
-			}
-
-			// Phase 2b: Compute embeddings for all batches (rate limiter controls concurrency)
-			computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
-			computeInput := &computeallembeddings.Input{
-				StateName:       "Deduplicated",
-				PreparedBatches: preparedBatches,
-			}
-			computeFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
-			embeddingResults, err := computeFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("embedding computation failed: %w", err)
-			}
-
-			// Phase 3: Distribute embeddings and save unique documents
-			saveActivity := f.distributeAndSaveFactory.NewActivity()
-			saveInput := &distributeandsave.Input{
-				StateName:        "Deduplicated",
-				EmbeddingResults: embeddingResults,
-			}
-			saveFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
-			saveResults, err := saveFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("save failed: %w", err)
-			}
-
-			newVersions = saveResults.VersionMap
-		} else {
-			// No new files to process
-			newVersions = make(map[string]int64)
-			flowCtx.SendRunning("No new files to process - all files already indexed")
+		deduplicateResult, err := f.runDeduplicate(ctx, flowCtx, exec, scanResult)
+		if err != nil {
+			return err
 		}
 
-		// Step 5.1.5: Finalize snapshots
-		// Combine existing versions with newly created versions and build snapshots
-		flowCtx.SendRunning("Finalizing snapshots...")
-
-		finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
-		finalizeInput := &finalizesnapshots.Input{
-			ScanResult:       scanResult,
-			ExistingVersions: deduplicateResult.ExistingVersions,
-			NewVersions:      newVersions,
-		}
-		finalizeSnapshotsFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
-		if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
-			return fmt.Errorf("snapshots finalization failed: %w", err)
+		newVersions, err := f.processNewFiles(ctx, flowCtx, exec, deduplicateResult.FilesToProcess)
+		if err != nil {
+			return err
 		}
 
-		// Step 5.1.7: Build vector indices
-		// Build HNSW indices for all three snapshots in parallel
-		buildVectorIndicesActivity := f.buildVectorIndicesFactory.NewActivity()
-		vectorIndicesFuture := executor.ExecuteActivity(exec, ctx, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
-		if _, err := vectorIndicesFuture.Get(ctx); err != nil {
-			return fmt.Errorf("vector indices build failed: %w", err)
+		if err := f.finalizeSnapshots(ctx, flowCtx, exec, scanResult, deduplicateResult.ExistingVersions, newVersions); err != nil {
+			return err
+		}
+
+		if err := f.buildVectorIndices(ctx, flowCtx, exec); err != nil {
+			return err
 		}
 
 		// Step 5.1.8: Flow completion
 		flowCtx.SendCompleted("Index reconciliation complete")
 		return nil
 	}
+}
+
+func (f *Factory) validateFlowContext(ctx context.Context, flowCtx *executor.Context) (executor.Executor, error) {
+	if f == nil {
+		return nil, fmt.Errorf("factory is nil")
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if flowCtx == nil {
+		return nil, fmt.Errorf("flow context is nil")
+	}
+	exec := flowCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in flow context")
+	}
+	return exec, nil
+}
+
+func (f *Factory) runCleanup(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
+	cleanupActivity := f.cleanupFactory.NewActivity()
+	cleanupFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{})
+	if _, err := cleanupFuture.Get(ctx); err != nil {
+		return fmt.Errorf("cleanup failed: %w", err)
+	}
+	return nil
+}
+
+func (f *Factory) runScan(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) (*scanworkspacestate.Output, error) {
+	scanActivity := f.scanStateFactory.NewActivity()
+	scanFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
+	scanResult, err := scanFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("workspace scan failed: %w", err)
+	}
+	return scanResult, nil
+}
+
+func (f *Factory) runDeduplicate(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	scanResult *scanworkspacestate.Output,
+) (*deduplicateandprepare.Output, error) {
+	flowCtx.SendRunning("Deduplicating files")
+	deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
+	deduplicateInput := &deduplicateandprepare.Input{
+		WorkspaceState: scanResult,
+	}
+	deduplicateFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
+	deduplicateResult, err := deduplicateFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("deduplication failed: %w", err)
+	}
+	return deduplicateResult, nil
+}
+
+func (f *Factory) processNewFiles(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	filesToProcess []domainindex.FileToProcess,
+) (map[string]int64, error) {
+	if len(filesToProcess) == 0 {
+		flowCtx.SendRunning("No new files to process - all files already indexed")
+		return make(map[string]int64), nil
+	}
+
+	flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files", len(filesToProcess)))
+
+	chunkActivity := f.chunkAllFilesFactory.NewActivity()
+	chunkInput := &chunkallfiles.Input{
+		StateName: "Deduplicated",
+		Files:     filesToProcess,
+	}
+	chunkFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
+	chunkResults, err := chunkFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("chunking failed: %w", err)
+	}
+
+	prepareBatchesActivity := f.prepareBatchesFactory.NewActivity()
+	prepareBatchesInput := &preparebatches.Input{
+		StateName:    "Deduplicated",
+		ChunkResults: chunkResults,
+		BatchSize:    f.batchSize,
+	}
+	prepareBatchesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
+	preparedBatches, err := prepareBatchesFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("batch preparation failed: %w", err)
+	}
+
+	computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
+	computeInput := &computeallembeddings.Input{
+		StateName:       "Deduplicated",
+		PreparedBatches: preparedBatches,
+	}
+	computeFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
+	embeddingResults, err := computeFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("embedding computation failed: %w", err)
+	}
+
+	saveActivity := f.distributeAndSaveFactory.NewActivity()
+	saveInput := &distributeandsave.Input{
+		StateName:        "Deduplicated",
+		EmbeddingResults: embeddingResults,
+	}
+	saveFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
+	saveResults, err := saveFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("save failed: %w", err)
+	}
+
+	return saveResults.VersionMap, nil
+}
+
+func (f *Factory) finalizeSnapshots(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	scanResult *scanworkspacestate.Output,
+	existingVersions map[string]int64,
+	newVersions map[string]int64,
+) error {
+	flowCtx.SendRunning("Finalizing snapshots...")
+
+	finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
+	finalizeInput := &finalizesnapshots.Input{
+		ScanResult:       scanResult,
+		ExistingVersions: existingVersions,
+		NewVersions:      newVersions,
+	}
+	finalizeSnapshotsFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
+	if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
+		return fmt.Errorf("snapshots finalization failed: %w", err)
+	}
+	return nil
+}
+
+func (f *Factory) buildVectorIndices(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
+	buildVectorIndicesActivity := f.buildVectorIndicesFactory.NewActivity()
+	vectorIndicesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
+	if _, err := vectorIndicesFuture.Get(ctx); err != nil {
+		return fmt.Errorf("vector indices build failed: %w", err)
+	}
+	return nil
 }

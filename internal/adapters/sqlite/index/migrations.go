@@ -4,6 +4,7 @@
 package index
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -15,7 +16,9 @@ var Migrations = []migrations.Migration{
 	{
 		Version: 1,
 		Up: func(tx *sql.Tx) error {
-			_, err := tx.Exec(`
+			ctx := context.Background()
+
+			_, err := tx.ExecContext(ctx, `
 				CREATE TABLE content_blobs (
 					content_hash TEXT PRIMARY KEY,
 					content BLOB NOT NULL
@@ -56,7 +59,7 @@ var Migrations = []migrations.Migration{
 				return fmt.Errorf("failed to create RAG schema tables: %w", err)
 			}
 
-			_, err = tx.Exec(`
+			_, err = tx.ExecContext(ctx, `
 				CREATE INDEX idx_document_versions_path ON document_versions (file_path);
 				CREATE INDEX idx_document_versions_path_commit ON document_versions (file_path, git_commit_hash_first_seen);
 				CREATE INDEX idx_chunks_document_version_id ON chunks (document_version_id);

@@ -4,9 +4,6 @@
 package cmd
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -36,31 +33,10 @@ You can provide your intent or context in two ways:
    echo "Add payment integration with Stripe" | meow pr --base main
 
 The intent will be included in the prompt to help generate a more accurate PR description.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
-
-		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || container == nil {
-			return fmt.Errorf("application not initialized")
-		}
-
-		flow, err := container.CreatePullRequestFlow()
-		if err != nil {
-			return fmt.Errorf("failed to create pull request flow: %w", err)
-		}
-
-		concurrency := runtime.NumCPU() * 2
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
-		if err != nil {
-			return fmt.Errorf("failed to create flow runner: %w", err)
-		}
-
-		silent, err := container.CommandService.GetSilentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get command silent flag: %w", err)
-		}
-
-		return orchestrator.Execute(ctx, "PullRequestFlow", flow, silent)
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return runFlowCommand(cmd, "PullRequestFlow", func(container *app.Container) (executor.Flow, error) {
+			return container.CreatePullRequestFlow()
+		})
 	},
 }
 
@@ -68,5 +44,5 @@ func init() {
 	rootCmd.AddCommand(prCmd)
 	prCmd.Flags().StringP("intent", "i", "", "Developer intent for the Pull Request (can also be provided via stdin)")
 	prCmd.Flags().StringP("base", "b", "", "Base branch to compare against (required)")
-	_ = prCmd.MarkFlagRequired("base")
+	_ = prCmd.MarkFlagRequired("base") //nolint:errcheck // Flag definition errors are caught at startup
 }

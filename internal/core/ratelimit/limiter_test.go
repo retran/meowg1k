@@ -40,7 +40,7 @@ func (m *mockHost) Close() error {
 	return nil
 }
 
-// setupTestDBForLimiter creates an in-memory SQLite database for testing
+// setupTestDBForLimiter creates an in-memory SQLite database for testing.
 func setupTestDBForLimiter(t *testing.T) (*sql.DB, ports.RateLimitRepository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {

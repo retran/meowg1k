@@ -27,6 +27,8 @@ func NewService(destination output.Destination) *Service {
 		destWriter = os.Stdout
 	case output.Stderr:
 		destWriter = os.Stderr
+	case output.Discard:
+		destWriter = io.Discard
 	default:
 		destWriter = io.Discard
 	}

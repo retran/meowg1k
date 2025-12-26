@@ -16,14 +16,14 @@ import (
 
 // mockSnapshotRepository is a mock implementation of ports.SnapshotRepository.
 type mockSnapshotRepository struct {
-	mu                          sync.Mutex
 	ClearSnapshotLinksFn        func(ctx context.Context, name string) error
 	LinkVersionToSnapshotFn     func(ctx context.Context, commitHash string, versionID int64) error
 	UnlinkVersionFromSnapshotFn func(ctx context.Context, commitHash string, versionID int64) error
 	GetVersionIDsForSnapshotFn  func(ctx context.Context, commitHash string) ([]int64, error)
+	mu                          sync.Mutex
 }
 
-// Ensure mockSnapshotRepository implements ports.SnapshotRepository
+// Ensure mockSnapshotRepository implements ports.SnapshotRepository.
 var _ ports.SnapshotRepository = (*mockSnapshotRepository)(nil)
 
 func (m *mockSnapshotRepository) ClearSnapshotLinks(ctx context.Context, name string) error {
@@ -64,13 +64,13 @@ func (m *mockSnapshotRepository) GetVersionIDsForSnapshot(ctx context.Context, c
 
 // mockMetaRepository is a mock implementation of ports.MetaRepository.
 type mockMetaRepository struct {
-	mu            sync.Mutex
 	DeleteValueFn func(ctx context.Context, key string) error
 	GetValueFn    func(ctx context.Context, key string) ([]byte, error)
 	SetValueFn    func(ctx context.Context, key string, value []byte) error
+	mu            sync.Mutex
 }
 
-// Ensure mockMetaRepository implements ports.MetaRepository
+// Ensure mockMetaRepository implements ports.MetaRepository.
 var _ ports.MetaRepository = (*mockMetaRepository)(nil)
 
 func (m *mockMetaRepository) DeleteValue(ctx context.Context, key string) error {

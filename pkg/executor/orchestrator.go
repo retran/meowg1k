@@ -65,12 +65,15 @@ func (o *Orchestrator) Execute(
 		WithFeedbackHandler(feedbackHandler)
 
 	err := exec.ExecuteFlow(ctx, flowName, flow)
+	if err != nil {
+		err = fmt.Errorf("failed to execute flow: %w", err)
+	}
 
 	executionTracker.Stop()
 
 	if flushErr := o.outputSink.Flush(); flushErr != nil {
 		if err != nil {
-			return fmt.Errorf("flow error: %w, flush error: %v", err, flushErr)
+			return fmt.Errorf("flow error: %w, flush error: %w", err, flushErr)
 		}
 
 		return fmt.Errorf("failed to flush output: %w", flushErr)

@@ -30,6 +30,8 @@ func (l *Logger) FeedbackHandler(inner executor.FeedbackHandler) executor.Feedba
 		}
 
 		// Log asynchronously to avoid blocking (ignore errors)
-		go l.LogExecutionEvent(entry)
+		go func() {
+			_ = l.LogExecutionEvent(entry) //nolint:errcheck // Async logging errors are not critical
+		}()
 	}
 }

@@ -13,18 +13,21 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Output contains file states for workdir, stage, and head snapshots.
 type Output struct {
 	HeadState    map[string]domainindex.FileState
 	StageState   map[string]domainindex.FileState
 	WorkdirState map[string]domainindex.FileState
 }
 
+// Factory builds scanworkspacestate activities.
 type Factory struct {
 	projectStateSvc ports.ProjectStateService
 }
 
 var _ executor.ActivityFactory[struct{}, *Output] = (*Factory)(nil)
 
+// NewFactory creates a scanworkspacestate activity factory.
 func NewFactory(projectStateSvc ports.ProjectStateService) (executor.ActivityFactory[struct{}, *Output], error) {
 	if projectStateSvc == nil {
 		return nil, fmt.Errorf("scanworkspacestate.NewFactory: projectStateSvc cannot be nil")
@@ -35,6 +38,7 @@ func NewFactory(projectStateSvc ports.ProjectStateService) (executor.ActivityFac
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[struct{}, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, _ struct{}) (*Output, error) {
 		executorCtx.SendRunning("Scanning workspace")

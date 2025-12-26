@@ -23,7 +23,7 @@ const (
 	StatusFailed Status = "failed"
 )
 
-// DefaultRetryPolicy returns a sensible default retry policy
+// DefaultRetryPolicy returns a sensible default retry policy.
 func DefaultRetryPolicy() *RetryPolicy {
 	return &RetryPolicy{
 		MaxAttempts:  3,
@@ -33,7 +33,7 @@ func DefaultRetryPolicy() *RetryPolicy {
 	}
 }
 
-// NoRetryPolicy returns a policy that doesn't retry
+// NoRetryPolicy returns a policy that doesn't retry.
 func NoRetryPolicy() RetryPolicy {
 	return RetryPolicy{
 		MaxAttempts:  1,
@@ -45,13 +45,13 @@ func NoRetryPolicy() RetryPolicy {
 
 // Feedback contains information about activity execution progress.
 type Feedback struct {
-	ActivityName string         `json:"activity_name"`
-	Status       Status         `json:"status"`
-	Progress     float64        `json:"progress"` // 0.0 to 1.0
-	Message      string         `json:"message"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
 	Timestamp    time.Time      `json:"timestamp"`
 	Error        error          `json:"-"`
+	Metadata     map[string]any `json:"metadata,omitempty"`
+	ActivityName string         `json:"activity_name"`
+	Status       Status         `json:"status"`
+	Message      string         `json:"message"`
+	Progress     float64        `json:"progress"`
 }
 
 // String returns a string representation of the feedback.
@@ -82,13 +82,13 @@ func (f *Feedback) String() string {
 type FeedbackHandler func(feedback *Feedback)
 
 // NoOpFeedbackHandler is a feedback handler that does nothing.
-func NoOpFeedbackHandler(feedback *Feedback) {}
+func NoOpFeedbackHandler(_ *Feedback) {}
 
 // Context provides feedback capabilities to activities and access to the executor.
 type Context struct {
-	name         string
+	Executor     Executor
 	feedbackFunc FeedbackHandler
-	Executor     Executor // Interface for running sub-activities
+	name         string
 }
 
 // NewContext creates a new executor context.

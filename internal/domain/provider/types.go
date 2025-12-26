@@ -28,8 +28,8 @@ const (
 	Voyage Provider = "voyage"
 )
 
-// ProviderDefinition defines the characteristics of a provider.
-type ProviderDefinition struct {
+// Definition defines the characteristics of a provider.
+type Definition struct {
 	Type            Provider      `json:"type"`
 	Name            string        `json:"name"`
 	DefaultModel    string        `json:"default_model"`

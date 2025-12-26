@@ -18,12 +18,12 @@ import (
 // Service handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
 type Service struct {
-	mu        sync.RWMutex
-	ctx       context.Context //nolint:containedctx // stored to expose shutdown context to consumers
+	ctx       context.Context
 	cancel    context.CancelFunc
 	logger    *slog.Logger
 	callbacks []Callback
 	timeout   time.Duration
+	mu        sync.RWMutex
 }
 
 // Callback is a function called during graceful shutdown.
@@ -32,7 +32,7 @@ type Callback func(ctx context.Context) error
 
 // NewService creates a new shutdown manager with the specified timeout.
 // timeout sets the maximum time to wait for all callbacks to complete.
-func NewService(logger *slog.Logger, ctx context.Context, timeout time.Duration) *Service {
+func NewService(ctx context.Context, logger *slog.Logger, timeout time.Duration) *Service {
 	ctx, cancel := context.WithCancel(ctx)
 
 	if logger == nil {

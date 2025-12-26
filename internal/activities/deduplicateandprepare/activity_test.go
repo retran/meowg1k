@@ -16,7 +16,7 @@ type mockIndexService struct {
 	PrepareForProcessingFn func(ctx context.Context, workspaceState interface{}) (interface{}, error)
 }
 
-// Ensure mockIndexService implements ports.IndexService
+// Ensure mockIndexService implements ports.IndexService.
 var _ ports.IndexService = (*mockIndexService)(nil)
 
 // PrepareForProcessing is the mock method.

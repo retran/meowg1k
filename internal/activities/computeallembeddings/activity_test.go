@@ -17,6 +17,8 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
+const batchID = "Batch_0-2"
+
 // mockComputeBatchFactory is a mock of the computeembeddingsbatch factory.
 type mockComputeBatchFactory struct{}
 
@@ -107,7 +109,7 @@ func TestActivity(t *testing.T) {
 			f := future.NewFuture[any]()
 			output := &computeembeddingsbatch.Output{}
 			switch activityID {
-			case "Batch_0-2":
+			case batchID:
 				output.Embeddings = []gateway.Embedding{{1}, {2}}
 			case "Batch_2-3":
 				output.Embeddings = []gateway.Embedding{{3}}
@@ -189,7 +191,7 @@ func TestActivity(t *testing.T) {
 		exec2 := &mockExecutor{}
 		exec2.executeActivityFn = func(ctx context.Context, parentCtx *executor.Context, activityID string, act executor.Activity[any, any], params any) *future.Future[any] {
 			f := future.NewFuture[any]()
-			if activityID == "Batch_0-2" {
+			if activityID == batchID {
 				f.CompleteWithError(childErr)
 			} else {
 				f.Complete(&computeembeddingsbatch.Output{})
@@ -221,7 +223,7 @@ func TestActivity(t *testing.T) {
 			f := future.NewFuture[any]()
 			var output *computeembeddingsbatch.Output
 			// Return fewer embeddings than expected for the first batch
-			if activityID == "Batch_0-2" {
+			if activityID == batchID {
 				output = &computeembeddingsbatch.Output{Embeddings: []gateway.Embedding{{1}}} // Should be 2, but only 1
 			} else {
 				output = &computeembeddingsbatch.Output{Embeddings: []gateway.Embedding{{3}}} // Should be 1, and is 1

@@ -15,11 +15,13 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the request payload for chunking a file.
 type Input struct {
 	FilePath string
 	Content  []byte
 }
 
+// Output contains the chunked data for a file.
 type Output struct {
 	FilePath    string
 	Content     []byte
@@ -27,12 +29,14 @@ type Output struct {
 	Chunks      []domainindex.ChunkData
 }
 
+// Factory builds chunkfile activities.
 type Factory struct {
 	chunkerService ports.ChunkerService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a chunkfile activity factory.
 func NewFactory(chunkerService ports.ChunkerService) (executor.ActivityFactory[*Input, *Output], error) {
 	if chunkerService == nil {
 		return nil, fmt.Errorf("chunkfile.NewFactory: chunkerService cannot be nil")
@@ -43,8 +47,9 @@ func NewFactory(chunkerService ports.ChunkerService) (executor.ActivityFactory[*
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Chunking: %s", input.FilePath))
 
 		contentHash := computeContentHash(input.Content)

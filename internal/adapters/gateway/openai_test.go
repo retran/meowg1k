@@ -16,7 +16,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/profile"
 )
 
-// Mock HTTP server responses for OpenAI API
+// Mock HTTP server responses for OpenAI API.
 func createOpenAIMockServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -109,13 +109,13 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	defer mockServer.Close()
 
 	// Create profile with mock server URL
-	profile := &profile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
 
 	// Create gateway
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
 
 	// Create test request
 	request := domainGateway.NewGenerateContentRequest(
@@ -149,12 +149,12 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 	}))
 	defer errorServer.Close()
 
-	profile := &profile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		BaseURL: errorServer.URL,
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
 
 	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -180,12 +180,12 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	profile := &profile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(profile.BaseURL, profile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
 
 	// Create embeddings request
 	request := domainGateway.NewComputeEmbeddingsRequest(

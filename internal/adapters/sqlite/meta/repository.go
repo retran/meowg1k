@@ -32,9 +32,9 @@ var fileRefPrefixBytes = []byte(fileRefPrefix)
 // Repository implements metadata storage using SQLite.
 type Repository struct {
 	host        ports.Host
-	blobDirOnce sync.Once
-	blobDir     string
 	blobDirErr  error
+	blobDir     string
+	blobDirOnce sync.Once
 }
 
 // Compile-time interface compliance check.
@@ -59,36 +59,44 @@ func (r *Repository) SetValue(ctx context.Context, key string, value []byte) err
 	}
 
 	if len(value) > maxInlineValueSize {
-		blobDir, err := r.ensureBlobDir(db)
-		if err != nil {
-			return fmt.Errorf("failed to prepare blob storage for key '%s': %w", key, err)
-		}
-
-		fileName := r.buildBlobFileName(key, value)
-		if err := r.writeBlob(blobDir, fileName, value); err != nil {
-			return fmt.Errorf("failed to persist blob for key '%s': %w", key, err)
-		}
-
-		sentinel := append([]byte{}, fileRefPrefixBytes...)
-		sentinel = append(sentinel, fileName...)
-
-		if _, err := db.ExecContext(ctx,
-			`INSERT INTO meta_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-			key, sentinel,
-		); err != nil {
-			_ = r.removeBlob(blobDir, fileName) // best effort cleanup on failure
-			return fmt.Errorf("failed to set meta value for key '%s': %w", key, err)
-		}
-
-		if existingRef != "" && existingRef != fileName {
-			if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("failed to remove old blob for key '%s': %w", key, err)
-			}
-		}
-
-		return nil
+		return r.setBlobValue(ctx, db, key, value, existingRef)
 	}
 
+	return r.setInlineValue(ctx, db, key, value, existingRef)
+}
+
+func (r *Repository) setBlobValue(ctx context.Context, db *sql.DB, key string, value []byte, existingRef string) error {
+	blobDir, err := r.ensureBlobDir(db)
+	if err != nil {
+		return fmt.Errorf("failed to prepare blob storage for key '%s': %w", key, err)
+	}
+
+	fileName := r.buildBlobFileName(key, value)
+	if err := r.writeBlob(blobDir, fileName, value); err != nil {
+		return fmt.Errorf("failed to persist blob for key '%s': %w", key, err)
+	}
+
+	sentinel := append([]byte{}, fileRefPrefixBytes...)
+	sentinel = append(sentinel, fileName...)
+
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO meta_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		key, sentinel,
+	); err != nil {
+		_ = r.removeBlob(blobDir, fileName) //nolint:errcheck // Best effort cleanup on failure
+		return fmt.Errorf("failed to set meta value for key '%s': %w", key, err)
+	}
+
+	if existingRef != "" && existingRef != fileName {
+		if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove old blob for key '%s': %w", key, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *Repository) setInlineValue(ctx context.Context, db *sql.DB, key string, value []byte, existingRef string) error {
 	if _, err := db.ExecContext(ctx,
 		`INSERT INTO meta_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
 		key, value,
@@ -96,14 +104,16 @@ func (r *Repository) SetValue(ctx context.Context, key string, value []byte) err
 		return fmt.Errorf("failed to set meta value for key '%s': %w", key, err)
 	}
 
-	if existingRef != "" {
-		if blobDir, derr := r.ensureBlobDir(db); derr == nil {
-			if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("failed to remove obsolete blob for key '%s': %w", key, err)
-			}
-		} else {
-			return fmt.Errorf("failed to clean up blob for key '%s': %w", key, derr)
-		}
+	if existingRef == "" {
+		return nil
+	}
+
+	blobDir, derr := r.ensureBlobDir(db)
+	if derr != nil {
+		return fmt.Errorf("failed to clean up blob for key '%s': %w", key, derr)
+	}
+	if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove obsolete blob for key '%s': %w", key, err)
 	}
 
 	return nil
@@ -120,7 +130,7 @@ func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
 	var value []byte
 	err = db.QueryRowContext(ctx, "SELECT value FROM meta_kv WHERE key = ?", key).Scan(&value)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get meta value for key '%s': %w", key, err)
@@ -132,7 +142,13 @@ func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
 			return nil, fmt.Errorf("failed to resolve blob storage for key '%s': %w", key, err)
 		}
 
-		data, err := os.ReadFile(filepath.Join(blobDir, fileName))
+		blobPath, err := resolveBlobPath(blobDir, fileName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve blob path for key '%s': %w", key, err)
+		}
+
+		// #nosec G304 -- blobPath is validated to be within the blob dir.
+		data, err := os.ReadFile(blobPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read blob for key '%s': %w", key, err)
 		}
@@ -195,11 +211,11 @@ func (r *Repository) ensureBlobDir(db *sql.DB) (string, error) {
 }
 
 func resolveBlobDir(db *sql.DB) (string, error) {
-	rows, err := db.Query("PRAGMA database_list")
+	rows, err := db.QueryContext(context.Background(), "PRAGMA database_list")
 	if err != nil {
 		return "", fmt.Errorf("failed to query database list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	for rows.Next() {
 		var seq int64
@@ -245,9 +261,7 @@ func normalizeDBPath(raw string) (string, error) {
 		return "", fmt.Errorf("database path is empty")
 	}
 
-	if strings.HasPrefix(path, "file:") {
-		path = strings.TrimPrefix(path, "file:")
-	}
+	path = strings.TrimPrefix(path, "file:")
 
 	if idx := strings.Index(path, "?"); idx >= 0 {
 		path = path[:idx]
@@ -276,6 +290,16 @@ func parseFileReference(value []byte) (string, bool) {
 	return string(value[len(fileRefPrefixBytes):]), true
 }
 
+func resolveBlobPath(blobDir, fileName string) (string, error) {
+	if fileName == "" {
+		return "", fmt.Errorf("empty blob file reference")
+	}
+	if filepath.Base(fileName) != fileName {
+		return "", fmt.Errorf("invalid blob file reference")
+	}
+	return filepath.Join(blobDir, fileName), nil
+}
+
 func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, key string) (string, error) {
 	query := `
 		SELECT CASE
@@ -298,7 +322,7 @@ func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, k
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
-		return "", err
+		return "", fmt.Errorf("failed to scan tail: %w", err)
 	}
 
 	if len(tail) == 0 {
@@ -327,21 +351,11 @@ func (r *Repository) writeBlob(dir, name string, data []byte) error {
 		return fmt.Errorf("failed to create temp blob file: %w", err)
 	}
 	defer func() {
-		_ = os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name()) //nolint:errcheck // Defer cleanup errors are not critical
 	}()
 
-	if _, err := tmpFile.Write(data); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("failed to write blob data: %w", err)
-	}
-
-	if err := tmpFile.Sync(); err != nil {
-		_ = tmpFile.Close()
-		return fmt.Errorf("failed to sync blob data: %w", err)
-	}
-
-	if err := tmpFile.Close(); err != nil {
-		return fmt.Errorf("failed to close temp blob file: %w", err)
+	if err := writeAndSync(tmpFile, data); err != nil {
+		return err
 	}
 
 	if err := os.Chmod(tmpFile.Name(), defaultBlobFilePerms); err != nil {
@@ -349,17 +363,39 @@ func (r *Repository) writeBlob(dir, name string, data []byte) error {
 	}
 
 	destPath := filepath.Join(dir, name)
-	if err := os.Rename(tmpFile.Name(), destPath); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			if remErr := os.Remove(destPath); remErr != nil && !errors.Is(remErr, os.ErrNotExist) {
-				return fmt.Errorf("failed to replace existing blob file: %w", remErr)
-			}
-			if err := os.Rename(tmpFile.Name(), destPath); err != nil {
-				return fmt.Errorf("failed to finalize blob file: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to finalize blob file: %w", err)
-		}
+	return replaceFile(tmpFile.Name(), destPath)
+}
+
+func writeAndSync(file *os.File, data []byte) error {
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close() //nolint:errcheck // Error on close after write error is not critical
+		return fmt.Errorf("failed to write blob data: %w", err)
+	}
+
+	if err := file.Sync(); err != nil {
+		_ = file.Close() //nolint:errcheck // Error on close after sync error is not critical
+		return fmt.Errorf("failed to sync blob data: %w", err)
+	}
+
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close temp blob file: %w", err)
+	}
+
+	return nil
+}
+
+func replaceFile(sourcePath, destPath string) error {
+	if err := os.Rename(sourcePath, destPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("failed to finalize blob file: %w", err)
+	}
+
+	if remErr := os.Remove(destPath); remErr != nil && !errors.Is(remErr, os.ErrNotExist) {
+		return fmt.Errorf("failed to replace existing blob file: %w", remErr)
+	}
+	if err := os.Rename(sourcePath, destPath); err != nil {
+		return fmt.Errorf("failed to finalize blob file: %w", err)
 	}
 
 	return nil
@@ -370,5 +406,8 @@ func (r *Repository) removeBlob(dir, name string) error {
 		return nil
 	}
 
-	return os.Remove(filepath.Join(dir, name))
+	if err := os.Remove(filepath.Join(dir, name)); err != nil {
+		return fmt.Errorf("failed to remove blob file: %w", err)
+	}
+	return nil
 }

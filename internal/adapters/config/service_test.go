@@ -15,10 +15,21 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/command"
 )
 
+const (
+	testProfileName = "test"
+	testUserContent = `models:
+  test:
+    provider: "test"
+profiles:
+  test:
+    model: "test"
+`
+)
+
 // mockWorkspaceDirResolver is a mock implementation of WorkspaceDirResolver for testing.
 type mockWorkspaceDirResolver struct {
-	dir string
 	err error
+	dir string
 }
 
 func (m *mockWorkspaceDirResolver) Get() (string, error) {
@@ -116,8 +127,8 @@ generate:
 		t.Fatal("Generate default should not be nil")
 	}
 
-	if config.Generate.Default.Profile != "test" {
-		t.Errorf("Expected default profile 'test', got '%s'", config.Generate.Default.Profile)
+	if config.Generate.Default.Profile != testProfileName {
+		t.Errorf("Expected default profile '%s', got '%s'", testProfileName, config.Generate.Default.Profile)
 	}
 }
 
@@ -703,13 +714,7 @@ func TestNewServiceWithWorkspaceDirResolverError(t *testing.T) {
 	userDir := filepath.Join(tempDir, "meowg1k")
 	os.MkdirAll(userDir, 0o755)
 	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `models:
-  test:
-    provider: "test"
-profiles:
-  test:
-    model: "test"
-`
+	userContent := testUserContent
 	os.WriteFile(userPath, []byte(userContent), 0o644)
 	os.Setenv("XDG_CONFIG_HOME", tempDir)
 	os.Setenv("HOME", "")
@@ -894,13 +899,7 @@ func TestNewServiceEmptyWorkspaceDir(t *testing.T) {
 	userDir := filepath.Join(tempDir, "meowg1k")
 	os.MkdirAll(userDir, 0o755)
 	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `models:
-  test:
-    provider: "test"
-profiles:
-  test:
-    model: "test"
-`
+	userContent := testUserContent
 	os.WriteFile(userPath, []byte(userContent), 0o644)
 	os.Setenv("XDG_CONFIG_HOME", tempDir)
 	os.Setenv("HOME", "")
@@ -936,13 +935,7 @@ func TestNewServiceGetCalledMultipleTimes(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "test-config.yaml")
-	configContent := `models:
-  test:
-    provider: "test"
-profiles:
-  test:
-    model: "test"
-`
+	configContent := testUserContent
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create config file: %v", err)

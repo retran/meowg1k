@@ -15,8 +15,8 @@ import (
 // ExecuteActivity is a generic wrapper around the executor's ExecuteActivity method.
 // It provides compile-time type safety for activity inputs and outputs.
 func ExecuteActivity[T, K any](
-	e Executor,
 	ctx context.Context,
+	e Executor,
 	parentCtx *Context,
 	name string,
 	activity Activity[T, K],
@@ -26,27 +26,27 @@ func ExecuteActivity[T, K any](
 
 	// Validate inputs
 	if e == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("executor cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if ctx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if parentCtx == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("parent context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if name == "" {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty"))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity name cannot be empty")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
 	if activity == nil {
-		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name))
+		_ = typedFuture.CompleteWithError(fmt.Errorf("activity %q cannot be nil", name)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return typedFuture
 	}
 
@@ -65,17 +65,17 @@ func ExecuteActivity[T, K any](
 	go func() {
 		result, err := untypedFuture.Get(ctx)
 		if err != nil {
-			_ = typedFuture.CompleteWithError(err)
+			_ = typedFuture.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 			return
 		}
 
 		typedResult, ok := result.(K)
 		if !ok {
-			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result))
+			_ = typedFuture.CompleteWithError(fmt.Errorf("invalid output type for activity %q: expected %T, got %T", name, *new(K), result)) //nolint:errcheck // Future completion errors are logged elsewhere
 			return
 		}
 
-		_ = typedFuture.Complete(typedResult)
+		_ = typedFuture.Complete(typedResult) //nolint:errcheck // Future completion errors are logged elsewhere
 	}()
 
 	return typedFuture
@@ -96,20 +96,20 @@ type Executor interface {
 }
 
 // executorImpl is the central component for running activities
-// It handles retry logic, feedback, and will handle caching/rate limiting in the future
+// It handles retry logic, feedback, and will handle caching/rate limiting in the future.
 type executorImpl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
 	workerSemaphore chan struct{} // Semaphore to limit concurrent workers
 }
 
-// Compile-time check to ensure Impl implements Executor interface
+// Compile-time check to ensure Impl implements Executor interface.
 var _ Executor = (*executorImpl)(nil)
 
 // NewExecutor creates a new activity executor with the given configuration
 // concurrency limits the number of activities that can run in parallel
-// If concurrency <= 0, no limit is applied
-func NewExecutor(concurrency int) *executorImpl {
+// If concurrency <= 0, no limit is applied.
+func NewExecutor(concurrency int) Executor {
 	var semaphore chan struct{}
 	if concurrency > 0 {
 		semaphore = make(chan struct{}, concurrency)
@@ -122,7 +122,7 @@ func NewExecutor(concurrency int) *executorImpl {
 	}
 }
 
-// WithRetryPolicy sets the retry policy for this executor
+// WithRetryPolicy sets the retry policy for this executor.
 func (e *executorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	if policy == nil {
 		policy = DefaultRetryPolicy()
@@ -132,7 +132,7 @@ func (e *executorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	return e
 }
 
-// WithFeedbackHandler sets the feedback handler for this executor
+// WithFeedbackHandler sets the feedback handler for this executor.
 func (e *executorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	if handler == nil {
 		handler = NoOpFeedbackHandler
@@ -142,7 +142,7 @@ func (e *executorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	return e
 }
 
-// ExecuteFlow runs a flow asynchronously and returns when it completes or fails
+// ExecuteFlow runs a flow asynchronously and returns when it completes or fails.
 func (e *executorImpl) ExecuteFlow(
 	ctx context.Context,
 	flowName string,
@@ -170,9 +170,9 @@ func (e *executorImpl) ExecuteFlow(
 	go func() {
 		err := e.executeFlowImpl(ctx, executorCtx, flow)
 		if err != nil {
-			_ = fut.CompleteWithError(err)
+			_ = fut.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 		} else {
-			_ = fut.Complete(nil)
+			_ = fut.Complete(nil) //nolint:errcheck // Future completion errors are logged elsewhere
 		}
 	}()
 
@@ -197,32 +197,32 @@ func (e *executorImpl) ExecuteActivity(
 
 	// Validate inputs before starting goroutine
 	if e == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("executor is nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("executor is nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if ctx == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("context cannot be nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("context cannot be nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if parentCtx == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("parent context is nil"))
+		_ = fut.CompleteWithError(fmt.Errorf("parent context is nil")) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if activityName == "" {
-		_ = fut.CompleteWithError(fmt.Errorf("activity name %q is empty", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("activity name %q is empty", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if activity == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("activity is nil for activity name %q", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("activity is nil for activity name %q", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
 	if e.RetryPolicy == nil {
-		_ = fut.CompleteWithError(fmt.Errorf("retry policy is nil for activity %q", activityName))
+		_ = fut.CompleteWithError(fmt.Errorf("retry policy is nil for activity %q", activityName)) //nolint:errcheck // Future completion errors are logged elsewhere
 		return fut
 	}
 
@@ -237,16 +237,16 @@ func (e *executorImpl) ExecuteActivity(
 			case e.workerSemaphore <- struct{}{}:
 				defer func() { <-e.workerSemaphore }()
 			case <-ctx.Done():
-				_ = fut.CompleteWithError(fmt.Errorf("activity %q canceled while waiting for worker slot: %w", fullActivityName, ctx.Err()))
+				_ = fut.CompleteWithError(fmt.Errorf("activity %q canceled while waiting for worker slot: %w", fullActivityName, ctx.Err())) //nolint:errcheck // Future completion errors are logged elsewhere
 				return
 			}
 		}
 
 		result, err := e.executeActivityImpl(ctx, activityCtx, activity, input, e.RetryPolicy)
 		if err != nil {
-			_ = fut.CompleteWithError(err)
+			_ = fut.CompleteWithError(err) //nolint:errcheck // Future completion errors are logged elsewhere
 		} else {
-			_ = fut.Complete(result)
+			_ = fut.Complete(result) //nolint:errcheck // Future completion errors are logged elsewhere
 		}
 	}()
 
@@ -301,39 +301,16 @@ func (e *executorImpl) executeActivityImpl(
 		return nil, fmt.Errorf("executor is nil")
 	}
 
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
-	}
-
-	if activityCtx == nil {
-		return nil, fmt.Errorf("activity context is nil")
-	}
-
-	if activity == nil {
-		return nil, fmt.Errorf("activity is nil for %q", activityCtx.name)
-	}
-
-	if policy == nil {
-		return nil, fmt.Errorf("retry policy is nil for activity %q", activityCtx.name)
-	}
-
-	if policy.MaxAttempts < 1 {
-		return nil, fmt.Errorf("invalid retry policy for activity %q: max attempts must be at least 1, got %d", activityCtx.name, policy.MaxAttempts)
-	}
-
-	if policy.Multiplier < 1.0 {
-		return nil, fmt.Errorf("invalid retry policy for activity %q: multiplier must be at least 1.0, got %f", activityCtx.name, policy.Multiplier)
+	if err := validateActivityExecution(ctx, activityCtx, activity, policy); err != nil {
+		return nil, err
 	}
 
 	name := activityCtx.name
 	delay := policy.InitialDelay
 
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
-		select {
-		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, fmt.Errorf("activity %q canceled at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
-		default:
+		if err := checkActivityCanceled(ctx, activityCtx, attempt, "activity %q canceled at attempt %d: %w"); err != nil {
+			return nil, err
 		}
 
 		result, err := activity(ctx, activityCtx, input)
@@ -350,17 +327,78 @@ func (e *executorImpl) executeActivityImpl(
 		// Send retry feedback
 		activityCtx.SendRetry(attempt+1, err)
 
-		// Wait before retry with exponential backoff
-		select {
-		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
-		case <-time.After(delay):
-			// Calculate next delay with exponential backoff
-			delay = min(time.Duration(float64(delay)*policy.Multiplier), policy.MaxDelay)
+		var retryErr error
+		delay, retryErr = waitForRetry(ctx, activityCtx, delay, attempt, policy.Multiplier, policy.MaxDelay)
+		if retryErr != nil {
+			return nil, retryErr
 		}
 	}
 
 	// This should never be reached, but just in case
 	return nil, fmt.Errorf("unexpected end of retry loop for activity %q after %d attempts", name, policy.MaxAttempts)
+}
+
+func validateActivityExecution(
+	ctx context.Context,
+	activityCtx *Context,
+	activity Activity[any, any],
+	policy *RetryPolicy,
+) error {
+	if ctx == nil {
+		return fmt.Errorf("context cannot be nil")
+	}
+
+	if activityCtx == nil {
+		return fmt.Errorf("activity context is nil")
+	}
+
+	if activity == nil {
+		return fmt.Errorf("activity is nil for %q", activityCtx.name)
+	}
+
+	if policy == nil {
+		return fmt.Errorf("retry policy is nil for activity %q", activityCtx.name)
+	}
+
+	if policy.MaxAttempts < 1 {
+		return fmt.Errorf("invalid retry policy for activity %q: max attempts must be at least 1, got %d", activityCtx.name, policy.MaxAttempts)
+	}
+
+	if policy.Multiplier < 1.0 {
+		return fmt.Errorf("invalid retry policy for activity %q: multiplier must be at least 1.0, got %f", activityCtx.name, policy.Multiplier)
+	}
+
+	return nil
+}
+
+func checkActivityCanceled(
+	ctx context.Context,
+	activityCtx *Context,
+	attempt int,
+	message string,
+) error {
+	select {
+	case <-ctx.Done():
+		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		return fmt.Errorf(message, activityCtx.name, attempt, ctx.Err())
+	default:
+		return nil
+	}
+}
+
+func waitForRetry(
+	ctx context.Context,
+	activityCtx *Context,
+	delay time.Duration,
+	attempt int,
+	multiplier float64,
+	maxDelay time.Duration,
+) (time.Duration, error) {
+	select {
+	case <-ctx.Done():
+		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		return delay, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
+	case <-time.After(delay):
+		return min(time.Duration(float64(delay)*multiplier), maxDelay), nil
+	}
 }

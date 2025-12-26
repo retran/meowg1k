@@ -17,12 +17,12 @@ import (
 
 // mockVectorIndexService is a mock implementation of the ports.VectorIndexService.
 type mockVectorIndexService struct {
-	mu             sync.Mutex
 	BuildAndSaveFn func(snapshotName string) error
 	calls          map[string][][]interface{}
+	mu             sync.Mutex
 }
 
-// Ensure mockVectorIndexService implements ports.VectorIndexService
+// Ensure mockVectorIndexService implements ports.VectorIndexService.
 var _ ports.VectorIndexService = (*mockVectorIndexService)(nil)
 
 func newMockVectorIndexService() *mockVectorIndexService {

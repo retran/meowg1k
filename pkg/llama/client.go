@@ -13,20 +13,20 @@ import (
 	"net/http"
 )
 
-// CompletionRequest represents the request body for /completion endpoint
+// CompletionRequest represents the request body for /completion endpoint.
 type CompletionRequest struct {
+	LogitBias           any         `json:"logit_bias,omitempty"`
+	JSONSchema          any         `json:"json_schema,omitempty"`
 	Prompt              any         `json:"prompt"`
-	Temperature         float64     `json:"temperature,omitempty"`
-	DynatempRange       float64     `json:"dynatemp_range,omitempty"`
-	DynatempExponent    float64     `json:"dynatemp_exponent,omitempty"`
-	TopK                int         `json:"top_k,omitempty"`
-	TopP                float64     `json:"top_p,omitempty"`
-	MinP                float64     `json:"min_p,omitempty"`
-	NPredict            int         `json:"n_predict,omitempty"`
-	NIndent             int         `json:"n_indent,omitempty"`
-	NKeep               int         `json:"n_keep,omitempty"`
-	Stream              bool        `json:"stream,omitempty"`
+	Grammar             string      `json:"grammar,omitempty"`
 	Stop                []string    `json:"stop,omitempty"`
+	Lora                []Lora      `json:"lora,omitempty"`
+	ResponseFields      []string    `json:"response_fields,omitempty"`
+	Samplers            []string    `json:"samplers,omitempty"`
+	ImageData           []ImageData `json:"image_data,omitempty"`
+	DrySequenceBreakers []string    `json:"dry_sequence_breakers,omitempty"`
+	XtcProbability      float64     `json:"xtc_probability,omitempty"`
+	NPredict            int         `json:"n_predict,omitempty"`
 	TypicalP            float64     `json:"typical_p,omitempty"`
 	RepeatPenalty       float64     `json:"repeat_penalty,omitempty"`
 	RepeatLastN         int         `json:"repeat_last_n,omitempty"`
@@ -36,99 +36,99 @@ type CompletionRequest struct {
 	DryBase             float64     `json:"dry_base,omitempty"`
 	DryAllowedLength    int         `json:"dry_allowed_length,omitempty"`
 	DryPenaltyLastN     int         `json:"dry_penalty_last_n,omitempty"`
-	DrySequenceBreakers []string    `json:"dry_sequence_breakers,omitempty"`
-	XtcProbability      float64     `json:"xtc_probability,omitempty"`
+	NKeep               int         `json:"n_keep,omitempty"`
+	NIndent             int         `json:"n_indent,omitempty"`
 	XtcThreshold        float64     `json:"xtc_threshold,omitempty"`
 	Mirostat            int         `json:"mirostat,omitempty"`
 	MirostatTau         float64     `json:"mirostat_tau,omitempty"`
 	MirostatEta         float64     `json:"mirostat_eta,omitempty"`
-	Grammar             string      `json:"grammar,omitempty"`
-	JSONSchema          any         `json:"json_schema,omitempty"`
+	Temperature         float64     `json:"temperature,omitempty"`
+	MinP                float64     `json:"min_p,omitempty"`
 	Seed                int         `json:"seed,omitempty"`
-	IgnoreEOS           bool        `json:"ignore_eos,omitempty"`
-	LogitBias           any         `json:"logit_bias,omitempty"`
+	DynatempRange       float64     `json:"dynatemp_range,omitempty"`
+	TopP                float64     `json:"top_p,omitempty"`
 	NProbs              int         `json:"n_probs,omitempty"`
 	MinKeep             int         `json:"min_keep,omitempty"`
 	TMaxPredictMs       int         `json:"t_max_predict_ms,omitempty"`
-	ImageData           []ImageData `json:"image_data,omitempty"`
+	TopK                int         `json:"top_k,omitempty"`
 	IDSlot              int         `json:"id_slot,omitempty"`
-	CachePrompt         bool        `json:"cache_prompt,omitempty"`
+	DynatempExponent    float64     `json:"dynatemp_exponent,omitempty"`
 	ReturnTokens        bool        `json:"return_tokens,omitempty"`
-	Samplers            []string    `json:"samplers,omitempty"`
+	CachePrompt         bool        `json:"cache_prompt,omitempty"`
 	TimingsPerToken     bool        `json:"timings_per_token,omitempty"`
 	PostSamplingProbs   bool        `json:"post_sampling_probs,omitempty"`
-	ResponseFields      []string    `json:"response_fields,omitempty"`
-	Lora                []Lora      `json:"lora,omitempty"`
+	IgnoreEOS           bool        `json:"ignore_eos,omitempty"`
+	Stream              bool        `json:"stream,omitempty"`
 }
 
-// ImageData represents base64-encoded image data
+// ImageData represents base64-encoded image data.
 type ImageData struct {
 	Data string `json:"data"`
 	ID   int    `json:"id"`
 }
 
-// Lora represents a LoRA adapter configuration
+// Lora represents a LoRA adapter configuration.
 type Lora struct {
 	ID    int     `json:"id"`
 	Scale float64 `json:"scale"`
 }
 
-// CompletionResponse represents the response from /completion endpoint
+// CompletionResponse represents the response from /completion endpoint.
 type CompletionResponse struct {
-	Content            string         `json:"content"`
-	Tokens             []int          `json:"tokens,omitempty"`
-	Stop               bool           `json:"stop,omitempty"`
-	GenerationSettings map[string]any `json:"generation_settings,omitempty"`
-	Model              string         `json:"model,omitempty"`
 	Prompt             any            `json:"prompt,omitempty"`
-	StopType           string         `json:"stop_type,omitempty"`
+	GenerationSettings map[string]any `json:"generation_settings,omitempty"`
 	Timings            map[string]any `json:"timings,omitempty"`
+	Content            string         `json:"content"`
+	Model              string         `json:"model,omitempty"`
+	StopType           string         `json:"stop_type,omitempty"`
+	Tokens             []int          `json:"tokens,omitempty"`
+	Probs              []TokenProb    `json:"probs,omitempty"`
 	TokensCached       int            `json:"tokens_cached,omitempty"`
 	TokensEvaluated    int            `json:"tokens_evaluated,omitempty"`
+	Stop               bool           `json:"stop,omitempty"`
 	Truncated          bool           `json:"truncated,omitempty"`
-	Probs              []TokenProb    `json:"probs,omitempty"`
 }
 
-// TokenProb represents token probability information
+// TokenProb represents token probability information.
 type TokenProb struct {
-	ID          int         `json:"id"`
-	Logprob     float64     `json:"logprob,omitempty"`
 	Token       string      `json:"token"`
 	Bytes       []int       `json:"bytes,omitempty"`
 	TopLogprobs []TokenProb `json:"top_logprobs,omitempty"`
+	ID          int         `json:"id"`
+	Logprob     float64     `json:"logprob,omitempty"`
 }
 
 // EmbeddingRequest represents the request body for /embedding endpoint
-// Content can be either a single string or array of strings for batch processing
+// Content can be either a single string or array of strings for batch processing.
 type EmbeddingRequest struct {
-	Content    interface{} `json:"content"` // string or []string
+	Content    interface{} `json:"content"`
 	ImageData  []ImageData `json:"image_data,omitempty"`
-	NormOutput bool        `json:"norm_output,omitempty"`
-	Truncate   int         `json:"truncate,omitempty"`
 	Lora       []Lora      `json:"lora,omitempty"`
+	Truncate   int         `json:"truncate,omitempty"`
+	NormOutput bool        `json:"norm_output,omitempty"`
 }
 
-// EmbeddingResponse represents the response from /embedding endpoint for single text
+// EmbeddingResponse represents the response from /embedding endpoint for single text.
 type EmbeddingResponse struct {
-	Embedding       []float64      `json:"embedding"`
-	Model           string         `json:"model,omitempty"`
 	Timings         map[string]any `json:"timings,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	Embedding       []float64      `json:"embedding"`
 	TokensEvaluated int            `json:"tokens_evaluated,omitempty"`
 }
 
-// EmbeddingBatchItem represents a single item in batch embedding response
+// EmbeddingBatchItem represents a single item in batch embedding response.
 type EmbeddingBatchItem struct {
-	Index     int         `json:"index"`
-	Embedding [][]float64 `json:"embedding"` // nested array from llama.cpp
 	Object    string      `json:"object,omitempty"`
 	Model     string      `json:"model,omitempty"`
+	Embedding [][]float64 `json:"embedding"`
+	Index     int         `json:"index"`
 }
 
-// Client provides methods to interact with LLM completion API
+// Client provides methods to interact with LLM completion API.
 type Client struct {
+	httpClient *http.Client
 	baseURL    string
 	apiKey     string
-	httpClient *http.Client
 }
 
 // NewClient creates a new client for interacting with the LLM completion endpoint.
@@ -186,7 +186,7 @@ func (c *Client) Complete(ctx context.Context, req *CompletionRequest) (*Complet
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -241,7 +241,7 @@ func (c *Client) Embedding(ctx context.Context, req *EmbeddingRequest) (*Embeddi
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -289,8 +289,8 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		return nil, fmt.Errorf("client is nil")
 	}
 
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
+	if err := validateEmbeddingBatchInput(ctx, texts); err != nil {
+		return nil, err
 	}
 
 	if len(texts) == 0 {
@@ -302,6 +302,27 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		NormOutput: normOutput,
 	}
 
+	bodyBytes, err := c.sendEmbeddingBatchRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseEmbeddingBatchResponse(bodyBytes, len(texts))
+}
+
+func validateEmbeddingBatchInput(ctx context.Context, texts []string) error {
+	if ctx == nil {
+		return fmt.Errorf("context cannot be nil")
+	}
+
+	if len(texts) == 0 {
+		return nil
+	}
+
+	return nil
+}
+
+func (c *Client) sendEmbeddingBatchRequest(ctx context.Context, req *EmbeddingRequest) ([]byte, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -324,7 +345,7 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -335,22 +356,23 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		return nil, fmt.Errorf("API request to %q failed with status %d: %s", url, resp.StatusCode, string(bodyBytes))
 	}
 
-	// Parse batch response: array of {index, embedding: [[...]]}
+	return bodyBytes, nil
+}
+
+func parseEmbeddingBatchResponse(bodyBytes []byte, expected int) ([][]float64, error) {
 	var batchItems []EmbeddingBatchItem
 	if err := json.Unmarshal(bodyBytes, &batchItems); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal batch response from %q: %w", url, err)
+		return nil, fmt.Errorf("failed to unmarshal batch response: %w", err)
 	}
 
-	// Extract embeddings and sort by index to match input order
-	results := make([][]float64, len(texts))
+	results := make([][]float64, expected)
 	for _, item := range batchItems {
-		if item.Index < 0 || item.Index >= len(texts) {
-			return nil, fmt.Errorf("invalid index %d in batch response (expected 0-%d)", item.Index, len(texts)-1)
+		if item.Index < 0 || item.Index >= expected {
+			return nil, fmt.Errorf("invalid index %d in batch response (expected 0-%d)", item.Index, expected-1)
 		}
 		if len(item.Embedding) == 0 {
 			return nil, fmt.Errorf("empty embedding for index %d", item.Index)
 		}
-		// Extract first (and only) embedding from nested array
 		results[item.Index] = item.Embedding[0]
 	}
 

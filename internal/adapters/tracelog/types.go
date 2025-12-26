@@ -20,19 +20,19 @@ const (
 
 // BaseLogEntry contains fields common to all log entries.
 type BaseLogEntry struct {
-	LogEntryType LogEntryType `json:"log_entry_type"`
 	Timestamp    time.Time    `json:"timestamp"`
+	LogEntryType LogEntryType `json:"log_entry_type"`
 }
 
 // APIInteractionEntry logs an LLM API interaction.
 type APIInteractionEntry struct {
 	BaseLogEntry
+	Response   ResponseData `json:"response"`
 	Command    string       `json:"command"`
 	Profile    string       `json:"profile"`
 	Provider   string       `json:"provider"`
 	Model      string       `json:"model"`
 	Request    RequestData  `json:"request"`
-	Response   ResponseData `json:"response"`
 	Usage      UsageData    `json:"usage,omitempty"`
 	DurationMs int64        `json:"duration_ms"`
 }
@@ -60,11 +60,11 @@ type UsageData struct {
 // ExecutionEventEntry logs an executor framework event.
 type ExecutionEventEntry struct {
 	BaseLogEntry
+	Metadata      map[string]any `json:"metadata,omitempty"`
 	ExecutionName string         `json:"execution_name"`
 	Status        string         `json:"status"`
 	Message       string         `json:"message,omitempty"`
 	Error         string         `json:"error,omitempty"`
-	Metadata      map[string]any `json:"metadata,omitempty"`
 }
 
 // ApplicationErrorEntry logs a critical application error.
