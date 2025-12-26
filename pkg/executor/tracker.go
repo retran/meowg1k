@@ -14,23 +14,11 @@ import (
 )
 
 const (
-	// ANSI colors.
-	colorReset = "\033[0m"
-	colorCyan  = "\033[36m"
-	colorGreen = "\033[32m"
-	colorRed   = "\033[31m"
-	colorGray  = "\033[90m"
-
 	// Status icons.
 	iconRunning   = "→"
 	iconCompleted = "✓"
 	iconFailed    = "✗"
 	iconPending   = "…"
-
-	// Layout widths.
-	flowNameWidth = 42
-	stepNameWidth = 40
-	toolNameWidth = 36
 
 	// Configuration.
 	feedbackChanSize = 128
@@ -42,23 +30,25 @@ var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 // Tracker tracks and displays the progress of executions in the terminal.
 type Tracker struct {
-	executions     map[string]*Execution
-	feedbackChan   chan *Feedback
-	order          []string
-	wg             sync.WaitGroup
-	spinnerIndex   int
-	displayedLines int
-	mu             sync.RWMutex
-	silent         bool
+	executions          map[string]*Execution
+	feedbackChan        chan *Feedback
+	order               []string
+	wg                  sync.WaitGroup
+	mu                  sync.RWMutex
+	spinnerIndex        int
+	currentRunningIndex int
+	silent              bool
+	spinnerVisible      bool
 }
 
 // NewTracker creates a new progress tracker.
 func NewTracker(silent bool) *Tracker {
 	return &Tracker{
-		silent:       silent,
-		executions:   make(map[string]*Execution),
-		order:        make([]string, 0),
-		feedbackChan: make(chan *Feedback, feedbackChanSize),
+		silent:              silent,
+		executions:          make(map[string]*Execution),
+		order:               make([]string, 0),
+		feedbackChan:        make(chan *Feedback, feedbackChanSize),
+		currentRunningIndex: -1,
 	}
 }
 
@@ -135,217 +125,221 @@ func (t *Tracker) run() {
 	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
-	isDirty := true // A dirty flag schedules a full redraw.
-
 	for {
 		select {
 		case feedback, ok := <-t.feedbackChan:
 			if !ok {
-				t.redraw()
-				fmt.Fprint(os.Stderr, "\r\033[K") // Clear the spinner line
+				t.clearSpinnerLine()
 				return
 			}
-			t.updateExecution(feedback)
-			isDirty = true
+			exec, shouldLog := t.updateExecution(feedback)
+			if shouldLog && exec != nil {
+				t.clearSpinnerLine()
+				fmt.Fprintln(os.Stderr, t.formatLogLine(exec))
+			}
 
 		case <-ticker.C:
 			t.spinnerIndex++
-			if isDirty {
-				t.redraw()
-				isDirty = false
-			}
 			t.drawSpinner()
 		}
 	}
 }
 
-// redraw clears the previous output and redraws the entire progress block.
-func (t *Tracker) redraw() {
+// drawSpinner renders only the spinner line.
+func (t *Tracker) drawSpinner() {
 	if t == nil {
 		return
 	}
 
-	if t.displayedLines > 0 {
-		fmt.Fprintf(os.Stderr, "\033[%dA\r", t.displayedLines)
-	}
-
-	var output strings.Builder
-	var newLinesCount int
-
 	t.mu.RLock()
-	for _, name := range t.order {
-		exec, exists := t.executions[name]
-		if !exists || exec == nil || exec.Level > 2 { // We only display levels 0-2
-			continue
-		}
-
-		style := lineStyle{
-			nameWidth: flowNameWidth,
-		}
-		switch exec.Level {
-		case 1:
-			style.indent = "  "
-			style.nameWidth = stepNameWidth
-		case 2:
-			style.indent = "    "
-			style.nameWidth = toolNameWidth
-		}
-
-		output.WriteString(t.formatLine(exec, style))
-		newLinesCount++
+	runningIndex := t.currentRunningIndex
+	var runningName string
+	if runningIndex >= 0 && runningIndex < len(t.order) {
+		runningName = t.order[runningIndex]
 	}
 	t.mu.RUnlock()
 
-	output.WriteString("\033[J") // Clear screen from cursor down
-	fmt.Fprint(os.Stderr, output.String())
+	if runningName == "" {
+		t.clearSpinnerLine()
+		return
+	}
 
-	t.displayedLines = newLinesCount
-}
+	exec := t.GetExecution(runningName)
+	if exec == nil {
+		t.clearSpinnerLine()
+		return
+	}
 
-// drawSpinner renders only the spinner line.
-func (t *Tracker) drawSpinner() {
+	displayName := buildDisplayName(exec)
 	spinner := spinnerChars[t.spinnerIndex%len(spinnerChars)]
-	fmt.Fprintf(os.Stderr, "\r%s Working...\033[K", spinner)
+	fmt.Fprintf(os.Stderr, "\r%s Running: %s\033[K", spinner, displayName)
+	t.spinnerVisible = true
 }
 
 // updateExecution updates the state of an execution based on feedback.
-func (t *Tracker) updateExecution(feedback *Feedback) {
+func (t *Tracker) updateExecution(feedback *Feedback) (*Execution, bool) {
 	if t == nil || feedback == nil || feedback.ActivityName == "" {
-		return
+		return nil, false
 	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	exec, exists := t.executions[feedback.ActivityName]
-	if !exists {
-		parentName, level := parseActivityHierarchy(feedback.ActivityName)
-		exec = &Execution{
-			Name:       feedback.ActivityName,
-			StartTime:  feedback.Timestamp,
-			Metadata:   make(map[string]any),
-			ParentName: parentName,
-			Children:   make([]string, 0),
-			Level:      level,
-		}
-		t.executions[feedback.ActivityName] = exec
-		t.order = append(t.order, feedback.ActivityName)
-
-		if parent, ok := t.executions[parentName]; ok && parent != nil {
-			parent.Children = append(parent.Children, feedback.ActivityName)
-		}
-	}
-
+	exec, execIndex := t.ensureExecution(feedback)
 	exec.Status = feedback.Status
 	exec.Error = feedback.Error
 	if feedback.Metadata != nil {
 		maps.Copy(exec.Metadata, feedback.Metadata)
 	}
 
+	shouldLog := t.applyFeedbackStatus(exec, feedback, execIndex)
+	return execCopy(exec), shouldLog
+}
+
+func (t *Tracker) ensureExecution(feedback *Feedback) (exec *Execution, execIndex int) {
+	exec, exists := t.executions[feedback.ActivityName]
+	if exists {
+		return exec, -1
+	}
+
+	parentName, level := parseActivityHierarchy(feedback.ActivityName)
+	exec = &Execution{
+		Name:       feedback.ActivityName,
+		StartTime:  feedback.Timestamp,
+		Metadata:   make(map[string]any),
+		ParentName: parentName,
+		Children:   make([]string, 0),
+		Level:      level,
+	}
+	t.executions[feedback.ActivityName] = exec
+	execIndex = len(t.order)
+	t.order = append(t.order, feedback.ActivityName)
+
+	if parent, ok := t.executions[parentName]; ok && parent != nil {
+		parent.Children = append(parent.Children, feedback.ActivityName)
+	}
+
+	return exec, execIndex
+}
+
+func (t *Tracker) applyFeedbackStatus(exec *Execution, feedback *Feedback, execIndex int) bool {
 	switch feedback.Status {
 	case StatusPending:
 		exec.Message = sanitizeDescription(feedback.Message)
+		return false
 	case StatusRunning:
 		exec.Message = sanitizeDescription(feedback.Message)
+		t.setCurrentRunning(execIndex, feedback.ActivityName)
+		return false
 	case StatusCompleted:
 		exec.Result = sanitizeDescription(feedback.Message)
-		fallthrough
+		t.finishExecution(exec, feedback)
+		return true
 	case StatusFailed:
-		endTime := feedback.Timestamp
-		exec.EndTime = &endTime
+		t.finishExecution(exec, feedback)
+		return true
+	default:
+		return false
 	}
 }
 
-// lineStyle defines the formatting for a single line.
-type lineStyle struct {
-	indent    string
-	nameWidth int
+func (t *Tracker) finishExecution(exec *Execution, feedback *Feedback) {
+	exec.Message = sanitizeDescription(feedback.Message)
+	endTime := feedback.Timestamp
+	exec.EndTime = &endTime
+	t.clearCurrentRunningIfMatch(feedback.ActivityName)
 }
 
-// formatLine formats a single execution's status into a string.
-func (t *Tracker) formatLine(exec *Execution, style lineStyle) string {
+func (t *Tracker) setCurrentRunning(execIndex int, name string) {
+	if execIndex == -1 {
+		execIndex = findExecutionIndex(t.order, name)
+	}
+	if execIndex >= 0 {
+		t.currentRunningIndex = execIndex
+	}
+}
+
+func (t *Tracker) clearCurrentRunningIfMatch(name string) {
+	if t.currentRunningIndex >= 0 && t.currentRunningIndex < len(t.order) && t.order[t.currentRunningIndex] == name {
+		t.currentRunningIndex = -1
+	}
+}
+
+func findExecutionIndex(order []string, name string) int {
+	for i, entry := range order {
+		if entry == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func (t *Tracker) formatLogLine(exec *Execution) string {
 	if t == nil || exec == nil {
 		return ""
 	}
 
-	var icon, color string
+	icon := iconRunning
 	switch exec.Status {
 	case StatusPending:
-		icon, color = iconPending, colorGray
+		icon = iconPending
 	case StatusRunning:
-		icon, color = iconRunning, colorCyan
+		icon = iconRunning
 	case StatusCompleted:
-		icon, color = iconCompleted, colorGreen
+		icon = iconCompleted
 	case StatusFailed:
-		icon, color = iconFailed, colorRed
+		icon = iconFailed
 	}
 
-	displayName := exec.Message
-	if displayName == "" {
-		parts := strings.Split(exec.Name, "::")
-		displayName = convertCamelToReadable(parts[len(parts)-1])
-	}
-	truncatedName := truncateString(displayName, style.nameWidth)
-	paddedName := fmt.Sprintf("%-*s", style.nameWidth, truncatedName)
+	displayName := buildDisplayName(exec)
+	indent := strings.Repeat("  ", exec.Level)
 
 	duration := exec.getDurationString()
-	progressInfo := t.getChildProgressInfo(exec)
+	if duration != "" {
+		duration = fmt.Sprintf(" (%s)", duration)
+	}
 
 	var errorMsg string
 	if exec.Status == StatusFailed && exec.Error != nil {
-		errorMsg = fmt.Sprintf(" (%s)", exec.Error.Error())
+		errorMsg = fmt.Sprintf(" — %s", sanitizeDescription(exec.Error.Error()))
 	}
 
-	return fmt.Sprintf("%s%s%s%s %s %6s  %s%s\033[K\n",
-		style.indent, color, icon, colorReset,
-		paddedName, duration, progressInfo, errorMsg)
+	return fmt.Sprintf("%s%s %s%s%s", indent, icon, displayName, duration, errorMsg)
 }
 
-func (t *Tracker) getChildProgressInfo(exec *Execution) string {
-	total := len(exec.Children)
-	if total == 0 {
-		if exec.Status == StatusCompleted {
-			return exec.Result
-		}
+func (t *Tracker) clearSpinnerLine() {
+	if t == nil || !t.spinnerVisible {
+		return
+	}
+	fmt.Fprint(os.Stderr, "\r\033[K")
+	t.spinnerVisible = false
+}
+
+func execCopy(exec *Execution) *Execution {
+	if exec == nil {
+		return nil
+	}
+	copyExec := *exec
+	return &copyExec
+}
+
+func buildDisplayName(exec *Execution) string {
+	if exec == nil {
 		return ""
 	}
 
-	var completed, failed, running int
-	for _, childName := range exec.Children {
-		if child, exists := t.executions[childName]; exists {
-			switch child.Status {
-			case StatusPending:
-				// Pending children are not included in progress counts.
-			case StatusCompleted:
-				completed++
-			case StatusFailed:
-				failed++
-			case StatusRunning:
-				running++
-			}
-		}
+	if exec.Result != "" {
+		return truncateString(exec.Result, maxMessageLength)
+	}
+	if exec.Message != "" {
+		return truncateString(exec.Message, maxMessageLength)
 	}
 
-	done := completed + failed
-	if done == total {
-		if failed > 0 {
-			return fmt.Sprintf("[%d/%d, %d failed]", completed, total, failed)
-		}
-		return fmt.Sprintf("[%d/%d]", completed, total)
+	parts := strings.Split(exec.Name, "::")
+	if len(parts) == 0 {
+		return ""
 	}
-
-	var parts []string
-	if running > 0 {
-		parts = append(parts, fmt.Sprintf("%d running", running))
-	}
-	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", failed))
-	}
-
-	if len(parts) > 0 {
-		return fmt.Sprintf("[%d/%d, %s]", done, total, strings.Join(parts, ", "))
-	}
-	return fmt.Sprintf("[%d/%d]", done, total)
+	return convertCamelToReadable(parts[len(parts)-1])
 }
 
 func sanitizeDescription(description string) string {

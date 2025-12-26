@@ -6,6 +6,7 @@ package executor
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -399,5 +400,132 @@ func TestParseActivityHierarchy(t *testing.T) {
 				t.Errorf("Expected level %d, got %d", tt.expectedLevel, level)
 			}
 		})
+	}
+}
+
+func TestExecutionTracker_UpdateExecutionRunning(t *testing.T) {
+	tracker := NewTracker(false)
+
+	feedback := &Feedback{
+		ActivityName: "Flow::Step",
+		Status:       StatusRunning,
+		Message:      "Working",
+	}
+
+	exec, shouldLog := tracker.updateExecution(feedback)
+	if shouldLog {
+		t.Error("Expected running status to not emit a log line")
+	}
+	if exec == nil {
+		t.Fatal("Expected execution to be returned")
+	}
+	if exec.Status != StatusRunning {
+		t.Errorf("Expected status Running, got %v", exec.Status)
+	}
+	if tracker.currentRunningIndex != 0 {
+		t.Errorf("Expected currentRunningIndex to be 0, got %d", tracker.currentRunningIndex)
+	}
+	if tracker.currentRunningIndex >= 0 && tracker.currentRunningIndex < len(tracker.order) && tracker.order[tracker.currentRunningIndex] != "Flow::Step" {
+		t.Errorf("Expected current running name to be Flow::Step, got %s", tracker.order[tracker.currentRunningIndex])
+	}
+}
+
+func TestExecutionTracker_UpdateExecutionCompleted(t *testing.T) {
+	tracker := NewTracker(false)
+
+	tracker.updateExecution(&Feedback{
+		ActivityName: "Flow::Step",
+		Status:       StatusRunning,
+		Message:      "Working",
+	})
+
+	exec, shouldLog := tracker.updateExecution(&Feedback{
+		ActivityName: "Flow::Step",
+		Status:       StatusCompleted,
+		Message:      "Done",
+		Timestamp:    time.Now(),
+	})
+
+	if !shouldLog {
+		t.Error("Expected completed status to emit a log line")
+	}
+	if exec == nil {
+		t.Fatal("Expected execution to be returned")
+	}
+	if exec.Status != StatusCompleted {
+		t.Errorf("Expected status Completed, got %v", exec.Status)
+	}
+	if exec.EndTime == nil {
+		t.Error("Expected EndTime to be set")
+	}
+	if tracker.currentRunningIndex != -1 {
+		t.Errorf("Expected currentRunningIndex to be cleared, got %d", tracker.currentRunningIndex)
+	}
+}
+
+func TestFormatLogLine(t *testing.T) {
+	start := time.Now()
+	end := start.Add(50 * time.Millisecond)
+	exec := &Execution{
+		Name:      "Flow::Step",
+		Status:    StatusCompleted,
+		Result:    "Finished",
+		StartTime: start,
+		EndTime:   &end,
+		Level:     1,
+	}
+
+	tracker := NewTracker(false)
+	line := tracker.formatLogLine(exec)
+	if !strings.HasPrefix(line, "  "+iconCompleted) {
+		t.Errorf("Expected indented completed icon, got %q", line)
+	}
+	if !strings.Contains(line, "Finished") {
+		t.Errorf("Expected line to include result, got %q", line)
+	}
+}
+
+func TestFormatLogLineFailed(t *testing.T) {
+	start := time.Now()
+	end := start.Add(10 * time.Millisecond)
+	exec := &Execution{
+		Name:      "Flow::Step",
+		Status:    StatusFailed,
+		Message:   "Failed",
+		Error:     errors.New("boom"),
+		StartTime: start,
+		EndTime:   &end,
+		Level:     0,
+	}
+
+	tracker := NewTracker(false)
+	line := tracker.formatLogLine(exec)
+	if !strings.HasPrefix(line, iconFailed) {
+		t.Errorf("Expected failed icon, got %q", line)
+	}
+	if !strings.Contains(line, "boom") {
+		t.Errorf("Expected line to include error, got %q", line)
+	}
+}
+
+func TestBuildDisplayName(t *testing.T) {
+	exec := &Execution{
+		Name:    "Flow::Step",
+		Message: "Message",
+		Result:  "Result",
+	}
+
+	if name := buildDisplayName(exec); name != "Result" {
+		t.Errorf("Expected result to win, got %q", name)
+	}
+
+	exec.Result = ""
+	if name := buildDisplayName(exec); name != "Message" {
+		t.Errorf("Expected message to win, got %q", name)
+	}
+
+	exec.Message = ""
+	if name := buildDisplayName(exec); name != "Step" {
+		t.Errorf("Expected name fallback, got %q", name)
 	}
 }
