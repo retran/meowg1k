@@ -4,6 +4,7 @@
 package index
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"testing"
@@ -105,7 +106,7 @@ func TestRepository_AddDocumentVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetContentBlob() error = %v", err)
 	}
-	if string(retrievedContent) != string(content) {
+	if !bytes.Equal(retrievedContent, content) {
 		t.Errorf("GetContentBlob() = %q, want %q", retrievedContent, content)
 	}
 }

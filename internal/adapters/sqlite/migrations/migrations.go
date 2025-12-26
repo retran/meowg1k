@@ -5,14 +5,15 @@ package migrations
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"sort"
 )
 
 // Migration represents a database migration with a version number and upgrade function.
 type Migration struct {
-	Version uint
 	Up      func(tx *sql.Tx) error
+	Version uint
 }
 
 // RunMigrations applies all pending database migrations in order.
@@ -38,7 +39,7 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 	var currentVersion uint
 	err = db.QueryRow("SELECT version FROM schema_versions LIMIT 1").Scan(&currentVersion)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			_, err = db.Exec("INSERT INTO schema_versions (version) VALUES (0)")
 			if err != nil {
 				return fmt.Errorf("failed to initialize schema_versions table: %w", err)
@@ -75,5 +76,8 @@ func RunMigrations(db *sql.DB, migrations []Migration) error {
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migrations: %w", err)
+	}
+	return nil
 }

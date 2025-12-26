@@ -13,15 +13,15 @@ import (
 )
 
 type Input struct {
-	StateName    string
 	ChunkResults *chunkallfiles.Output
-	BatchSize    int // Maximum chunks per batch (0 = single batch)
+	StateName    string
+	BatchSize    int
 }
 
 type Batch struct {
+	Texts      []string
 	StartIndex int
 	EndIndex   int
-	Texts      []string
 }
 
 type Output struct {

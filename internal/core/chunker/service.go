@@ -5,6 +5,7 @@
 package chunker
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -35,5 +36,9 @@ func (s *Service) Chunk(content []byte, filePath string) ([]domainindex.ChunkDat
 		strategy = s.strategies["default"]
 	}
 
-	return strategy.Chunk(content)
+	chunks, err := strategy.Chunk(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to chunk content: %w", err)
+	}
+	return chunks, nil
 }

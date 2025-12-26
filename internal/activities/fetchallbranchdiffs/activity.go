@@ -16,8 +16,8 @@ import (
 
 // Input defines the input structure for the FetchAllBranchDiffs activity.
 type Input struct {
-	Files        []string
 	TargetBranch string
+	Files        []string
 }
 
 // Output defines the output structure for the FetchAllBranchDiffs activity.
@@ -30,7 +30,7 @@ type Factory struct {
 	branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.

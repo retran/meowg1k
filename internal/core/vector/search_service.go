@@ -18,9 +18,9 @@ import (
 
 // QueryResult represents a single search result from vector search.
 type QueryResult struct {
+	SnapshotName string
 	ChunkID      int64
 	Score        float32
-	SnapshotName string
 }
 
 // VectorSearchService defines the interface for low-level vector search operations.

@@ -24,7 +24,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock factories
+// Mock factories.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -39,7 +39,7 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock config provider
+// Mock config provider.
 type mockCommitConfigProvider struct {
 	config *commit.ResolvedConfig
 	err    error
@@ -49,14 +49,14 @@ func (m *mockCommitConfigProvider) Get() (*commit.ResolvedConfig, error) {
 	return m.config, m.err
 }
 
-// Mock command parameters reader
+// Mock command parameters reader.
 type mockCommandParametersReader struct {
-	targetBranch string
 	targetErr    error
-	intent       string
 	intentErr    error
-	stdin        string
 	stdinErr     error
+	targetBranch string
+	intent       string
+	stdin        string
 }
 
 func (m *mockCommandParametersReader) GetTargetBranchFlag() (string, error) {
@@ -71,7 +71,7 @@ func (m *mockCommandParametersReader) GetStdIn() (string, error) {
 	return m.stdin, m.stdinErr
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
 	outputs []string
 }
@@ -83,20 +83,20 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		name                       string
-		listStagedFactory          executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
+		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
+		commandParametersReader    CommandParametersReader
 		listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
 		applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
 		fetchAllDiffsFactory       executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
-		summarizeAllFactory        executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
-		composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
 		composeFlatCommitFactory   executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
+		composeCommitFactory       executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
+		listStagedFactory          executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
 		commitConfigProvider       CommitConfigProvider
-		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
-		wantErr                    bool
+		name                       string
 		expectedErrMsg             string
+		wantErr                    bool
 	}{
 		{
 			name:                       "nil listStagedFactory",
@@ -331,11 +331,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",

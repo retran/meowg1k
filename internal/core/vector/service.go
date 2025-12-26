@@ -15,9 +15,9 @@ import (
 )
 
 type IndexDump struct {
-	HNSWData    []byte
 	IDToChunkID map[uint32]int64
 	ChunkIDToID map[int64]uint32
+	HNSWData    []byte
 }
 
 type Service struct {
@@ -58,8 +58,8 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 
 	// Step 2: Get all chunks for these versions
 	var allChunks []struct {
-		chunkID   int64
 		embedding []float32
+		chunkID   int64
 	}
 
 	for _, versionID := range versionIDs {
@@ -76,8 +76,8 @@ func (s *Service) BuildAndSave(snapshotName string) error {
 			}
 
 			allChunks = append(allChunks, struct {
-				chunkID   int64
 				embedding []float32
+				chunkID   int64
 			}{
 				chunkID:   chunk.ID,
 				embedding: embedding,

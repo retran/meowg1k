@@ -93,7 +93,7 @@ func (m *mockIndexRepository) GetVersionsByIDs(ctx context.Context, versionIDs [
 	return versions, nil
 }
 
-// Implement other IndexRepository methods as no-ops (not used by retrieval service)
+// Implement other IndexRepository methods as no-ops (not used by retrieval service).
 func (m *mockIndexRepository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
 	return 0, nil
 }

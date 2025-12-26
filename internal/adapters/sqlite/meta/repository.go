@@ -32,9 +32,9 @@ var fileRefPrefixBytes = []byte(fileRefPrefix)
 // Repository implements metadata storage using SQLite.
 type Repository struct {
 	host        ports.Host
-	blobDirOnce sync.Once
-	blobDir     string
 	blobDirErr  error
+	blobDir     string
+	blobDirOnce sync.Once
 }
 
 // Compile-time interface compliance check.
@@ -120,7 +120,7 @@ func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
 	var value []byte
 	err = db.QueryRowContext(ctx, "SELECT value FROM meta_kv WHERE key = ?", key).Scan(&value)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get meta value for key '%s': %w", key, err)
@@ -245,9 +245,7 @@ func normalizeDBPath(raw string) (string, error) {
 		return "", fmt.Errorf("database path is empty")
 	}
 
-	if strings.HasPrefix(path, "file:") {
-		path = strings.TrimPrefix(path, "file:")
-	}
+	path = strings.TrimPrefix(path, "file:")
 
 	if idx := strings.Index(path, "?"); idx >= 0 {
 		path = path[:idx]
@@ -298,7 +296,7 @@ func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, k
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", nil
 		}
-		return "", err
+		return "", fmt.Errorf("failed to scan tail: %w", err)
 	}
 
 	if len(tail) == 0 {
@@ -370,5 +368,8 @@ func (r *Repository) removeBlob(dir, name string) error {
 		return nil
 	}
 
-	return os.Remove(filepath.Join(dir, name))
+	if err := os.Remove(filepath.Join(dir, name)); err != nil {
+		return fmt.Errorf("failed to remove blob file: %w", err)
+	}
+	return nil
 }

@@ -30,7 +30,7 @@ type Factory struct {
 	stagedChangesReader StagedChangesReader
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
@@ -61,7 +61,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("failed to read staged changes in %s: %w", input.Filename, err)
 		}
 
-		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(input.Filename)
+		renameFrom, renameTo := extractRename(change)
+		originalFilename := input.Filename
+		if renameFrom != "" && renameTo != "" {
+			originalFilename = renameFrom
+		}
+
+		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(originalFilename)
 		if err != nil {
 			if strings.Contains(err.Error(), "does not exist") ||
 				strings.Contains(err.Error(), "not in 'HEAD'") ||
@@ -98,4 +104,20 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			ChangedFileContent:  stagedFileContent,
 		}, nil
 	}
+}
+
+func extractRename(diff string) (string, string) {
+	var from, to string
+
+	lines := strings.Split(diff, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "rename from ") {
+			from = strings.TrimPrefix(line, "rename from ")
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			to = strings.TrimPrefix(line, "rename to ")
+		}
+	}
+
+	return from, to
 }

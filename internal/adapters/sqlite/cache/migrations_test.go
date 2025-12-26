@@ -85,11 +85,11 @@ func TestMigrations_TableSchema(t *testing.T) {
 	defer rows.Close()
 
 	type columnInfo struct {
-		cid       int
 		name      string
 		colType   string
-		notNull   int
 		dfltValue sql.NullString
+		cid       int
+		notNull   int
 		pk        int
 	}
 

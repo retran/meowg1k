@@ -20,8 +20,8 @@ func TestNewService(t *testing.T) {
 		name        string
 		baseURL     string
 		apiKey      string
-		expectError bool
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name:        "Valid service creation",
@@ -67,13 +67,13 @@ func TestNewService(t *testing.T) {
 
 func TestServiceImpl_Complete(t *testing.T) {
 	tests := []struct {
-		name           string
 		request        *CompletionRequest
+		name           string
+		mockError      string
+		errorMsg       string
 		mockResponse   CompletionResponse
 		mockStatusCode int
-		mockError      string
 		expectError    bool
-		errorMsg       string
 	}{
 		{
 			name: "Successful completion",
@@ -283,11 +283,11 @@ func TestCompletionRequestFieldsValidation(t *testing.T) {
 
 func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 	tests := []struct {
-		name        string
 		setupServer func() *httptest.Server
 		request     *CompletionRequest
-		expectError bool
+		name        string
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name: "Request marshaling error - invalid request structure",
@@ -472,13 +472,13 @@ func TestCompletionResponseValidation(t *testing.T) {
 
 func TestServiceImpl_Embedding(t *testing.T) {
 	tests := []struct {
-		name           string
 		request        *EmbeddingRequest
+		name           string
 		mockResponse   string
-		mockStatusCode int
-		expectedEmbed  []float64
-		expectError    bool
 		errorMsg       string
+		expectedEmbed  []float64
+		mockStatusCode int
+		expectError    bool
 	}{
 		{
 			name: "Successful embedding with nested array format",
@@ -734,13 +734,13 @@ func TestEmbeddingResponseValidation(t *testing.T) {
 func TestServiceImpl_EmbeddingBatch(t *testing.T) {
 	tests := []struct {
 		name           string
-		texts          []string
-		normOutput     bool
 		mockResponse   string
+		errorMsg       string
+		texts          []string
 		mockStatusCode int
 		expectedCount  int
+		normOutput     bool
 		expectError    bool
-		errorMsg       string
 	}{
 		{
 			name:       "Successful batch embedding",

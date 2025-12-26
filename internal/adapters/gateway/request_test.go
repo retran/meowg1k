@@ -11,7 +11,7 @@ import (
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// TestGenerateContentRequestAllMethods tests all methods of domainGateway.GenerateContentRequest
+// TestGenerateContentRequestAllMethods tests all methods of domainGateway.GenerateContentRequest.
 func TestGenerateContentRequestAllMethods(t *testing.T) {
 	model := "test-model"
 	system := "system prompt"
@@ -30,7 +30,7 @@ func TestGenerateContentRequestAllMethods(t *testing.T) {
 	assert.Equal(t, maxTokens, req.MaxOutputTokens())
 }
 
-// TestComputeEmbeddingsRequestAllMethods tests all methods of ComputeEmbeddingsRequest
+// TestComputeEmbeddingsRequestAllMethods tests all methods of ComputeEmbeddingsRequest.
 func TestComputeEmbeddingsRequestAllMethods(t *testing.T) {
 	model := "embedding-model"
 	chunks := []string{"chunk1", "chunk2"}
@@ -54,7 +54,7 @@ func TestComputeEmbeddingsRequestAllMethods(t *testing.T) {
 	assert.Equal(t, dimensions, req2.Dimensions())
 }
 
-// TestComputeDistanceMixinAllCases tests ComputeDistance with various scenarios
+// TestComputeDistanceMixinAllCases tests ComputeDistance with various scenarios.
 func TestComputeDistanceMixinAllCases(t *testing.T) {
 	mixin := &domainGateway.ComputeDistanceMixin{}
 

@@ -30,7 +30,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// testMockDBHost is a simple mock implementation for testing nil validation
+// testMockDBHost is a simple mock implementation for testing nil validation.
 type testMockDBHost struct{}
 
 func (h *testMockDBHost) GetMainDB() (*sql.DB, error) {
@@ -306,10 +306,10 @@ func TestNewTestAppContainerNil(t *testing.T) {
 
 func TestNewAppContainerWithErrors(t *testing.T) {
 	tests := []struct {
-		name        string
 		setupCmd    func() *cobra.Command
-		expectError bool
+		name        string
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name: "Command service creation error",
@@ -707,8 +707,8 @@ func TestValidateLogPath(t *testing.T) {
 		name      string
 		logDir    string
 		fileName  string
-		expectErr bool
 		errMsg    string
+		expectErr bool
 	}{
 		{
 			name:      "valid path",

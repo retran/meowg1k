@@ -56,7 +56,7 @@ func (g *cachingGenerationGateway) GenerateContent(
 
 	result, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
 
 	if err := g.cache.Set(ctx, cacheKey, result); err != nil {

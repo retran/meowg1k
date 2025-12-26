@@ -255,9 +255,9 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 		model          string
 		systemPrompt   string
 		userPrompt     string
+		errorSubstring string
 		maxTokens      int
 		expectingError bool
-		errorSubstring string
 	}{
 		{
 			name:           "Empty model",

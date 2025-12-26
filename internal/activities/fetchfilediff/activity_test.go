@@ -286,3 +286,44 @@ func TestActivity_InitialCommitScenario(t *testing.T) {
 		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
 	}
 }
+
+func TestActivity_RenameScenario(t *testing.T) {
+	var originalRequested string
+	gitSvc := &mockStagedChangesReader{
+		ReadStagedChangesFunc: func(filename string) (string, error) {
+			return "diff --git a/old.go b/new.go\nsimilarity index 100%\nrename from old.go\nrename to new.go", nil
+		},
+		ReadOriginalFileContentFunc: func(filename string) (string, error) {
+			originalRequested = filename
+			return "old content", nil
+		},
+		ReadStagedFileContentFunc: func(filename string) (string, error) {
+			return "new content", nil
+		},
+	}
+
+	factory, _ := NewFactory(gitSvc)
+	activity := factory.NewActivity()
+
+	ctx := context.Background()
+	execCtx := executor.NewContext("test", nil, nil)
+	input := &Input{Filename: "new.go"}
+
+	output, err := activity(ctx, execCtx, input)
+	if err != nil {
+		t.Fatalf("unexpected error for rename: %v", err)
+	}
+
+	if originalRequested != "old.go" {
+		t.Errorf("expected original content to be read from old.go, got %s", originalRequested)
+	}
+	if output.Filename != "new.go" {
+		t.Errorf("expected filename to remain new path, got %s", output.Filename)
+	}
+	if output.OriginalFileContent != "old content" || output.ChangedFileContent != "new content" {
+		t.Errorf("unexpected content fetched: original=%q staged=%q", output.OriginalFileContent, output.ChangedFileContent)
+	}
+	if output.Change == "" || output.Change == "\n" {
+		t.Errorf("expected change to be propagated, got %q", output.Change)
+	}
+}

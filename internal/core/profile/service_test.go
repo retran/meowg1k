@@ -358,8 +358,8 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name    string
 		profile *profile2.ResolvedProfile
+		name    string
 	}{
 		{
 			name:    "nil profile",

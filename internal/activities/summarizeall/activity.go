@@ -29,7 +29,7 @@ type Factory struct {
 	fileSummarizationActivityFactory executor.ActivityFactory[*summarizefile.Input, *summarizefile.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeAll activity factory with the provided file summarization activity factory.

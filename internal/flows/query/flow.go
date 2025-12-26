@@ -20,7 +20,7 @@ type CommandParametersReader interface {
 	GetSnapshotsFlag() ([]string, error)
 	GetTopKFlag() (int, error)
 	GetMinScoreFlag() (float32, error)
-	GetJsonFlag() (bool, error)
+	GetJSONFlag() (bool, error)
 }
 
 // Factory creates instances of the query flow.
@@ -96,7 +96,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			minScore = 0.0 // Default
 		}
 
-		useJson, err := f.parametersReader.GetJsonFlag()
+		useJSON, err := f.parametersReader.GetJSONFlag()
 		if err != nil {
 			return fmt.Errorf("failed to get json flag: %w", err)
 		}
@@ -122,7 +122,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Format and output results
-		if useJson {
+		if useJSON {
 			// JSON output
 			jsonData, err := json.MarshalIndent(queryOutput.Results, "", "  ")
 			if err != nil {

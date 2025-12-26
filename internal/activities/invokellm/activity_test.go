@@ -16,8 +16,8 @@ import (
 
 // mockGenerationGateway is a mock implementation of GenerationGateway for testing.
 type mockGenerationGateway struct {
-	Content string
 	Err     error
+	Content string
 }
 
 func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {

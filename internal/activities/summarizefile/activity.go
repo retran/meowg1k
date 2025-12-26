@@ -40,7 +40,7 @@ type Factory struct {
 	summarizationConfigProvider      SummarizationConfigProvider
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.

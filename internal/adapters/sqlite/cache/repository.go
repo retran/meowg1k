@@ -7,6 +7,7 @@ package cache
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,7 +45,7 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 		SELECT value FROM llm_cache WHERE key = ?
 	`, key).Scan(&value)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 

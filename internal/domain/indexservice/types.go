@@ -12,8 +12,8 @@ import (
 // PrepareForProcessingOutput represents the output of the PrepareForProcessing operation.
 type PrepareForProcessingOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
 // SaveVersionInput represents the input for saving a new version.

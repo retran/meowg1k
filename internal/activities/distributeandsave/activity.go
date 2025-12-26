@@ -17,13 +17,13 @@ import (
 )
 
 type Input struct {
-	StateName        string
 	EmbeddingResults *computeallembeddings.Output
+	StateName        string
 }
 
 type Output struct {
+	VersionMap map[string]int64
 	StateName  string
-	VersionMap map[string]int64 // contentHash -> version_id
 }
 
 type Factory struct {

@@ -15,11 +15,11 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// openrouterGateway implements gateway interfaces for OpenRouter API
+// openrouterGateway implements gateway interfaces for OpenRouter API.
 type openrouterGateway struct {
+	client  *http.Client
 	baseURL string
 	apiKey  string
-	client  *http.Client
 }
 
 // NewOpenRouterGateway creates a new OpenRouter gateway with a shared HTTP client.
@@ -50,27 +50,27 @@ func NewOpenRouterGateway(
 	}, nil
 }
 
-// OpenRouter API request/response structures
+// OpenRouter API request/response structures.
 type openrouterMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
 type openrouterRequest struct {
-	Model             string              `json:"model"`
-	Messages          []openrouterMessage `json:"messages"`
-	MaxTokens         int                 `json:"max_tokens,omitempty"`
+	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
+	TopA              *float64            `json:"top_a,omitempty"`
+	N                 *int                `json:"n,omitempty"`
 	Temperature       *float64            `json:"temperature,omitempty"`
 	TopP              *float64            `json:"top_p,omitempty"`
 	TopK              *int                `json:"top_k,omitempty"`
-	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
-	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
 	RepetitionPenalty *float64            `json:"repetition_penalty,omitempty"`
-	MinP              *float64            `json:"min_p,omitempty"`
-	TopA              *float64            `json:"top_a,omitempty"`
+	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
 	Seed              *int                `json:"seed,omitempty"`
+	MinP              *float64            `json:"min_p,omitempty"`
+	Model             string              `json:"model"`
+	Messages          []openrouterMessage `json:"messages"`
 	Stop              []string            `json:"stop,omitempty"`
-	N                 *int                `json:"n,omitempty"`
+	MaxTokens         int                 `json:"max_tokens,omitempty"`
 }
 
 type openrouterChoice struct {
@@ -80,15 +80,15 @@ type openrouterChoice struct {
 }
 
 type openrouterResponse struct {
-	Choices []openrouterChoice `json:"choices"`
-	Error   *struct {
+	Error *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
+	Choices []openrouterChoice `json:"choices"`
 }
 
-// GenerateContent sends a content generation request to OpenRouter API
+// GenerateContent sends a content generation request to OpenRouter API.
 func (g *openrouterGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,

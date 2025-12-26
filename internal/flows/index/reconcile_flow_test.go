@@ -20,7 +20,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock activity factory
+// Mock activity factory.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -47,19 +47,19 @@ func TestNewFactory(t *testing.T) {
 	validBuildVector := &mockActivityFactory[struct{}, struct{}]{}
 
 	tests := []struct {
-		name                         string
+		computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
 		cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
 		scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
 		deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
 		chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
 		prepareBatchesFactory        executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
-		computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
 		distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
 		finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
 		buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
+		name                         string
+		expectedErrMsg               string
 		batchSize                    int
 		wantErr                      bool
-		expectedErrMsg               string
 	}{
 		{
 			name:                         "nil cleanupFactory",
@@ -281,11 +281,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",

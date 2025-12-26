@@ -17,8 +17,8 @@ type WorkspaceService interface {
 
 // Service is the concrete implementation of the database path service.
 type Service struct {
-	mainDBPath       string
 	workspaceService WorkspaceService
+	mainDBPath       string
 }
 
 // NewService creates a new database path service.
@@ -46,7 +46,7 @@ func (s *Service) GetMainDBPath() (string, error) {
 }
 
 // GetProjectDBPath returns the path to the project database file.
-// The project database is stored in <workspace root>/.meowg1k/project.db
+// The project database is stored in <workspace root>/.meowg1k/project.db.
 func (s *Service) GetProjectDBPath() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("database path service is nil")

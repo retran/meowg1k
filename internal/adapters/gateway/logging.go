@@ -83,7 +83,10 @@ func (g *loggingGenerationGateway) GenerateContent(
 	// Log asynchronously to avoid blocking (ignore errors)
 	go g.logger.LogAPIInteraction(entry)
 
-	return content, err
+	if err != nil {
+		return content, fmt.Errorf("content generation failed: %w", err)
+	}
+	return content, nil
 }
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.
@@ -151,12 +154,19 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 	// Log asynchronously to avoid blocking (ignore errors)
 	go g.logger.LogAPIInteraction(entry)
 
-	return embeddings, err
+	if err != nil {
+		return embeddings, fmt.Errorf("embeddings computation failed: %w", err)
+	}
+	return embeddings, nil
 }
 
 // ComputeDistance delegates to the inner gateway without logging (pure computation).
 func (g *loggingEmbeddingsGateway) ComputeDistance(first, second gateway.Embedding) (float64, error) {
-	return g.inner.ComputeDistance(first, second)
+	dist, err := g.inner.ComputeDistance(first, second)
+	if err != nil {
+		return 0, fmt.Errorf("distance computation failed: %w", err)
+	}
+	return dist, nil
 }
 
 // formatChunks formats the chunks for logging (truncate if too many).

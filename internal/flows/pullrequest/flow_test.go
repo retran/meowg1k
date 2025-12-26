@@ -20,7 +20,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// Mock factories
+// Mock factories.
 type mockActivityFactory[I, O any] struct {
 	newActivityFunc func() executor.Activity[I, O]
 }
@@ -35,7 +35,7 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 	}
 }
 
-// Mock PR config provider
+// Mock PR config provider.
 type mockPRConfigProvider struct {
 	config *pullrequest.ResolvedConfig
 	err    error
@@ -45,14 +45,14 @@ func (m *mockPRConfigProvider) Get() (*pullrequest.ResolvedConfig, error) {
 	return m.config, m.err
 }
 
-// Mock command parameters reader
+// Mock command parameters reader.
 type mockCommandParametersReader struct {
-	baseBranch string
 	baseErr    error
-	intent     string
 	intentErr  error
-	stdin      string
 	stdinErr   error
+	baseBranch string
+	intent     string
+	stdin      string
 }
 
 func (m *mockCommandParametersReader) GetBaseBranchFlag() (string, error) {
@@ -67,7 +67,7 @@ func (m *mockCommandParametersReader) GetStdIn() (string, error) {
 	return m.stdin, m.stdinErr
 }
 
-// Mock output writer
+// Mock output writer.
 type mockOutputWriter struct {
 	outputs []string
 }
@@ -79,7 +79,6 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		name                       string
 		listBranchFilesFactory     executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
 		applyFiltersFactory        executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
 		fetchAllBranchDiffsFactory executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
@@ -89,8 +88,9 @@ func TestNewFactory(t *testing.T) {
 		prConfigProvider           PullRequestConfigProvider
 		commandParametersReader    CommandParametersReader
 		outputWriter               ports.OutputWriter
-		wantErr                    bool
+		name                       string
 		expectedErrMsg             string
+		wantErr                    bool
 	}{
 		{
 			name:                       "nil listBranchFilesFactory",
@@ -271,11 +271,11 @@ func TestNewFactory(t *testing.T) {
 
 func TestFactory_NewFlow(t *testing.T) {
 	tests := []struct {
-		name           string
 		setupFactory   func() *Factory
 		setupContext   func() (context.Context, *executor.Context)
-		wantErr        bool
+		name           string
 		expectedErrMsg string
+		wantErr        bool
 	}{
 		{
 			name: "nil factory",

@@ -31,7 +31,7 @@ type Factory struct {
 	fileIgnoreChecker FileIgnoreChecker
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ApplyFilters activity factory with the provided file ignore checker.

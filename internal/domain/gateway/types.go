@@ -11,21 +11,21 @@ import (
 
 // GenerateContentRequest holds the parameters for a content generation request.
 type GenerateContentRequest struct {
-	model             string
-	systemPrompt      string
-	userPrompt        string
-	maxOutputTokens   int
+	responseSchema    map[string]interface{}
+	mirostatTau       *float64
+	grammar           *string
+	mirostatEta       *float64
 	temperature       *float64
 	topP              *float64
 	topK              *int
 	frequencyPenalty  *float64
 	presencePenalty   *float64
 	seed              *int
-	stop              []string
-	responseFormat    *string
-	responseSchema    map[string]interface{}
 	candidateCount    *int
 	logProbs          *bool
+	mirostat          *int
+	typicalP          *float64
+	responseFormat    *string
 	topLogProbs       *int
 	logitBias         map[string]int
 	serviceTier       *string
@@ -33,11 +33,11 @@ type GenerateContentRequest struct {
 	repetitionPenalty *float64
 	minP              *float64
 	topA              *float64
-	typicalP          *float64
-	mirostat          *int
-	mirostatTau       *float64
-	mirostatEta       *float64
-	grammar           *string
+	model             string
+	systemPrompt      string
+	userPrompt        string
+	stop              []string
+	maxOutputTokens   int
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -344,9 +344,9 @@ const (
 // ComputeEmbeddingsRequest holds the parameters for a text embedding request.
 type ComputeEmbeddingsRequest struct {
 	model      string
-	chunks     []string
 	taskType   TaskType
-	dimensions int // Output dimensionality (optional, uses model default if 0)
+	chunks     []string
+	dimensions int
 }
 
 // NewComputeEmbeddingsRequest creates and returns a new ComputeEmbeddingsRequest.

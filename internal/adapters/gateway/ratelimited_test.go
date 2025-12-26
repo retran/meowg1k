@@ -44,7 +44,7 @@ func (m *mockHost) Close() error {
 	return nil
 }
 
-// setupTestRepository creates an in-memory SQLite database and repository for testing
+// setupTestRepository creates an in-memory SQLite database and repository for testing.
 func setupTestRepository(t *testing.T) (*sql.DB, *ratelimit2.Repository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -61,10 +61,10 @@ func setupTestRepository(t *testing.T) (*sql.DB, *ratelimit2.Repository) {
 	return db, repo
 }
 
-// mockGenerationGateway is a mock implementation for testing
+// mockGenerationGateway is a mock implementation for testing.
 type mockGenerationGateway struct {
-	response string
 	err      error
+	response string
 }
 
 func (m *mockGenerationGateway) GenerateContent(

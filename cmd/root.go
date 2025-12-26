@@ -15,7 +15,11 @@ import (
 )
 
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	if err != nil {
+		return fmt.Errorf("failed to execute root command: %w", err)
+	}
+	return nil
 }
 
 var rootCmd = &cobra.Command{

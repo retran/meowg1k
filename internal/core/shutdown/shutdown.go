@@ -18,12 +18,12 @@ import (
 // Service handles graceful shutdown of the application.
 // It listens for system signals and coordinates shutdown of all registered components.
 type Service struct {
-	mu        sync.RWMutex
-	ctx       context.Context //nolint:containedctx // stored to expose shutdown context to consumers
+	ctx       context.Context
 	cancel    context.CancelFunc
 	logger    *slog.Logger
 	callbacks []Callback
 	timeout   time.Duration
+	mu        sync.RWMutex
 }
 
 // Callback is a function called during graceful shutdown.

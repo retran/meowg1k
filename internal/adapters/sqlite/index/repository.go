@@ -7,6 +7,7 @@ package index
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -183,7 +184,10 @@ func (r *Repository) AddChunks(ctx context.Context, chunks []domainindex.Chunk) 
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }
 
 // GetAllEmbeddings retrieves all embeddings from the index.
@@ -194,7 +198,10 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	rows, err := db.QueryContext(ctx, "SELECT id, embedding FROM chunks")
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, embedding FROM chunks
+		WHERE embedding IS NOT NULL
+	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query embeddings: %w", err)
 	}
@@ -238,7 +245,7 @@ func (r *Repository) FindVersionByContentHash(ctx context.Context, filePath, con
 		filePath, contentHash,
 	).Scan(&doc.ID, &doc.FilePath, &doc.GitCommitHashFirstSeen, &doc.ContentHash, &doc.IndexedAt)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -335,7 +342,7 @@ func (r *Repository) GetContentBlob(ctx context.Context, contentHash string) ([]
 		contentHash,
 	).Scan(&content)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

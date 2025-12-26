@@ -66,9 +66,9 @@ func (r *Repository) AcquireTokens(ctx context.Context, configs []ratelimit.Buck
 	}
 
 	type bucketState struct {
+		newRefill time.Time
 		id        string
 		newTokens int
-		newRefill time.Time
 	}
 	var statesToUpdate []bucketState
 

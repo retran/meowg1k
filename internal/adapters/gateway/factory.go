@@ -17,14 +17,14 @@ import (
 )
 
 type Factory struct {
+	cacheRepo         ports.CacheRepository
+	flagReader        ports.FlagReader
+	traceLogger       TraceLogger
+	commandNameReader ports.CommandNameReader
+	httpClientService ports.HTTPClientService
+	limiters          map[string]ratelimit.Limiter
+	rateLimitRepo     *ratelimit2.Repository
 	mu                sync.Mutex
-	limiters          map[string]ratelimit.Limiter // key is profile name
-	rateLimitRepo     *ratelimit2.Repository       // rate limit repository
-	cacheRepo         ports.CacheRepository        // cache repository for LLM responses
-	flagReader        ports.FlagReader             // command-line flag reader
-	traceLogger       TraceLogger                  // trace logger for API interactions
-	commandNameReader ports.CommandNameReader      // command name reader
-	httpClientService ports.HTTPClientService      // shared HTTP client service for all gateways
 }
 
 // NewFactory creates a new gateway factory with dependencies.

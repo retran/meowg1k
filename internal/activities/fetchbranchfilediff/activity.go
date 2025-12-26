@@ -31,7 +31,7 @@ type Factory struct {
 	branchDiffReader BranchDiffReader
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.

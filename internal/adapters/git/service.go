@@ -13,8 +13,8 @@ import (
 
 // Service implements GitService.
 type Service struct {
+	semaphore    chan struct{}
 	workspaceDir string
-	semaphore    chan struct{} // Worker pool with 1 worker for sequential execution
 }
 
 // WorkspaceDirProvider provides the workspace directory path.
@@ -73,7 +73,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	out, err := g.runGitCommand("diff", "--cached", "--name-only")
+	out, err := g.runGitCommand("diff", "--cached", "--name-only", "-M")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}
@@ -95,7 +95,7 @@ func (g *Service) ReadStagedChanges(filePath string) (string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	return g.runGitCommand("diff", "--cached", "--unified=0", "--", filePath)
+	return g.runGitCommand("diff", "--cached", "--unified=0", "-M", "--", filePath)
 }
 
 // ReadStagedFileContent returns the current content of the specified file from the index (stage).
@@ -160,7 +160,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	output, err := g.runGitCommand("diff", "--name-only", targetBranch+"...HEAD")
+	output, err := g.runGitCommand("diff", "--name-only", "-M", targetBranch+"...HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 	}

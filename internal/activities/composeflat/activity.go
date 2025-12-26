@@ -19,8 +19,8 @@ import (
 type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
+	Intent       string
 	Changes      []*git.FileChange
-	Intent       string // Optional developer intent
 }
 
 // Output defines the output structure for the ComposeFlat activity.
@@ -35,12 +35,12 @@ type Factory struct {
 	contentType                      string // For error messages (e.g., "commit message", "PR description")
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposeFlat activity factory with the provided content generation activity factory.
 // activityName is used in progress messages (e.g., "Composing commit message using flat strategy")
-// contentType is used in error messages (e.g., "failed to generate commit message")
+// contentType is used in error messages (e.g., "failed to generate commit message").
 func NewFactory(
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
 	activityName string,

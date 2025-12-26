@@ -42,8 +42,8 @@ func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex
 
 	for _, filePath := range files {
 		// Check context cancellation
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context cancelled while processing HEAD state: %w", err)
 		}
 
 		// Check if file should be ignored
@@ -84,8 +84,8 @@ func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainin
 
 	for _, filePath := range files {
 		// Check context cancellation
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context cancelled while processing staging state: %w", err)
 		}
 
 		// Check if file should be ignored

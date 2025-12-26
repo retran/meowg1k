@@ -96,19 +96,19 @@ type Executor interface {
 }
 
 // executorImpl is the central component for running activities
-// It handles retry logic, feedback, and will handle caching/rate limiting in the future
+// It handles retry logic, feedback, and will handle caching/rate limiting in the future.
 type executorImpl struct {
 	RetryPolicy     *RetryPolicy
 	FeedbackHandler FeedbackHandler
 	workerSemaphore chan struct{} // Semaphore to limit concurrent workers
 }
 
-// Compile-time check to ensure Impl implements Executor interface
+// Compile-time check to ensure Impl implements Executor interface.
 var _ Executor = (*executorImpl)(nil)
 
 // NewExecutor creates a new activity executor with the given configuration
 // concurrency limits the number of activities that can run in parallel
-// If concurrency <= 0, no limit is applied
+// If concurrency <= 0, no limit is applied.
 func NewExecutor(concurrency int) *executorImpl {
 	var semaphore chan struct{}
 	if concurrency > 0 {
@@ -122,7 +122,7 @@ func NewExecutor(concurrency int) *executorImpl {
 	}
 }
 
-// WithRetryPolicy sets the retry policy for this executor
+// WithRetryPolicy sets the retry policy for this executor.
 func (e *executorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	if policy == nil {
 		policy = DefaultRetryPolicy()
@@ -132,7 +132,7 @@ func (e *executorImpl) WithRetryPolicy(policy *RetryPolicy) Executor {
 	return e
 }
 
-// WithFeedbackHandler sets the feedback handler for this executor
+// WithFeedbackHandler sets the feedback handler for this executor.
 func (e *executorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	if handler == nil {
 		handler = NoOpFeedbackHandler
@@ -142,7 +142,7 @@ func (e *executorImpl) WithFeedbackHandler(handler FeedbackHandler) Executor {
 	return e
 }
 
-// ExecuteFlow runs a flow asynchronously and returns when it completes or fails
+// ExecuteFlow runs a flow asynchronously and returns when it completes or fails.
 func (e *executorImpl) ExecuteFlow(
 	ctx context.Context,
 	flowName string,

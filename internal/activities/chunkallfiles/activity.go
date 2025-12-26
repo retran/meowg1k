@@ -61,8 +61,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		type chunkFuture struct {
-			file   domainindex.FileToProcess
 			future *future.Future[*chunkfile.Output]
+			file   domainindex.FileToProcess
 		}
 		chunkFutures := make([]chunkFuture, 0, len(input.Files))
 

@@ -20,16 +20,9 @@ type Input struct {
 }
 
 type Output struct {
-	// ExistingVersions maps content hash to existing version IDs for files that are already indexed
 	ExistingVersions map[string]int64
-
-	// FilesToProcess contains files that need to be chunked, embedded, and saved
-	// Each entry preserves the source file path and its associated state
-	FilesToProcess []domainindex.FileToProcess
-
-	// ContentHashToVersionID maps content hash to version ID for all files (used in finalization)
-	// Will be populated with both existing and new versions
-	ContentHashMap map[string]string // filePath -> contentHash (for all files in all states)
+	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
 type Factory struct {

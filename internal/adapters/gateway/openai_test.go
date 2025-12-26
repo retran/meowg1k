@@ -16,7 +16,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/profile"
 )
 
-// Mock HTTP server responses for OpenAI API
+// Mock HTTP server responses for OpenAI API.
 func createOpenAIMockServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {

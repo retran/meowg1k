@@ -19,8 +19,8 @@ import (
 type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
+	Intent       string
 	Summaries    []*summarizefile.Output
-	Intent       string // Optional developer intent
 }
 
 // Output defines the output structure for the ComposePR activity.
@@ -33,7 +33,7 @@ type Factory struct {
 	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.

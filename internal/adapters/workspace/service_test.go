@@ -10,8 +10,8 @@ import (
 )
 
 type mockWorkspacePathResolver struct {
-	path string
 	err  error
+	path string
 }
 
 func (m *mockWorkspacePathResolver) GetWorkspacePath() (string, error) {

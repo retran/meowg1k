@@ -23,10 +23,10 @@ import (
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
-// mockCommandNameReader is a mock implementation of CommandNameReader for testing
+// mockCommandNameReader is a mock implementation of CommandNameReader for testing.
 type mockCommandNameReader struct {
-	commandName string
 	err         error
+	commandName string
 }
 
 func (m *mockCommandNameReader) GetCommandName() (string, error) {
@@ -36,7 +36,7 @@ func (m *mockCommandNameReader) GetCommandName() (string, error) {
 	return m.commandName, nil
 }
 
-// mockCacheRepo is a mock implementation of CacheRepository for testing
+// mockCacheRepo is a mock implementation of CacheRepository for testing.
 type mockCacheRepo struct{}
 
 func (m *mockCacheRepo) Get(ctx context.Context, key string) (string, bool, error) {
@@ -51,7 +51,7 @@ func (m *mockCacheRepo) Purge(ctx context.Context, ttl time.Duration) error {
 	return nil
 }
 
-// mockFlagReader is a mock implementation of FlagReader for testing
+// mockFlagReader is a mock implementation of FlagReader for testing.
 type mockFlagReader struct{}
 
 func (m *mockFlagReader) GetNoCacheFlag() (bool, error) {
@@ -62,14 +62,14 @@ func (m *mockFlagReader) GetUpdateCacheFlag() (bool, error) {
 	return false, nil
 }
 
-// mockFactoryTraceLogger is a simple mock implementation of TraceLogger for factory testing
+// mockFactoryTraceLogger is a simple mock implementation of TraceLogger for factory testing.
 type mockFactoryTraceLogger struct{}
 
 func (m *mockFactoryTraceLogger) LogAPIInteraction(entry *tracelog.APIInteractionEntry) error {
 	return nil
 }
 
-// mockHTTPClientService is a mock implementation of HTTPClientService for testing
+// mockHTTPClientService is a mock implementation of HTTPClientService for testing.
 type mockHTTPClientService struct {
 	client *http.Client
 }
@@ -97,7 +97,7 @@ func (m *mockHTTPClientService) Validate() error {
 	return nil
 }
 
-// setupTestRepoForFactory creates an in-memory SQLite database and repository for testing
+// setupTestRepoForFactory creates an in-memory SQLite database and repository for testing.
 func setupTestRepoForFactory(t *testing.T) (*sql.DB, *ratelimit.Repository) {
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
@@ -151,10 +151,10 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name        string
 		profile     *profile.ResolvedProfile
-		expectError bool
+		name        string
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name: "OpenAI provider with API key",
@@ -392,10 +392,10 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name        string
 		profile     *profile.ResolvedProfile
-		expectError bool
+		name        string
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name: "OpenAI provider with API key",
@@ -583,7 +583,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	}
 }
 
-// TestGatewayFactory_NoOpLimiterFallback tests that the factory uses no-op limiter when no rate limits are configured
+// TestGatewayFactory_NoOpLimiterFallback tests that the factory uses no-op limiter when no rate limits are configured.
 func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()
@@ -623,7 +623,7 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	require.NotNil(t, limiter, "Should return a limiter when rate limiting is configured")
 }
 
-// TestGatewayFactory_NoLimitsNoOpLimiter tests that no-op limiter is used when no limits are configured
+// TestGatewayFactory_NoLimitsNoOpLimiter tests that no-op limiter is used when no limits are configured.
 func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	db, repo := setupTestRepoForFactory(t)
 	defer db.Close()

@@ -23,8 +23,8 @@ type Input struct {
 
 // Output represents the output from the InvokeLLM activity.
 type Output struct {
-	Content  string
 	Metadata map[string]any
+	Content  string
 }
 
 // Factory creates instances of the InvokeLLM activity with injected dependencies.
@@ -32,7 +32,7 @@ type Factory struct {
 	gatewayFactory ports.GenerationGatewayFactory
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new InvokeLLM activity factory with the provided gateway factory.

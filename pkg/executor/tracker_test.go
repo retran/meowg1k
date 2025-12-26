@@ -309,7 +309,7 @@ func TestExecutionTracker_MultipleStatuses(t *testing.T) {
 	}
 }
 
-// Test helper functions that are used internally
+// Test helper functions that are used internally.
 func TestSanitizeDescription(t *testing.T) {
 	tests := []struct {
 		name     string

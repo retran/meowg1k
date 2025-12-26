@@ -22,9 +22,9 @@ var errMockProfileNotFound = errors.New("mock profile not found")
 
 // mockTaskParametersReader is a mock implementation of TaskParametersReader for testing.
 type mockTaskParametersReader struct {
+	Err        error
 	TaskName   string
 	UserPrompt string
-	Err        error
 }
 
 func (m *mockTaskParametersReader) GetTaskName() (string, error) {

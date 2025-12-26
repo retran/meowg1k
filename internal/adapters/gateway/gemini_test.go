@@ -341,8 +341,8 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 	t.Run("Embeddings with specialized content", func(t *testing.T) {
 		testCases := []struct {
 			name     string
-			chunks   []string
 			taskType domainGateway.TaskType
+			chunks   []string
 		}{
 			{
 				name: "Code snippets",

@@ -17,8 +17,8 @@ import (
 
 // mockWorkspaceDirResolver is a mock implementation of WorkspaceDirResolver for testing.
 type mockWorkspaceDirResolver struct {
-	dir string
 	err error
+	dir string
 }
 
 func (m *mockWorkspaceDirResolver) Get() (string, error) {

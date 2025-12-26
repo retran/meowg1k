@@ -15,7 +15,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Compile-time interface satisfaction check
+// Compile-time interface satisfaction check.
 var _ ports.GenerationGateway = (*anthropicGateway)(nil)
 
 // anthropicGateway wraps the Anthropic SDK client for content generation.

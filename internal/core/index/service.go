@@ -19,7 +19,7 @@ type Service struct {
 	snapshotRepo ports.SnapshotRepository
 }
 
-// Ensure Service implements the IndexService interface
+// Ensure Service implements the IndexService interface.
 var _ ports.IndexService = (*Service)(nil)
 
 func NewService(
@@ -41,8 +41,8 @@ func NewService(
 
 type PrepareOutput struct {
 	ExistingVersions map[string]int64
-	FilesToProcess   []domainindex.FileToProcess
 	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
 func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
@@ -62,8 +62,8 @@ func (s *Service) prepareForProcessingImpl(
 	}
 
 	uniqueContentHashes := make(map[string]struct {
-		fileState domainindex.FileState
 		firstPath string
+		fileState domainindex.FileState
 	})
 	encounterOrder := make([]string, 0)
 	contentHashMap := make(map[string]string)
@@ -76,8 +76,8 @@ func (s *Service) prepareForProcessingImpl(
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
 				firstPath string
+				fileState domainindex.FileState
 			}{fileState: fileState, firstPath: filePath}
 			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
@@ -91,8 +91,8 @@ func (s *Service) prepareForProcessingImpl(
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
 				firstPath string
+				fileState domainindex.FileState
 			}{fileState: fileState, firstPath: filePath}
 			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
@@ -106,8 +106,8 @@ func (s *Service) prepareForProcessingImpl(
 		contentHashMap[filePath] = fileState.ContentHash
 		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
 			uniqueContentHashes[fileState.ContentHash] = struct {
-				fileState domainindex.FileState
 				firstPath string
+				fileState domainindex.FileState
 			}{fileState: fileState, firstPath: filePath}
 			encounterOrder = append(encounterOrder, fileState.ContentHash)
 		}
@@ -288,7 +288,7 @@ func isLikelyBinary(content []byte) bool {
 
 // Interface wrapper methods for ports.IndexService
 
-// SaveNewVersion implements ports.IndexService
+// SaveNewVersion implements ports.IndexService.
 func (s *Service) SaveNewVersion(ctx context.Context, input interface{}) (interface{}, error) {
 	saveInput, ok := input.(*SaveVersionInput)
 	if !ok {
@@ -297,7 +297,7 @@ func (s *Service) SaveNewVersion(ctx context.Context, input interface{}) (interf
 	return s.saveNewVersionImpl(ctx, saveInput)
 }
 
-// FinalizeLiveSnapshots implements ports.IndexService
+// FinalizeLiveSnapshots implements ports.IndexService.
 func (s *Service) FinalizeLiveSnapshots(ctx context.Context, input interface{}) error {
 	finalizeInput, ok := input.(*FinalizeInput)
 	if !ok {

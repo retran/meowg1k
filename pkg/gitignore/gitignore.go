@@ -12,8 +12,8 @@ import (
 
 // pattern is the internal representation of a single compiled .gitignore rule.
 type pattern struct {
-	raw      string
 	regex    *regexp.Regexp
+	raw      string
 	negation bool
 }
 

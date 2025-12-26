@@ -55,5 +55,9 @@ func (g *workerPoolGateway) GenerateContent(
 		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 
-	return g.gateway.GenerateContent(ctx, request)
+	content, err := g.gateway.GenerateContent(ctx, request)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate content: %w", err)
+	}
+	return content, nil
 }

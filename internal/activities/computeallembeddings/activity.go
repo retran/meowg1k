@@ -16,8 +16,8 @@ import (
 )
 
 type Input struct {
-	StateName       string
 	PreparedBatches *preparebatches.Output
+	StateName       string
 }
 
 type Output struct {

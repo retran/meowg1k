@@ -35,7 +35,7 @@ func (m *mockIndexRepository) AddDocumentVersionWithChunks(ctx context.Context, 
 	return 1, nil
 }
 
-// Implement other IndexRepository methods as no-ops
+// Implement other IndexRepository methods as no-ops.
 func (m *mockIndexRepository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
 	return 0, nil
 }

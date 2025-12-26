@@ -88,7 +88,7 @@ const (
 	osDarwin    = "darwin"
 )
 
-// validateLogPath validates the log path to prevent directory traversal attacks
+// validateLogPath validates the log path to prevent directory traversal attacks.
 func validateLogPath(logDir, fileName string) error {
 	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") || strings.Contains(fileName, "..") {
 		return fmt.Errorf("log filename contains invalid characters or path separators: %s", fileName)
@@ -306,7 +306,7 @@ func getLogDir() (string, error) {
 	// TODO review if this is the best location for logs
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
 	switch runtime.GOOS {

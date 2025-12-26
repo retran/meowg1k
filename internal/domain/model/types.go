@@ -20,16 +20,16 @@ type RateLimitConfig struct {
 
 // ResolvedModel represents a model instance with all values resolved.
 type ResolvedModel struct {
-	ID              string            // Model instance ID from config
-	Provider        provider.Provider // Resolved provider
-	Model           string            // Model name
-	MaxInputTokens  int               // Maximum input tokens
-	MaxOutputTokens int               // Maximum output tokens
-	BaseURL         string            // API base URL
-	APIKey          string            // Resolved API key (actual value)
-	APIKeyEnv       string            // Environment variable name for API key
-	Tokenizer       Tokenizer         // Tokenizer type
-	RateLimit       RateLimitConfig   // Rate limiting config
+	ID              string
+	Provider        provider.Provider
+	Model           string
+	BaseURL         string
+	APIKey          string
+	APIKeyEnv       string
+	Tokenizer       Tokenizer
+	RateLimit       RateLimitConfig
+	MaxInputTokens  int
+	MaxOutputTokens int
 }
 
 // Tokenizer represents different tokenizer implementations.
@@ -54,10 +54,10 @@ const (
 
 // ModelInfo contains comprehensive information about a specific AI model.
 type ModelInfo struct {
-	Provider              string    // The provider offering this model
-	MaxContextTokens      int       // Maximum number of context tokens
-	MaxOutputTokens       int       // Maximum number of output tokens (0 if not limited)
-	TokenizerType         Tokenizer // Type of tokenizer used
-	Description           string    // Human-readable description
-	DefaultEmbedDimension int       // Default embedding dimension (0 if not applicable)
+	Provider              string
+	TokenizerType         Tokenizer
+	Description           string
+	MaxContextTokens      int
+	MaxOutputTokens       int
+	DefaultEmbedDimension int
 }

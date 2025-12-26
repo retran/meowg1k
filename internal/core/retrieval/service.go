@@ -18,14 +18,14 @@ import (
 
 // SearchResult represents a complete search result with chunk metadata.
 type SearchResult struct {
-	ChunkID           int64
-	Score             float32
 	FilePath          string
 	TextContent       string
+	SnapshotName      string
+	ChunkID           int64
 	StartLine         int
 	EndLine           int
 	DocumentVersionID int64
-	SnapshotName      string
+	Score             float32
 }
 
 // RetrievalService defines the interface for high-level RAG operations.

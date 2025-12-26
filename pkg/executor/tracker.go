@@ -14,24 +14,24 @@ import (
 )
 
 const (
-	// ANSI colors
+	// ANSI colors.
 	colorReset = "\033[0m"
 	colorCyan  = "\033[36m"
 	colorGreen = "\033[32m"
 	colorRed   = "\033[31m"
 	colorGray  = "\033[90m"
 
-	// Status icons
+	// Status icons.
 	iconRunning   = "→"
 	iconCompleted = "✓"
 	iconFailed    = "✗"
 	iconPending   = "…"
 
-	// Layout widths
+	// Layout widths.
 	flowNameWidth = 42
 	stepNameWidth = 40
 
-	// Configuration
+	// Configuration.
 	feedbackChanSize = 128
 	tickerInterval   = 100 * time.Millisecond
 	maxMessageLength = 100
@@ -41,15 +41,14 @@ var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 
 // Tracker tracks and displays the progress of executions in the terminal.
 type Tracker struct {
-	silent       bool
-	wg           sync.WaitGroup
-	mu           sync.RWMutex // Protects executions and order
-	executions   map[string]*Execution
-	order        []string // Preserves insertion order for stable output
-	feedbackChan chan *Feedback
-
+	executions     map[string]*Execution
+	feedbackChan   chan *Feedback
+	order          []string
+	wg             sync.WaitGroup
 	spinnerIndex   int
-	displayedLines int // Number of lines rendered in the last tick
+	displayedLines int
+	mu             sync.RWMutex
+	silent         bool
 }
 
 // NewTracker creates a new progress tracker.
@@ -356,9 +355,9 @@ func sanitizeDescription(description string) string {
 	return truncateString(b.String(), maxMessageLength)
 }
 
-func truncateString(s string, max int) string {
-	if len(s) > max {
-		return s[:max-3] + "..."
+func truncateString(s string, maxLen int) string {
+	if len(s) > maxLen {
+		return s[:maxLen-3] + "..."
 	}
 
 	return s

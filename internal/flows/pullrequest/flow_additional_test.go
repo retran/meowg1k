@@ -775,7 +775,7 @@ func TestFactory_NewFlow_SummarizeStrategy_ComposeError(t *testing.T) {
 	}
 }
 
-// Mock output writer that returns error
+// Mock output writer that returns error.
 type mockOutputWriterWithError struct{}
 
 func (m *mockOutputWriterWithError) PrintLine(line string) error {

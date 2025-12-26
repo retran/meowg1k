@@ -77,11 +77,11 @@ func TestComputeDistanceMixin(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		errorMsg    string
 		a           domainGateway.Embedding
 		b           domainGateway.Embedding
 		expected    float64
 		expectError bool
-		errorMsg    string
 	}{
 		{
 			name:        "Identical vectors",

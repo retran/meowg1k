@@ -20,8 +20,8 @@ func TestNewService(t *testing.T) {
 		name        string
 		apiKey      string
 		baseURL     string
-		expectError bool
 		errorMsg    string
+		expectError bool
 	}{
 		{
 			name:        "Valid service creation",
@@ -82,13 +82,13 @@ func TestNewService(t *testing.T) {
 
 func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 	tests := []struct {
-		name           string
 		request        EmbeddingRequest
+		name           string
+		mockError      string
+		errorMsg       string
 		mockResponse   EmbeddingResponse
 		mockStatusCode int
-		mockError      string
 		expectError    bool
-		errorMsg       string
 	}{
 		{
 			name: "Successful embedding creation",

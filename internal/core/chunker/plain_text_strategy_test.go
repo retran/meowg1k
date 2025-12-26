@@ -284,8 +284,8 @@ func TestPlainTextStrategy_CreateOverlap(t *testing.T) {
 
 	testCases := []struct {
 		name         string
-		currentRunes []rune
 		currentText  string
+		currentRunes []rune
 		expectedLen  int
 	}{
 		{
