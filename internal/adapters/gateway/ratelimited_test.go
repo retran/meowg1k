@@ -20,6 +20,8 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+const testResponseValue = "test response"
+
 // mockHost is a simple mock implementation of ports.Host for testing.
 type mockHost struct {
 	db *sql.DB
@@ -85,7 +87,7 @@ func TestNewRateLimitedGenerationGateway(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		response: testResponseValue,
 	}
 
 	config := ratelimit.Unlimited
@@ -174,7 +176,7 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		response: testResponseValue,
 	}
 
 	limiter, err := ratelimit.NewLimiter(context.Background(), ratelimit.Config{
@@ -196,8 +198,8 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 		t.Errorf("GenerateContent() unexpected error = %v", err)
 	}
 
-	if response != "test response" {
-		t.Errorf("GenerateContent() = %v, want %v", response, "test response")
+	if response != testResponseValue {
+		t.Errorf("GenerateContent() = %v, want %v", response, testResponseValue)
 	}
 }
 
@@ -206,7 +208,7 @@ func TestRateLimitedGenerationGateway_ContextCancellation(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		response: testResponseValue,
 	}
 
 	// Use rate limits with low capacity
@@ -281,7 +283,7 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		response: testResponseValue,
 	}
 
 	config := ratelimit.Unlimited
@@ -302,7 +304,7 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 		t.Errorf("GenerateContent() unexpected error = %v", err)
 	}
 
-	if response != "test response" {
-		t.Errorf("GenerateContent() = %v, want %v", response, "test response")
+	if response != testResponseValue {
+		t.Errorf("GenerateContent() = %v, want %v", response, testResponseValue)
 	}
 }

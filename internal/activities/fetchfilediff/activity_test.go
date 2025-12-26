@@ -11,6 +11,14 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+const (
+	newContentValue      = "new content"
+	oldContentValue      = "old content"
+	newFileContentValue  = "new file content"
+	deletedDiffValue     = "diff for deleted file"
+	originalContentValue = "original content"
+)
+
 // mockStagedChangesReader is a mock implementation of StagedChangesReader for testing.
 type mockStagedChangesReader struct {
 	ReadStagedChangesFunc       func(filename string) (string, error)
@@ -75,10 +83,10 @@ func TestActivitySuccess(t *testing.T) {
 			return "diff content", nil
 		},
 		ReadStagedFileContentFunc: func(filePath string) (string, error) {
-			return "new content", nil
+			return newContentValue, nil
 		},
 		ReadOriginalFileContentFunc: func(filePath string) (string, error) {
-			return "old content", nil
+			return oldContentValue, nil
 		},
 	}
 	factory, err := NewFactory(gitSvc)
@@ -165,7 +173,7 @@ func TestActivity_NewFileScenario(t *testing.T) {
 			return "", fmt.Errorf("does not exist in 'HEAD'")
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
-			return "new file content", nil
+			return newFileContentValue, nil
 		},
 	}
 	factory, _ := NewFactory(gitSvc)
@@ -183,7 +191,7 @@ func TestActivity_NewFileScenario(t *testing.T) {
 	if output.OriginalFileContent != "" {
 		t.Errorf("expected empty original content for new file, got %q", output.OriginalFileContent)
 	}
-	if output.ChangedFileContent != "new file content" {
+	if output.ChangedFileContent != newFileContentValue {
 		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
 	}
 }
@@ -191,10 +199,10 @@ func TestActivity_NewFileScenario(t *testing.T) {
 func TestActivity_DeletedFileScenario(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{
 		ReadStagedChangesFunc: func(filename string) (string, error) {
-			return "diff for deleted file", nil
+			return deletedDiffValue, nil
 		},
 		ReadOriginalFileContentFunc: func(filename string) (string, error) {
-			return "original content", nil
+			return originalContentValue, nil
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
 			return "", fmt.Errorf("does not exist")
@@ -215,7 +223,7 @@ func TestActivity_DeletedFileScenario(t *testing.T) {
 	if output.ChangedFileContent != "" {
 		t.Errorf("expected empty staged content for deleted file, got %q", output.ChangedFileContent)
 	}
-	if output.OriginalFileContent != "original content" {
+	if output.OriginalFileContent != originalContentValue {
 		t.Errorf("expected original content, got %q", output.OriginalFileContent)
 	}
 }
@@ -223,10 +231,10 @@ func TestActivity_DeletedFileScenario(t *testing.T) {
 func TestActivity_DeletedFileWithUnknownRevisionError(t *testing.T) {
 	gitSvc := &mockStagedChangesReader{
 		ReadStagedChangesFunc: func(filename string) (string, error) {
-			return "diff for deleted file", nil
+			return deletedDiffValue, nil
 		},
 		ReadOriginalFileContentFunc: func(filename string) (string, error) {
-			return "original content", nil
+			return originalContentValue, nil
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
 			return "", fmt.Errorf("fatal: ambiguous argument '%s': unknown revision or path not in the working tree", filename)
@@ -247,10 +255,10 @@ func TestActivity_DeletedFileWithUnknownRevisionError(t *testing.T) {
 	if output.ChangedFileContent != "" {
 		t.Errorf("expected empty staged content for deleted file, got %q", output.ChangedFileContent)
 	}
-	if output.OriginalFileContent != "original content" {
+	if output.OriginalFileContent != originalContentValue {
 		t.Errorf("expected original content, got %q", output.OriginalFileContent)
 	}
-	if output.Change != "diff for deleted file" {
+	if output.Change != deletedDiffValue {
 		t.Errorf("expected diff content, got %q", output.Change)
 	}
 }
@@ -264,7 +272,7 @@ func TestActivity_InitialCommitScenario(t *testing.T) {
 			return "", fmt.Errorf("fatal: invalid object name 'HEAD'")
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
-			return "new file content", nil
+			return newFileContentValue, nil
 		},
 	}
 	factory, _ := NewFactory(gitSvc)
@@ -282,7 +290,7 @@ func TestActivity_InitialCommitScenario(t *testing.T) {
 	if output.OriginalFileContent != "" {
 		t.Errorf("expected empty original content for initial commit, got %q", output.OriginalFileContent)
 	}
-	if output.ChangedFileContent != "new file content" {
+	if output.ChangedFileContent != newFileContentValue {
 		t.Errorf("expected staged content, got %q", output.ChangedFileContent)
 	}
 }
@@ -295,10 +303,10 @@ func TestActivity_RenameScenario(t *testing.T) {
 		},
 		ReadOriginalFileContentFunc: func(filename string) (string, error) {
 			originalRequested = filename
-			return "old content", nil
+			return oldContentValue, nil
 		},
 		ReadStagedFileContentFunc: func(filename string) (string, error) {
-			return "new content", nil
+			return newContentValue, nil
 		},
 	}
 
@@ -320,7 +328,7 @@ func TestActivity_RenameScenario(t *testing.T) {
 	if output.Filename != "new.go" {
 		t.Errorf("expected filename to remain new path, got %s", output.Filename)
 	}
-	if output.OriginalFileContent != "old content" || output.ChangedFileContent != "new content" {
+	if output.OriginalFileContent != oldContentValue || output.ChangedFileContent != newContentValue {
 		t.Errorf("unexpected content fetched: original=%q staged=%q", output.OriginalFileContent, output.ChangedFileContent)
 	}
 	if output.Change == "" || output.Change == "\n" {

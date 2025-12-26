@@ -33,7 +33,7 @@ type mockGenerationGatewayFactory struct {
 	Err     error
 }
 
-func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}

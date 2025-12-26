@@ -5,6 +5,7 @@
 package gitignore
 
 import (
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -45,21 +46,40 @@ func parsePattern(line string) *pattern {
 
 	p := &pattern{raw: line}
 
-	if strings.HasPrefix(line, "!") {
-		p.negation = true
-		line = line[1:]
-		// After removing negation, check if pattern is empty
-		if line == "" {
-			return nil
-		}
+	parsedLine, negated, ok := stripNegation(line)
+	if !ok {
+		return nil
 	}
-
-	if strings.HasPrefix(line, `\`) && (len(line) > 1 && (line[1] == '!' || line[1] == '#')) {
-		line = line[1:]
-	}
-
+	p.negation = negated
+	line = stripEscapedPrefix(parsedLine)
 	line = strings.TrimPrefix(line, "/")
 
+	rgx, err := buildRegex(line, p.raw)
+	if err == nil {
+		p.regex = rgx
+	}
+	return p
+}
+
+func stripNegation(line string) (pattern string, negated bool, ok bool) {
+	if strings.HasPrefix(line, "!") {
+		line = line[1:]
+		if line == "" {
+			return "", false, false
+		}
+		return line, true, true
+	}
+	return line, false, true
+}
+
+func stripEscapedPrefix(line string) string {
+	if strings.HasPrefix(line, `\`) && len(line) > 1 && (line[1] == '!' || line[1] == '#') {
+		return line[1:]
+	}
+	return line
+}
+
+func buildRegex(line, raw string) (*regexp.Regexp, error) {
 	var regex strings.Builder
 	regex.WriteString("^")
 
@@ -68,53 +88,62 @@ func parsePattern(line string) *pattern {
 	}
 
 	segments := strings.Split(line, "/")
-	isLastSegment := false
+	appendSegments(&regex, segments)
 
-	for i, segment := range segments {
-		if i == len(segments)-1 {
-			isLastSegment = true
-		}
-
-		if segment == "**" {
-			if isLastSegment {
-				regex.WriteString(".*")
-			} else {
-				regex.WriteString("(?:.*[/])?")
-			}
-			continue
-		}
-
-		for j := 0; j < len(segment); j++ {
-			char := segment[j]
-			switch char {
-			case '*':
-				regex.WriteString("[^/]*")
-			case '?':
-				regex.WriteString("[^/]")
-			case '.', '(', ')', '+', '|', '{', '}', '[', ']', '^', '$':
-				regex.WriteRune('\\')
-				regex.WriteRune(rune(char))
-			default:
-				regex.WriteRune(rune(char))
-			}
-		}
-
-		if !isLastSegment {
-			regex.WriteString("/")
-		}
-	}
-
-	if strings.HasSuffix(p.raw, "/") {
+	if strings.HasSuffix(raw, "/") {
 		regex.WriteString("(?:/.*)?$")
 	} else {
 		regex.WriteString("(?:$|/.*)")
 	}
 
-	rgx, err := regexp.Compile(regex.String())
-	if err == nil {
-		p.regex = rgx
+	compiled, err := regexp.Compile(regex.String())
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile gitignore regex: %w", err)
 	}
-	return p
+	return compiled, nil
+}
+
+func appendSegments(builder *strings.Builder, segments []string) {
+	for i, segment := range segments {
+		isLastSegment := i == len(segments)-1
+		if segment == "**" {
+			appendGlobstar(builder, isLastSegment)
+		} else {
+			appendSegment(builder, segment)
+		}
+
+		if !isLastSegment && segment != "**" {
+			builder.WriteString("/")
+		}
+	}
+}
+
+func appendGlobstar(builder *strings.Builder, isLastSegment bool) {
+	if isLastSegment {
+		builder.WriteString(".*")
+	} else {
+		builder.WriteString("(?:.*[/])?")
+	}
+}
+
+func appendSegment(builder *strings.Builder, segment string) {
+	for i := 0; i < len(segment); i++ {
+		appendSegmentChar(builder, segment[i])
+	}
+}
+
+func appendSegmentChar(builder *strings.Builder, char byte) {
+	switch char {
+	case '*':
+		builder.WriteString("[^/]*")
+	case '?':
+		builder.WriteString("[^/]")
+	case '.', '(', ')', '+', '|', '{', '}', '[', ']', '^', '$':
+		builder.WriteByte('\\')
+		builder.WriteRune(rune(char))
+	default:
+		builder.WriteRune(rune(char))
+	}
 }
 
 // Match checks if a given path should be ignored.
@@ -124,54 +153,57 @@ func (m *Matcher) Match(path string, isDir bool) bool {
 		return false
 	}
 
-	path = filepath.ToSlash(path)
-
-	if isDir && !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
-
-	var finalMatch *pattern
-	for _, p := range m.patterns {
-		if p == nil {
-			continue
-		}
-		if p.regex != nil && p.regex.MatchString(path) {
-			if strings.HasSuffix(p.raw, "/") && !isDir {
-				continue
-			}
-			finalMatch = p
-		}
-	}
-
+	path = normalizePath(path, isDir)
+	finalMatch := m.findFinalMatch(path, isDir)
 	if finalMatch == nil {
 		return false
 	}
 
 	if finalMatch.negation {
-		parent := path
-		for {
-			parent = filepath.Dir(parent)
-			if parent == "." || parent == "/" || parent == "" {
-				break
-			}
-
-			var parentMatch *pattern
-			for _, p := range m.patterns {
-				if p == nil {
-					continue
-				}
-				if p.regex != nil && p.regex.MatchString(parent) {
-					parentMatch = p
-				}
-			}
-
-			if parentMatch != nil && !parentMatch.negation {
-				return true
-			}
-		}
-
-		return false
+		return m.hasNonNegatedParentMatch(path)
 	}
 
 	return true
+}
+
+func normalizePath(path string, isDir bool) string {
+	path = filepath.ToSlash(path)
+	if isDir && !strings.HasSuffix(path, "/") {
+		return path + "/"
+	}
+	return path
+}
+
+func (m *Matcher) findFinalMatch(path string, isDir bool) *pattern {
+	var finalMatch *pattern
+	for _, p := range m.patterns {
+		if p == nil || p.regex == nil {
+			continue
+		}
+		if !p.regex.MatchString(path) {
+			continue
+		}
+		if strings.HasSuffix(p.raw, "/") && !isDir {
+			continue
+		}
+		finalMatch = p
+	}
+	return finalMatch
+}
+
+func (m *Matcher) hasNonNegatedParentMatch(path string) bool {
+	parent := path
+	for {
+		parent = filepath.Dir(parent)
+		if parent == "." || parent == "/" || parent == "" {
+			break
+		}
+
+		parentMatch := m.findFinalMatch(parent, true)
+		if parentMatch != nil && !parentMatch.negation {
+			return true
+		}
+	}
+
+	return false
 }

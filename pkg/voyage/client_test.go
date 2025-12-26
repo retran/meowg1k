@@ -99,11 +99,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			},
 			mockResponse: EmbeddingResponse{
 				Object: "list",
-				Data: []struct {
-					Embedding []float64 `json:"embedding"`
-					Object    string    `json:"object"`
-					Index     int       `json:"index"`
-				}{
+				Data: []EmbeddingData{
 					{
 						Embedding: []float64{0.1, 0.2, 0.3},
 						Object:    "embedding",
@@ -116,11 +112,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 					},
 				},
 				Model: "voyage-3.5",
-				Usage: struct {
-					TotalTokens int `json:"total_tokens"`
-				}{
-					TotalTokens: 5,
-				},
+				Usage: EmbeddingUsage{TotalTokens: 5},
 			},
 			mockStatusCode: 200,
 			expectError:    false,
@@ -133,11 +125,7 @@ func TestServiceImpl_CreateEmbeddings(t *testing.T) {
 			},
 			mockResponse: EmbeddingResponse{
 				Object: "list",
-				Data: []struct {
-					Embedding []float64 `json:"embedding"`
-					Object    string    `json:"object"`
-					Index     int       `json:"index"`
-				}{
+				Data: []EmbeddingData{
 					{
 						Embedding: []float64{0.1, 0.2, 0.3},
 						Object:    "embedding",
@@ -296,7 +284,7 @@ func TestEmbeddingRequestSerialization(t *testing.T) {
 		Input:           []string{"Hello world", "Test document"},
 		Model:           "voyage-3.5",
 		InputType:       "document",
-		OutputDimension: &outputDim,
+		OutputDimension: outputDim,
 	}
 
 	// Test marshaling works
@@ -311,7 +299,7 @@ func TestEmbeddingRequestSerialization(t *testing.T) {
 	assert.Equal(t, req.Input, unmarshaledReq.Input)
 	assert.Equal(t, req.Model, unmarshaledReq.Model)
 	assert.Equal(t, req.InputType, unmarshaledReq.InputType)
-	assert.Equal(t, *req.OutputDimension, *unmarshaledReq.OutputDimension)
+	assert.Equal(t, req.OutputDimension, unmarshaledReq.OutputDimension)
 }
 
 func TestConstants(t *testing.T) {

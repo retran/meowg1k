@@ -96,8 +96,7 @@ func (g *voyageGateway) ComputeEmbeddings(
 
 	// Set output dimension if specified
 	if request.Dimensions() > 0 {
-		dims := request.Dimensions()
-		req.OutputDimension = &dims
+		req.OutputDimension = request.Dimensions()
 	}
 
 	response, err := g.client.CreateEmbeddings(ctx, req)

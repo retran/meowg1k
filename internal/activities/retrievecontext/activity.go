@@ -64,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Retrieving context for: %q", input.QueryText))
 
-		context, err := f.retrievalService.RetrieveContext(
+		retrievedContext, err := f.retrievalService.RetrieveContext(
 			ctx,
 			input.QueryText,
 			input.SnapshotPriority,
@@ -75,14 +75,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to retrieve context: %w", err)
 		}
 
-		if context == "" {
+		if retrievedContext == "" {
 			executorCtx.SendCompleted("No context found")
 		} else {
 			executorCtx.SendCompleted("Context retrieved")
 		}
 
 		return &Output{
-			Context: context,
+			Context: retrievedContext,
 		}, nil
 	}
 }

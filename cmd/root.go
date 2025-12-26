@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command cannot be nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit {
 			return nil
 		}
 
@@ -47,7 +47,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command cannot be nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == "meow" || cmd.Name() == "completion" || cmd.Name() == "init" {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit {
 			return nil
 		}
 
@@ -65,6 +65,11 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 }
+
+const (
+	commandInit = "init"
+	commandMeow = "meow"
+)
 
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "config file path (overrides project/user configs when specified)")

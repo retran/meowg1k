@@ -21,9 +21,9 @@ type cachingGenerationGateway struct {
 }
 
 // newCachingGenerationGateway creates a new caching generation gateway.
-func newCachingGenerationGateway(gateway ports.GenerationGateway, cache ports.CacheRepository, updateCache bool) ports.GenerationGateway {
+func newCachingGenerationGateway(innerGateway ports.GenerationGateway, cache ports.CacheRepository, updateCache bool) ports.GenerationGateway {
 	return &cachingGenerationGateway{
-		gateway:     gateway,
+		gateway:     innerGateway,
 		cache:       cache,
 		updateCache: updateCache,
 	}

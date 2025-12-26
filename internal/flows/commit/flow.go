@@ -126,230 +126,278 @@ func NewFactory(
 // NewFlow creates and returns the commit composition flow function with added progress reporting.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		if f == nil {
-			return fmt.Errorf("factory is nil")
-		}
+		return f.runCommitFlow(ctx, flowCtx)
+	}
+}
 
-		if ctx == nil {
-			return fmt.Errorf("context is nil")
-		}
+func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) error {
+	exec, err := f.validateFlowContext(ctx, flowCtx)
+	if err != nil {
+		return err
+	}
 
-		if flowCtx == nil {
-			return fmt.Errorf("flow context is nil")
-		}
+	flowCtx.SendRunning("Composing commit message")
 
-		exec := flowCtx.GetExecutor()
-		if exec == nil {
-			return fmt.Errorf("executor not available in context")
-		}
+	targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
+	if err != nil {
+		return fmt.Errorf("failed to get target-branch flag: %w", err)
+	}
 
-		flowCtx.SendRunning("Composing commit message")
+	files, err := f.listFiles(ctx, flowCtx, exec, targetBranch)
+	if err != nil {
+		return err
+	}
 
-		// Check if we're in squash mode (branch comparison)
-		targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get target-branch flag: %w", err)
-		}
+	filteredFiles, err := f.applyFilters(ctx, flowCtx, exec, files)
+	if err != nil {
+		return err
+	}
 
-		var files []string
+	changes, err := f.fetchChanges(ctx, flowCtx, exec, filteredFiles, targetBranch)
+	if err != nil {
+		return err
+	}
 
-		// Phase 1: List files (staged or changed in branch)
-		if targetBranch != "" {
-			// Squash mode: list files changed in branch
-			listBranchFiles := f.listBranchFilesFactory.NewActivity()
-			branchFilesFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"ListBranchFiles",
-				listBranchFiles,
-				&listbranchfiles.Input{
-					TargetBranch: targetBranch,
-				},
-			)
+	cfg, intent, err := f.resolveConfigAndIntent()
+	if err != nil {
+		return err
+	}
 
-			branchFiles, err := branchFilesFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to list branch files: %w", err)
-			}
-			files = branchFiles.Files
-		} else {
-			// Normal mode: list staged files
-			listStaged := f.listStagedFactory.NewActivity()
-			stagedFilesFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"ListStagedFiles",
-				listStaged,
-				&liststaged.Input{},
-			)
+	commitMessage, err := f.composeCommitMessage(ctx, flowCtx, exec, cfg, intent, changes)
+	if err != nil {
+		return err
+	}
 
-			stagedFiles, err := stagedFilesFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to list staged files: %w", err)
-			}
-			files = stagedFiles.Files
-		}
+	flowCtx.SendCompleted("")
 
-		// Phase 2: Apply filters
-		applyFilters := f.applyFiltersFactory.NewActivity()
-		filteredFilesFuture := executor.ExecuteActivity(
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
+		return fmt.Errorf("failed to print commit message: %w", err)
+	}
+
+	return nil
+}
+
+func (f *Factory) validateFlowContext(ctx context.Context, flowCtx *executor.Context) (executor.Executor, error) {
+	if f == nil {
+		return nil, fmt.Errorf("factory is nil")
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if flowCtx == nil {
+		return nil, fmt.Errorf("flow context is nil")
+	}
+	exec := flowCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in context")
+	}
+	return exec, nil
+}
+
+func (f *Factory) listFiles(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	targetBranch string,
+) ([]string, error) {
+	if targetBranch != "" {
+		listBranchFiles := f.listBranchFilesFactory.NewActivity()
+		branchFilesFuture := executor.ExecuteActivity(
 			ctx,
 			exec,
 			flowCtx,
-			"ApplyFilters",
-			applyFilters,
-			&applyfilters.Input{
-				Files: files,
+			"ListBranchFiles",
+			listBranchFiles,
+			&listbranchfiles.Input{
+				TargetBranch: targetBranch,
 			},
 		)
 
-		filteredFiles, err := filteredFilesFuture.Get(ctx)
+		branchFiles, err := branchFilesFuture.Get(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to apply filters: %w", err)
+			return nil, fmt.Errorf("failed to list branch files: %w", err)
 		}
-
-		// Phase 3: Fetch diffs for all files
-		var changes []*git.FileChange
-
-		if targetBranch != "" {
-			// Squash mode: fetch branch diffs
-			fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
-			fetchAllBranchDiffsFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"FetchAllBranchDiffs",
-				fetchAllBranchDiffs,
-				&fetchallbranchdiffs.Input{
-					Files:        filteredFiles.Files,
-					TargetBranch: targetBranch,
-				},
-			)
-
-			fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to fetch branch diffs: %w", err)
-			}
-
-			changes = append(changes, fetchAllBranchDiffsOutput.Changes...)
-		} else {
-			// Normal mode: fetch staged diffs
-			fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
-			fetchAllDiffsFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"FetchAllDiffs",
-				fetchAllDiffs,
-				&fetchalldiffs.Input{
-					Files: filteredFiles.Files,
-				},
-			)
-
-			fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to fetch diffs: %w", err)
-			}
-
-			changes = append(changes, fetchAllDiffsOutput.Changes...)
-		}
-
-		// Get configuration
-		cfg, err := f.commitConfigProvider.Get()
-		if err != nil {
-			return fmt.Errorf("failed to resolve commit configuration: %w", err)
-		}
-
-		intent, err := f.commandParametersReader.GetIntentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get intent flag: %w", err)
-		}
-
-		if intent == "" {
-			stdin, err := f.commandParametersReader.GetStdIn()
-			if err != nil {
-				return fmt.Errorf("failed to get stdin: %w", err)
-			}
-
-			intent = stdin
-		}
-
-		var commitMessage string
-
-		// Phase 4 & 5: Compose commit message based on strategy
-		if cfg.Strategy == "flat" {
-			// Flat strategy: send full diff directly to LLM
-			composeFlatCommit := f.composeFlatCommitFactory.NewActivity()
-			flatCommitFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"ComposeFlatCommit",
-				composeFlatCommit,
-				&composeflatcommit.Input{
-					Profile:      cfg.Profile,
-					SystemPrompt: cfg.SystemPrompt,
-					Changes:      changes,
-					Intent:       intent,
-				},
-			)
-
-			flatCommitResult, err := flatCommitFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to compose commit message using flat strategy: %w", err)
-			}
-
-			commitMessage = flatCommitResult.CommitMessage
-		} else {
-			// Summarize strategy (default): use map-reduce approach
-			summarizeAll := f.summarizeAllFactory.NewActivity()
-			summarizeAllFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"SummarizeAll",
-				summarizeAll,
-				&summarizeall.Input{
-					Changes: changes,
-				},
-			)
-
-			summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to summarize changes: %w", err)
-			}
-
-			composeCommit := f.composeCommitFactory.NewActivity()
-			commitFuture := executor.ExecuteActivity(
-				ctx,
-				exec,
-				flowCtx,
-				"ComposeCommit",
-				composeCommit,
-				&composecommit.Input{
-					Profile:      cfg.Profile,
-					SystemPrompt: cfg.SystemPrompt,
-					Summaries:    summarizeAllOutput.Summaries,
-					Intent:       intent,
-				},
-			)
-
-			commitResult, err := commitFuture.Get(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to compose commit message: %w", err)
-			}
-
-			commitMessage = commitResult.CommitMessage
-		}
-
-		flowCtx.SendCompleted("")
-
-		if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
-			return fmt.Errorf("failed to print commit message: %w", err)
-		}
-
-		return nil
+		return branchFiles.Files, nil
 	}
+
+	listStaged := f.listStagedFactory.NewActivity()
+	stagedFilesFuture := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"ListStagedFiles",
+		listStaged,
+		&liststaged.Input{},
+	)
+
+	stagedFiles, err := stagedFilesFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list staged files: %w", err)
+	}
+	return stagedFiles.Files, nil
+}
+
+func (f *Factory) applyFilters(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	files []string,
+) ([]string, error) {
+	applyFilters := f.applyFiltersFactory.NewActivity()
+	filteredFilesFuture := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"ApplyFilters",
+		applyFilters,
+		&applyfilters.Input{
+			Files: files,
+		},
+	)
+
+	filteredFiles, err := filteredFilesFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply filters: %w", err)
+	}
+	return filteredFiles.Files, nil
+}
+
+func (f *Factory) fetchChanges(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	files []string,
+	targetBranch string,
+) ([]*git.FileChange, error) {
+	if targetBranch != "" {
+		fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
+		fetchAllBranchDiffsFuture := executor.ExecuteActivity(
+			ctx,
+			exec,
+			flowCtx,
+			"FetchAllBranchDiffs",
+			fetchAllBranchDiffs,
+			&fetchallbranchdiffs.Input{
+				Files:        files,
+				TargetBranch: targetBranch,
+			},
+		)
+
+		fetchAllBranchDiffsOutput, err := fetchAllBranchDiffsFuture.Get(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch branch diffs: %w", err)
+		}
+		return fetchAllBranchDiffsOutput.Changes, nil
+	}
+
+	fetchAllDiffs := f.fetchAllDiffsFactory.NewActivity()
+	fetchAllDiffsFuture := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"FetchAllDiffs",
+		fetchAllDiffs,
+		&fetchalldiffs.Input{
+			Files: files,
+		},
+	)
+
+	fetchAllDiffsOutput, err := fetchAllDiffsFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch diffs: %w", err)
+	}
+	return fetchAllDiffsOutput.Changes, nil
+}
+
+func (f *Factory) resolveConfigAndIntent() (*commit.ResolvedConfig, string, error) {
+	cfg, err := f.commitConfigProvider.Get()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to resolve commit configuration: %w", err)
+	}
+
+	intent, err := f.commandParametersReader.GetIntentFlag()
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get intent flag: %w", err)
+	}
+
+	if intent == "" {
+		stdin, err := f.commandParametersReader.GetStdIn()
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to get stdin: %w", err)
+		}
+		intent = stdin
+	}
+
+	return cfg, intent, nil
+}
+
+func (f *Factory) composeCommitMessage(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	cfg *commit.ResolvedConfig,
+	intent string,
+	changes []*git.FileChange,
+) (string, error) {
+	if cfg.Strategy == "flat" {
+		composeFlatCommit := f.composeFlatCommitFactory.NewActivity()
+		flatCommitFuture := executor.ExecuteActivity(
+			ctx,
+			exec,
+			flowCtx,
+			"ComposeFlatCommit",
+			composeFlatCommit,
+			&composeflatcommit.Input{
+				Profile:      cfg.Profile,
+				SystemPrompt: cfg.SystemPrompt,
+				Changes:      changes,
+				Intent:       intent,
+			},
+		)
+
+		flatCommitResult, err := flatCommitFuture.Get(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to compose commit message using flat strategy: %w", err)
+		}
+		return flatCommitResult.CommitMessage, nil
+	}
+
+	summarizeAll := f.summarizeAllFactory.NewActivity()
+	summarizeAllFuture := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"SummarizeAll",
+		summarizeAll,
+		&summarizeall.Input{
+			Changes: changes,
+		},
+	)
+
+	summarizeAllOutput, err := summarizeAllFuture.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to summarize changes: %w", err)
+	}
+
+	composeCommit := f.composeCommitFactory.NewActivity()
+	commitFuture := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"ComposeCommit",
+		composeCommit,
+		&composecommit.Input{
+			Profile:      cfg.Profile,
+			SystemPrompt: cfg.SystemPrompt,
+			Summaries:    summarizeAllOutput.Summaries,
+			Intent:       intent,
+		},
+	)
+
+	commitResult, err := commitFuture.Get(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to compose commit message: %w", err)
+	}
+
+	return commitResult.CommitMessage, nil
 }

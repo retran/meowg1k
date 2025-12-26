@@ -18,7 +18,7 @@ import (
 
 type mockIndexRepository struct {
 	FindVersionsByContentHashesFunc  func(ctx context.Context, contentHashes []string) (map[string]*domainindex.DocumentVersion, error)
-	AddDocumentVersionWithChunksFunc func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error)
+	AddDocumentVersionWithChunksFunc func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error)
 }
 
 func (m *mockIndexRepository) FindVersionsByContentHashes(ctx context.Context, contentHashes []string) (map[string]*domainindex.DocumentVersion, error) {
@@ -28,7 +28,7 @@ func (m *mockIndexRepository) FindVersionsByContentHashes(ctx context.Context, c
 	return make(map[string]*domainindex.DocumentVersion), nil
 }
 
-func (m *mockIndexRepository) AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+func (m *mockIndexRepository) AddDocumentVersionWithChunks(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 	if m.AddDocumentVersionWithChunksFunc != nil {
 		return m.AddDocumentVersionWithChunksFunc(ctx, doc, content, chunks)
 	}
@@ -36,7 +36,7 @@ func (m *mockIndexRepository) AddDocumentVersionWithChunks(ctx context.Context, 
 }
 
 // Implement other IndexRepository methods as no-ops.
-func (m *mockIndexRepository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
+func (m *mockIndexRepository) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
 	return 0, nil
 }
 
@@ -403,7 +403,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 func TestService_SaveNewVersion(t *testing.T) {
 	t.Run("Successful save", func(t *testing.T) {
 		indexRepo := &mockIndexRepository{
-			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 				return 42, nil
 			},
 		}
@@ -494,7 +494,7 @@ func TestService_SaveNewVersion(t *testing.T) {
 
 	t.Run("Saves with empty chunks", func(t *testing.T) {
 		indexRepo := &mockIndexRepository{
-			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 				if len(chunks) != 0 {
 					return 0, errors.New("expected no chunks")
 				}
@@ -522,7 +522,7 @@ func TestService_SaveNewVersion(t *testing.T) {
 
 	t.Run("Repository error propagates", func(t *testing.T) {
 		indexRepo := &mockIndexRepository{
-			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 				return 0, errors.New("database error")
 			},
 		}
@@ -548,7 +548,7 @@ func TestService_SaveNewVersion(t *testing.T) {
 	t.Run("Creates correct chunk structure", func(t *testing.T) {
 		var savedChunks []domainindex.Chunk
 		indexRepo := &mockIndexRepository{
-			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 				savedChunks = chunks
 				return 1, nil
 			},
@@ -848,9 +848,9 @@ func TestService_FinalizeSnapshot(t *testing.T) {
 
 func TestSaveVersionInput_DocumentVersion(t *testing.T) {
 	t.Run("Creates document version with correct fields", func(t *testing.T) {
-		var savedDoc domainindex.DocumentVersion
+		var savedDoc *domainindex.DocumentVersion
 		indexRepo := &mockIndexRepository{
-			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+			AddDocumentVersionWithChunksFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 				savedDoc = doc
 				return 1, nil
 			},
@@ -870,6 +870,9 @@ func TestSaveVersionInput_DocumentVersion(t *testing.T) {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 
+		if savedDoc == nil {
+			t.Fatal("Expected document version to be saved")
+		}
 		if savedDoc.FilePath != "path/to/file.go" {
 			t.Errorf("Expected file path 'path/to/file.go', got %s", savedDoc.FilePath)
 		}

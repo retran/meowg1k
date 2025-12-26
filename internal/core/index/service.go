@@ -66,57 +66,13 @@ func (s *Service) prepareForProcessingImpl(
 		return nil, fmt.Errorf("workspaceState cannot be nil")
 	}
 
-	uniqueContentHashes := make(map[string]struct {
-		firstPath string
-		fileState domainindex.FileState
-	})
+	uniqueContentHashes := make(map[string]contentHashEntry)
 	encounterOrder := make([]string, 0)
 	contentHashMap := make(map[string]string)
 
-	for filePath, fileState := range workspaceState.HeadState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				firstPath string
-				fileState domainindex.FileState
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
-
-	for filePath, fileState := range workspaceState.StageState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				firstPath string
-				fileState domainindex.FileState
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
-
-	for filePath, fileState := range workspaceState.WorkdirState {
-		// Skip binary files
-		if isLikelyBinary(fileState.Content) {
-			continue
-		}
-		contentHashMap[filePath] = fileState.ContentHash
-		if _, exists := uniqueContentHashes[fileState.ContentHash]; !exists {
-			uniqueContentHashes[fileState.ContentHash] = struct {
-				firstPath string
-				fileState domainindex.FileState
-			}{fileState: fileState, firstPath: filePath}
-			encounterOrder = append(encounterOrder, fileState.ContentHash)
-		}
-	}
+	s.collectContentHashes(workspaceState.HeadState, uniqueContentHashes, &encounterOrder, contentHashMap)
+	s.collectContentHashes(workspaceState.StageState, uniqueContentHashes, &encounterOrder, contentHashMap)
+	s.collectContentHashes(workspaceState.WorkdirState, uniqueContentHashes, &encounterOrder, contentHashMap)
 
 	contentHashList := append([]string(nil), encounterOrder...)
 
@@ -148,6 +104,34 @@ func (s *Service) prepareForProcessingImpl(
 		FilesToProcess:   filesToProcess,
 		ContentHashMap:   contentHashMap,
 	}, nil
+}
+
+type contentHashEntry struct {
+	firstPath string
+	fileState domainindex.FileState
+}
+
+func (s *Service) collectContentHashes(
+	state map[string]domainindex.FileState,
+	uniqueContentHashes map[string]contentHashEntry,
+	encounterOrder *[]string,
+	contentHashMap map[string]string,
+) {
+	for filePath, fileState := range state {
+		if isLikelyBinary(fileState.Content) {
+			continue
+		}
+		contentHashMap[filePath] = fileState.ContentHash
+		if _, exists := uniqueContentHashes[fileState.ContentHash]; exists {
+			continue
+		}
+
+		uniqueContentHashes[fileState.ContentHash] = contentHashEntry{
+			fileState: fileState,
+			firstPath: filePath,
+		}
+		*encounterOrder = append(*encounterOrder, fileState.ContentHash)
+	}
 }
 
 // SaveVersionInput defines the payload for saving a new document version.
@@ -204,7 +188,7 @@ func (s *Service) saveNewVersionImpl(
 	}
 
 	// Save document version and chunks in a single transaction
-	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, docVersion, input.Content, chunks)
+	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, &docVersion, input.Content, chunks)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add document version with chunks: %w", err)
 	}

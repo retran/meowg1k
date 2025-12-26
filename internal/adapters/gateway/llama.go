@@ -116,7 +116,8 @@ func newLlamaCompletionRequest(prompt string, request *gateway.GenerateContentRe
 func applyLlamaStopSequences(req *llama.CompletionRequest, request *gateway.GenerateContentRequest) {
 	defaultStops := []string{"<|endoftext|>", "<|im_end|>"}
 	if stop := request.Stop(); len(stop) > 0 {
-		req.Stop = append(defaultStops, stop...)
+		defaultStops = append(defaultStops, stop...)
+		req.Stop = defaultStops
 		return
 	}
 	req.Stop = defaultStops

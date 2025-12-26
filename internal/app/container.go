@@ -275,10 +275,10 @@ func (c *Container) initDB() error {
 		cacheRepo := cache.NewRepository(dbHost)
 
 		// Purge expired cache entries on startup if caching is configured
-		config, err := c.ConfigService.Get()
-		if err == nil && config != nil && config.Cache != nil && config.Cache.TTL > 0 {
+		cfg, err := c.ConfigService.Get()
+		if err == nil && cfg != nil && cfg.Cache != nil && cfg.Cache.TTL > 0 {
 			ctx := c.ShutdownService.Context()
-			if err := cacheRepo.Purge(ctx, config.Cache.TTL); err != nil {
+			if err := cacheRepo.Purge(ctx, cfg.Cache.TTL); err != nil {
 				c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
 				// Don't fail initialization - just log the error
 			}

@@ -52,24 +52,30 @@ func NewClient(baseURL, apiKey string, httpClient *http.Client) (*Client, error)
 
 // EmbeddingRequest represents a request to the Voyage AI embeddings endpoint.
 type EmbeddingRequest struct {
-	Input           []string `json:"input"`
 	Model           string   `json:"model"`
 	InputType       string   `json:"input_type,omitempty"`
-	OutputDimension *int     `json:"output_dimension,omitempty"`
+	Input           []string `json:"input"`
+	OutputDimension int      `json:"output_dimension,omitempty"`
+}
+
+// EmbeddingData represents a single embedding item in a response.
+type EmbeddingData struct {
+	Object    string    `json:"object"`
+	Embedding []float64 `json:"embedding"`
+	Index     int       `json:"index"`
+}
+
+// EmbeddingUsage represents token usage in a response.
+type EmbeddingUsage struct {
+	TotalTokens int `json:"total_tokens"`
 }
 
 // EmbeddingResponse represents a response from the Voyage AI embeddings endpoint.
 type EmbeddingResponse struct {
-	Data []struct {
-		Embedding []float64 `json:"embedding"`
-		Object    string    `json:"object"`
-		Index     int       `json:"index"`
-	} `json:"data"`
-	Object string `json:"object"`
-	Model  string `json:"model"`
-	Usage  struct {
-		TotalTokens int `json:"total_tokens"`
-	} `json:"usage"`
+	Object string          `json:"object"`
+	Model  string          `json:"model"`
+	Data   []EmbeddingData `json:"data"`
+	Usage  EmbeddingUsage  `json:"usage"`
 }
 
 // ErrorResponse represents an error response from the Voyage AI API.

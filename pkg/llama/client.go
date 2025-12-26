@@ -289,8 +289,8 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		return nil, fmt.Errorf("client is nil")
 	}
 
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
+	if err := validateEmbeddingBatchInput(ctx, texts); err != nil {
+		return nil, err
 	}
 
 	if len(texts) == 0 {
@@ -302,6 +302,27 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		NormOutput: normOutput,
 	}
 
+	bodyBytes, err := c.sendEmbeddingBatchRequest(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseEmbeddingBatchResponse(bodyBytes, len(texts))
+}
+
+func validateEmbeddingBatchInput(ctx context.Context, texts []string) error {
+	if ctx == nil {
+		return fmt.Errorf("context cannot be nil")
+	}
+
+	if len(texts) == 0 {
+		return nil
+	}
+
+	return nil
+}
+
+func (c *Client) sendEmbeddingBatchRequest(ctx context.Context, req *EmbeddingRequest) ([]byte, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
@@ -335,22 +356,23 @@ func (c *Client) EmbeddingBatch(ctx context.Context, texts []string, normOutput 
 		return nil, fmt.Errorf("API request to %q failed with status %d: %s", url, resp.StatusCode, string(bodyBytes))
 	}
 
-	// Parse batch response: array of {index, embedding: [[...]]}
+	return bodyBytes, nil
+}
+
+func parseEmbeddingBatchResponse(bodyBytes []byte, expected int) ([][]float64, error) {
 	var batchItems []EmbeddingBatchItem
 	if err := json.Unmarshal(bodyBytes, &batchItems); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal batch response from %q: %w", url, err)
+		return nil, fmt.Errorf("failed to unmarshal batch response: %w", err)
 	}
 
-	// Extract embeddings and sort by index to match input order
-	results := make([][]float64, len(texts))
+	results := make([][]float64, expected)
 	for _, item := range batchItems {
-		if item.Index < 0 || item.Index >= len(texts) {
-			return nil, fmt.Errorf("invalid index %d in batch response (expected 0-%d)", item.Index, len(texts)-1)
+		if item.Index < 0 || item.Index >= expected {
+			return nil, fmt.Errorf("invalid index %d in batch response (expected 0-%d)", item.Index, expected-1)
 		}
 		if len(item.Embedding) == 0 {
 			return nil, fmt.Errorf("empty embedding for index %d", item.Index)
 		}
-		// Extract first (and only) embedding from nested array
 		results[item.Index] = item.Embedding[0]
 	}
 

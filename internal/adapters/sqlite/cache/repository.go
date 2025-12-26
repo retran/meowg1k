@@ -25,7 +25,7 @@ func NewRepository(host ports.Host) *Repository {
 }
 
 // Get fetches a cache entry by key.
-func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) {
+func (r *Repository) Get(ctx context.Context, key string) (value string, found bool, err error) {
 	if r == nil {
 		return "", false, fmt.Errorf("repository is nil")
 	}
@@ -43,7 +43,6 @@ func (r *Repository) Get(ctx context.Context, key string) (string, bool, error) 
 		return "", false, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	var value string
 	err = db.QueryRowContext(ctx, `
 		SELECT value FROM llm_cache WHERE key = ?
 	`, key).Scan(&value)

@@ -139,12 +139,12 @@ func TestGetLogDir(t *testing.T) {
 	}
 
 	switch runtime.GOOS {
-	case "darwin":
+	case osDarwin:
 		expected := filepath.Join(home, "Library", "Logs", "meow")
 		if dir != expected {
 			t.Errorf("expected %s, got %s", expected, dir)
 		}
-	case "windows":
+	case osWindows:
 		expected := filepath.Join(home, "AppData", "Local", "meow", "logs")
 		if dir != expected {
 			t.Errorf("expected %s, got %s", expected, dir)
@@ -158,7 +158,7 @@ func TestGetLogDir(t *testing.T) {
 }
 
 func TestGetLogDirWithXDGCacheHome(t *testing.T) {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+	if runtime.GOOS == osDarwin || runtime.GOOS == osWindows {
 		t.Skip("XDG_CACHE_HOME test only applies to Linux/Unix systems")
 	}
 
@@ -182,7 +182,7 @@ func TestGetLogDirWithXDGCacheHome(t *testing.T) {
 }
 
 func TestGetLogDirWithLocalAppData(t *testing.T) {
-	if runtime.GOOS != "windows" {
+	if runtime.GOOS != osWindows {
 		t.Skip("LOCALAPPDATA test only applies to Windows")
 	}
 
@@ -229,6 +229,7 @@ generate:
 	}
 
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -325,6 +326,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 			setupCmd: func() *cobra.Command {
 				cmd := &cobra.Command{Use: "test"}
 				cmd.Flags().String("config", "", "config file path")
+				cmd.Flags().String("workspace", "", "workspace root path")
 				cmd.Flags().String("task", "", "task name")
 				cmd.Flags().String("user-prompt", "", "user prompt")
 				cmd.Flags().Bool("silent", false, "silent mode")
@@ -363,6 +365,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 
 				cmd := &cobra.Command{Use: "test"}
 				cmd.Flags().String("config", "", "config file path")
+				cmd.Flags().String("workspace", "", "workspace root path")
 				cmd.Flags().String("task", "", "task name")
 				cmd.Flags().String("user-prompt", "", "user prompt")
 				cmd.Flags().Bool("silent", false, "silent mode")
@@ -380,14 +383,7 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 			var err error
 
 			if tt.name == "Command service creation error" {
-				defer func() {
-					if r := recover(); r == nil {
-						if err == nil && tt.expectError {
-							t.Error("Expected error but got none")
-						}
-					}
-				}()
-				container, err = NewAppContainer(nil)
+				container, err = newAppContainerWithRecovery(t, tt.expectError)
 			} else {
 				cmd := tt.setupCmd()
 				container, err = NewAppContainer(cmd)
@@ -419,7 +415,7 @@ func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 	}()
 
 	// Test Windows with LOCALAPPDATA set
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		testLocalAppData := "C:\\Users\\Test\\AppData\\Local"
 		os.Setenv("LOCALAPPDATA", testLocalAppData)
 
@@ -435,7 +431,7 @@ func TestGetLogDirWithEnvironmentVariables(t *testing.T) {
 	}
 
 	// Test Linux/Unix with XDG_CACHE_HOME set
-	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+	if runtime.GOOS != osWindows && runtime.GOOS != osDarwin {
 		testXDGCache := "/tmp/test-cache"
 		os.Setenv("XDG_CACHE_HOME", testXDGCache)
 
@@ -461,7 +457,7 @@ func TestGetLogDirFallbacks(t *testing.T) {
 	}()
 
 	// Test Windows fallback when LOCALAPPDATA is empty
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == osWindows {
 		os.Setenv("LOCALAPPDATA", "")
 
 		dir, err := getLogDir()
@@ -526,6 +522,7 @@ generate:
 
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -555,23 +552,23 @@ generate:
 		t.Error("Context should not be nil")
 	}
 
-	config, err := container.ConfigService.Get()
+	cfg, err := container.ConfigService.Get()
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if len(config.Profiles) != 2 {
-		t.Errorf("Expected 2 profiles, got %d", len(config.Profiles))
+	if len(cfg.Profiles) != 2 {
+		t.Errorf("Expected 2 profiles, got %d", len(cfg.Profiles))
 	}
 
-	if config.Generate == nil {
+	if cfg.Generate == nil {
 		t.Error("Generate config should not be nil")
 	}
 
-	if config.Generate.Tasks == nil {
+	if cfg.Generate.Tasks == nil {
 		t.Log("No explicit tasks configured beyond default")
-	} else if len(config.Generate.Tasks) != 1 {
-		t.Logf("Expected 1 task, got %d", len(config.Generate.Tasks))
+	} else if len(cfg.Generate.Tasks) != 1 {
+		t.Logf("Expected 1 task, got %d", len(cfg.Generate.Tasks))
 	}
 
 	taskName, err := container.CommandService.GetTaskName()
@@ -617,6 +614,7 @@ generate:
 
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -679,6 +677,7 @@ func TestGetLogDirErrorHandling(t *testing.T) {
 func TestNewAppContainerLogFileHandling(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "test prompt", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -783,14 +782,34 @@ func TestValidateLogPath(t *testing.T) {
 			if tt.expectErr {
 				if err == nil {
 					t.Errorf("Expected error but got none")
-				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+					return
+				}
+				if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Expected error to contain %q, got %q", tt.errMsg, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
 			}
 		})
 	}
+}
+
+func newAppContainerWithRecovery(t *testing.T, expectError bool) (*Container, error) {
+	t.Helper()
+
+	var (
+		container *Container
+		err       error
+	)
+	defer func() {
+		if r := recover(); r == nil && err == nil && expectError {
+			t.Error("Expected error but got none")
+		}
+	}()
+
+	container, err = NewAppContainer(nil)
+	return container, err
 }

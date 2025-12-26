@@ -78,60 +78,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(f.activityName)
 
-		// Estimate token count (rough approximation: 1 token ≈ 4 characters)
-		var totalChars int
-		for _, change := range input.Changes {
-			totalChars += len(change.Change)
-		}
-		estimatedTokens := totalChars / 4
-
-		// Check if the estimated tokens exceed the profile's max input tokens
-		if input.Profile.MaxInputTokens > 0 && estimatedTokens > input.Profile.MaxInputTokens {
-			return nil, fmt.Errorf(
-				"diff is too large for 'flat' strategy: estimated %d tokens exceeds profile limit of %d tokens. Consider using 'summarize' strategy instead",
-				estimatedTokens,
-				input.Profile.MaxInputTokens,
-			)
+		if err := validateTokenBudget(input.Profile, input.Changes); err != nil {
+			return nil, err
 		}
 
-		// Build the content with full diffs
-		var contentBuilder strings.Builder
-		contentBuilder.WriteString("Git Diff:\n\n")
+		content := buildFlatPrompt(input.Changes, input.Intent)
 
-		for _, change := range input.Changes {
-			contentBuilder.WriteString(fmt.Sprintf("File: %s\n", change.Filename))
-			contentBuilder.WriteString("```diff\n")
-			contentBuilder.WriteString(change.Change)
-			contentBuilder.WriteString("\n```\n\n")
-		}
-
-		if input.Intent != "" {
-			contentBuilder.WriteString(fmt.Sprintf("\nDeveloper Intent: %s\n", input.Intent))
-		}
-
-		content := contentBuilder.String()
-
-		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-		exec := executorCtx.GetExecutor()
-		if exec == nil {
-			return nil, fmt.Errorf("executor not available in context")
-		}
-
-		invokeInput := &invokellm.Input{
+		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &invokellm.Input{
 			Profile:      input.Profile,
 			SystemPrompt: input.SystemPrompt,
 			UserPrompt:   content,
-		}
-
-		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
-			ctx,
-			exec,
-			executorCtx,
-			"GenerateContent",
-			contentGenerationActivity,
-			invokeInput,
-		)
-		invokeOutput, err := invokeFuture.Get(ctx)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate %s: %w", f.contentType, err)
 		}
@@ -142,4 +99,72 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Content: invokeOutput.Content,
 		}, nil
 	}
+}
+
+func validateTokenBudget(resolvedProfile *profile.ResolvedProfile, changes []*git.FileChange) error {
+	estimatedTokens := estimateTokenCount(changes)
+	if resolvedProfile.MaxInputTokens > 0 && estimatedTokens > resolvedProfile.MaxInputTokens {
+		return fmt.Errorf(
+			"diff is too large for 'flat' strategy: estimated %d tokens exceeds profile limit of %d tokens. Consider using 'summarize' strategy instead",
+			estimatedTokens,
+			resolvedProfile.MaxInputTokens,
+		)
+	}
+	return nil
+}
+
+func estimateTokenCount(changes []*git.FileChange) int {
+	var totalChars int
+	for _, change := range changes {
+		totalChars += len(change.Change)
+	}
+	return totalChars / 4
+}
+
+func buildFlatPrompt(changes []*git.FileChange, intent string) string {
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString("Git Diff:\n\n")
+
+	for _, change := range changes {
+		contentBuilder.WriteString(fmt.Sprintf("File: %s\n", change.Filename))
+		contentBuilder.WriteString("```diff\n")
+		contentBuilder.WriteString(change.Change)
+		contentBuilder.WriteString("\n```\n\n")
+	}
+
+	if intent != "" {
+		contentBuilder.WriteString(fmt.Sprintf("\nDeveloper Intent: %s\n", intent))
+	}
+
+	return contentBuilder.String()
+}
+
+func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	exec, err := requireExecutor(executorCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
+	invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+		ctx,
+		exec,
+		executorCtx,
+		"GenerateContent",
+		contentGenerationActivity,
+		input,
+	)
+	output, err := invokeFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("invoke LLM: %w", err)
+	}
+	return output, nil
+}
+
+func requireExecutor(executorCtx *executor.Context) (executor.Executor, error) {
+	exec := executorCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in context")
+	}
+	return exec, nil
 }

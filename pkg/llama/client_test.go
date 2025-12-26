@@ -387,30 +387,33 @@ func TestServiceImpl_CompleteEdgeCases(t *testing.T) {
 				_, err = service.Complete(ctx, tt.request)
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				server := tt.setupServer()
-				if server != nil {
-					defer server.Close()
-					service, err = NewClient(server.URL, "test-key", &http.Client{})
-				} else {
-					service, err = NewClient("http://localhost:8080", "test-key", &http.Client{})
-				}
-				require.NoError(t, err)
-
-				ctx := context.Background()
-				result, err := service.Complete(ctx, tt.request)
-
-				if tt.expectError {
-					require.Error(t, err)
-					assert.Nil(t, result)
-					if tt.errorMsg != "" {
-						assert.Contains(t, err.Error(), tt.errorMsg)
-					}
-				} else {
-					require.NoError(t, err)
-					assert.NotNil(t, result)
-				}
+				return
 			}
+
+			server := tt.setupServer()
+			if server != nil {
+				defer server.Close()
+				service, err = NewClient(server.URL, "test-key", &http.Client{})
+			} else {
+				service, err = NewClient("http://localhost:8080", "test-key", &http.Client{})
+			}
+
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			result, err := service.Complete(ctx, tt.request)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Nil(t, result)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
 		})
 	}
 }

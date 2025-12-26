@@ -83,7 +83,7 @@ func TestRepository_AddDocumentVersion(t *testing.T) {
 	}
 	content := []byte("package main")
 
-	id, err := repo.AddDocumentVersion(ctx, doc, content)
+	id, err := repo.AddDocumentVersion(ctx, &doc, content)
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
 		GitCommitHashFirstSeen: sql.NullString{String: "abc123", Valid: true},
 		ContentHash:            "hash1",
 	}
-	_, err := repo.AddDocumentVersion(ctx, doc1, content)
+	_, err := repo.AddDocumentVersion(ctx, &doc1, content)
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() first call error = %v", err)
 	}
@@ -137,7 +137,7 @@ func TestRepository_AddDocumentVersion_DuplicateContent(t *testing.T) {
 		GitCommitHashFirstSeen: sql.NullString{String: "def456", Valid: true},
 		ContentHash:            "hash1",
 	}
-	_, err = repo.AddDocumentVersion(ctx, doc2, content)
+	_, err = repo.AddDocumentVersion(ctx, &doc2, content)
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() second call error = %v", err)
 	}
@@ -156,7 +156,7 @@ func TestRepository_AddChunks(t *testing.T) {
 		GitCommitHashFirstSeen: sql.NullString{String: "abc", Valid: true},
 		ContentHash:            "hash1",
 	}
-	versionID, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+	versionID, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -225,7 +225,7 @@ func TestRepository_FindVersionByContentHash(t *testing.T) {
 		GitCommitHashFirstSeen: sql.NullString{String: "abc", Valid: true},
 		ContentHash:            "hash1",
 	}
-	id, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+	id, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -279,7 +279,7 @@ func TestRepository_FindVersionsByFilePath(t *testing.T) {
 	}
 
 	for i, v := range versions {
-		_, err := repo.AddDocumentVersion(ctx, v, []byte("content"+string(rune(i))))
+		_, err := repo.AddDocumentVersion(ctx, &v, []byte("content"+string(rune(i))))
 		if err != nil {
 			t.Fatalf("AddDocumentVersion() error = %v", err)
 		}
@@ -324,7 +324,7 @@ func TestRepository_GetAllEmbeddings(t *testing.T) {
 		FilePath:    "test.go",
 		ContentHash: "hash1",
 	}
-	versionID, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+	versionID, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -379,7 +379,7 @@ func TestRepository_LinkVersionToSnapshot(t *testing.T) {
 		FilePath:    "test.go",
 		ContentHash: "hash1",
 	}
-	versionID, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+	versionID, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -422,7 +422,7 @@ func TestRepository_UnlinkVersionFromSnapshot(t *testing.T) {
 		FilePath:    "test.go",
 		ContentHash: "hash1",
 	}
-	versionID, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+	versionID, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 	if err != nil {
 		t.Fatalf("AddDocumentVersion() error = %v", err)
 	}
@@ -462,7 +462,7 @@ func TestRepository_ClearSnapshotLinks(t *testing.T) {
 			FilePath:    "test.go",
 			ContentHash: "hash" + string(rune('1'+i)),
 		}
-		id, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+		id, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 		if err != nil {
 			t.Fatalf("AddDocumentVersion() error = %v", err)
 		}
@@ -505,7 +505,7 @@ func TestRepository_GetVersionsByIDs(t *testing.T) {
 			FilePath:    "test" + string(rune('0'+i)) + ".go",
 			ContentHash: "hash" + string(rune('1'+i)),
 		}
-		id, err := repo.AddDocumentVersion(ctx, doc, []byte("content"))
+		id, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
 		if err != nil {
 			t.Fatalf("AddDocumentVersion() error = %v", err)
 		}

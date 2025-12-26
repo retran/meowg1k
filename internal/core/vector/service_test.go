@@ -31,11 +31,11 @@ func (m *mockIndexRepositoryForBuild) GetChunksByVersionID(ctx context.Context, 
 }
 
 // Implement other required methods (not used in BuildAndSave).
-func (m *mockIndexRepositoryForBuild) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
+func (m *mockIndexRepositoryForBuild) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
 	return 0, errors.New("not implemented")
 }
 
-func (m *mockIndexRepositoryForBuild) AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+func (m *mockIndexRepositoryForBuild) AddDocumentVersionWithChunks(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
 	return 0, errors.New("not implemented")
 }
 

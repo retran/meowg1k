@@ -12,6 +12,8 @@ import (
 	"testing"
 )
 
+const testFileName = "test.txt"
+
 type mockWorkspaceService struct{}
 
 func (m *mockWorkspaceService) Get() (string, error) {
@@ -137,7 +139,7 @@ func TestServiceImpl_ReadStagedFilesWithTempRepo(t *testing.T) {
 	}
 
 	// Create and stage a file
-	testFile := "test.txt"
+	testFile := testFileName
 	testContent := "Hello, world!"
 	err = os.WriteFile(testFile, []byte(testContent), 0o644)
 	if err != nil {
@@ -357,8 +359,8 @@ func TestServiceImpl_GetCurrentBranch(t *testing.T) {
 	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit
-	os.WriteFile("test.txt", []byte("test"), 0o644)
-	exec.CommandContext(context.Background(), "git", "add", "test.txt").Run()
+	os.WriteFile(testFileName, []byte("test"), 0o644)
+	exec.CommandContext(context.Background(), "git", "add", testFileName).Run()
 	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
@@ -470,8 +472,8 @@ func TestServiceImpl_GetChangedFilesInBranchEmpty(t *testing.T) {
 	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit
-	os.WriteFile("test.txt", []byte("test"), 0o644)
-	exec.CommandContext(context.Background(), "git", "add", "test.txt").Run()
+	os.WriteFile(testFileName, []byte("test"), 0o644)
+	exec.CommandContext(context.Background(), "git", "add", testFileName).Run()
 	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
 
 	workspaceService := &mockWorkspaceService{}
@@ -521,7 +523,7 @@ func TestServiceImpl_GetBranchDiff(t *testing.T) {
 	exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com").Run()
 
 	// Create initial commit on main branch
-	testFile := "test.txt"
+	testFile := testFileName
 	os.WriteFile(testFile, []byte("line 1\nline 2\n"), 0o644)
 	exec.CommandContext(context.Background(), "git", "add", testFile).Run()
 	exec.CommandContext(context.Background(), "git", "commit", "-m", "Initial commit").Run()
@@ -583,7 +585,7 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
-	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", testFileName).Run()
 	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
 
 	// Create mock workspace service that returns our temp directory
@@ -604,7 +606,7 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 	if err := os.WriteFile(testFile, []byte("modified content\n"), 0o644); err != nil {
 		t.Fatalf("Failed to modify test file: %v", err)
 	}
-	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", "test.txt").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", testFileName).Run()
 
 	// Read staged files - should work from the custom workspace
 	files, err := service.ReadStagedFiles()
@@ -612,7 +614,7 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 		t.Fatalf("ReadStagedFiles() failed: %v", err)
 	}
 
-	if len(files) != 1 || files[0] != "test.txt" {
+	if len(files) != 1 || files[0] != testFileName {
 		t.Errorf("Expected staged files [test.txt], got %v", files)
 	}
 

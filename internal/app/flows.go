@@ -53,13 +53,16 @@ import (
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/internal/core/task"
 	"github.com/retran/meowg1k/internal/core/vector"
+	"github.com/retran/meowg1k/internal/domain/config"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
 	indexFlow "github.com/retran/meowg1k/internal/flows/index"
 	pr "github.com/retran/meowg1k/internal/flows/pullrequest"
 	queryFlow "github.com/retran/meowg1k/internal/flows/query"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -442,27 +445,9 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create git service: %w", err)
 	}
 
-	providerService := provider.NewService()
-
-	modelService, err := model.NewService(c.ConfigService, providerService)
+	indexConfig, err := c.resolveIndexConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create model service: %w", err)
-	}
-
-	profileService, err := profile.NewService(c.ConfigService, modelService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
-	}
-
-	// Get resolved index configuration
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create index config service: %w", err)
-	}
-
-	indexConfig, err := indexConfigService.Get()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get index config: %w", err)
+		return nil, err
 	}
 
 	// Initialize database and repositories
@@ -506,7 +491,97 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	// Initialize activity factories
+	factories, err := buildIndexReconcileFactories(
+		projectStateSvc,
+		chunkerSvc,
+		indexSvc,
+		indexRepoImpl,
+		metaRepo,
+		embeddingsGW,
+		indexConfig.Profile.Model,
+		vectorIndexSvc,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create index flow factory
+	flowFactory, err := indexFlow.NewFactory(
+		factories.cleanupFactory,
+		factories.scanStateFactory,
+		factories.deduplicateFactory,
+		factories.chunkAllFactory,
+		factories.prepareBatchesFactory,
+		factories.computeAllFactory,
+		factories.distributeAndSaveFactory,
+		factories.finalizeSnapshotsFactory,
+		factories.buildVectorIndicesFactory,
+		indexConfig.BatchSize,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create index flow factory: %w", err)
+	}
+
+	return flowFactory.NewFlow(), nil
+}
+
+type indexReconcileFactories struct {
+	cleanupFactory            executor.ActivityFactory[struct{}, struct{}]
+	scanStateFactory          executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
+	deduplicateFactory        executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
+	chunkAllFactory           executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
+	prepareBatchesFactory     executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
+	computeAllFactory         executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
+	distributeAndSaveFactory  executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
+	finalizeSnapshotsFactory  executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
+	buildVectorIndicesFactory executor.ActivityFactory[struct{}, struct{}]
+}
+
+func (c *Container) resolveIndexConfig() (*domainindex.ResolvedConfig, error) {
+	profileService, err := c.buildProfileService()
+	if err != nil {
+		return nil, err
+	}
+
+	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create index config service: %w", err)
+	}
+
+	indexConfig, err := indexConfigService.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index config: %w", err)
+	}
+
+	return indexConfig, nil
+}
+
+func (c *Container) buildProfileService() (*profile.Service, error) {
+	providerService := provider.NewService()
+
+	modelService, err := model.NewService(c.ConfigService, providerService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create model service: %w", err)
+	}
+
+	profileService, err := profile.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create profile service: %w", err)
+	}
+
+	return profileService, nil
+}
+
+func buildIndexReconcileFactories(
+	projectStateSvc *project.StateService,
+	chunkerSvc *chunker.Service,
+	indexSvc *index.Service,
+	indexRepoImpl *indexRepo.Repository,
+	metaRepo *meta.Repository,
+	embeddingsGW ports.EmbeddingsGateway,
+	embeddingModel string,
+	vectorIndexSvc *vector.Service,
+) (*indexReconcileFactories, error) {
 	cleanupFactory, err := cleanupstaledata.NewFactory(indexRepoImpl, metaRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cleanup factory: %w", err)
@@ -537,7 +612,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create prepare batches factory: %w", err)
 	}
 
-	computeBatchFactory, err := computeembeddingsbatch.NewFactory(embeddingsGW, indexConfig.Profile.Model)
+	computeBatchFactory, err := computeembeddingsbatch.NewFactory(embeddingsGW, embeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute batch factory: %w", err)
 	}
@@ -567,24 +642,17 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create build vector indices factory: %w", err)
 	}
 
-	// Create index flow factory
-	flowFactory, err := indexFlow.NewFactory(
-		cleanupFactory,
-		scanStateFactory,
-		deduplicateFactory,
-		chunkAllFactory,
-		prepareBatchesFactory,
-		computeAllFactory,
-		distributeAndSaveFactory,
-		finalizeSnapshotsFactory,
-		buildVectorIndicesFactory,
-		indexConfig.BatchSize,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create index flow factory: %w", err)
-	}
-
-	return flowFactory.NewFlow(), nil
+	return &indexReconcileFactories{
+		cleanupFactory:            cleanupFactory,
+		scanStateFactory:          scanStateFactory,
+		deduplicateFactory:        deduplicateFactory,
+		chunkAllFactory:           chunkAllFactory,
+		prepareBatchesFactory:     prepareBatchesFactory,
+		computeAllFactory:         computeAllFactory,
+		distributeAndSaveFactory:  distributeAndSaveFactory,
+		finalizeSnapshotsFactory:  finalizeSnapshotsFactory,
+		buildVectorIndicesFactory: buildVectorIndicesFactory,
+	}, nil
 }
 
 // CreateQueryFlow creates a complete query flow with all dependencies.
@@ -679,92 +747,28 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	metaRepo := meta.NewRepository(c.dbHost)
 	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
 
-	// Get configuration
-	config, err := c.ConfigService.Get()
+	cfg, err := c.loadAskConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
+		return nil, err
 	}
 
-	// Validate ask configuration exists
-	if config.Ask == nil {
-		return nil, fmt.Errorf("ask configuration is missing")
+	if err := c.ensureAskSystemPrompt(cfg); err != nil {
+		return nil, err
 	}
 
-	// Initialize services
-	providerService := provider.NewService()
-	modelService, err := model.NewService(c.ConfigService, providerService)
+	indexConfig, err := c.resolveIndexConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create model service: %w", err)
+		return nil, err
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	profileService, err := c.buildProfileService()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, err
 	}
 
-	// Get resolved index configuration
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	retrieveContextFactory, invokeLLMFactory, err := c.buildAskFactories(metaRepo, indexRepoImpl, indexConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create index config service: %w", err)
-	}
-
-	indexConfig, err := indexConfigService.Get()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get index config: %w", err)
-	}
-
-	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create vector search service: %w", err)
-	}
-
-	// Create gateway factory
-	gatewayFactory, err := gateway.NewFactory(
-		c.GetRateLimitRepo(),
-		c.GetCacheRepo(),
-		c.CommandService,
-		c.TraceLogger,
-		c.CommandService,
-		c.GetHTTPClientService(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
-	}
-
-	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
-	}
-
-	// Create retrieval service with RetrievalQuery for ask flow
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
-	}
-
-	// Create retrieve context activity factory
-	retrieveContextFactory, err := retrievecontext.NewFactory(retrievalSvc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create retrieve context factory: %w", err)
-	}
-
-	// Create invoke LLM factory
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create invoke LLM factory: %w", err)
-	}
-
-	// Determine system prompt with mandatory check
-	// Priority: flag > config
-	systemPrompt := config.Ask.SystemPrompt
-	if flagPrompt, err := c.CommandService.GetSystemPromptFlag(); err == nil && flagPrompt != "" {
-		systemPrompt = flagPrompt
-	}
-
-	// System prompt is mandatory
-	if systemPrompt == "" {
-		return nil, fmt.Errorf("system prompt is required (set in config ask.systemPrompt or via --system-prompt flag)")
+		return nil, err
 	}
 
 	// Create ask flow factory with resolved parameters
@@ -781,4 +785,75 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	}
 
 	return askFlowFactory.NewFlow(), nil
+}
+
+func (c *Container) loadAskConfig() (*config.Config, error) {
+	cfg, err := c.ConfigService.Get()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+	if cfg.Ask == nil {
+		return nil, fmt.Errorf("ask configuration is missing")
+	}
+	return cfg, nil
+}
+
+func (c *Container) ensureAskSystemPrompt(cfg *config.Config) error {
+	systemPrompt := cfg.Ask.SystemPrompt
+	if flagPrompt, err := c.CommandService.GetSystemPromptFlag(); err == nil && flagPrompt != "" {
+		systemPrompt = flagPrompt
+	}
+	if systemPrompt == "" {
+		return fmt.Errorf("system prompt is required (set in config ask.systemPrompt or via --system-prompt flag)")
+	}
+	return nil
+}
+
+func (c *Container) buildAskFactories(
+	metaRepo *meta.Repository,
+	indexRepoImpl *indexRepo.Repository,
+	indexConfig *domainindex.ResolvedConfig,
+) (
+	retrieveFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
+	invokeFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	err error,
+) {
+	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create vector search service: %w", err)
+	}
+
+	gatewayFactory, err := gateway.NewFactory(
+		c.GetRateLimitRepo(),
+		c.GetCacheRepo(),
+		c.CommandService,
+		c.TraceLogger,
+		c.CommandService,
+		c.GetHTTPClientService(),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create gateway factory: %w", err)
+	}
+
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
+	}
+
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create retrieval service: %w", err)
+	}
+
+	retrieveContextFactory, err := retrievecontext.NewFactory(retrievalSvc)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create retrieve context factory: %w", err)
+	}
+
+	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create invoke LLM factory: %w", err)
+	}
+
+	return retrieveContextFactory, invokeLLMFactory, nil
 }

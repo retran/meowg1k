@@ -301,39 +301,16 @@ func (e *executorImpl) executeActivityImpl(
 		return nil, fmt.Errorf("executor is nil")
 	}
 
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
-	}
-
-	if activityCtx == nil {
-		return nil, fmt.Errorf("activity context is nil")
-	}
-
-	if activity == nil {
-		return nil, fmt.Errorf("activity is nil for %q", activityCtx.name)
-	}
-
-	if policy == nil {
-		return nil, fmt.Errorf("retry policy is nil for activity %q", activityCtx.name)
-	}
-
-	if policy.MaxAttempts < 1 {
-		return nil, fmt.Errorf("invalid retry policy for activity %q: max attempts must be at least 1, got %d", activityCtx.name, policy.MaxAttempts)
-	}
-
-	if policy.Multiplier < 1.0 {
-		return nil, fmt.Errorf("invalid retry policy for activity %q: multiplier must be at least 1.0, got %f", activityCtx.name, policy.Multiplier)
+	if err := validateActivityExecution(ctx, activityCtx, activity, policy); err != nil {
+		return nil, err
 	}
 
 	name := activityCtx.name
 	delay := policy.InitialDelay
 
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
-		select {
-		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, fmt.Errorf("activity %q canceled at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
-		default:
+		if err := checkActivityCanceled(ctx, activityCtx, attempt, "activity %q canceled at attempt %d: %w"); err != nil {
+			return nil, err
 		}
 
 		result, err := activity(ctx, activityCtx, input)
@@ -350,17 +327,78 @@ func (e *executorImpl) executeActivityImpl(
 		// Send retry feedback
 		activityCtx.SendRetry(attempt+1, err)
 
-		// Wait before retry with exponential backoff
-		select {
-		case <-ctx.Done():
-			activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
-			return nil, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
-		case <-time.After(delay):
-			// Calculate next delay with exponential backoff
-			delay = min(time.Duration(float64(delay)*policy.Multiplier), policy.MaxDelay)
+		var retryErr error
+		delay, retryErr = waitForRetry(ctx, activityCtx, delay, attempt, policy.Multiplier, policy.MaxDelay)
+		if retryErr != nil {
+			return nil, retryErr
 		}
 	}
 
 	// This should never be reached, but just in case
 	return nil, fmt.Errorf("unexpected end of retry loop for activity %q after %d attempts", name, policy.MaxAttempts)
+}
+
+func validateActivityExecution(
+	ctx context.Context,
+	activityCtx *Context,
+	activity Activity[any, any],
+	policy *RetryPolicy,
+) error {
+	if ctx == nil {
+		return fmt.Errorf("context cannot be nil")
+	}
+
+	if activityCtx == nil {
+		return fmt.Errorf("activity context is nil")
+	}
+
+	if activity == nil {
+		return fmt.Errorf("activity is nil for %q", activityCtx.name)
+	}
+
+	if policy == nil {
+		return fmt.Errorf("retry policy is nil for activity %q", activityCtx.name)
+	}
+
+	if policy.MaxAttempts < 1 {
+		return fmt.Errorf("invalid retry policy for activity %q: max attempts must be at least 1, got %d", activityCtx.name, policy.MaxAttempts)
+	}
+
+	if policy.Multiplier < 1.0 {
+		return fmt.Errorf("invalid retry policy for activity %q: multiplier must be at least 1.0, got %f", activityCtx.name, policy.Multiplier)
+	}
+
+	return nil
+}
+
+func checkActivityCanceled(
+	ctx context.Context,
+	activityCtx *Context,
+	attempt int,
+	message string,
+) error {
+	select {
+	case <-ctx.Done():
+		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		return fmt.Errorf(message, activityCtx.name, attempt, ctx.Err())
+	default:
+		return nil
+	}
+}
+
+func waitForRetry(
+	ctx context.Context,
+	activityCtx *Context,
+	delay time.Duration,
+	attempt int,
+	multiplier float64,
+	maxDelay time.Duration,
+) (time.Duration, error) {
+	select {
+	case <-ctx.Done():
+		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		return delay, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
+	case <-time.After(delay):
+		return min(time.Duration(float64(delay)*multiplier), maxDelay), nil
+	}
 }

@@ -32,7 +32,11 @@ func NewRepository(host ports.Host) *Repository {
 }
 
 // AddDocumentVersion inserts a document version and content blob.
-func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error) {
+func (r *Repository) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
+	if doc == nil {
+		return 0, fmt.Errorf("document version cannot be nil")
+	}
+
 	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get database: %w", err)
@@ -74,7 +78,11 @@ func (r *Repository) AddDocumentVersion(ctx context.Context, doc domainindex.Doc
 
 // AddDocumentVersionWithChunks adds a document version with its chunks in a single transaction.
 // This ensures atomicity and better performance compared to separate calls.
-func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error) {
+	if doc == nil {
+		return 0, fmt.Errorf("document version cannot be nil")
+	}
+
 	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return 0, fmt.Errorf("failed to get database: %w", err)

@@ -17,9 +17,9 @@ type rateLimitedGenerationGateway struct {
 	limiter ratelimit.Limiter
 }
 
-func newRateLimitedGenerationGateway(gateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
+func newRateLimitedGenerationGateway(innerGateway ports.GenerationGateway, limiter ratelimit.Limiter) ports.GenerationGateway {
 	return &rateLimitedGenerationGateway{
-		gateway: gateway,
+		gateway: innerGateway,
 		limiter: limiter,
 	}
 }
@@ -64,9 +64,9 @@ type rateLimitedEmbeddingsGateway struct {
 }
 
 // newRateLimitedEmbeddingsGateway creates a new rate-limited embeddings gateway.
-func newRateLimitedEmbeddingsGateway(gateway ports.EmbeddingsGateway, limiter ratelimit.Limiter) ports.EmbeddingsGateway {
+func newRateLimitedEmbeddingsGateway(innerGateway ports.EmbeddingsGateway, limiter ratelimit.Limiter) ports.EmbeddingsGateway {
 	return &rateLimitedEmbeddingsGateway{
-		gateway: gateway,
+		gateway: innerGateway,
 		limiter: limiter,
 	}
 }

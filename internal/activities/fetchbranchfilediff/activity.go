@@ -63,39 +63,54 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
-		// For branch diff, we get content from target branch (base) and current HEAD
-		originalFileContent, err := f.branchDiffReader.ReadOriginalFileContent(input.Filename)
+		originalFileContent, err := readBranchOriginalContent(f.branchDiffReader, input.Filename)
 		if err != nil {
-			if isMissingOriginalContent(err) {
-				originalFileContent = "" // File is new or this is the initial commit
-			} else {
-				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
-			}
-		} // For branch diff, "staged" content is actually current HEAD content
-		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
-		if err != nil {
-			if isMissingStagedContent(err) {
-				// File was deleted - return with empty staged content
-				executorCtx.SendCompleted("Deleted")
-				return &git.FileChange{
-					Filename:            input.Filename,
-					Change:              change,
-					OriginalFileContent: originalFileContent,
-					ChangedFileContent:  "", // Empty for deleted files
-				}, nil
-			}
+			return nil, err
+		}
 
-			return nil, fmt.Errorf("failed to read current file content of %s: %w", input.Filename, err)
+		stagedFileContent, deleted, err := readBranchStagedContent(f.branchDiffReader, input.Filename)
+		if err != nil {
+			return nil, err
+		}
+		if deleted {
+			executorCtx.SendCompleted("Deleted")
+			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &git.FileChange{
-			Filename:            input.Filename,
-			Change:              change,
-			OriginalFileContent: originalFileContent,
-			ChangedFileContent:  stagedFileContent,
-		}, nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
+	}
+}
+
+func readBranchOriginalContent(reader BranchDiffReader, filename string) (string, error) {
+	content, err := reader.ReadOriginalFileContent(filename)
+	if err == nil {
+		return content, nil
+	}
+	if isMissingOriginalContent(err) {
+		return "", nil
+	}
+	return "", fmt.Errorf("failed to read original file content of %s: %w", filename, err)
+}
+
+func readBranchStagedContent(reader BranchDiffReader, filename string) (content string, found bool, err error) {
+	content, err = reader.ReadStagedFileContent(filename)
+	if err == nil {
+		return content, false, nil
+	}
+	if isMissingStagedContent(err) {
+		return "", true, nil
+	}
+	return "", false, fmt.Errorf("failed to read current file content of %s: %w", filename, err)
+}
+
+func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+	return &git.FileChange{
+		Filename:            filename,
+		Change:              change,
+		OriginalFileContent: originalContent,
+		ChangedFileContent:  stagedContent,
 	}
 }
 

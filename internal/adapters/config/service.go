@@ -64,15 +64,10 @@ func NewService(filePathResolver FilePathResolver, workspaceDirResolver Workspac
 			return nil, err
 		}
 		configLoaded = true
-	} else {
-		// 3. If not passed - load from .meowg1k.yaml from the root of the working directory
-		loaded, err := mergeWorkspaceConfig(v, workspaceDirResolver)
-		if err != nil {
-			return nil, err
-		}
-		if loaded {
-			configLoaded = true
-		}
+	} else if loaded, err := mergeWorkspaceConfig(v, workspaceDirResolver); err != nil {
+		return nil, err
+	} else if loaded {
+		configLoaded = true
 	}
 
 	if !configLoaded {

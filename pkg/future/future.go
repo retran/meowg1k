@@ -120,7 +120,7 @@ func (f *Future[T]) IsDone() bool {
 }
 
 // TryGet returns the result if available, or zero values if not ready.
-func (f *Future[T]) TryGet() (T, bool, error) {
+func (f *Future[T]) TryGet() (value T, ready bool, err error) {
 	var zero T
 	if f == nil {
 		return zero, false, fmt.Errorf("future is nil")

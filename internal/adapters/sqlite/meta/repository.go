@@ -104,14 +104,16 @@ func (r *Repository) setInlineValue(ctx context.Context, db *sql.DB, key string,
 		return fmt.Errorf("failed to set meta value for key '%s': %w", key, err)
 	}
 
-	if existingRef != "" {
-		if blobDir, derr := r.ensureBlobDir(db); derr == nil {
-			if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return fmt.Errorf("failed to remove obsolete blob for key '%s': %w", key, err)
-			}
-		} else {
-			return fmt.Errorf("failed to clean up blob for key '%s': %w", key, derr)
-		}
+	if existingRef == "" {
+		return nil
+	}
+
+	blobDir, derr := r.ensureBlobDir(db)
+	if derr != nil {
+		return fmt.Errorf("failed to clean up blob for key '%s': %w", key, derr)
+	}
+	if err := r.removeBlob(blobDir, existingRef); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to remove obsolete blob for key '%s': %w", key, err)
 	}
 
 	return nil
@@ -140,7 +142,13 @@ func (r *Repository) GetValue(ctx context.Context, key string) ([]byte, error) {
 			return nil, fmt.Errorf("failed to resolve blob storage for key '%s': %w", key, err)
 		}
 
-		data, err := os.ReadFile(filepath.Join(blobDir, fileName))
+		blobPath, err := resolveBlobPath(blobDir, fileName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve blob path for key '%s': %w", key, err)
+		}
+
+		// #nosec G304 -- blobPath is validated to be within the blob dir.
+		data, err := os.ReadFile(blobPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read blob for key '%s': %w", key, err)
 		}
@@ -282,6 +290,16 @@ func parseFileReference(value []byte) (string, bool) {
 	return string(value[len(fileRefPrefixBytes):]), true
 }
 
+func resolveBlobPath(blobDir, fileName string) (string, error) {
+	if fileName == "" {
+		return "", fmt.Errorf("empty blob file reference")
+	}
+	if filepath.Base(fileName) != fileName {
+		return "", fmt.Errorf("invalid blob file reference")
+	}
+	return filepath.Join(blobDir, fileName), nil
+}
+
 func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, key string) (string, error) {
 	query := `
 		SELECT CASE
@@ -367,16 +385,16 @@ func writeAndSync(file *os.File, data []byte) error {
 }
 
 func replaceFile(sourcePath, destPath string) error {
+	if err := os.Rename(sourcePath, destPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("failed to finalize blob file: %w", err)
+	}
+
+	if remErr := os.Remove(destPath); remErr != nil && !errors.Is(remErr, os.ErrNotExist) {
+		return fmt.Errorf("failed to replace existing blob file: %w", remErr)
+	}
 	if err := os.Rename(sourcePath, destPath); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			if remErr := os.Remove(destPath); remErr != nil && !errors.Is(remErr, os.ErrNotExist) {
-				return fmt.Errorf("failed to replace existing blob file: %w", remErr)
-			}
-			if err := os.Rename(sourcePath, destPath); err != nil {
-				return fmt.Errorf("failed to finalize blob file: %w", err)
-			}
-			return nil
-		}
 		return fmt.Errorf("failed to finalize blob file: %w", err)
 	}
 

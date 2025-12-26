@@ -54,7 +54,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", len(input.Changes)))
+		totalChanges := len(input.Changes)
+		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", totalChanges))
+
+		if totalChanges == 0 {
+			executorCtx.SendCompleted("Summarized 0 files")
+			return &Output{Summaries: []*summarizefile.Output{}}, nil
+		}
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {

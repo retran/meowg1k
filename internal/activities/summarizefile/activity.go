@@ -82,49 +82,16 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		if config == nil || config.Skip {
 			executorCtx.SendCompleted("Skipped")
-			return &Output{
-				Filename: input.Filename,
-				Summary:  "", // Empty summary means skip
-				Skipped:  true,
-			}, nil
+			return buildSkippedOutput(input.Filename), nil
 		}
 
-		var contentParts []string
-		contentParts = append(contentParts, fmt.Sprintf("File: %s", input.Filename))
+		content := buildSummaryPrompt(input, config)
 
-		if config.IncludeOriginalFile {
-			contentParts = append(contentParts, fmt.Sprintf("\nOriginal content:\n%s", input.OriginalFileContent))
-		}
-
-		if config.IncludeChangedFile {
-			contentParts = append(contentParts, fmt.Sprintf("\nStaged content:\n%s", input.StagedFileContent))
-		}
-
-		contentParts = append(contentParts, fmt.Sprintf("\nDiff:\n%s", input.Change))
-
-		content := strings.Join(contentParts, "")
-
-		contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-		exec := executorCtx.GetExecutor()
-		if exec == nil {
-			return nil, fmt.Errorf("executor not available in context")
-		}
-
-		invokeInput := &invokellm.Input{
+		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &invokellm.Input{
 			Profile:      config.Profile,
 			SystemPrompt: config.SystemPrompt,
 			UserPrompt:   content,
-		}
-
-		invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
-			ctx,
-			exec,
-			executorCtx,
-			"GenerateContent",
-			contentGenerationActivity,
-			invokeInput,
-		)
-		invokeOutput, err := invokeFuture.Get(ctx)
+		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)
 		}
@@ -137,4 +104,58 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Skipped:  false,
 		}, nil
 	}
+}
+
+func buildSummaryPrompt(input *Input, config *summarize.ResolvedConfig) string {
+	contentParts := []string{fmt.Sprintf("File: %s", input.Filename)}
+
+	if config.IncludeOriginalFile {
+		contentParts = append(contentParts, fmt.Sprintf("\nOriginal content:\n%s", input.OriginalFileContent))
+	}
+
+	if config.IncludeChangedFile {
+		contentParts = append(contentParts, fmt.Sprintf("\nStaged content:\n%s", input.StagedFileContent))
+	}
+
+	contentParts = append(contentParts, fmt.Sprintf("\nDiff:\n%s", input.Change))
+
+	return strings.Join(contentParts, "")
+}
+
+func buildSkippedOutput(filename string) *Output {
+	return &Output{
+		Filename: filename,
+		Summary:  "",
+		Skipped:  true,
+	}
+}
+
+func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	exec, err := requireExecutor(executorCtx)
+	if err != nil {
+		return nil, err
+	}
+
+	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
+	invokeFuture := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+		ctx,
+		exec,
+		executorCtx,
+		"GenerateContent",
+		contentGenerationActivity,
+		input,
+	)
+	output, err := invokeFuture.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("invoke LLM: %w", err)
+	}
+	return output, nil
+}
+
+func requireExecutor(executorCtx *executor.Context) (executor.Executor, error) {
+	exec := executorCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in context")
+	}
+	return exec, nil
 }

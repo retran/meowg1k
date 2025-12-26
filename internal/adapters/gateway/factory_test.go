@@ -39,7 +39,7 @@ func (m *mockCommandNameReader) GetCommandName() (string, error) {
 // mockCacheRepo is a mock implementation of CacheRepository for testing.
 type mockCacheRepo struct{}
 
-func (m *mockCacheRepo) Get(ctx context.Context, key string) (string, bool, error) {
+func (m *mockCacheRepo) Get(ctx context.Context, key string) (value string, found bool, err error) {
 	return "", false, nil
 }
 

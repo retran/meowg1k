@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -80,67 +81,103 @@ func NewFlowFactory(
 // NewFlow creates and returns the content generation flow function with improved, multi-step status reporting.
 func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		if f == nil {
-			return fmt.Errorf("factory is nil")
-		}
-		if ctx == nil {
-			return fmt.Errorf("context is nil")
-		}
-		if flowCtx == nil {
-			return fmt.Errorf("flow context is nil")
+		exec, err := f.validateFlowContext(ctx, flowCtx)
+		if err != nil {
+			return err
 		}
 
-		exec := flowCtx.GetExecutor()
-		if exec == nil {
-			return fmt.Errorf("executor not available in context")
-		}
-
-		task, err := f.taskConfigProvider.Get()
+		taskConfig, err := f.taskConfigProvider.Get()
 		if err != nil {
 			return fmt.Errorf("failed to get task config: %w", err)
 		}
 
 		flowCtx.SendRunning("Generating content")
 
-		userPrompt, err := f.userPromptProvider.GetUserPrompt()
+		userPrompt, systemPrompt, err := f.getPrompts()
 		if err != nil {
-			return fmt.Errorf("failed to get user prompt: %w", err)
+			return err
 		}
 
-		systemPrompt, err := f.systemPromptProvider.GetSystemPrompt()
+		invokeOutput, err := f.runInvokeActivity(ctx, flowCtx, exec, taskConfig.Profile, userPrompt, systemPrompt)
 		if err != nil {
-			return fmt.Errorf("failed to get system prompt: %w", err)
-		}
-
-		activity := f.contentGenerationActivityFactory.NewActivity()
-		input := &invokellm.Input{
-			Profile:      task.Profile,
-			UserPrompt:   userPrompt,
-			SystemPrompt: systemPrompt,
-		}
-
-		future := executor.ExecuteActivity(
-			ctx,
-			exec,
-			flowCtx,
-			"InvokeLLM",
-			activity,
-			input,
-		)
-
-		invokeOutput, err := future.Get(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
+			return err
 		}
 
 		flowCtx.SendCompleted("")
 
-		time.Sleep(300 * time.Millisecond)
-
-		if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Content)); err != nil {
-			return fmt.Errorf("failed to print generated content: %w", err)
-		}
-
-		return nil
+		return f.printOutput(invokeOutput)
 	}
+}
+
+func (f *FlowFactory) validateFlowContext(ctx context.Context, flowCtx *executor.Context) (executor.Executor, error) {
+	if f == nil {
+		return nil, fmt.Errorf("factory is nil")
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context is nil")
+	}
+	if flowCtx == nil {
+		return nil, fmt.Errorf("flow context is nil")
+	}
+
+	exec := flowCtx.GetExecutor()
+	if exec == nil {
+		return nil, fmt.Errorf("executor not available in context")
+	}
+	return exec, nil
+}
+
+func (f *FlowFactory) getPrompts() (userPrompt string, systemPrompt string, err error) {
+	userPrompt, err = f.userPromptProvider.GetUserPrompt()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get user prompt: %w", err)
+	}
+
+	systemPrompt, err = f.systemPromptProvider.GetSystemPrompt()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get system prompt: %w", err)
+	}
+
+	return userPrompt, systemPrompt, nil
+}
+
+func (f *FlowFactory) runInvokeActivity(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	exec executor.Executor,
+	resolvedProfile *profile.ResolvedProfile,
+	userPrompt string,
+	systemPrompt string,
+) (*invokellm.Output, error) {
+	activity := f.contentGenerationActivityFactory.NewActivity()
+	input := &invokellm.Input{
+		Profile:      resolvedProfile,
+		UserPrompt:   userPrompt,
+		SystemPrompt: systemPrompt,
+	}
+
+	future := executor.ExecuteActivity(
+		ctx,
+		exec,
+		flowCtx,
+		"InvokeLLM",
+		activity,
+		input,
+	)
+
+	invokeOutput, err := future.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute \"InvokeLLM\" activity: %w", err)
+	}
+	return invokeOutput, nil
+}
+
+func (f *FlowFactory) printOutput(invokeOutput *invokellm.Output) error {
+	time.Sleep(300 * time.Millisecond)
+
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Content)); err != nil {
+		return fmt.Errorf("failed to print generated content: %w", err)
+	}
+
+	return nil
 }

@@ -55,16 +55,16 @@ type mockProfileResolver struct {
 	profiles map[profile.Profile]*profile.ResolvedProfile
 }
 
-func (m *mockProfileResolver) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
-	if resolved, exists := m.profiles[profile]; exists {
+func (m *mockProfileResolver) Get(profileID profile.Profile) (*profile.ResolvedProfile, error) {
+	if resolved, exists := m.profiles[profileID]; exists {
 		return resolved, nil
 	}
-	return nil, fmt.Errorf("%w: %s", errMockProfileNotFound, profile)
+	return nil, fmt.Errorf("%w: %s", errMockProfileNotFound, profileID)
 }
 
 func TestNewServiceSuccess(t *testing.T) {
 	// Setup mocks with valid configuration
-	config := &config.Config{
+	cfg := &config.Config{
 		Generate: &config.GenerateConfig{
 			Default: &config.GenerateDefault{
 				Profile:      "test-profile",
@@ -78,7 +78,7 @@ func TestNewServiceSuccess(t *testing.T) {
 		UserPrompt: "Test user prompt",
 	}
 
-	configSvc := &mockConfigResolver{Cfg: config}
+	configSvc := &mockConfigResolver{Cfg: cfg}
 
 	resolvedProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -127,7 +127,7 @@ func TestNewServiceSuccess(t *testing.T) {
 
 func TestNewServiceWithSpecificTask(t *testing.T) {
 	// Setup configuration with a specific task
-	config := &config.Config{
+	cfg := &config.Config{
 		Generate: &config.GenerateConfig{
 			Default: &config.GenerateDefault{
 				Profile:      "default-profile",
@@ -148,7 +148,7 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 		UserPrompt: "Command user prompt", // Should override task user prompt
 	}
 
-	configSvc := &mockConfigResolver{Cfg: config}
+	configSvc := &mockConfigResolver{Cfg: cfg}
 
 	taskProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -190,7 +190,7 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 
 func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 	// Test task that uses default profile when task doesn't specify one
-	config := &config.Config{
+	cfg := &config.Config{
 		Generate: &config.GenerateConfig{
 			Default: &config.GenerateDefault{
 				Profile:      "default-profile",
@@ -210,7 +210,7 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 		UserPrompt: "",
 	}
 
-	configSvc := &mockConfigResolver{Cfg: config}
+	configSvc := &mockConfigResolver{Cfg: cfg}
 
 	defaultProfile := &profile.ResolvedProfile{
 		Provider: provider.OpenAI,
@@ -347,31 +347,31 @@ func TestNewServiceErrorCases(t *testing.T) {
 
 func TestConfigurationFields(t *testing.T) {
 	// Test Configuration struct fields
-	profile := &profile.ResolvedProfile{
+	resolvedProfile := &profile.ResolvedProfile{
 		Model: "gpt-4",
 	}
 
-	config := &task2.ResolvedConfig{
+	resolvedConfig := &task2.ResolvedConfig{
 		Name:         "test-task",
-		Profile:      profile,
+		Profile:      resolvedProfile,
 		SystemPrompt: "Test system",
 		UserPrompt:   "Test user",
 	}
 
-	if config.Name != "test-task" {
-		t.Errorf("Expected Name 'test-task', got '%s'", config.Name)
+	if resolvedConfig.Name != "test-task" {
+		t.Errorf("Expected Name 'test-task', got '%s'", resolvedConfig.Name)
 	}
 
-	if config.Profile != profile {
+	if resolvedConfig.Profile != resolvedProfile {
 		t.Error("Expected Profile to be set correctly")
 	}
 
-	if config.SystemPrompt != "Test system" {
-		t.Errorf("Expected SystemPrompt 'Test system', got '%s'", config.SystemPrompt)
+	if resolvedConfig.SystemPrompt != "Test system" {
+		t.Errorf("Expected SystemPrompt 'Test system', got '%s'", resolvedConfig.SystemPrompt)
 	}
 
-	if config.UserPrompt != "Test user" {
-		t.Errorf("Expected UserPrompt 'Test user', got '%s'", config.UserPrompt)
+	if resolvedConfig.UserPrompt != "Test user" {
+		t.Errorf("Expected UserPrompt 'Test user', got '%s'", resolvedConfig.UserPrompt)
 	}
 }
 

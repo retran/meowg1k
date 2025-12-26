@@ -48,7 +48,7 @@ func TestGetWorkspaceDir(t *testing.T) {
 	if dir != currentDir {
 		// Check if currentDir is under dir
 		rel, err := filepath.Rel(dir, currentDir)
-		if err != nil || filepath.IsAbs(rel) || len(rel) == 0 {
+		if err != nil || filepath.IsAbs(rel) || rel == "" {
 			t.Errorf("Returned directory %s is not current dir %s or its parent", dir, currentDir)
 		}
 	}

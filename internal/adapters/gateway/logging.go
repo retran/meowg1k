@@ -188,8 +188,7 @@ func formatChunks(chunks []string) string {
 		displayCount = maxChunks
 	}
 
-	for i := 0; i < displayCount; i++ {
-		chunk := chunks[i]
+	for i, chunk := range chunks[:displayCount] {
 		if len(chunk) > maxChunkLen {
 			chunk = chunk[:maxChunkLen] + "..."
 		}

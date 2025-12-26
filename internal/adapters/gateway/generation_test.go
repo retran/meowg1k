@@ -9,10 +9,17 @@ import (
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
+const (
+	testModelName      = "gpt-4"
+	testSystemPrompt   = "You are a helpful assistant"
+	testUserPrompt     = "Hello, world!"
+	testEmbeddingModel = "text-embedding-ada-002"
+)
+
 func TestNewGenerateContentRequest(t *testing.T) {
-	model := "gpt-4"
-	systemPrompt := "You are a helpful assistant"
-	userPrompt := "Hello, world!"
+	model := testModelName
+	systemPrompt := testSystemPrompt
+	userPrompt := testUserPrompt
 	maxTokens := 100
 
 	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
@@ -34,7 +41,7 @@ func TestGenerateContentRequestGetters(t *testing.T) {
 }
 
 func TestNewComputeEmbeddingsRequest(t *testing.T) {
-	model := "text-embedding-ada-002"
+	model := testEmbeddingModel
 	chunks := []string{"hello", "world", "test"}
 	taskType := domainGateway.SemanticSimilarity
 
@@ -49,7 +56,7 @@ func TestNewComputeEmbeddingsRequest(t *testing.T) {
 }
 
 func TestNewComputeEmbeddingsRequestWithDimensions(t *testing.T) {
-	model := "text-embedding-ada-002"
+	model := testEmbeddingModel
 	chunks := []string{"hello", "world"}
 	taskType := domainGateway.Classification
 	dimensions := 512
@@ -194,9 +201,9 @@ func TestTaskTypeConstants(t *testing.T) {
 }
 
 func TestNewGenerateContentRequestGetters(t *testing.T) {
-	model := "gpt-4"
-	systemPrompt := "You are a helpful assistant"
-	userPrompt := "Hello, world!"
+	model := testModelName
+	systemPrompt := testSystemPrompt
+	userPrompt := testUserPrompt
 	maxTokens := 100
 
 	req := domainGateway.NewGenerateContentRequest(model, systemPrompt, userPrompt, maxTokens)
@@ -213,9 +220,9 @@ func TestNewGenerateContentRequestGetters(t *testing.T) {
 }
 
 func TestGenerateContentRequestWithParameters(t *testing.T) {
-	model := "gpt-4"
-	systemPrompt := "You are a helpful assistant"
-	userPrompt := "Hello, world!"
+	model := testModelName
+	systemPrompt := testSystemPrompt
+	userPrompt := testUserPrompt
 	maxTokens := 100
 	temperature := 0.7
 	topP := 0.9
@@ -258,9 +265,9 @@ func TestGenerateContentRequestWithPartialParameters(t *testing.T) {
 }
 
 func TestGenerateContentRequestWithAllParameters(t *testing.T) {
-	model := "gpt-4"
-	systemPrompt := "You are a helpful assistant"
-	userPrompt := "Hello, world!"
+	model := testModelName
+	systemPrompt := testSystemPrompt
+	userPrompt := testUserPrompt
 	maxTokens := 100
 	temperature := 0.7
 	topP := 0.9
@@ -307,7 +314,7 @@ func TestGenerateContentRequestWithAllParameters(t *testing.T) {
 }
 
 func TestGenerateContentRequestWithPenaltyParameters(t *testing.T) {
-	model := "gpt-4"
+	model := testModelName
 	systemPrompt := "System"
 	userPrompt := "User"
 	maxTokens := 100
@@ -329,7 +336,7 @@ func TestGenerateContentRequestWithPenaltyParameters(t *testing.T) {
 }
 
 func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {
-	model := "text-embedding-ada-002"
+	model := testEmbeddingModel
 	chunks := []string{"hello", "world", "test"}
 	taskType := domainGateway.SemanticSimilarity
 
@@ -343,7 +350,7 @@ func TestNewComputeEmbeddingsRequestGetters(t *testing.T) {
 }
 
 func TestNewComputeEmbeddingsRequestWithDimensionsGetters(t *testing.T) {
-	model := "text-embedding-ada-002"
+	model := testEmbeddingModel
 	chunks := []string{"hello", "world"}
 	taskType := domainGateway.Classification
 	dimensions := 512

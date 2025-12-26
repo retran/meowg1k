@@ -136,12 +136,12 @@ type MetaRepository interface {
 type IndexRepository interface {
 	// AddDocumentVersion adds a new document version with its content to the index.
 	// Returns the ID of the newly created document version.
-	AddDocumentVersion(ctx context.Context, doc domainindex.DocumentVersion, content []byte) (int64, error)
+	AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error)
 
 	// AddDocumentVersionWithChunks adds a document version with its chunks in a single transaction.
 	// This ensures atomicity and better performance compared to separate calls.
 	// Returns the ID of the newly created document version.
-	AddDocumentVersionWithChunks(ctx context.Context, doc domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error)
+	AddDocumentVersionWithChunks(ctx context.Context, doc *domainindex.DocumentVersion, content []byte, chunks []domainindex.Chunk) (int64, error)
 
 	// AddChunks adds multiple chunks to the index in a single transaction.
 	AddChunks(ctx context.Context, chunks []domainindex.Chunk) error

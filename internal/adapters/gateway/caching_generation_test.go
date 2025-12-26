@@ -30,12 +30,12 @@ func newMockCacheForCaching() *mockCacheForCaching {
 	}
 }
 
-func (m *mockCacheForCaching) Get(ctx context.Context, key string) (string, bool, error) {
+func (m *mockCacheForCaching) Get(ctx context.Context, key string) (value string, found bool, err error) {
 	m.getCalls++
 	if m.getError != nil {
 		return "", false, m.getError
 	}
-	value, found := m.data[key]
+	value, found = m.data[key]
 	return value, found, nil
 }
 

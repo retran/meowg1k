@@ -47,13 +47,13 @@ func NewService(configResolver ports.ConfigResolver, modelResolver ModelResolver
 }
 
 // Get retrieves a profile using cached data from initialization.
-func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error) {
+func (s *Service) Get(profileID profile.Profile) (*profile.ResolvedProfile, error) {
 	if s == nil {
 		return nil, fmt.Errorf("service is nil")
 	}
 
 	s.mu.RLock()
-	if resolved, exists := s.resolvedProfiles[profile]; exists {
+	if resolved, exists := s.resolvedProfiles[profileID]; exists {
 		s.mu.RUnlock()
 		return resolved, nil
 	}
@@ -62,7 +62,7 @@ func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if resolved, exists := s.resolvedProfiles[profile]; exists {
+	if resolved, exists := s.resolvedProfiles[profileID]; exists {
 		return resolved, nil
 	}
 
@@ -71,12 +71,12 @@ func (s *Service) Get(profile profile.Profile) (*profile.ResolvedProfile, error)
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
-	resolved, err := s.resolveProfileInternal(profile, cfg)
+	resolved, err := s.resolveProfileInternal(profileID, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile %q: %w", profile, err)
+		return nil, fmt.Errorf("failed to resolve profile %q: %w", profileID, err)
 	}
 
-	s.resolvedProfiles[profile] = resolved
+	s.resolvedProfiles[profileID] = resolved
 
 	return resolved, nil
 }

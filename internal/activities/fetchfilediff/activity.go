@@ -62,44 +62,25 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 		}
 
 		renameFrom, renameTo := extractRename(change)
-		originalFilename := input.Filename
-		if renameFrom != "" && renameTo != "" {
-			originalFilename = renameFrom
+		originalFilename := resolveOriginalFilename(input.Filename, renameFrom, renameTo)
+
+		originalFileContent, err := readOriginalContent(f.stagedChangesReader, originalFilename)
+		if err != nil {
+			return nil, err
 		}
 
-		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(originalFilename)
+		stagedFileContent, deleted, err := readStagedContent(f.stagedChangesReader, input.Filename)
 		if err != nil {
-			if isMissingOriginalContent(err) {
-				originalFileContent = "" // File is new or was deleted, or this is the initial commit
-			} else {
-				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
-			}
+			return nil, err
 		}
-
-		stagedFileContent, err := f.stagedChangesReader.ReadStagedFileContent(input.Filename)
-		if err != nil {
-			if isMissingStagedContent(err) {
-				// File was deleted - return with empty staged content but include original content and diff
-				executorCtx.SendCompleted("Deleted")
-				return &git.FileChange{
-					Filename:            input.Filename,
-					Change:              change,
-					OriginalFileContent: originalFileContent,
-					ChangedFileContent:  "", // Empty for deleted files
-				}, nil
-			}
-
-			return nil, fmt.Errorf("failed to read staged file content of %s: %w", input.Filename, err)
+		if deleted {
+			executorCtx.SendCompleted("Deleted")
+			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &git.FileChange{
-			Filename:            input.Filename,
-			Change:              change,
-			OriginalFileContent: originalFileContent,
-			ChangedFileContent:  stagedFileContent,
-		}, nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
 	}
 }
 
@@ -131,9 +112,7 @@ func hasAnySubstring(err error, substrings []string) bool {
 	return false
 }
 
-func extractRename(diff string) (string, string) {
-	var from, to string
-
+func extractRename(diff string) (from string, to string) {
 	lines := strings.Split(diff, "\n")
 	for _, line := range lines {
 		if strings.HasPrefix(line, "rename from ") {
@@ -145,4 +124,42 @@ func extractRename(diff string) (string, string) {
 	}
 
 	return from, to
+}
+
+func resolveOriginalFilename(filename, renameFrom, renameTo string) string {
+	if renameFrom != "" && renameTo != "" {
+		return renameFrom
+	}
+	return filename
+}
+
+func readOriginalContent(reader StagedChangesReader, filename string) (string, error) {
+	content, err := reader.ReadOriginalFileContent(filename)
+	if err == nil {
+		return content, nil
+	}
+	if isMissingOriginalContent(err) {
+		return "", nil
+	}
+	return "", fmt.Errorf("failed to read original file content of %s: %w", filename, err)
+}
+
+func readStagedContent(reader StagedChangesReader, filename string) (content string, found bool, err error) {
+	content, err = reader.ReadStagedFileContent(filename)
+	if err == nil {
+		return content, false, nil
+	}
+	if isMissingStagedContent(err) {
+		return "", true, nil
+	}
+	return "", false, fmt.Errorf("failed to read staged file content of %s: %w", filename, err)
+}
+
+func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+	return &git.FileChange{
+		Filename:            filename,
+		Change:              change,
+		OriginalFileContent: originalContent,
+		ChangedFileContent:  stagedContent,
+	}
 }

@@ -59,12 +59,12 @@ func (g *Service) Get() (string, error) {
 	return currentDir, nil
 }
 
-func (g *Service) resolveExplicitPath() (string, bool, error) {
+func (g *Service) resolveExplicitPath() (explicitPath string, resolved bool, err error) {
 	if g.workspacePathResolver == nil {
 		return "", false, nil
 	}
 
-	explicitPath, err := g.workspacePathResolver.GetWorkspacePath()
+	explicitPath, err = g.workspacePathResolver.GetWorkspacePath()
 	if err != nil || explicitPath == "" {
 		if err != nil {
 			return "", false, fmt.Errorf("failed to resolve workspace path: %w", err)
