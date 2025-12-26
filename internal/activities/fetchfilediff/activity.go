@@ -54,7 +54,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Fetching staged diff for %s", input.Filename))
+		executorCtx.SendRunning(fmt.Sprintf("Fetching diff: %s", input.Filename))
 
 		change, err := f.stagedChangesReader.ReadStagedChanges(input.Filename)
 		if err != nil {
@@ -78,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Fetched staged diff for %s", input.Filename))
+		executorCtx.SendCompleted(fmt.Sprintf("Diff: %s", input.Filename))
 
 		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
 	}

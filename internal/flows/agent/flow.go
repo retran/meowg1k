@@ -110,7 +110,7 @@ func (f *Factory) NewFlow() executor.Flow {
 }
 
 func (f *Factory) runAgentFlow(ctx context.Context, flowCtx *executor.Context) error {
-	flowCtx.SendRunning("Starting agent flow")
+	flowCtx.SendRunning("Agent Flow")
 
 	initialGoal, err := f.readGoal()
 	if err != nil {
@@ -143,7 +143,6 @@ func (f *Factory) runAgentFlow(ctx context.Context, flowCtx *executor.Context) e
 		return fmt.Errorf("failed to print agent output: %w", err)
 	}
 
-	flowCtx.SendCompleted("Agent flow completed")
 	return nil
 }
 

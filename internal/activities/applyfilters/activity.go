@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		totalFiles := len(input.Files)
-		executorCtx.SendRunning(fmt.Sprintf("Filtering %d files", totalFiles))
+		executorCtx.SendRunning(fmt.Sprintf("Applying filters to %d files", totalFiles))
 
 		filteredFiles := make([]string, 0, len(input.Files))
 

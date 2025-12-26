@@ -123,7 +123,7 @@ func TestActivity(t *testing.T) {
 		if feedbackMessages[0].Message != `Searching for "test query" (topK=10, minScore=0.50, snapshots=3)` {
 			t.Errorf("unexpected running message: %s", feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Message != "Found 2 results (topK=10)" {
+		if feedbackMessages[1].Message != "2 results" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})
@@ -262,7 +262,7 @@ func TestActivity(t *testing.T) {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
 		if feedbackMessages[1].Message != "0 results" {
-			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
+			t.Errorf("unexpected completion message: expected '2 results', got '%s'", feedbackMessages[1].Message)
 		}
 	})
 }

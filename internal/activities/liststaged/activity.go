@@ -50,7 +50,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("list staged factory is nil")
 		}
 
-		executorCtx.SendRunning("Scanning staged files")
+		executorCtx.SendRunning("Finding staged files")
 
 		if input == nil {
 			return nil, fmt.Errorf("input cannot be nil")

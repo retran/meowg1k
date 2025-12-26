@@ -63,6 +63,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if modelName == "" {
 			modelName = "unknown-model"
 		}
+
+		// Simplified status message - the spinner will show "Running: Invoking LLM (model)"
+		// No need to spam the user with every LLM call
 		executorCtx.SendRunning(fmt.Sprintf("Invoking LLM (%s)", modelName))
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
@@ -78,7 +81,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		metadata := map[string]any{}
 
-		executorCtx.SendCompleted(fmt.Sprintf("LLM response received (%s)", modelName))
+		// Simplified completion message
+		executorCtx.SendCompleted(fmt.Sprintf("LLM response (%s)", modelName))
 
 		return &Output{
 			Content:   content,

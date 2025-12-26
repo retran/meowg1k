@@ -6,7 +6,10 @@ package gateway
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"math"
+	"os"
 
 	"google.golang.org/genai"
 
@@ -71,7 +74,7 @@ func (g *geminiGateway) GenerateContent(
 		return "", err
 	}
 
-	return result.Text(), nil
+	return extractTextFromGeminiResponse(result), nil
 }
 
 // GenerateContentWithTools sends a content generation request with tool definitions.
@@ -116,7 +119,7 @@ func (g *geminiGateway) GenerateContentWithTools(
 	}
 
 	return &gateway.GenerateContentResponse{
-		Content:   result.Text(),
+		Content:   extractTextFromGeminiResponse(result),
 		ToolCalls: mapGeminiToolCalls(result.FunctionCalls()),
 	}, nil
 }
@@ -296,6 +299,30 @@ func validateGeminiResponse(result *genai.GenerateContentResponse, model string)
 	}
 
 	return nil
+}
+
+// extractTextFromGeminiResponse extracts text content from a Gemini response,
+// properly handling responses that contain FunctionCall parts without triggering SDK warnings.
+// The SDK's .Text() method writes warnings to stderr when FunctionCall parts are present.
+// We suppress those warnings since we handle FunctionCalls separately via result.FunctionCalls().
+func extractTextFromGeminiResponse(resp *genai.GenerateContentResponse) string {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return ""
+	}
+
+	// Temporarily suppress SDK warnings about non-text parts (like FunctionCall).
+	// We handle those separately, so the warning is just noise in our output.
+	originalLogger := log.Writer()
+	originalStderr := os.Stderr
+	log.SetOutput(io.Discard)
+	defer func() {
+		log.SetOutput(originalLogger)
+		os.Stderr = originalStderr
+	}()
+
+	// The SDK's Text() method automatically filters out non-text parts and
+	// concatenates text parts, which is exactly what we need.
+	return resp.Text()
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.

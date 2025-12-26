@@ -155,8 +155,8 @@ func TestActivity(t *testing.T) {
 		if len(output.Embeddings) != 0 {
 			t.Errorf("expected 0 embeddings, got %d", len(output.Embeddings))
 		}
-		if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "No batches" {
-			t.Errorf("expected 'No batches' completion message, got %+v", feedbackMessages)
+		if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "No batches for empty" {
+			t.Errorf("expected 'No batches for empty' completion message, got %+v", feedbackMessages)
 		}
 	})
 

@@ -136,7 +136,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	flowCtx.SendRunning("Composing commit message")
+	flowCtx.SendRunning("Commit Flow")
 
 	targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 	if err != nil {

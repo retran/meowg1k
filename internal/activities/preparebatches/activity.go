@@ -52,7 +52,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if batchSize <= 0 {
 			batchSize = totalChunks
 		}
-		executorCtx.SendRunning(fmt.Sprintf("Preparing %d chunks in batches of %d (%s)", totalChunks, batchSize, input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Batching %d chunks (%s)", totalChunks, input.StateName))
 
 		if totalChunks == 0 {
 			executorCtx.SendCompleted(fmt.Sprintf("No chunks for %s", input.StateName))

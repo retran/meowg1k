@@ -132,7 +132,7 @@ func (r *ToolRunner) RunTool(ctx context.Context, execCtx *executor.Context, too
 	}
 
 	if toolCtx != nil {
-		toolCtx.SendCompleted(fmt.Sprintf("Tool: %s.%s", strings.ToLower(tool), strings.ToLower(mode)))
+		toolCtx.SendCompleted(fmt.Sprintf("%s.%s", strings.ToLower(tool), strings.ToLower(mode)))
 	}
 
 	return result, nil

@@ -180,10 +180,10 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Message != "Scanning workspace state" {
-			t.Errorf("unexpected running message: %s", feedbackMessages[0].Message)
+		if feedbackMessages[0].Message != "Scanning workspace" {
+			t.Errorf("unexpected running message: expected 'Scanning workspace', got '%s'", feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Message != "Scanned workspace state: head=2, stage=2, workdir=2" {
+		if feedbackMessages[1].Message != "head=2, stage=2, workdir=2" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})
@@ -305,7 +305,7 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[1].Message != "Scanned workspace" {
+		if feedbackMessages[1].Message != "head=0, stage=0, workdir=0" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})

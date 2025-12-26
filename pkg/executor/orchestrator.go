@@ -51,7 +51,7 @@ func (o *Orchestrator) Execute(
 		return fmt.Errorf("flow runner is nil")
 	}
 
-	executionTracker := NewTracker(silent)
+	executionTracker := NewProgressTracker(silent)
 	executionTracker.Start()
 
 	// Wrap the feedback handler with trace logging if available

@@ -138,7 +138,6 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 
-	flowCtx.SendCompleted("Ask flow completed")
 	return nil
 }
 

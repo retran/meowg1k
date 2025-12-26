@@ -49,7 +49,7 @@ func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings with %s: %d chunks", f.modelName, len(input.ChunkTexts)))
+		executorCtx.SendRunning(fmt.Sprintf("Embedding %d chunks (%s)", len(input.ChunkTexts), f.modelName))
 
 		if len(input.ChunkTexts) == 0 {
 			executorCtx.SendCompleted(fmt.Sprintf("No chunks for %s", f.modelName))

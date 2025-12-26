@@ -6,65 +6,45 @@ package executor
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 )
 
-func TestNewExecutionTracker(t *testing.T) {
-	tracker := NewTracker(false)
+func TestNewBubbleTeaTracker(t *testing.T) {
+	tracker := NewBubbleTeaTracker(false)
 	if tracker == nil {
-		t.Fatal("NewExecutionTracker returned nil")
+		t.Fatal("NewBubbleTeaTracker returned nil")
 	}
 	if tracker.GetExecutionCount() != 0 {
 		t.Error("executions map should be initialized and empty")
-	}
-	if tracker.order == nil {
-		t.Error("order slice should be initialized")
-	}
-	if tracker.feedbackChan == nil {
-		t.Error("feedbackChan should be initialized")
 	}
 	if tracker.silent {
 		t.Error("silent should be false")
 	}
 }
 
-func TestNewExecutionTrackerSilent(t *testing.T) {
-	tracker := NewTracker(true)
+func TestNewBubbleTeaTrackerSilent(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true)
 	if tracker == nil {
-		t.Fatal("NewExecutionTracker returned nil")
+		t.Fatal("NewBubbleTeaTracker returned nil")
 	}
 	if !tracker.silent {
 		t.Error("silent should be true")
 	}
 }
 
-func TestExecutionTracker_StartStop(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_StartStop(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode to avoid TUI
 
 	tracker.Start()
-
-	// Give the background worker a moment to start.
-	time.Sleep(10 * time.Millisecond)
-
+	time.Sleep(50 * time.Millisecond)
 	tracker.Stop()
 
 	// Should complete without deadlock
 }
 
-func TestExecutionTracker_StartStopSilent(t *testing.T) {
-	tracker := NewTracker(true)
-
-	// Start and Stop should be no-ops in silent mode
-	tracker.Start()
-	tracker.Stop()
-
-	// Should complete immediately without background work.
-}
-
-func TestExecutionTracker_FeedbackHandler(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_FeedbackHandler(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 
 	handler := tracker.FeedbackHandler()
 	if handler == nil {
@@ -72,17 +52,8 @@ func TestExecutionTracker_FeedbackHandler(t *testing.T) {
 	}
 }
 
-func TestExecutionTracker_FeedbackHandlerSilent(t *testing.T) {
-	tracker := NewTracker(true)
-
-	handler := tracker.FeedbackHandler()
-	if handler == nil {
-		t.Error("FeedbackHandler should not return nil even in silent mode")
-	}
-}
-
-func TestExecutionTracker_WithFeedback(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_WithFeedback(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode to avoid TUI
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -93,12 +64,13 @@ func TestExecutionTracker_WithFeedback(t *testing.T) {
 		ActivityName: "TestExecution",
 		Status:       StatusRunning,
 		Message:      "Test message",
+		Timestamp:    time.Now(),
 	}
 
 	handler(feedback)
 
 	// Give time for processing
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
 	// Verify the execution was tracked
 	if tracker.GetExecutionCount() == 0 {
@@ -121,8 +93,8 @@ func TestExecutionTracker_WithFeedback(t *testing.T) {
 	}
 }
 
-func TestExecutionTracker_MultipleExecutions(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_MultipleExecutions(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -139,11 +111,13 @@ func TestExecutionTracker_MultipleExecutions(t *testing.T) {
 		{"Execution3", StatusCompleted, "Completed 3"},
 	}
 
+	now := time.Now()
 	for _, exec := range executions {
 		feedback := &Feedback{
 			ActivityName: exec.name,
 			Status:       exec.status,
 			Message:      exec.message,
+			Timestamp:    now,
 		}
 		handler(feedback)
 	}
@@ -167,8 +141,8 @@ func TestExecutionTracker_MultipleExecutions(t *testing.T) {
 	}
 }
 
-func TestExecutionTracker_StatusTransitions(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_StatusTransitions(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -179,6 +153,7 @@ func TestExecutionTracker_StatusTransitions(t *testing.T) {
 		ActivityName: "TransitionTest",
 		Status:       StatusRunning,
 		Message:      "Starting",
+		Timestamp:    time.Now(),
 	})
 
 	time.Sleep(20 * time.Millisecond)
@@ -187,6 +162,7 @@ func TestExecutionTracker_StatusTransitions(t *testing.T) {
 		ActivityName: "TransitionTest",
 		Status:       StatusCompleted,
 		Message:      "Done",
+		Timestamp:    time.Now(),
 	})
 
 	time.Sleep(20 * time.Millisecond)
@@ -194,29 +170,34 @@ func TestExecutionTracker_StatusTransitions(t *testing.T) {
 	exec := tracker.GetExecution("TransitionTest")
 	if exec == nil {
 		t.Error("Expected TransitionTest to be tracked")
-	} else {
-		if exec.Status != StatusCompleted {
-			t.Errorf("Expected status Completed, got %v", exec.Status)
-		}
-		if exec.EndTime == nil {
-			t.Error("EndTime should be set for completed execution")
-		}
+		return
+	}
+
+	if exec.Status != StatusCompleted {
+		t.Errorf("Expected status Completed, got %v", exec.Status)
+	}
+	if exec.Result != "Done" {
+		t.Errorf("Expected result 'Done', got %s", exec.Result)
+	}
+	if exec.EndTime == nil {
+		t.Error("EndTime should be set for completed execution")
 	}
 }
 
-func TestExecutionTracker_WithError(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_WithError(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 	tracker.Start()
 	defer tracker.Stop()
 
 	handler := tracker.FeedbackHandler()
 
 	// Send feedback with error
-	testError := errors.New("Test error")
+	testError := errors.New("test error")
 	handler(&Feedback{
 		ActivityName: "ErrorTest",
 		Status:       StatusFailed,
 		Error:        testError,
+		Timestamp:    time.Now(),
 	})
 
 	time.Sleep(20 * time.Millisecond)
@@ -234,8 +215,8 @@ func TestExecutionTracker_WithError(t *testing.T) {
 	}
 }
 
-func TestExecutionTracker_WithMetadata(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_WithMetadata(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -250,6 +231,7 @@ func TestExecutionTracker_WithMetadata(t *testing.T) {
 		ActivityName: "MetadataTest",
 		Status:       StatusRunning,
 		Metadata:     metadata,
+		Timestamp:    time.Now(),
 	})
 
 	time.Sleep(20 * time.Millisecond)
@@ -270,8 +252,8 @@ func TestExecutionTracker_WithMetadata(t *testing.T) {
 	}
 }
 
-func TestExecutionTracker_MultipleStatuses(t *testing.T) {
-	tracker := NewTracker(false)
+func TestBubbleTeaTracker_MultipleStatuses(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
 	tracker.Start()
 	defer tracker.Stop()
 
@@ -285,10 +267,12 @@ func TestExecutionTracker_MultipleStatuses(t *testing.T) {
 		StatusFailed,
 	}
 
+	now := time.Now()
 	for i, status := range statuses {
 		handler(&Feedback{
 			ActivityName: fmt.Sprintf("Execution%d", i),
 			Status:       status,
+			Timestamp:    now,
 		})
 	}
 
@@ -306,226 +290,71 @@ func TestExecutionTracker_MultipleStatuses(t *testing.T) {
 	}
 }
 
-// Test helper functions that are used internally.
-func TestSanitizeDescription(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"empty string", "", ""},
-		{"normal string", "Hello World", "Hello World"},
-		{"string with non-printable", "Hello\x00World", "HelloWorld"},
-		{"string with ANSI", "Hello\x1b[31mWorld", "HelloWorld"},
-		{"long string", string(make([]byte, 150)), "..." + string(make([]byte, 0))},
-	}
+func TestBubbleTeaTracker_HierarchicalExecutions(t *testing.T) {
+	tracker := NewBubbleTeaTracker(true) // Use silent mode
+	tracker.Start()
+	defer tracker.Stop()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := sanitizeDescription(tt.input)
-			// Just verify it doesn't panic and returns a string
-			if tt.input == "" && result != "" {
-				t.Errorf("Expected empty string for empty input, got %s", result)
-			}
-		})
-	}
-}
+	handler := tracker.FeedbackHandler()
 
-func TestTruncateString(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected string
-		name     string
-		max      int
-	}{
-		{"Hello", "Hello", "short string", 10},
-		{"Hello", "Hello", "exact length", 5},
-		{"Hello World", "Hello...", "too long", 8},
-		{"", "", "empty string", 10},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncateString(tt.input, tt.max)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestConvertCamelToReadable(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{"empty string", "", ""},
-		{"single word", "hello", "Hello"},
-		{"camel case", "helloWorld", "Hello World"},
-		{"multiple words", "thisIsATest", "This Is A Test"},
-		{"already uppercase", "Hello", "Hello"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := convertCamelToReadable(tt.input)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestParseActivityHierarchy(t *testing.T) {
-	tests := []struct {
-		name           string
-		activityName   string
-		expectedParent string
-		expectedLevel  int
-	}{
-		{"no hierarchy", "Activity", "", 0},
-		{"one level", "Parent::Child", "Parent", 1},
-		{"two levels", "GrandParent::Parent::Child", "GrandParent::Parent", 2},
-		{"three levels", "A::B::C::D", "A::B::C", 3},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			parent, level := parseActivityHierarchy(tt.activityName)
-			if parent != tt.expectedParent {
-				t.Errorf("Expected parent %s, got %s", tt.expectedParent, parent)
-			}
-			if level != tt.expectedLevel {
-				t.Errorf("Expected level %d, got %d", tt.expectedLevel, level)
-			}
-		})
-	}
-}
-
-func TestExecutionTracker_UpdateExecutionRunning(t *testing.T) {
-	tracker := NewTracker(false)
-
-	feedback := &Feedback{
-		ActivityName: "Flow::Step",
+	// Send hierarchical executions
+	handler(&Feedback{
+		ActivityName: "Parent",
 		Status:       StatusRunning,
-		Message:      "Working",
-	}
-
-	exec, shouldLog := tracker.updateExecution(feedback)
-	if shouldLog {
-		t.Error("Expected running status to not emit a log line")
-	}
-	if exec == nil {
-		t.Fatal("Expected execution to be returned")
-	}
-	if exec.Status != StatusRunning {
-		t.Errorf("Expected status Running, got %v", exec.Status)
-	}
-	if tracker.currentRunningIndex != 0 {
-		t.Errorf("Expected currentRunningIndex to be 0, got %d", tracker.currentRunningIndex)
-	}
-	if tracker.currentRunningIndex >= 0 && tracker.currentRunningIndex < len(tracker.order) && tracker.order[tracker.currentRunningIndex] != "Flow::Step" {
-		t.Errorf("Expected current running name to be Flow::Step, got %s", tracker.order[tracker.currentRunningIndex])
-	}
-}
-
-func TestExecutionTracker_UpdateExecutionCompleted(t *testing.T) {
-	tracker := NewTracker(false)
-
-	tracker.updateExecution(&Feedback{
-		ActivityName: "Flow::Step",
-		Status:       StatusRunning,
-		Message:      "Working",
-	})
-
-	exec, shouldLog := tracker.updateExecution(&Feedback{
-		ActivityName: "Flow::Step",
-		Status:       StatusCompleted,
-		Message:      "Done",
 		Timestamp:    time.Now(),
 	})
 
-	if !shouldLog {
-		t.Error("Expected completed status to emit a log line")
+	handler(&Feedback{
+		ActivityName: "Parent::Child1",
+		Status:       StatusRunning,
+		Timestamp:    time.Now(),
+	})
+
+	handler(&Feedback{
+		ActivityName: "Parent::Child2",
+		Status:       StatusCompleted,
+		Timestamp:    time.Now(),
+	})
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify hierarchy
+	parent := tracker.GetExecution("Parent")
+	if parent == nil {
+		t.Error("Expected Parent to be tracked")
+		return
 	}
-	if exec == nil {
-		t.Fatal("Expected execution to be returned")
+	if parent.Level != 0 {
+		t.Errorf("Expected Parent level 0, got %d", parent.Level)
 	}
-	if exec.Status != StatusCompleted {
-		t.Errorf("Expected status Completed, got %v", exec.Status)
-	}
-	if exec.EndTime == nil {
-		t.Error("Expected EndTime to be set")
-	}
-	if tracker.currentRunningIndex != -1 {
-		t.Errorf("Expected currentRunningIndex to be cleared, got %d", tracker.currentRunningIndex)
+
+	child1 := tracker.GetExecution("Parent::Child1")
+	if child1 == nil {
+		t.Error("Expected Parent::Child1 to be tracked")
+	} else {
+		if child1.Level != 1 {
+			t.Errorf("Expected Child1 level 1, got %d", child1.Level)
+		}
+		if child1.ParentName != "Parent" {
+			t.Errorf("Expected Child1 parent 'Parent', got %s", child1.ParentName)
+		}
 	}
 }
 
-func TestFormatLogLine(t *testing.T) {
-	start := time.Now()
-	end := start.Add(50 * time.Millisecond)
-	exec := &Execution{
-		Name:      "Flow::Step",
-		Status:    StatusCompleted,
-		Result:    "Finished",
-		StartTime: start,
-		EndTime:   &end,
-		Level:     1,
-	}
-
-	tracker := NewTracker(false)
-	line := tracker.formatLogLine(exec)
-	if !strings.HasPrefix(line, "  "+iconCompleted) {
-		t.Errorf("Expected indented completed icon, got %q", line)
-	}
-	if !strings.Contains(line, "Finished") {
-		t.Errorf("Expected line to include result, got %q", line)
-	}
+func TestProgressTracker_Interface(t *testing.T) {
+	// Test that BubbleTeaTracker implements ProgressTracker
+	var _ ProgressTracker = NewBubbleTeaTracker(true)
 }
 
-func TestFormatLogLineFailed(t *testing.T) {
-	start := time.Now()
-	end := start.Add(10 * time.Millisecond)
-	exec := &Execution{
-		Name:      "Flow::Step",
-		Status:    StatusFailed,
-		Message:   "Failed",
-		Error:     errors.New("boom"),
-		StartTime: start,
-		EndTime:   &end,
-		Level:     0,
+func TestNewProgressTracker(t *testing.T) {
+	// Test factory function
+	tracker := NewProgressTracker(true)
+	if tracker == nil {
+		t.Fatal("NewProgressTracker returned nil")
 	}
 
-	tracker := NewTracker(false)
-	line := tracker.formatLogLine(exec)
-	if !strings.HasPrefix(line, iconFailed) {
-		t.Errorf("Expected failed icon, got %q", line)
-	}
-	if !strings.Contains(line, "boom") {
-		t.Errorf("Expected line to include error, got %q", line)
-	}
-}
-
-func TestBuildDisplayName(t *testing.T) {
-	exec := &Execution{
-		Name:    "Flow::Step",
-		Message: "Message",
-		Result:  "Result",
-	}
-
-	if name := buildDisplayName(exec); name != "Result" {
-		t.Errorf("Expected result to win, got %q", name)
-	}
-
-	exec.Result = ""
-	if name := buildDisplayName(exec); name != "Message" {
-		t.Errorf("Expected message to win, got %q", name)
-	}
-
-	exec.Message = ""
-	if name := buildDisplayName(exec); name != "Step" {
-		t.Errorf("Expected name fallback, got %q", name)
+	// Verify basic functionality
+	if tracker.GetExecutionCount() != 0 {
+		t.Error("New tracker should have no executions")
 	}
 }

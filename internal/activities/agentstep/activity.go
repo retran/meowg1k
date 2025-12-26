@@ -71,10 +71,28 @@ func (f *Factory) runStep(ctx context.Context, execCtx *executor.Context, input 
 	}
 
 	stepName := resolveStepName(input.StepConfig)
-	execCtx.SendRunning(fmt.Sprintf("Agent step: %s", stepName))
+
+	// Use more user-friendly step names with emojis
+	displayName := getStepDisplayName(stepName)
+	execCtx.SendRunning(displayName)
 
 	toolDefs, toolNameMap := buildToolDefinitions(input.StepConfig)
 	return f.runStepLoop(ctx, execCtx, input, stepName, toolDefs, toolNameMap)
+}
+
+func getStepDisplayName(stepName string) string {
+	switch strings.ToLower(stepName) {
+	case "research":
+		return "🧠 Researching..."
+	case "plan":
+		return "📝 Planning..."
+	case "execute":
+		return "🚀 Executing..."
+	case "verify":
+		return "✅ Verifying..."
+	default:
+		return fmt.Sprintf("Agent step: %s", stepName)
+	}
 }
 
 func resolveStepName(stepConfig *agent.StepConfig) string {
@@ -146,7 +164,7 @@ func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input
 		if summary == "" {
 			summary = parsed.Content
 		}
-		execCtx.SendCompleted(fmt.Sprintf("Agent step completed: %s", stepName))
+		execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
 		return &Output{Summary: strings.TrimSpace(summary), Content: strings.TrimSpace(parsed.Content)}, nil, nil
 	case "tool":
 		if !input.StepConfig.AllowsToolMode(parsed.Tool, parsed.Mode) {
@@ -197,7 +215,7 @@ func handleNonJSONResponse(execCtx *executor.Context, stepName string, toolDefs 
 	if trimmed == "" {
 		return nil, nil, parseErr
 	}
-	execCtx.SendCompleted(fmt.Sprintf("Agent step completed: %s", stepName))
+	execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
 	return &Output{Summary: trimmed, Content: trimmed}, nil, nil
 }
 

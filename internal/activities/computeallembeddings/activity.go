@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		numBatches := len(input.PreparedBatches.Batches)
 		totalChunks := len(input.PreparedBatches.ChunkResults.AllChunkTexts)
 
-		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings: %d chunks in %d batches (%s)", totalChunks, numBatches, input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("Computing %d embeddings (%s)", totalChunks, input.StateName))
 
 		if numBatches == 0 {
 			executorCtx.SendCompleted(fmt.Sprintf("No batches for %s", input.StateName))
