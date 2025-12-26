@@ -4,9 +4,6 @@
 package cmd
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -35,31 +32,10 @@ You can provide your intent or context in two ways:
    echo "Add new user registration feature" | meow commit
 
 The intent will be included in the prompt to help generate a more accurate commit message.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
-
-		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || container == nil {
-			return fmt.Errorf("application not initialized")
-		}
-
-		flow, err := container.CreateCommitFlow()
-		if err != nil {
-			return fmt.Errorf("failed to create commit flow: %w", err)
-		}
-
-		concurrency := runtime.NumCPU() * 2
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
-		if err != nil {
-			return fmt.Errorf("failed to create flow runner: %w", err)
-		}
-
-		silent, err := container.CommandService.GetSilentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get command silent flag: %w", err)
-		}
-
-		return orchestrator.Execute(ctx, "CommitFlow", flow, silent)
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return runFlowCommand(cmd, "CommitFlow", func(container *app.Container) (executor.Flow, error) {
+			return container.CreateCommitFlow()
+		})
 	},
 }
 

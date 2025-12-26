@@ -17,6 +17,13 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+const (
+	testKeyValue       = "test-key"
+	testValueValue     = "test-value"
+	repositoryNilError = "repository is nil"
+	contextNilError    = "context is nil"
+)
+
 // mockHost is a simple mock implementation of ports.Host for testing.
 type mockHost struct {
 	db *sql.DB
@@ -76,8 +83,8 @@ func TestRepository_Get_Success(t *testing.T) {
 	ctx := context.Background()
 
 	// Set a value first
-	key := "test-key"
-	expectedValue := "test-value"
+	key := testKeyValue
+	expectedValue := testValueValue
 	err := repo.Set(ctx, key, expectedValue)
 	if err != nil {
 		t.Fatalf("failed to set value: %v", err)
@@ -120,11 +127,11 @@ func TestRepository_Get_NilRepository(t *testing.T) {
 	var repo *Repository
 	ctx := context.Background()
 
-	_, _, err := repo.Get(ctx, "test-key")
+	_, _, err := repo.Get(ctx, testKeyValue)
 	if err == nil {
 		t.Fatal("expected error for nil repository")
 	}
-	if err.Error() != "repository is nil" {
+	if err.Error() != repositoryNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -136,11 +143,11 @@ func TestRepository_Get_NilContext(t *testing.T) {
 	repo := NewRepository(host)
 
 	//nolint:staticcheck // Testing nil context handling
-	_, _, err := repo.Get(nil, "test-key")
+	_, _, err := repo.Get(nil, testKeyValue)
 	if err == nil {
 		t.Fatal("expected error for nil context")
 	}
-	if err.Error() != "context is nil" {
+	if err.Error() != contextNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -168,8 +175,8 @@ func TestRepository_Set_Success(t *testing.T) {
 	repo := NewRepository(host)
 	ctx := context.Background()
 
-	key := "test-key"
-	value := "test-value"
+	key := testKeyValue
+	value := testValueValue
 
 	err := repo.Set(ctx, key, value)
 	if err != nil {
@@ -196,7 +203,7 @@ func TestRepository_Set_Replace(t *testing.T) {
 	repo := NewRepository(host)
 	ctx := context.Background()
 
-	key := "test-key"
+	key := testKeyValue
 	value1 := "value-1"
 	value2 := "value-2"
 
@@ -229,11 +236,11 @@ func TestRepository_Set_NilRepository(t *testing.T) {
 	var repo *Repository
 	ctx := context.Background()
 
-	err := repo.Set(ctx, "test-key", "test-value")
+	err := repo.Set(ctx, testKeyValue, testValueValue)
 	if err == nil {
 		t.Fatal("expected error for nil repository")
 	}
-	if err.Error() != "repository is nil" {
+	if err.Error() != repositoryNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -245,11 +252,11 @@ func TestRepository_Set_NilContext(t *testing.T) {
 	repo := NewRepository(host)
 
 	//nolint:staticcheck // Testing nil context handling
-	err := repo.Set(nil, "test-key", "test-value")
+	err := repo.Set(nil, testKeyValue, testValueValue)
 	if err == nil {
 		t.Fatal("expected error for nil context")
 	}
-	if err.Error() != "context is nil" {
+	if err.Error() != contextNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -261,7 +268,7 @@ func TestRepository_Set_EmptyKey(t *testing.T) {
 	repo := NewRepository(host)
 	ctx := context.Background()
 
-	err := repo.Set(ctx, "", "test-value")
+	err := repo.Set(ctx, "", testValueValue)
 	if err == nil {
 		t.Fatal("expected error for empty key")
 	}
@@ -328,7 +335,7 @@ func TestRepository_Purge_NilRepository(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil repository")
 	}
-	if err.Error() != "repository is nil" {
+	if err.Error() != repositoryNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -344,7 +351,7 @@ func TestRepository_Purge_NilContext(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil context")
 	}
-	if err.Error() != "context is nil" {
+	if err.Error() != contextNilError {
 		t.Errorf("unexpected error message: %v", err)
 	}
 }
@@ -398,7 +405,7 @@ func TestRepository_Set_EmptyValue(t *testing.T) {
 	repo := NewRepository(host)
 	ctx := context.Background()
 
-	key := "test-key"
+	key := testKeyValue
 	value := ""
 
 	err := repo.Set(ctx, key, value)

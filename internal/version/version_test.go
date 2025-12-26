@@ -22,15 +22,15 @@ func TestVersionVariables(t *testing.T) {
 
 func TestVersionVariablesAreStrings(t *testing.T) {
 	// Test that all version variables are strings and not empty (this validates linker variables work)
-	if len(Version) == 0 {
+	if Version == "" {
 		t.Error("Version should not be empty")
 	}
 
-	if len(BuildDate) == 0 {
+	if BuildDate == "" {
 		t.Error("BuildDate should not be empty")
 	}
 
-	if len(GitCommit) == 0 {
+	if GitCommit == "" {
 		t.Error("GitCommit should not be empty")
 	}
 }

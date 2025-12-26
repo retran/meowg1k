@@ -16,8 +16,8 @@ import (
 
 // Input defines the input structure for the FetchAllBranchDiffs activity.
 type Input struct {
-	Files        []string
 	TargetBranch string
+	Files        []string
 }
 
 // Output defines the output structure for the FetchAllBranchDiffs activity.
@@ -30,7 +30,7 @@ type Factory struct {
 	branchFileDiffActivityFactory executor.ActivityFactory[*fetchbranchfilediff.Input, *git.FileChange]
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new FetchAllBranchDiffs activity factory with the provided branch file diff activity factory.
@@ -57,12 +57,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning(fmt.Sprintf("Fetching branch diffs for %d files", len(input.Files)))
 
+		exec := executorCtx.GetExecutor()
+		if exec == nil {
+			return nil, fmt.Errorf("executor not available in context")
+		}
+
 		readChangesFutures := make([]*future.Future[*git.FileChange], 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
 			fut := executor.ExecuteActivity[*fetchbranchfilediff.Input, *git.FileChange](
-				executorCtx.GetExecutor(),
 				ctx,
+				exec,
 				executorCtx,
 				file,
 				fetchBranchFileDiff,

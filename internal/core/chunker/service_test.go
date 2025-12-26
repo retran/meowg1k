@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+const testChunkFilePath = "test.txt"
+
 func TestNewService(t *testing.T) {
 	maxChunkRunes := 1000
 	overlapRunes := 100
@@ -29,7 +31,7 @@ func TestNewService(t *testing.T) {
 func TestService_Chunk_WithTxtExtension(t *testing.T) {
 	service := NewService(100, 10)
 	content := []byte("This is a test file with some content.")
-	filePath := "test.txt"
+	filePath := testChunkFilePath
 
 	chunks, err := service.Chunk(content, filePath)
 	if err != nil {
@@ -104,7 +106,7 @@ func TestService_Chunk_WithUpperCaseExtension(t *testing.T) {
 func TestService_Chunk_EmptyContent(t *testing.T) {
 	service := NewService(100, 10)
 	content := []byte("")
-	filePath := "test.txt"
+	filePath := testChunkFilePath
 
 	chunks, err := service.Chunk(content, filePath)
 	if err != nil {
@@ -122,7 +124,7 @@ func TestService_Chunk_LargeContent(t *testing.T) {
 
 	// Create content that will definitely need multiple chunks
 	content := []byte("Line 1\n\nLine 2\n\nLine 3\n\nLine 4\n\nLine 5\n\nLine 6\n\nLine 7\n\nLine 8")
-	filePath := "test.txt"
+	filePath := testChunkFilePath
 
 	chunks, err := service.Chunk(content, filePath)
 	if err != nil {

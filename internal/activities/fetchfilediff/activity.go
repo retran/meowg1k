@@ -30,7 +30,7 @@ type Factory struct {
 	stagedChangesReader StagedChangesReader
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchFileDiff activity factory with the provided staged changes reader.
@@ -45,7 +45,7 @@ func NewFactory(stagedChangesReader StagedChangesReader) (*Factory, error) {
 
 // NewActivity creates and returns the FetchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
 			return nil, fmt.Errorf("fetch file diff factory is nil")
 		}
@@ -61,41 +61,105 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("failed to read staged changes in %s: %w", input.Filename, err)
 		}
 
-		originalFileContent, err := f.stagedChangesReader.ReadOriginalFileContent(input.Filename)
+		renameFrom, renameTo := extractRename(change)
+		originalFilename := resolveOriginalFilename(input.Filename, renameFrom, renameTo)
+
+		originalFileContent, err := readOriginalContent(f.stagedChangesReader, originalFilename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "not in 'HEAD'") ||
-				strings.Contains(err.Error(), "invalid object name 'HEAD'") {
-				originalFileContent = "" // File is new or was deleted, or this is the initial commit
-			} else {
-				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
-			}
+			return nil, err
 		}
 
-		stagedFileContent, err := f.stagedChangesReader.ReadStagedFileContent(input.Filename)
+		stagedFileContent, deleted, err := readStagedContent(f.stagedChangesReader, input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "unknown revision or path not in the working tree") {
-				// File was deleted - return with empty staged content but include original content and diff
-				executorCtx.SendCompleted("Deleted")
-				return &git.FileChange{
-					Filename:            input.Filename,
-					Change:              change,
-					OriginalFileContent: originalFileContent,
-					ChangedFileContent:  "", // Empty for deleted files
-				}, nil
-			}
-
-			return nil, fmt.Errorf("failed to read staged file content of %s: %w", input.Filename, err)
+			return nil, err
+		}
+		if deleted {
+			executorCtx.SendCompleted("Deleted")
+			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &git.FileChange{
-			Filename:            input.Filename,
-			Change:              change,
-			OriginalFileContent: originalFileContent,
-			ChangedFileContent:  stagedFileContent,
-		}, nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
+	}
+}
+
+func isMissingOriginalContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"not in 'HEAD'",
+		"invalid object name 'HEAD'",
+	})
+}
+
+func isMissingStagedContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"unknown revision or path not in the working tree",
+	})
+}
+
+func hasAnySubstring(err error, substrings []string) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, substr := range substrings {
+		if strings.Contains(message, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractRename(diff string) (from string, to string) {
+	lines := strings.Split(diff, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "rename from ") {
+			from = strings.TrimPrefix(line, "rename from ")
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			to = strings.TrimPrefix(line, "rename to ")
+		}
+	}
+
+	return from, to
+}
+
+func resolveOriginalFilename(filename, renameFrom, renameTo string) string {
+	if renameFrom != "" && renameTo != "" {
+		return renameFrom
+	}
+	return filename
+}
+
+func readOriginalContent(reader StagedChangesReader, filename string) (string, error) {
+	content, err := reader.ReadOriginalFileContent(filename)
+	if err == nil {
+		return content, nil
+	}
+	if isMissingOriginalContent(err) {
+		return "", nil
+	}
+	return "", fmt.Errorf("failed to read original file content of %s: %w", filename, err)
+}
+
+func readStagedContent(reader StagedChangesReader, filename string) (content string, found bool, err error) {
+	content, err = reader.ReadStagedFileContent(filename)
+	if err == nil {
+		return content, false, nil
+	}
+	if isMissingStagedContent(err) {
+		return "", true, nil
+	}
+	return "", false, fmt.Errorf("failed to read staged file content of %s: %w", filename, err)
+}
+
+func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+	return &git.FileChange{
+		Filename:            filename,
+		Change:              change,
+		OriginalFileContent: originalContent,
+		ChangedFileContent:  stagedContent,
 	}
 }

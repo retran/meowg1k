@@ -16,16 +16,19 @@ import (
 	"github.com/retran/meowg1k/pkg/future"
 )
 
+// Input defines the payload for distributing embeddings and saving documents.
 type Input struct {
-	StateName        string
 	EmbeddingResults *computeallembeddings.Output
+	StateName        string
 }
 
+// Output contains the saved document version map for a snapshot.
 type Output struct {
+	VersionMap map[string]int64
 	StateName  string
-	VersionMap map[string]int64 // contentHash -> version_id
 }
 
+// Factory builds distributeandsave activities.
 type Factory struct {
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output]
 	indexRepo                  ports.IndexRepository
@@ -33,6 +36,7 @@ type Factory struct {
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a distributeandsave activity factory.
 func NewFactory(
 	saveDocumentVersionFactory executor.ActivityFactory[*savedocumentversion.Input, *savedocumentversion.Output],
 	indexRepo ports.IndexRepository,
@@ -50,6 +54,7 @@ func NewFactory(
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		chunkResults := input.EmbeddingResults.PreparedBatches.ChunkResults
@@ -82,7 +87,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				Chunks:      fr.Chunks,
 				Embeddings:  fileEmbeddings[idx],
 			}
-			fut := executor.ExecuteActivity(exec, ctx, executorCtx, fmt.Sprintf("Save_%s", fr.FilePath), saveActivity, saveInput)
+			fut := executor.ExecuteActivity(ctx, exec, executorCtx, fmt.Sprintf("Save_%s", fr.FilePath), saveActivity, saveInput)
 			futures[fr.ContentHash] = fut
 		}
 

@@ -27,13 +27,13 @@ type Output struct {
 
 // Factory creates query activities.
 type Factory struct {
-	retrievalService retrieval.RetrievalService
+	retrievalService retrieval.Retriever
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new query activity factory.
-func NewFactory(retrievalService retrieval.RetrievalService) (executor.ActivityFactory[*Input, *Output], error) {
+func NewFactory(retrievalService retrieval.Retriever) (executor.ActivityFactory[*Input, *Output], error) {
 	if retrievalService == nil {
 		return nil, fmt.Errorf("query.NewFactory: retrievalService cannot be nil")
 	}

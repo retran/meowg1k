@@ -1,4 +1,4 @@
-// pkg/index/serialization.go
+// Package index provides serialization helpers for embeddings stored in SQLite.
 package index
 
 import (

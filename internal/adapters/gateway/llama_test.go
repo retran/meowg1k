@@ -30,33 +30,36 @@ func TestNewLlamaGateway(t *testing.T) {
 
 	t.Run("Empty base URL", func(t *testing.T) {
 		gateway, err := newLlamaGateway("", "test-api-key", &http.Client{})
-		if err == nil && gateway != nil {
+		switch {
+		case err == nil && gateway != nil:
 			t.Log("Llama allows empty base URL on creation")
-		} else if err != nil {
+		case err != nil:
 			t.Logf("Llama validates base URL on creation: %v", err)
-		} else {
+		default:
 			t.Fatal("Unexpected state: no error but nil gateway")
 		}
 	})
 
 	t.Run("Empty API key", func(t *testing.T) {
 		gateway, err := newLlamaGateway("http://localhost:11434", "", &http.Client{})
-		if err == nil && gateway != nil {
+		switch {
+		case err == nil && gateway != nil:
 			t.Log("Llama allows empty API key on creation")
-		} else if err != nil {
+		case err != nil:
 			t.Logf("Llama validates API key on creation: %v", err)
-		} else {
+		default:
 			t.Fatal("Unexpected state: no error but nil gateway")
 		}
 	})
 
 	t.Run("Invalid URL format", func(t *testing.T) {
 		gateway, err := newLlamaGateway("not-a-valid-url", "test-api-key", &http.Client{})
-		if err == nil && gateway != nil {
+		switch {
+		case err == nil && gateway != nil:
 			t.Log("Llama allows invalid URL format on creation")
-		} else if err != nil {
+		case err != nil:
 			t.Logf("Llama validates URL format: %v", err)
-		} else {
+		default:
 			t.Fatal("Unexpected state: no error but nil gateway")
 		}
 	})

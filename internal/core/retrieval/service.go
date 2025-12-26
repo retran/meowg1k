@@ -18,18 +18,18 @@ import (
 
 // SearchResult represents a complete search result with chunk metadata.
 type SearchResult struct {
-	ChunkID           int64
-	Score             float32
 	FilePath          string
 	TextContent       string
+	SnapshotName      string
+	ChunkID           int64
 	StartLine         int
 	EndLine           int
 	DocumentVersionID int64
-	SnapshotName      string
+	Score             float32
 }
 
-// RetrievalService defines the interface for high-level RAG operations.
-type RetrievalService interface {
+// Retriever defines the interface for high-level RAG operations.
+type Retriever interface {
 	// RetrieveContext performs vector search across multiple snapshots and assembles context.
 	// Returns a formatted context string suitable for LLM input.
 	RetrieveContext(ctx context.Context, queryText string, snapshotPriority []string, topK int, minScore float32) (string, error)
@@ -39,10 +39,10 @@ type RetrievalService interface {
 	Search(ctx context.Context, queryText string, snapshotPriority []string, topK int, minScore float32) ([]SearchResult, error)
 }
 
-// Service implements RetrievalService for RAG operations.
+// Service implements Retriever for RAG operations.
 type Service struct {
 	embeddingsGW      ports.EmbeddingsGateway
-	vectorSearchSvc   vector.VectorSearchService
+	vectorSearchSvc   vector.Searcher
 	indexRepo         ports.IndexRepository
 	embeddingModel    string
 	embeddingTaskType gateway.TaskType
@@ -51,7 +51,7 @@ type Service struct {
 // NewService creates a new retrieval service instance.
 func NewService(
 	embeddingsGW ports.EmbeddingsGateway,
-	vectorSearchSvc vector.VectorSearchService,
+	vectorSearchSvc vector.Searcher,
 	indexRepo ports.IndexRepository,
 	embeddingModel string,
 	embeddingTaskType gateway.TaskType,
@@ -90,23 +90,57 @@ func (s *Service) Search(
 		return nil, fmt.Errorf("retrieval service is nil")
 	}
 
+	if err := validateSearchParams(ctx, queryText, snapshotPriority, topK); err != nil {
+		return nil, err
+	}
+
+	queryEmbedding, err := s.computeQueryEmbedding(ctx, queryText)
+	if err != nil {
+		return nil, err
+	}
+
+	allResults := s.searchSnapshots(ctx, snapshotPriority, queryEmbedding, topK)
+	if len(allResults) == 0 {
+		return []SearchResult{}, nil
+	}
+
+	filteredResults := filterAndLimitResults(allResults, minScore, topK)
+
+	chunks, err := s.fetchChunks(ctx, filteredResults)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch chunks: %w", err)
+	}
+
+	versions, err := s.fetchVersions(ctx, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch document versions: %w", err)
+	}
+
+	return assembleSearchResults(filteredResults, chunks, versions), nil
+}
+
+func validateSearchParams(
+	ctx context.Context,
+	queryText string,
+	snapshotPriority []string,
+	topK int,
+) error {
 	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
+		return fmt.Errorf("context cannot be nil")
 	}
-
 	if queryText == "" {
-		return nil, fmt.Errorf("query text cannot be empty")
+		return fmt.Errorf("query text cannot be empty")
 	}
-
 	if len(snapshotPriority) == 0 {
-		return nil, fmt.Errorf("snapshot priority list cannot be empty")
+		return fmt.Errorf("snapshot priority list cannot be empty")
 	}
-
 	if topK <= 0 {
-		return nil, fmt.Errorf("topK must be positive, got %d", topK)
+		return fmt.Errorf("topK must be positive, got %d", topK)
 	}
+	return nil
+}
 
-	// Step 1: Compute embedding for query text
+func (s *Service) computeQueryEmbedding(ctx context.Context, queryText string) (gateway.Embedding, error) {
 	request := gateway.NewComputeEmbeddingsRequest(
 		s.embeddingModel,
 		[]string{queryText},
@@ -122,44 +156,51 @@ func (s *Service) Search(
 		return nil, fmt.Errorf("no embeddings returned for query")
 	}
 
-	queryEmbedding := embeddings[0]
+	return embeddings[0], nil
+}
 
-	// Step 2: Search across all snapshots
+func (s *Service) searchSnapshots(
+	ctx context.Context,
+	snapshotPriority []string,
+	queryEmbedding gateway.Embedding,
+	topK int,
+) []vector.QueryResult {
 	allResults := make([]vector.QueryResult, 0)
 	for _, snapshotName := range snapshotPriority {
 		results, err := s.vectorSearchSvc.Search(ctx, snapshotName, queryEmbedding, topK)
 		if err != nil {
-			// Log error but continue with other snapshots
 			continue
 		}
 		allResults = append(allResults, results...)
 	}
+	return allResults
+}
 
-	if len(allResults) == 0 {
-		return []SearchResult{}, nil
-	}
-
-	// Step 3: Filter by minimum score and sort by score (descending)
-	filteredResults := make([]vector.QueryResult, 0)
-	for _, result := range allResults {
+func filterAndLimitResults(
+	results []vector.QueryResult,
+	minScore float32,
+	topK int,
+) []vector.QueryResult {
+	filtered := make([]vector.QueryResult, 0, len(results))
+	for _, result := range results {
 		if result.Score >= minScore {
-			filteredResults = append(filteredResults, result)
+			filtered = append(filtered, result)
 		}
 	}
 
-	// Sort by score descending (higher scores first)
-	sort.Slice(filteredResults, func(i, j int) bool {
-		return filteredResults[i].Score > filteredResults[j].Score
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].Score > filtered[j].Score
 	})
 
-	// Step 4: Take top-K results
-	if len(filteredResults) > topK {
-		filteredResults = filteredResults[:topK]
+	if len(filtered) > topK {
+		return filtered[:topK]
 	}
+	return filtered
+}
 
-	// Step 5: Fetch chunk details from database
-	chunkIDs := make([]int64, len(filteredResults))
-	for i, result := range filteredResults {
+func (s *Service) fetchChunks(ctx context.Context, results []vector.QueryResult) ([]domainindex.Chunk, error) {
+	chunkIDs := make([]int64, len(results))
+	for i, result := range results {
 		chunkIDs[i] = result.ChunkID
 	}
 
@@ -167,14 +208,22 @@ func (s *Service) Search(
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch chunks: %w", err)
 	}
+	return chunks, nil
+}
 
-	// Create a map for quick lookup
-	chunkMap := make(map[int64]domainindex.Chunk)
-	for _, chunk := range chunks {
-		chunkMap[chunk.ID] = chunk
+func (s *Service) fetchVersions(ctx context.Context, chunks []domainindex.Chunk) ([]domainindex.DocumentVersion, error) {
+	versionIDs := collectVersionIDs(chunks)
+	if len(versionIDs) == 0 {
+		return []domainindex.DocumentVersion{}, nil
 	}
+	versions, err := s.indexRepo.GetVersionsByIDs(ctx, versionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch document versions: %w", err)
+	}
+	return versions, nil
+}
 
-	// Get document versions to retrieve file paths
+func collectVersionIDs(chunks []domainindex.Chunk) []int64 {
 	versionIDs := make([]int64, 0, len(chunks))
 	versionIDSet := make(map[int64]bool)
 	for _, chunk := range chunks {
@@ -183,29 +232,34 @@ func (s *Service) Search(
 			versionIDSet[chunk.DocumentVersionID] = true
 		}
 	}
+	return versionIDs
+}
 
-	versions, err := s.indexRepo.GetVersionsByIDs(ctx, versionIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch document versions: %w", err)
+func assembleSearchResults(
+	results []vector.QueryResult,
+	chunks []domainindex.Chunk,
+	versions []domainindex.DocumentVersion,
+) []SearchResult {
+	chunkMap := make(map[int64]domainindex.Chunk, len(chunks))
+	for _, chunk := range chunks {
+		chunkMap[chunk.ID] = chunk
 	}
 
-	// Create version map
-	versionMap := make(map[int64]domainindex.DocumentVersion)
+	versionMap := make(map[int64]domainindex.DocumentVersion, len(versions))
 	for _, version := range versions {
 		versionMap[version.ID] = version
 	}
 
-	// Step 6: Assemble final results
-	searchResults := make([]SearchResult, 0, len(filteredResults))
-	for _, queryResult := range filteredResults {
+	searchResults := make([]SearchResult, 0, len(results))
+	for _, queryResult := range results {
 		chunk, ok := chunkMap[queryResult.ChunkID]
 		if !ok {
-			continue // Skip if chunk not found
+			continue
 		}
 
 		version, ok := versionMap[chunk.DocumentVersionID]
 		if !ok {
-			continue // Skip if version not found
+			continue
 		}
 
 		searchResults = append(searchResults, SearchResult{
@@ -220,7 +274,7 @@ func (s *Service) Search(
 		})
 	}
 
-	return searchResults, nil
+	return searchResults
 }
 
 // formatSnapshotName converts internal snapshot names to user-friendly descriptions.

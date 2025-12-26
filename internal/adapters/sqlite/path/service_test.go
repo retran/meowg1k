@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+const testWorkspacePath = "/test/workspace"
+
 // mockWorkspaceService is a mock implementation of WorkspaceService for testing.
 type mockWorkspaceService struct {
 	getFunc func() (string, error)
@@ -25,7 +27,7 @@ func (m *mockWorkspaceService) Get() (string, error) {
 func TestNewService(t *testing.T) {
 	mockWs := &mockWorkspaceService{
 		getFunc: func() (string, error) {
-			return "/test/workspace", nil
+			return testWorkspacePath, nil
 		},
 	}
 	service, err := NewService(mockWs)
@@ -40,7 +42,7 @@ func TestNewService(t *testing.T) {
 func TestGetMainDBPath(t *testing.T) {
 	mockWs := &mockWorkspaceService{
 		getFunc: func() (string, error) {
-			return "/test/workspace", nil
+			return testWorkspacePath, nil
 		},
 	}
 	service, err := NewService(mockWs)
@@ -75,7 +77,7 @@ func TestGetMainDBPathWithXDGDataHome(t *testing.T) {
 
 	mockWs := &mockWorkspaceService{
 		getFunc: func() (string, error) {
-			return "/test/workspace", nil
+			return testWorkspacePath, nil
 		},
 	}
 	service, err := NewService(mockWs)
@@ -115,7 +117,7 @@ func TestGetMainDBPathWithHomeDirectory(t *testing.T) {
 
 	mockWs := &mockWorkspaceService{
 		getFunc: func() (string, error) {
-			return "/test/workspace", nil
+			return testWorkspacePath, nil
 		},
 	}
 	service, err := NewService(mockWs)
@@ -154,7 +156,7 @@ func TestGetMainDBPathFallbackToCurrentDirectory(t *testing.T) {
 
 	mockWs := &mockWorkspaceService{
 		getFunc: func() (string, error) {
-			return "/test/workspace", nil
+			return testWorkspacePath, nil
 		},
 	}
 	service, err := NewService(mockWs)

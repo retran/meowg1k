@@ -15,29 +15,26 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the payload for deduplicating workspace files.
 type Input struct {
 	WorkspaceState *scanworkspacestate.Output
 }
 
+// Output contains the deduplicated file metadata and mappings.
 type Output struct {
-	// ExistingVersions maps content hash to existing version IDs for files that are already indexed
 	ExistingVersions map[string]int64
-
-	// FilesToProcess contains files that need to be chunked, embedded, and saved
-	// Each entry preserves the source file path and its associated state
-	FilesToProcess []domainindex.FileToProcess
-
-	// ContentHashToVersionID maps content hash to version ID for all files (used in finalization)
-	// Will be populated with both existing and new versions
-	ContentHashMap map[string]string // filePath -> contentHash (for all files in all states)
+	ContentHashMap   map[string]string
+	FilesToProcess   []domainindex.FileToProcess
 }
 
+// Factory builds deduplicateandprepare activities.
 type Factory struct {
 	indexService ports.IndexService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a deduplicateandprepare activity factory.
 func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Input, *Output], error) {
 	if indexService == nil {
 		return nil, fmt.Errorf("deduplicateandprepare.NewFactory: indexService cannot be nil")
@@ -48,6 +45,7 @@ func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Inpu
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning("Deduplicating files")

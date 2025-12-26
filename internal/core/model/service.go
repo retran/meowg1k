@@ -15,21 +15,21 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// ProviderDefinitionResolver retrieves provider definitions.
-type ProviderDefinitionResolver interface {
-	Get(providerType provider.Provider) (provider.ProviderDefinition, error)
+// DefinitionResolver retrieves provider definitions.
+type DefinitionResolver interface {
+	Get(providerType provider.Provider) (provider.Definition, error)
 }
 
 // Service resolves and caches model configurations.
 type Service struct {
-	providerDefinitionResolver ProviderDefinitionResolver
+	providerDefinitionResolver DefinitionResolver
 	configResolver             ports.ConfigResolver
 	resolvedModels             map[model.Model]*model.ResolvedModel
 	mu                         sync.RWMutex
 }
 
 // NewService creates a new model resolver service.
-func NewService(configResolver ports.ConfigResolver, providerDefinitionResolver ProviderDefinitionResolver) (*Service, error) {
+func NewService(configResolver ports.ConfigResolver, providerDefinitionResolver DefinitionResolver) (*Service, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
@@ -48,13 +48,13 @@ func NewService(configResolver ports.ConfigResolver, providerDefinitionResolver 
 }
 
 // Get retrieves a model using cached data from initialization.
-func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
+func (s *Service) Get(requestedModel model.Model) (*model.ResolvedModel, error) {
 	if s == nil {
 		return nil, fmt.Errorf("model service is nil")
 	}
 
 	s.mu.RLock()
-	if resolved, exists := s.resolvedModels[model]; exists {
+	if resolved, exists := s.resolvedModels[requestedModel]; exists {
 		s.mu.RUnlock()
 		return resolved, nil
 	}
@@ -63,7 +63,7 @@ func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if resolved, exists := s.resolvedModels[model]; exists {
+	if resolved, exists := s.resolvedModels[requestedModel]; exists {
 		return resolved, nil
 	}
 
@@ -72,12 +72,12 @@ func (s *Service) Get(model model.Model) (*model.ResolvedModel, error) {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
-	resolved, err := s.resolveModelInternal(model, cfg)
+	resolved, err := s.resolveModelInternal(requestedModel, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve model %q: %w", model, err)
+		return nil, fmt.Errorf("failed to resolve model %q: %w", requestedModel, err)
 	}
 
-	s.resolvedModels[model] = resolved
+	s.resolvedModels[requestedModel] = resolved
 
 	return resolved, nil
 }

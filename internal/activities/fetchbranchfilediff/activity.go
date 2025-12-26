@@ -31,7 +31,7 @@ type Factory struct {
 	branchDiffReader BranchDiffReader
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *git.FileChange] = (*Factory)(nil)
 
 // NewFactory creates a new FetchBranchFileDiff activity factory with the provided branch diff reader.
@@ -47,7 +47,7 @@ func NewFactory(branchDiffReader BranchDiffReader) (*Factory, error) {
 
 // NewActivity creates and returns the FetchBranchFileDiff activity function with added progress reporting.
 func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
+	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*git.FileChange, error) {
 		if f == nil {
 			return nil, fmt.Errorf("fetch branch file diff factory is nil")
 		}
@@ -63,42 +63,82 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
 
-		// For branch diff, we get content from target branch (base) and current HEAD
-		originalFileContent, err := f.branchDiffReader.ReadOriginalFileContent(input.Filename)
+		originalFileContent, err := readBranchOriginalContent(f.branchDiffReader, input.Filename)
 		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "not in 'HEAD'") ||
-				strings.Contains(err.Error(), "invalid object name 'HEAD'") ||
-				strings.Contains(err.Error(), "path not in the working tree") {
-				originalFileContent = "" // File is new or this is the initial commit
-			} else {
-				return nil, fmt.Errorf("failed to read original file content of %s: %w", input.Filename, err)
-			}
-		} // For branch diff, "staged" content is actually current HEAD content
-		stagedFileContent, err := f.branchDiffReader.ReadStagedFileContent(input.Filename)
-		if err != nil {
-			if strings.Contains(err.Error(), "does not exist") ||
-				strings.Contains(err.Error(), "path not in the working tree") {
-				// File was deleted - return with empty staged content
-				executorCtx.SendCompleted("Deleted")
-				return &git.FileChange{
-					Filename:            input.Filename,
-					Change:              change,
-					OriginalFileContent: originalFileContent,
-					ChangedFileContent:  "", // Empty for deleted files
-				}, nil
-			}
+			return nil, err
+		}
 
-			return nil, fmt.Errorf("failed to read current file content of %s: %w", input.Filename, err)
+		stagedFileContent, deleted, err := readBranchStagedContent(f.branchDiffReader, input.Filename)
+		if err != nil {
+			return nil, err
+		}
+		if deleted {
+			executorCtx.SendCompleted("Deleted")
+			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &git.FileChange{
-			Filename:            input.Filename,
-			Change:              change,
-			OriginalFileContent: originalFileContent,
-			ChangedFileContent:  stagedFileContent,
-		}, nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
 	}
+}
+
+func readBranchOriginalContent(reader BranchDiffReader, filename string) (string, error) {
+	content, err := reader.ReadOriginalFileContent(filename)
+	if err == nil {
+		return content, nil
+	}
+	if isMissingOriginalContent(err) {
+		return "", nil
+	}
+	return "", fmt.Errorf("failed to read original file content of %s: %w", filename, err)
+}
+
+func readBranchStagedContent(reader BranchDiffReader, filename string) (content string, found bool, err error) {
+	content, err = reader.ReadStagedFileContent(filename)
+	if err == nil {
+		return content, false, nil
+	}
+	if isMissingStagedContent(err) {
+		return "", true, nil
+	}
+	return "", false, fmt.Errorf("failed to read current file content of %s: %w", filename, err)
+}
+
+func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+	return &git.FileChange{
+		Filename:            filename,
+		Change:              change,
+		OriginalFileContent: originalContent,
+		ChangedFileContent:  stagedContent,
+	}
+}
+
+func isMissingOriginalContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"not in 'HEAD'",
+		"invalid object name 'HEAD'",
+		"path not in the working tree",
+	})
+}
+
+func isMissingStagedContent(err error) bool {
+	return hasAnySubstring(err, []string{
+		"does not exist",
+		"path not in the working tree",
+	})
+}
+
+func hasAnySubstring(err error, substrings []string) bool {
+	if err == nil {
+		return false
+	}
+	message := err.Error()
+	for _, substr := range substrings {
+		if strings.Contains(message, substr) {
+			return true
+		}
+	}
+	return false
 }

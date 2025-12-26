@@ -13,14 +13,17 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the payload for a single embedding batch.
 type Input struct {
 	ChunkTexts []string
 }
 
+// Output contains computed embeddings for the batch.
 type Output struct {
 	Embeddings []gateway.Embedding
 }
 
+// Factory builds computeembeddingsbatch activities.
 type Factory struct {
 	embeddingGW ports.EmbeddingsGateway
 	modelName   string
@@ -28,6 +31,7 @@ type Factory struct {
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a computeembeddingsbatch activity factory.
 func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor.ActivityFactory[*Input, *Output], error) {
 	if embeddingGW == nil {
 		return nil, fmt.Errorf("computeembeddingsbatch.NewFactory: embeddingGW cannot be nil")
@@ -42,6 +46,7 @@ func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor
 	}, nil
 }
 
+// NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		executorCtx.SendRunning(fmt.Sprintf("Computing embeddings: %d chunks", len(input.ChunkTexts)))

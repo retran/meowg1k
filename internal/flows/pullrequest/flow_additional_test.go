@@ -38,7 +38,8 @@ func TestFactory_NewFlow_EmptyBaseBranch(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	flowCtx := executor.NewContext("test", nil, nil)
+	exec := executor.NewExecutor(1)
+	flowCtx := executor.NewContext("test", nil, exec)
 
 	flow := factory.NewFlow()
 	err := flow(ctx, flowCtx)
@@ -775,7 +776,7 @@ func TestFactory_NewFlow_SummarizeStrategy_ComposeError(t *testing.T) {
 	}
 }
 
-// Mock output writer that returns error
+// Mock output writer that returns error.
 type mockOutputWriterWithError struct{}
 
 func (m *mockOutputWriterWithError) PrintLine(line string) error {
