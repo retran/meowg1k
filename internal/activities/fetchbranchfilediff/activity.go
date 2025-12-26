@@ -56,7 +56,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Diff vs %s: %s", input.TargetBranch, input.Filename))
+		executorCtx.SendRunning(fmt.Sprintf("📊 Diff vs %s: %s", input.TargetBranch, input.Filename))
 
 		change, err := f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
 		if err != nil {
@@ -73,11 +73,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, err
 		}
 		if deleted {
-			executorCtx.SendCompleted(fmt.Sprintf("Deleted: %s", input.Filename))
+			executorCtx.SendCompleted(fmt.Sprintf("📊 Deleted: %s", input.Filename))
 			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Diff: %s", input.Filename))
+		executorCtx.SendCompleted(fmt.Sprintf("📊 Diff: %s", input.Filename))
 
 		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
 	}

@@ -164,7 +164,7 @@ func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input
 		if summary == "" {
 			summary = parsed.Content
 		}
-		execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
+		execCtx.SendCompleted(fmt.Sprintf("✅ Completed: %s", stepName))
 		return &Output{Summary: strings.TrimSpace(summary), Content: strings.TrimSpace(parsed.Content)}, nil, nil
 	case "tool":
 		if !input.StepConfig.AllowsToolMode(parsed.Tool, parsed.Mode) {
@@ -181,30 +181,48 @@ func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input
 }
 
 func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolNameMap map[string]toolSpec, calls []gateway.ToolCall) (*Output, *ToolResult, error) {
-	if len(calls) > 1 {
-		return nil, nil, fmt.Errorf("multiple tool calls returned; only one is supported per step")
+	if len(calls) == 0 {
+		return nil, nil, fmt.Errorf("no tool calls provided")
 	}
-	toolCall := calls[0]
-	spec, ok := toolNameMap[strings.ToLower(toolCall.Name)]
-	if !ok {
-		return nil, nil, fmt.Errorf("unknown tool call %q", toolCall.Name)
+
+	// Execute tool calls sequentially
+	var combinedResults []map[string]interface{}
+	for _, toolCall := range calls {
+		spec, ok := toolNameMap[strings.ToLower(toolCall.Name)]
+		if !ok {
+			return nil, nil, fmt.Errorf("unknown tool call %q", toolCall.Name)
+		}
+		if !input.StepConfig.AllowsToolMode(spec.Tool, spec.Mode) {
+			return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", spec.Tool, spec.Mode, stepName)
+		}
+		args := toolCall.Arguments
+		if args == nil {
+			args = map[string]any{}
+		}
+		params, err := json.Marshal(args)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal tool call args for %q: %w", toolCall.Name, err)
+		}
+		result, err := input.ToolRunner.RunTool(ctx, execCtx, spec.Tool, spec.Mode, params, input.Profile, stringValue(input.SystemPrompt))
+		if err != nil {
+			return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", spec.Tool, spec.Mode, err)
+		}
+
+		// Accumulate results
+		toolResult := map[string]interface{}{
+			"tool":   spec.Tool,
+			"mode":   spec.Mode,
+			"result": result.Data,
+		}
+		combinedResults = append(combinedResults, toolResult)
 	}
-	if !input.StepConfig.AllowsToolMode(spec.Tool, spec.Mode) {
-		return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", spec.Tool, spec.Mode, stepName)
-	}
-	args := toolCall.Arguments
-	if args == nil {
-		args = map[string]any{}
-	}
-	params, err := json.Marshal(args)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal tool call args: %w", err)
-	}
-	result, err := input.ToolRunner.RunTool(ctx, execCtx, spec.Tool, spec.Mode, params, input.Profile, stringValue(input.SystemPrompt))
-	if err != nil {
-		return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", spec.Tool, spec.Mode, err)
-	}
-	return nil, result, nil
+
+	// Return combined result
+	return nil, &ToolResult{
+		Data: combinedResults,
+		Tool: "multiple_tools",
+		Mode: "batch",
+	}, nil
 }
 
 func handleNonJSONResponse(execCtx *executor.Context, stepName string, toolDefs []gateway.ToolDefinition, content string, parseErr error) (*Output, *ToolResult, error) {
@@ -215,7 +233,7 @@ func handleNonJSONResponse(execCtx *executor.Context, stepName string, toolDefs 
 	if trimmed == "" {
 		return nil, nil, parseErr
 	}
-	execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
+	execCtx.SendCompleted(fmt.Sprintf("✅ Completed: %s", stepName))
 	return &Output{Summary: trimmed, Content: trimmed}, nil, nil
 }
 

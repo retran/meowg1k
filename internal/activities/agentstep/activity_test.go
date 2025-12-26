@@ -138,6 +138,62 @@ func TestAgentStepToolCallResponse(t *testing.T) {
 	}
 }
 
+func TestAgentStepMultipleToolCallsResponse(t *testing.T) {
+	factory, err := NewFactory(&mockInvokeFactory{
+		outputs: []*invokellm.Output{
+			{
+				ToolCalls: []domainGateway.ToolCall{
+					{
+						ID:        "call-1",
+						Name:      "workspace_read",
+						Arguments: map[string]any{"path": "README.md"},
+					},
+					{
+						ID:        "call-2",
+						Name:      "workspace_read",
+						Arguments: map[string]any{"path": "LICENSE"},
+					},
+				},
+			},
+			{Content: `{"type":"final","content":"done","summary":"multiple tools executed"}`},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to create factory: %v", err)
+	}
+
+	stepConfig := &agentconfig.StepConfig{
+		SystemPrompt: "Plan step",
+		Tools:        []string{"workspace"},
+		ToolModes: map[string]map[string]bool{
+			"workspace": {"read": true},
+		},
+		Index: 1,
+	}
+
+	exec := executor.NewExecutor(1)
+	execCtx := executor.NewContext("agent-step", executor.NoOpFeedbackHandler, exec)
+
+	runner := &mockToolRunner{}
+	activity := factory.NewActivity()
+	output, err := activity(context.Background(), execCtx, &Input{
+		Goal:         stringPtr("Test goal"),
+		Profile:      &profile.ResolvedProfile{Model: "test"},
+		SystemPrompt: stringPtr("Plan step"),
+		StepConfig:   stepConfig,
+		ToolRunner:   runner,
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if output.Summary != "multiple tools executed" {
+		t.Fatalf("expected summary 'multiple tools executed', got %q", output.Summary)
+	}
+	if runner.calls != 2 {
+		t.Fatalf("expected tool runner to be called twice, got %d", runner.calls)
+	}
+}
+
 func TestAgentStepNonJSONResponseWithTools(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
 		outputs: []*invokellm.Output{
