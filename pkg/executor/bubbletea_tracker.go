@@ -58,12 +58,13 @@ type tickMsg time.Time
 
 // Styles for the TUI.
 var (
-	styleSubtle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	styleRunning   = lipgloss.NewStyle().Foreground(lipgloss.Color("86"))
-	styleCompleted = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	styleFailed    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	styleAgentStep = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	styleDuration  = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+	styleSubtle    = lipgloss.NewStyle().Faint(true)
+	styleRunning   = lipgloss.NewStyle().Foreground(lipgloss.Color("cyan"))
+	styleCompleted = lipgloss.NewStyle().Foreground(lipgloss.Color("green"))
+	styleFailed    = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
+	styleAgentStep = lipgloss.NewStyle().Foreground(lipgloss.Color("magenta")).Bold(true)
+	styleDuration  = lipgloss.NewStyle().Faint(true)
+	styleLLMBlock  = lipgloss.NewStyle().Faint(true).PaddingLeft(1).BorderLeft(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
 	styleIndent    = "  "
 )
 
@@ -113,7 +114,7 @@ func (t *BubbleTeaTracker) Start() {
 
 	// Only start TUI if not in silent mode
 	if !t.silent {
-		t.program = tea.NewProgram(t.model, tea.WithAltScreen(), tea.WithOutput(os.Stderr))
+		t.program = tea.NewProgram(t.model, tea.WithOutput(os.Stderr))
 		t.wg.Add(1)
 		go func() {
 			defer t.wg.Done()
@@ -134,6 +135,9 @@ func (t *BubbleTeaTracker) Stop() {
 	if t.feedbackCh != nil {
 		close(t.feedbackCh)
 	}
+
+	// Wait a moment for the feedback processor to finish processing any pending messages
+	time.Sleep(100 * time.Millisecond)
 
 	if t.program != nil {
 		t.program.Send(tea.Quit())
@@ -342,24 +346,36 @@ func (m *bubbleModel) View() string {
 
 	var sb strings.Builder
 
-	// Render executions in order
+	// Render completed/failed executions
 	for _, name := range m.order {
 		exec, exists := m.executions[name]
-		if !exists || exec == nil {
-			continue
-		}
-
-		// Skip children of batch operations
-		if m.isChildOfBatchOp(exec) {
-			continue
-		}
-
-		// Skip aggregated tool calls
-		if m.shouldAggregateToolCall(exec) {
+		if !exists || exec == nil || exec.Status == StatusRunning {
 			continue
 		}
 
 		line := m.renderExecution(exec)
+		if line != "" {
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+	}
+
+	// Show only the deepest running activity (most specific work being done)
+	var deepestRunning *Execution
+	maxLevel := -1
+	for _, name := range m.order {
+		exec, exists := m.executions[name]
+		if !exists || exec == nil || exec.Status != StatusRunning {
+			continue
+		}
+		if exec.Level > maxLevel {
+			maxLevel = exec.Level
+			deepestRunning = exec
+		}
+	}
+
+	if deepestRunning != nil {
+		line := m.renderExecution(deepestRunning)
 		if line != "" {
 			sb.WriteString(line)
 			sb.WriteString("\n")
@@ -374,27 +390,70 @@ func (m *bubbleModel) renderExecution(exec *Execution) string {
 		return ""
 	}
 
-	indent := strings.Repeat(styleIndent, exec.Level)
+	var result strings.Builder
+
+	// Get human-readable name and icon
+	readableName := getHumanReadableName(exec)
 	icon := m.getIcon(exec)
-	name := m.getDisplayName(exec)
+	timestamp := exec.StartTime.Format("15:04:05")
 	duration := m.getDuration(exec)
 
-	// Add batch progress if applicable
-	if batchProg, exists := m.batchProgress[exec.Name]; exists && exec.Status == StatusRunning {
-		percent := float64(batchProg.completed) / float64(batchProg.total)
-		bar := m.progress.ViewAs(percent)
-		return fmt.Sprintf("%s%s %s [%d/%d]\n%s%s",
-			indent, icon, name, batchProg.completed, batchProg.total,
-			indent+styleIndent, bar)
+	// For running activities, show spinner and action
+	if exec.Status == StatusRunning {
+		result.WriteString(fmt.Sprintf("%s %s %s...",
+			styleSubtle.Render(timestamp), icon, styleRunning.Render(readableName)))
+		return result.String()
 	}
 
-	// Add error message if failed
-	errorMsg := ""
+	// For completed/failed, show result
 	if exec.Status == StatusFailed && exec.Error != nil {
-		errorMsg = styleSubtle.Render(" — " + exec.Error.Error())
+		errorMsg := styleFailed.Render(exec.Error.Error())
+		result.WriteString(fmt.Sprintf("%s %s %s%s — %s",
+			styleSubtle.Render(timestamp), icon, styleFailed.Render(readableName), duration, errorMsg))
+		return result.String()
 	}
 
-	return fmt.Sprintf("%s%s %s%s%s", indent, icon, name, duration, errorMsg)
+	// Completed successfully
+	result.WriteString(fmt.Sprintf("%s %s %s%s",
+		styleSubtle.Render(timestamp), icon, styleCompleted.Render(readableName), duration))
+
+	// If this execution has an LLM response, show it as a formatted block
+	if exec.Status == StatusCompleted {
+		if llmResponse, ok := exec.Metadata["llm_response"].(string); ok && llmResponse != "" {
+			result.WriteString("\n")
+			result.WriteString(m.renderLLMResponse(llmResponse))
+		}
+	}
+
+	return result.String()
+}
+
+// renderLLMResponse formats LLM response with proper markdown-like styling
+func (m *bubbleModel) renderLLMResponse(response string) string {
+	var result strings.Builder
+	maxWidth := m.width - 6 // Account for border and padding
+	if maxWidth <= 0 {
+		maxWidth = 74
+	}
+
+	// Split into lines
+	lines := strings.Split(response, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			result.WriteString("\n")
+			continue
+		}
+
+		// Word wrap and render each line
+		wrappedLines := wordWrap(line, maxWidth)
+		for _, wrappedLine := range wrappedLines {
+			result.WriteString(styleLLMBlock.Render(wrappedLine))
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
 }
 
 func (m *bubbleModel) getIcon(exec *Execution) string {
@@ -412,31 +471,30 @@ func (m *bubbleModel) getIcon(exec *Execution) string {
 	}
 }
 
-func (m *bubbleModel) getDisplayName(exec *Execution) string {
-	name := buildDisplayName(exec)
-
-	// Add emoji for agent steps
-	if isAgentStep(exec.Name) {
-		name = formatAgentStepName(name)
-		return styleAgentStep.Render(name)
+// getHumanReadableName converts technical activity names to human-readable descriptions
+func getHumanReadableName(exec *Execution) string {
+	if exec == nil {
+		return ""
 	}
 
-	// Tool calls
-	if isToolCall(exec.Name) {
-		return styleSubtle.Render("⚙️  " + name)
+	// Always prefer the message from the activity itself
+	if exec.Message != "" {
+		return exec.Message
 	}
 
-	// Regular execution
-	switch exec.Status {
-	case StatusCompleted:
-		return styleCompleted.Render(name)
-	case StatusFailed:
-		return styleFailed.Render(name)
-	case StatusPending, StatusRunning:
-		return name
-	default:
-		return name
+	// Fall back to result if available
+	if exec.Result != "" {
+		return exec.Result
 	}
+
+	// Last resort: convert the activity name
+	parts := strings.Split(exec.Name, "::")
+	if len(parts) == 0 {
+		return "Working"
+	}
+
+	lastPart := parts[len(parts)-1]
+	return convertCamelToReadable(lastPart)
 }
 
 func (m *bubbleModel) getDuration(exec *Execution) string {
@@ -608,4 +666,43 @@ func formatAgentStepName(name string) string {
 	}
 
 	return name
+}
+
+// wordWrap wraps text to fit within the specified width.
+func wordWrap(text string, width int) []string {
+	if width <= 0 {
+		return []string{text}
+	}
+
+	var lines []string
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	var currentLine strings.Builder
+	for i, word := range words {
+		// If adding this word would exceed width, start a new line
+		if currentLine.Len() > 0 && currentLine.Len()+1+len(word) > width {
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+		}
+
+		// Add space before word (except for first word in line)
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+		}
+		currentLine.WriteString(word)
+
+		// If this is the last word, add the current line
+		if i == len(words)-1 {
+			lines = append(lines, currentLine.String())
+		}
+	}
+
+	if len(lines) == 0 {
+		lines = append(lines, currentLine.String())
+	}
+
+	return lines
 }

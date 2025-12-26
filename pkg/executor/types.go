@@ -176,6 +176,11 @@ func (c *Context) SendCompleted(message string) {
 	c.sendFeedback(StatusCompleted, 1, message, nil, nil)
 }
 
+// SendCompletedWithMetadata sends a completed status update with additional metadata.
+func (c *Context) SendCompletedWithMetadata(message string, metadata map[string]any) {
+	c.sendFeedback(StatusCompleted, 1, message, nil, metadata)
+}
+
 // SendFailed sends a failed status update.
 func (c *Context) SendFailed(err error, message string) {
 	c.sendFeedback(StatusFailed, 0, message, err, nil)

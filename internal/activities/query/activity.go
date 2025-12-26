@@ -81,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("%d results", len(results)))
+		executorCtx.SendCompleted(fmt.Sprintf("🔎 Found %d result(s)", len(results)))
 
 		return &Output{
 			Results: results,

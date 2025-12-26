@@ -54,7 +54,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		totalChanges := len(input.Changes)
-		executorCtx.SendRunning(fmt.Sprintf("Summarizing %d files", totalChanges))
+		executorCtx.SendRunning(fmt.Sprintf("🧠 Analyzing %d file(s)...", totalChanges))
 
 		if totalChanges == 0 {
 			executorCtx.SendCompleted("No files to summarize")
@@ -88,7 +88,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			summaries = append(summaries, summary)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("%d summaries", len(summaries)))
+		executorCtx.SendCompleted(fmt.Sprintf("🧠 Analyzed %d file(s)", len(summaries)))
 
 		return &Output{
 			Summaries: summaries,
