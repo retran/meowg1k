@@ -125,6 +125,9 @@ linters:
           - funlen
           - gocognit
           - unparam
+          - revive
+          - wrapcheck
+          - thelper
       - path: "zz_generated.*\\.go"
         linters:
           - dupl
@@ -144,4 +147,3 @@ issues:
 
 output:
   show-stats: true
-

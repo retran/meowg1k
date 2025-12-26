@@ -95,6 +95,7 @@ filter:
 	}
 
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -161,6 +162,7 @@ filter:
 	}
 
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "test", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -215,6 +217,7 @@ generate:
 	}
 
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "Custom prompt", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")
@@ -269,6 +272,7 @@ generate:
 	}
 
 	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
 	cmd.Flags().Bool("silent", false, "silent mode")

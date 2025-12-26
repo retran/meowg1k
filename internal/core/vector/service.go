@@ -14,18 +14,21 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// IndexDump stores serialized HNSW data with ID mappings.
 type IndexDump struct {
-	HNSWData    []byte
 	IDToChunkID map[uint32]int64
 	ChunkIDToID map[int64]uint32
+	HNSWData    []byte
 }
 
+// Service builds and stores vector indices for snapshots.
 type Service struct {
 	indexRepo    ports.IndexRepository
 	snapshotRepo ports.SnapshotRepository
 	metaRepo     ports.MetaRepository
 }
 
+// NewService creates a new vector index service.
 func NewService(
 	indexRepo ports.IndexRepository,
 	snapshotRepo ports.SnapshotRepository,
@@ -38,108 +41,122 @@ func NewService(
 	}
 }
 
+// BuildAndSave builds the vector index for a snapshot and stores it in meta storage.
 func (s *Service) BuildAndSave(snapshotName string) error {
 	ctx := context.Background()
 
-	// Step 1: Get all version IDs for the snapshot
 	versionIDs, err := s.snapshotRepo.GetVersionIDsForSnapshot(ctx, snapshotName)
 	if err != nil {
 		return fmt.Errorf("failed to get version IDs for snapshot %s: %w", snapshotName, err)
 	}
 
 	if len(versionIDs) == 0 {
-		// This is a valid scenario (e.g., empty stage or working directory).
-		// Nothing to index, so we can exit early.
-		// Also clean up any existing index dump if present.
-		key := fmt.Sprintf("idx_dump_%s", snapshotName)
-		_ = s.metaRepo.DeleteValue(ctx, key) // Ignore error if key doesn't exist
-		return nil
+		return s.clearIndexDump(ctx, snapshotName)
 	}
 
-	// Step 2: Get all chunks for these versions
-	var allChunks []struct {
-		chunkID   int64
-		embedding []float32
-	}
-
-	for _, versionID := range versionIDs {
-		chunks, err := s.indexRepo.GetChunksByVersionID(ctx, versionID)
-		if err != nil {
-			return fmt.Errorf("failed to get chunks for version %d: %w", versionID, err)
-		}
-
-		for _, chunk := range chunks {
-			// Convert gateway.Embedding ([]float64) to []float32 for HNSW
-			embedding := make([]float32, len(chunk.Embedding))
-			for i, val := range chunk.Embedding {
-				embedding[i] = float32(val)
-			}
-
-			allChunks = append(allChunks, struct {
-				chunkID   int64
-				embedding []float32
-			}{
-				chunkID:   chunk.ID,
-				embedding: embedding,
-			})
-		}
+	allChunks, err := s.collectChunks(ctx, versionIDs)
+	if err != nil {
+		return err
 	}
 
 	if len(allChunks) == 0 {
 		return fmt.Errorf("no chunks found for snapshot %s", snapshotName)
 	}
 
-	// Step 3: Build HNSW index
-	// Create HNSW graph
+	dump, err := buildIndexDump(allChunks)
+	if err != nil {
+		return err
+	}
+
+	serialized, err := serializeIndexDump(dump)
+	if err != nil {
+		return err
+	}
+
+	return s.saveIndexDump(ctx, snapshotName, serialized)
+}
+
+type indexedChunk struct {
+	embedding []float32
+	chunkID   int64
+}
+
+func (s *Service) collectChunks(ctx context.Context, versionIDs []int64) ([]indexedChunk, error) {
+	var allChunks []indexedChunk
+
+	for _, versionID := range versionIDs {
+		chunks, err := s.indexRepo.GetChunksByVersionID(ctx, versionID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chunks for version %d: %w", versionID, err)
+		}
+
+		for _, chunk := range chunks {
+			embedding := make([]float32, len(chunk.Embedding))
+			for i, val := range chunk.Embedding {
+				embedding[i] = float32(val)
+			}
+
+			allChunks = append(allChunks, indexedChunk{
+				chunkID:   chunk.ID,
+				embedding: embedding,
+			})
+		}
+	}
+
+	return allChunks, nil
+}
+
+func buildIndexDump(chunks []indexedChunk) (IndexDump, error) {
 	hnswIndex := hnsw.NewGraph[int64]()
 
-	// Create mapping tables
-	idToChunkID := make(map[uint32]int64, len(allChunks))
-	chunkIDToID := make(map[int64]uint32, len(allChunks))
+	idToChunkID := make(map[uint32]int64, len(chunks))
+	chunkIDToID := make(map[int64]uint32, len(chunks))
 
-	// Add all embeddings to the index
-	for i, chunk := range allChunks {
-		// Check for potential overflow before converting
+	for i, chunk := range chunks {
 		if i > int(^uint32(0)) {
-			return fmt.Errorf("too many chunks (%d) to fit in uint32 index", len(allChunks))
+			return IndexDump{}, fmt.Errorf("too many chunks (%d) to fit in uint32 index", len(chunks))
 		}
 		// #nosec G115 -- overflow is checked above
 		hnswID := uint32(i)
 
-		// Add to HNSW index using the chunk ID as the key
 		node := hnsw.MakeNode(chunk.chunkID, chunk.embedding)
 		hnswIndex.Add(node)
 
-		// Add to mapping tables
 		idToChunkID[hnswID] = chunk.chunkID
 		chunkIDToID[chunk.chunkID] = hnswID
 	}
 
-	// Step 4: Serialize the HNSW index using Export
 	var hnswBuffer bytes.Buffer
 	if err := hnswIndex.Export(&hnswBuffer); err != nil {
-		return fmt.Errorf("failed to export HNSW index: %w", err)
+		return IndexDump{}, fmt.Errorf("failed to export HNSW index: %w", err)
 	}
 
-	// Step 5: Create dump structure
-	dump := IndexDump{
+	return IndexDump{
 		HNSWData:    hnswBuffer.Bytes(),
 		IDToChunkID: idToChunkID,
 		ChunkIDToID: chunkIDToID,
-	}
+	}, nil
+}
 
-	// Step 6: Serialize dump using gob
+func serializeIndexDump(dump IndexDump) ([]byte, error) {
 	var dumpBuffer bytes.Buffer
 	dumpEncoder := gob.NewEncoder(&dumpBuffer)
 	if err := dumpEncoder.Encode(dump); err != nil {
-		return fmt.Errorf("failed to encode index dump: %w", err)
+		return nil, fmt.Errorf("failed to encode index dump: %w", err)
 	}
+	return dumpBuffer.Bytes(), nil
+}
 
-	// Step 7: Save to meta repository
+func (s *Service) saveIndexDump(ctx context.Context, snapshotName string, data []byte) error {
 	key := fmt.Sprintf("idx_dump_%s", snapshotName)
-	if err := s.metaRepo.SetValue(ctx, key, dumpBuffer.Bytes()); err != nil {
+	if err := s.metaRepo.SetValue(ctx, key, data); err != nil {
 		return fmt.Errorf("failed to save index dump: %w", err)
 	}
+	return nil
+}
 
+func (s *Service) clearIndexDump(ctx context.Context, snapshotName string) error {
+	key := fmt.Sprintf("idx_dump_%s", snapshotName)
+	_ = s.metaRepo.DeleteValue(ctx, key) //nolint:errcheck // Ignore error if key doesn't exist
 	return nil
 }

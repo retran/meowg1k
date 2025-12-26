@@ -4,6 +4,7 @@
 package cache
 
 import (
+	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -50,7 +51,7 @@ func TestMigrations_CreateTable(t *testing.T) {
 
 	// Verify table exists
 	var tableName string
-	err = db.QueryRow(`
+	err = db.QueryRowContext(context.Background(), `
 		SELECT name FROM sqlite_master
 		WHERE type='table' AND name='llm_cache'
 	`).Scan(&tableName)
@@ -78,18 +79,18 @@ func TestMigrations_TableSchema(t *testing.T) {
 	}
 
 	// Check table schema
-	rows, err := db.Query(`PRAGMA table_info(llm_cache)`)
+	rows, err := db.QueryContext(context.Background(), `PRAGMA table_info(llm_cache)`)
 	if err != nil {
 		t.Fatalf("failed to get table info: %v", err)
 	}
 	defer rows.Close()
 
 	type columnInfo struct {
-		cid       int
 		name      string
 		colType   string
-		notNull   int
 		dfltValue sql.NullString
+		cid       int
+		notNull   int
 		pk        int
 	}
 
@@ -101,6 +102,9 @@ func TestMigrations_TableSchema(t *testing.T) {
 			t.Fatalf("failed to scan column info: %v", err)
 		}
 		columns = append(columns, col)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("failed to iterate table info rows: %v", err)
 	}
 
 	expectedColumns := map[string]struct {
@@ -157,7 +161,7 @@ func TestMigrations_IndexExists(t *testing.T) {
 
 	// Verify index exists
 	var indexName string
-	err = db.QueryRow(`
+	err = db.QueryRowContext(context.Background(), `
 		SELECT name FROM sqlite_master
 		WHERE type='index' AND name='idx_llm_cache_created_at'
 	`).Scan(&indexName)
@@ -191,7 +195,7 @@ func TestMigrations_Idempotent(t *testing.T) {
 
 	// Verify table still exists and is usable
 	var count int
-	err = db.QueryRow(`SELECT COUNT(*) FROM llm_cache`).Scan(&count)
+	err = db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM llm_cache`).Scan(&count)
 	if err != nil {
 		t.Fatalf("table is not usable after repeated migrations: %v", err)
 	}
@@ -213,7 +217,7 @@ func TestMigrations_TableUsable(t *testing.T) {
 	}
 
 	// Test inserting data
-	_, err = db.Exec(`
+	_, err = db.ExecContext(context.Background(), `
 		INSERT INTO llm_cache (key, value, created_at)
 		VALUES (?, ?, ?)
 	`, "test-key", "test-value", 123456789)
@@ -224,7 +228,7 @@ func TestMigrations_TableUsable(t *testing.T) {
 	// Test querying data
 	var key, value string
 	var createdAt int64
-	err = db.QueryRow(`
+	err = db.QueryRowContext(context.Background(), `
 		SELECT key, value, created_at FROM llm_cache WHERE key = ?
 	`, "test-key").Scan(&key, &value, &createdAt)
 	if err != nil {

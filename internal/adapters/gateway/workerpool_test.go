@@ -162,7 +162,7 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 	}
 }
 
-// blockingMockGateway is a mock that blocks until unblocked
+// blockingMockGateway is a mock that blocks until unblocked.
 type blockingMockGateway struct {
 	blockChan chan struct{}
 }

@@ -30,7 +30,7 @@ After initialization, you should set the MEOW_GEMINI_API_KEY environment variabl
   export MEOW_GEMINI_API_KEY="your-api-key-here"
 
 You can get a free API key from: https://aistudio.google.com/app/apikey`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		force, err := cmd.Flags().GetBool("force")
 		if err != nil {
 			return fmt.Errorf("failed to get force flag: %w", err)
@@ -38,7 +38,7 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 
 		targetDir := ""
 		if cmd.Root() != nil && cmd.Root().PersistentFlags() != nil {
-			targetDir, _ = cmd.Root().PersistentFlags().GetString("workspace")
+			targetDir, _ = cmd.Root().PersistentFlags().GetString("workspace") //nolint:errcheck // Fall back to cwd on error
 		}
 
 		if targetDir == "" {
@@ -52,7 +52,7 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 
 		silent := false
 		if cmd.Root() != nil && cmd.Root().PersistentFlags() != nil {
-			silent, _ = cmd.Root().PersistentFlags().GetBool("silent")
+			silent, _ = cmd.Root().PersistentFlags().GetBool("silent") //nolint:errcheck // Default to false on error
 		}
 
 		if _, err := os.Stat(configPath); err == nil {
@@ -60,7 +60,7 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 				return fmt.Errorf("configuration file already exists: %s\nUse --force to overwrite", configPath)
 			}
 			if !silent {
-				fmt.Fprintf(cmd.OutOrStdout(), "Overwriting existing configuration file...\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Overwriting existing configuration file...\n") //nolint:errcheck // Output errors are not critical
 			}
 		}
 
@@ -69,15 +69,15 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 		}
 
 		if silent {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", configPath)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", configPath) //nolint:errcheck // Output errors are not critical
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ Configuration file created: %s\n", configPath)
-			fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "1. Get a free API key from: https://aistudio.google.com/app/apikey\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "2. Set the environment variable:\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "   export MEOW_GEMINI_API_KEY=\"your-api-key-here\"\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "3. Try it out:\n")
-			fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow generate\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Configuration file created: %s\n", configPath)                       //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")                                                      //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "1. Get a free API key from: https://aistudio.google.com/app/apikey\n") //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "2. Set the environment variable:\n")                                   //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   export MEOW_GEMINI_API_KEY=\"your-api-key-here\"\n")                //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "3. Try it out:\n")                                                     //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow generate\n")          //nolint:errcheck // Output errors are not critical
 		}
 
 		return nil

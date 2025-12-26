@@ -31,11 +31,12 @@ func TestNewVoyageGateway(t *testing.T) {
 		// but fail during actual API calls
 		gateway, err := newVoyageGateway("", &http.Client{})
 		// Test based on actual behavior - some adapters validate on creation, others on use
-		if err != nil {
+		switch {
+		case err != nil:
 			t.Logf("Service validates API key on creation: %v", err)
-		} else if gateway == nil {
+		case gateway == nil:
 			t.Fatal("Expected gateway to be non-nil if no error")
-		} else {
+		default:
 			t.Log("Service allows empty API key on creation, will validate on use")
 		}
 	})

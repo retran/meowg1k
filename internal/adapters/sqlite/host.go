@@ -5,6 +5,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// DBPathService resolves locations for main and project databases.
 type DBPathService interface {
 	GetMainDBPath() (string, error)
 	GetProjectDBPath() (string, error)
@@ -26,6 +28,7 @@ type localHostImpl struct {
 	projectDB *sql.DB
 }
 
+// NewLocalHost creates a SQLite host using local filesystem paths.
 func NewLocalHost(dbPathService DBPathService) (ports.Host, error) {
 	if dbPathService == nil {
 		return nil, fmt.Errorf("db path service is nil")
@@ -98,28 +101,30 @@ func getDB(path string) (*sql.DB, error) {
 	db.SetMaxIdleConns(2)    // Keep some connections ready
 	db.SetConnMaxLifetime(0) // Reuse connections indefinitely
 
+	ctx := context.Background()
+
 	// Enable Write-Ahead Logging for better concurrent access
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Set synchronous mode to NORMAL for better performance with WAL
-	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA synchronous=NORMAL"); err != nil {
 		return nil, fmt.Errorf("failed to set synchronous mode: %w", err)
 	}
 
 	// Increase cache size for better performance
-	if _, err := db.Exec("PRAGMA cache_size=-64000"); err != nil { // 64MB cache
+	if _, err := db.ExecContext(ctx, "PRAGMA cache_size=-64000"); err != nil { // 64MB cache
 		return nil, fmt.Errorf("failed to set cache size: %w", err)
 	}
 
 	// Set busy timeout at PRAGMA level as well for extra safety
-	if _, err := db.Exec("PRAGMA busy_timeout=30000"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout=30000"); err != nil {
 		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
 	}
 
 	// Set WAL autocheckpoint to run more frequently
-	if _, err := db.Exec("PRAGMA wal_autocheckpoint=1000"); err != nil {
+	if _, err := db.ExecContext(ctx, "PRAGMA wal_autocheckpoint=1000"); err != nil {
 		return nil, fmt.Errorf("failed to set wal_autocheckpoint: %w", err)
 	}
 

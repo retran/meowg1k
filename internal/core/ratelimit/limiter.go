@@ -14,6 +14,7 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
+// Limiter enforces rate limits for requests and token usage.
 type Limiter interface {
 	Wait(ctx context.Context, tokenCount int) error
 	TryAcquire(ctx context.Context, tokenCount int) bool
@@ -24,6 +25,7 @@ type dbLimiter struct {
 	configs []ratelimit.BucketConfig
 }
 
+// Config defines rate limit buckets for a model or provider.
 type Config struct {
 	ID                string
 	RequestsPerMinute int
@@ -31,6 +33,7 @@ type Config struct {
 	RequestsPerDay    int
 }
 
+// Unlimited disables rate limiting by using zeroed limits.
 var Unlimited = Config{
 	ID:                "unlimited",
 	RequestsPerMinute: 0,
@@ -38,6 +41,7 @@ var Unlimited = Config{
 	RequestsPerDay:    0,
 }
 
+// NewLimiter creates a limiter from a config and repository.
 func NewLimiter(ctx context.Context, config Config, repo ports.RateLimitRepository) (Limiter, error) {
 	if config.ID == "" {
 		return nil, fmt.Errorf("config ID is empty")
@@ -155,11 +159,11 @@ func NewNoOpLimiter() Limiter {
 }
 
 // Wait is a no-op implementation that always succeeds.
-func (n *noOpLimiter) Wait(ctx context.Context, tokenCount int) error {
+func (n *noOpLimiter) Wait(_ context.Context, _ int) error {
 	return nil
 }
 
 // TryAcquire is a no-op implementation that always succeeds.
-func (n *noOpLimiter) TryAcquire(ctx context.Context, tokenCount int) bool {
+func (n *noOpLimiter) TryAcquire(_ context.Context, _ int) bool {
 	return true
 }

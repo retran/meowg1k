@@ -116,7 +116,7 @@ func TestInitializeBuckets(t *testing.T) {
 
 	// Verify buckets were created
 	var count int
-	err = db.QueryRow("SELECT COUNT(*) FROM rate_limit_buckets").Scan(&count)
+	err = db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM rate_limit_buckets").Scan(&count)
 	if err != nil {
 		t.Fatalf("failed to query buckets: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestAcquireTokens_Success(t *testing.T) {
 
 	// Verify tokens were deducted
 	var tokens int
-	err = db.QueryRow("SELECT tokens FROM rate_limit_buckets WHERE id = ?", "test-bucket").Scan(&tokens)
+	err = db.QueryRowContext(context.Background(), "SELECT tokens FROM rate_limit_buckets WHERE id = ?", "test-bucket").Scan(&tokens)
 	if err != nil {
 		t.Fatalf("failed to query tokens: %v", err)
 	}
@@ -247,8 +247,8 @@ func TestAcquireTokens_MultipleBuckets(t *testing.T) {
 
 	// Verify both buckets were updated
 	var tokens1, tokens2 int
-	db.QueryRow("SELECT tokens FROM rate_limit_buckets WHERE id = ?", "bucket1").Scan(&tokens1)
-	db.QueryRow("SELECT tokens FROM rate_limit_buckets WHERE id = ?", "bucket2").Scan(&tokens2)
+	db.QueryRowContext(context.Background(), "SELECT tokens FROM rate_limit_buckets WHERE id = ?", "bucket1").Scan(&tokens1)
+	db.QueryRowContext(context.Background(), "SELECT tokens FROM rate_limit_buckets WHERE id = ?", "bucket2").Scan(&tokens2)
 
 	if tokens1 != 90 {
 		t.Errorf("bucket1: expected 90 tokens, got %d", tokens1)
@@ -287,7 +287,7 @@ func TestResetBuckets(t *testing.T) {
 
 	// Verify tokens were reset to capacity
 	var tokens int
-	db.QueryRow("SELECT tokens FROM rate_limit_buckets WHERE id = ?", "test-bucket").Scan(&tokens)
+	db.QueryRowContext(context.Background(), "SELECT tokens FROM rate_limit_buckets WHERE id = ?", "test-bucket").Scan(&tokens)
 	if tokens != 100 {
 		t.Errorf("expected 100 tokens after reset, got %d", tokens)
 	}

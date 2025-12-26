@@ -19,8 +19,8 @@ import (
 type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
+	Intent       string
 	Changes      []*git.FileChange
-	Intent       string // Optional developer intent
 }
 
 // Output defines the output structure for the ComposeFlatCommit activity.
@@ -33,7 +33,7 @@ type Factory struct {
 	genericFactory *composeflat.Factory
 }
 
-// Compile-time check to ensure Factory implements ActivityFactory interface
+// Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposeFlatCommit activity factory with the provided content generation activity factory.

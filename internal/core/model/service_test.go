@@ -23,18 +23,18 @@ func (m *mockServiceConfigResolver) Get() (*config.Config, error) {
 }
 
 type mockServiceProviderResolver struct {
-	providers map[provider.Provider]provider.ProviderDefinition
+	providers map[provider.Provider]provider.Definition
 	err       error
 }
 
-func (m *mockServiceProviderResolver) Get(p provider.Provider) (provider.ProviderDefinition, error) {
+func (m *mockServiceProviderResolver) Get(p provider.Provider) (provider.Definition, error) {
 	if m.err != nil {
-		return provider.ProviderDefinition{}, m.err
+		return provider.Definition{}, m.err
 	}
 	if def, ok := m.providers[p]; ok {
 		return def, nil
 	}
-	return provider.ProviderDefinition{}, fmt.Errorf("provider not found: %s", p)
+	return provider.Definition{}, fmt.Errorf("provider not found: %s", p)
 }
 
 func TestNewService_Success(t *testing.T) {
@@ -42,7 +42,7 @@ func TestNewService_Success(t *testing.T) {
 		config: &config.Config{},
 	}
 	providerResolver := &mockServiceProviderResolver{
-		providers: make(map[provider.Provider]provider.ProviderDefinition),
+		providers: make(map[provider.Provider]provider.Definition),
 	}
 
 	service, err := NewService(configResolver, providerResolver)
@@ -97,7 +97,7 @@ func TestService_Get_Success(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
 				DefaultModel:    "gpt-4",
@@ -140,7 +140,7 @@ func TestService_Get_Cached(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
 				DefaultModel:    "gpt-4",
@@ -179,7 +179,7 @@ func TestService_Get_ModelNotFound(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: make(map[provider.Provider]provider.ProviderDefinition),
+		providers: make(map[provider.Provider]provider.Definition),
 	}
 
 	service, err := NewService(configResolver, providerResolver)
@@ -305,7 +305,7 @@ func TestService_ResolveModelInternal_WithDefaults(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
 				DefaultModel:    "gpt-3.5-turbo",
@@ -355,7 +355,7 @@ func TestService_ResolveModelInternal_WithRateLimit(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
 				DefaultModel:    "gpt-4",
@@ -395,7 +395,7 @@ func TestService_ResolveModelInternal_UnknownProvider(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: make(map[provider.Provider]provider.ProviderDefinition),
+		providers: make(map[provider.Provider]provider.Definition),
 	}
 
 	service, err := NewService(configResolver, providerResolver)
@@ -416,7 +416,7 @@ func TestService_ResolveModelInternal_NilModels(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: make(map[provider.Provider]provider.ProviderDefinition),
+		providers: make(map[provider.Provider]provider.Definition),
 	}
 
 	service, err := NewService(configResolver, providerResolver)
@@ -448,7 +448,7 @@ func TestService_ResolveModelInternal_APIKeyFromEnv(t *testing.T) {
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
 	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.ProviderDefinition{
+		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
 				DefaultModel:    "gpt-4",

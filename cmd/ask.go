@@ -4,9 +4,6 @@
 package cmd
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/app"
@@ -35,31 +32,10 @@ Examples:
   # Search more thoroughly with higher k and lower threshold
   meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5`,
 	Args: cobra.MaximumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx := cmd.Context()
-
-		container, ok := ctx.Value(app.AppContainerKey).(*app.Container)
-		if !ok || container == nil {
-			return fmt.Errorf("application not initialized")
-		}
-
-		flow, err := container.CreateAskFlow()
-		if err != nil {
-			return fmt.Errorf("failed to create ask flow: %w", err)
-		}
-
-		concurrency := runtime.NumCPU() * 2
-		orchestrator, err := executor.NewOrchestrator(container.OutputService, container.TraceLogger, concurrency)
-		if err != nil {
-			return fmt.Errorf("failed to create flow runner: %w", err)
-		}
-
-		silent, err := container.CommandService.GetSilentFlag()
-		if err != nil {
-			return fmt.Errorf("failed to get command silent flag: %w", err)
-		}
-
-		return orchestrator.Execute(ctx, "AskFlow", flow, silent)
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return runFlowCommand(cmd, "AskFlow", func(container *app.Container) (executor.Flow, error) {
+			return container.CreateAskFlow()
+		})
 	},
 }
 

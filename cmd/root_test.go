@@ -219,11 +219,12 @@ func TestRootCmdContextHandling(t *testing.T) {
 			t.Logf("Expected app initialization error: %v", err)
 		} else {
 			ctx := testCmd.Context()
-			if ctx == nil {
+			switch {
+			case ctx == nil:
 				t.Error("Context should be set when app initialization succeeds")
-			} else if ctx == context.Background() {
+			case ctx == context.Background():
 				t.Log("Context is background context")
-			} else {
+			default:
 				t.Log("Context was properly set by app container")
 			}
 		}

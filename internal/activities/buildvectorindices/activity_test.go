@@ -19,7 +19,7 @@ type mockVectorIndexService struct {
 	// Intentionally empty as its methods are not directly called by the parent activity.
 }
 
-// Ensure mockVectorIndexService implements ports.VectorIndexService
+// Ensure mockVectorIndexService implements ports.VectorIndexService.
 var _ ports.VectorIndexService = (*mockVectorIndexService)(nil)
 
 func (m *mockVectorIndexService) BuildAndSave(snapshotName string) error {

@@ -25,6 +25,16 @@ var (
 	errNilRetry    = errors.New("retry")
 )
 
+func newTestExecutor(t *testing.T) *executorImpl {
+	t.Helper()
+
+	exec, ok := NewExecutor(0).(*executorImpl)
+	if !ok {
+		t.Fatal("expected NewExecutor to return *executorImpl")
+	}
+	return exec
+}
+
 func TestDefaultRetryPolicy(t *testing.T) {
 	policy := DefaultRetryPolicy()
 	if policy.MaxAttempts != 3 {
@@ -58,7 +68,7 @@ func TestNoRetryPolicy(t *testing.T) {
 }
 
 func TestNewExecutor(t *testing.T) {
-	exec := NewExecutor(0)
+	exec := newTestExecutor(t)
 	if exec.RetryPolicy == nil {
 		t.Error("expected RetryPolicy to be set")
 	}
@@ -68,7 +78,7 @@ func TestNewExecutor(t *testing.T) {
 }
 
 func TestWithRetryPolicy(t *testing.T) {
-	exec := NewExecutor(0)
+	exec := newTestExecutor(t)
 	policy := NoRetryPolicy()
 	result := exec.WithRetryPolicy(&policy)
 	if result != exec {
@@ -80,7 +90,7 @@ func TestWithRetryPolicy(t *testing.T) {
 }
 
 func TestWithFeedbackHandler(t *testing.T) {
-	exec := NewExecutor(0)
+	exec := newTestExecutor(t)
 	handler := func(f *Feedback) {}
 	result := exec.WithFeedbackHandler(handler)
 	if result != exec {
@@ -92,7 +102,7 @@ func TestWithFeedbackHandler(t *testing.T) {
 }
 
 func TestRunFlow(t *testing.T) {
-	exec := NewExecutor(0)
+	exec := newTestExecutor(t)
 	ctx := context.Background()
 
 	flow := func(ctx context.Context, activityCtx *Context) error {
@@ -131,7 +141,7 @@ func TestRunActivity(t *testing.T) {
 		return "result", nil
 	}
 
-	fut := ExecuteActivity(exec, ctx, parentCtx, "test", activity, "input")
+	fut := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
 	result, err := fut.Get(ctx)
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
@@ -150,7 +160,7 @@ func TestRunActivityWithError(t *testing.T) {
 		return "", errActivity
 	}
 
-	fut := ExecuteActivity(exec, ctx, parentCtx, "test", activity, "input")
+	fut := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
 	_, err := fut.Get(ctx)
 	if err == nil {
 		t.Error("expected error")
@@ -359,7 +369,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := ExecuteActivity(executor, ctx, parentCtx, "complex", complexActivity, "test-input")
+	future := ExecuteActivity(ctx, executor, parentCtx, "complex", complexActivity, "test-input")
 
 	result, err := future.Get(context.Background())
 	if err != nil {
@@ -397,7 +407,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := ExecuteActivity(executor, ctx, parentCtx, "failing", failingActivity, 42)
+	future := ExecuteActivity(ctx, executor, parentCtx, "failing", failingActivity, 42)
 
 	_, err := future.Get(context.Background())
 	if err == nil {
@@ -439,14 +449,14 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 		executorCtx.SendRunning("Starting flow")
 
 		// Run first activity
-		future1 := ExecuteActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity1", simpleActivity, "input1")
+		future1 := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity1", simpleActivity, "input1")
 		result1, err := future1.Get(ctx)
 		if err != nil {
 			return err
 		}
 
 		// Run second activity
-		future2 := ExecuteActivity(executorCtx.GetExecutor(), ctx, executorCtx, "activity2", simpleActivity, "input2")
+		future2 := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity2", simpleActivity, "input2")
 		result2, err := future2.Get(ctx)
 		if err != nil {
 			return err
@@ -498,7 +508,7 @@ func TestExecutorWithTimeout(t *testing.T) {
 	defer cancel()
 
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, executor)
-	future := ExecuteActivity(executor, ctx, parentCtx, "slow", slowActivity, "test")
+	future := ExecuteActivity(ctx, executor, parentCtx, "slow", slowActivity, "test")
 
 	_, err := future.Get(context.Background())
 	if err == nil {

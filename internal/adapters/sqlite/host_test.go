@@ -12,6 +12,8 @@ import (
 	_ "github.com/ncruces/go-sqlite3/embed"
 )
 
+const hostNilMessage = "host is nil"
+
 // mockDBPathService is a mock implementation of DBPathService for testing.
 type mockDBPathService struct {
 	getMainDBPathFunc    func() (string, error)
@@ -119,7 +121,7 @@ func TestLocalHostImpl_GetDB_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -131,7 +133,7 @@ func TestLocalHostImpl_GetProjectDB_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -143,7 +145,7 @@ func TestLocalHostImpl_GetMainDBMigrations_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -187,7 +189,7 @@ func TestLocalHostImpl_MigrateDB_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -199,7 +201,7 @@ func TestLocalHostImpl_MigrateProjectDB_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -211,7 +213,7 @@ func TestLocalHostImpl_Close_NilHost(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil host, got nil")
 	}
-	expectedMsg := "host is nil"
+	expectedMsg := hostNilMessage
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
