@@ -53,6 +53,41 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 	return content, nil
 }
 
+// GenerateContentWithTools implements tool calling with rate limiting.
+func (g *rateLimitedGenerationGateway) GenerateContentWithTools(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	tools []gateway.ToolDefinition,
+) (*gateway.GenerateContentResponse, error) {
+	if g == nil {
+		return nil, fmt.Errorf("rate limited generation gateway is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	inner, ok := g.gateway.(ports.ToolCallingGateway)
+	if !ok {
+		return nil, gateway.ErrToolCallingNotSupported
+	}
+
+	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
+	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
+		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
+	}
+
+	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+	return response, nil
+}
+
 func estimateTokenCount(text string) int {
 	// TODO implement precise token counting
 	return len(text) / 4

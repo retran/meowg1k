@@ -37,6 +37,9 @@ type Config struct {
 	// Ask configuration for RAG-based question answering
 	Ask *AskConfig `yaml:"ask" mapstructure:"ask"`
 
+	// Agent configuration for multi-step tool use
+	Agent *AgentConfig `yaml:"agent" mapstructure:"agent"`
+
 	// Cache configuration for LLM response caching
 	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
 }
@@ -143,6 +146,39 @@ type GenerateTask struct {
 type FilterConfig struct {
 	// Ignore specifies glob patterns for files to exclude from analysis
 	Ignore []string `yaml:"ignore" mapstructure:"ignore"`
+}
+
+// AgentConfig holds configuration for agent mode.
+type AgentConfig struct {
+	Defaults *AgentDefaults              `yaml:"defaults" mapstructure:"defaults"`
+	Tools    *AgentToolsConfig           `yaml:"tools" mapstructure:"tools"`
+	Steps    map[string]*AgentStepConfig `yaml:"steps" mapstructure:"steps"`
+}
+
+// AgentDefaults defines defaults applied to all agent steps.
+type AgentDefaults struct {
+	Profile      string `yaml:"profile" mapstructure:"profile"`
+	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+}
+
+// AgentToolsConfig defines tool defaults for agent mode.
+type AgentToolsConfig struct {
+	SearchDefaults *AgentSearchDefaults `yaml:"searchDefaults" mapstructure:"searchDefaults"`
+}
+
+// AgentSearchDefaults defines defaults for embeddings search.
+type AgentSearchDefaults struct {
+	Snapshots []string `yaml:"snapshots" mapstructure:"snapshots"`
+	TopK      int      `yaml:"topK" mapstructure:"topK"`
+	MinScore  float32  `yaml:"minScore" mapstructure:"minScore"`
+}
+
+// AgentStepConfig defines configuration for a single agent step.
+type AgentStepConfig struct {
+	Profile      *string             `yaml:"profile" mapstructure:"profile"`
+	SystemPrompt *string             `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+	ToolModes    map[string][]string `yaml:"toolModes" mapstructure:"toolModes"`
+	Tools        []string            `yaml:"tools" mapstructure:"tools"`
 }
 
 // Strategy defines summarization strategy with its settings.

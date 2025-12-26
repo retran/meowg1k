@@ -52,30 +52,56 @@ func NewOpenRouterGateway(
 
 // OpenRouter API request/response structures.
 type openrouterMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role      string               `json:"role"`
+	Content   string               `json:"content,omitempty"`
+	ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 }
 
 type openrouterRequest struct {
-	FrequencyPenalty  *float64            `json:"frequency_penalty,omitempty"`
-	TopA              *float64            `json:"top_a,omitempty"`
-	N                 *int                `json:"n,omitempty"`
-	Temperature       *float64            `json:"temperature,omitempty"`
-	TopP              *float64            `json:"top_p,omitempty"`
-	TopK              *int                `json:"top_k,omitempty"`
-	RepetitionPenalty *float64            `json:"repetition_penalty,omitempty"`
-	PresencePenalty   *float64            `json:"presence_penalty,omitempty"`
-	Seed              *int                `json:"seed,omitempty"`
-	MinP              *float64            `json:"min_p,omitempty"`
-	Model             string              `json:"model"`
-	Messages          []openrouterMessage `json:"messages"`
-	Stop              []string            `json:"stop,omitempty"`
-	MaxTokens         int                 `json:"max_tokens,omitempty"`
+	Messages          *[]openrouterMessage `json:"messages"`
+	Stop              *[]string            `json:"stop,omitempty"`
+	Tools             *[]openrouterTool    `json:"tools,omitempty"`
+	Model             *string              `json:"model"`
+	ToolChoice        *string              `json:"tool_choice,omitempty"`
+	FrequencyPenalty  *float64             `json:"frequency_penalty,omitempty"`
+	PresencePenalty   *float64             `json:"presence_penalty,omitempty"`
+	RepetitionPenalty *float64             `json:"repetition_penalty,omitempty"`
+	Temperature       *float64             `json:"temperature,omitempty"`
+	TopP              *float64             `json:"top_p,omitempty"`
+	TopA              *float64             `json:"top_a,omitempty"`
+	MinP              *float64             `json:"min_p,omitempty"`
+	N                 *int                 `json:"n,omitempty"`
+	Seed              *int                 `json:"seed,omitempty"`
+	TopK              *int                 `json:"top_k,omitempty"`
+	MaxTokens         int                  `json:"max_tokens,omitempty"`
+}
+
+type openrouterTool struct {
+	Function openrouterToolFunction `json:"function"`
+	Type     string                 `json:"type"`
+}
+
+type openrouterToolFunction struct {
+	Parameters  map[string]any `json:"parameters,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+}
+
+type openrouterToolCall struct {
+	ID       string                  `json:"id,omitempty"`
+	Type     string                  `json:"type,omitempty"`
+	Function openrouterToolCallEntry `json:"function"`
+}
+
+type openrouterToolCallEntry struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments,omitempty"`
 }
 
 type openrouterChoice struct {
 	Message struct {
-		Content string `json:"content"`
+		Content   string               `json:"content"`
+		ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 	} `json:"message"`
 }
 
@@ -137,6 +163,61 @@ func (g *openrouterGateway) GenerateContent(
 	return parseOpenRouterResponse(resp)
 }
 
+// GenerateContentWithTools sends a content generation request with tool definitions.
+func (g *openrouterGateway) GenerateContentWithTools(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	tools []gateway.ToolDefinition,
+) (*gateway.GenerateContentResponse, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	if len(tools) == 0 {
+		return nil, gateway.ErrToolCallingNotSupported
+	}
+
+	messages := buildOpenRouterMessages(request)
+	reqBody := buildOpenRouterRequest(request, messages)
+	toolList := buildOpenRouterTools(tools)
+	if len(toolList) > 0 {
+		reqBody.Tools = &toolList
+	}
+	reqBody.ToolChoice = stringPtr("auto")
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		g.baseURL+"/chat/completions",
+		bytes.NewBuffer(jsonData),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+g.apiKey)
+	httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
+	httpReq.Header.Set("X-Title", "meowg1k")
+
+	resp, err := g.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request to OpenRouter: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
+
+	return parseOpenRouterResponseWithTools(resp)
+}
+
 func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
 	messages := []openrouterMessage{}
 	if request.SystemPrompt() != "" {
@@ -153,9 +234,10 @@ func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrout
 }
 
 func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []openrouterMessage) openrouterRequest {
+	messageList := messages
 	reqBody := openrouterRequest{
-		Model:     request.Model(),
-		Messages:  messages,
+		Model:     stringPtr(request.Model()),
+		Messages:  &messageList,
 		MaxTokens: request.MaxOutputTokens(),
 	}
 
@@ -164,6 +246,29 @@ func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []
 	applyOpenRouterControlParams(&reqBody, request)
 
 	return reqBody
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func buildOpenRouterTools(tools []gateway.ToolDefinition) []openrouterTool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	result := make([]openrouterTool, 0, len(tools))
+	for _, tool := range tools {
+		result = append(result, openrouterTool{
+			Type: "function",
+			Function: openrouterToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  tool.Parameters,
+			},
+		})
+	}
+	return result
 }
 
 func applyOpenRouterSampling(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
@@ -201,7 +306,7 @@ func applyOpenRouterControlParams(reqBody *openrouterRequest, request *gateway.G
 		reqBody.Seed = seed
 	}
 	if stop := request.Stop(); len(stop) > 0 {
-		reqBody.Stop = stop
+		reqBody.Stop = &stop
 	}
 	if n := request.CandidateCount(); n != nil {
 		reqBody.N = n
@@ -236,4 +341,77 @@ func parseOpenRouterResponse(resp *http.Response) (string, error) {
 	}
 
 	return openrouterResp.Choices[0].Message.Content, nil
+}
+
+func parseOpenRouterResponseWithTools(resp *http.Response) (*gateway.GenerateContentResponse, error) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("OpenRouter API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var openrouterResp openrouterResponse
+	if err := json.Unmarshal(body, &openrouterResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if openrouterResp.Error != nil {
+		return nil, fmt.Errorf("OpenRouter API error: %s (type: %s, code: %s)",
+			openrouterResp.Error.Message,
+			openrouterResp.Error.Type,
+			openrouterResp.Error.Code,
+		)
+	}
+
+	if len(openrouterResp.Choices) == 0 {
+		return nil, fmt.Errorf("no choices returned from OpenRouter API")
+	}
+
+	message := openrouterResp.Choices[0].Message
+	toolCalls, err := parseOpenRouterToolCalls(message.ToolCalls)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gateway.GenerateContentResponse{
+		Content:   message.Content,
+		ToolCalls: toolCalls,
+	}, nil
+}
+
+func parseOpenRouterToolCalls(calls []openrouterToolCall) ([]gateway.ToolCall, error) {
+	if len(calls) == 0 {
+		return nil, nil
+	}
+
+	result := make([]gateway.ToolCall, 0, len(calls))
+	for _, call := range calls {
+		parsedArgs, err := parseOpenRouterArguments(call.Function.Arguments)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, gateway.ToolCall{
+			ID:        call.ID,
+			Name:      call.Function.Name,
+			Arguments: parsedArgs,
+		})
+	}
+
+	return result, nil
+}
+
+func parseOpenRouterArguments(raw string) (map[string]any, error) {
+	if raw == "" {
+		return map[string]any{}, nil
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(raw), &args); err != nil {
+		return nil, fmt.Errorf("failed to parse tool call arguments: %w", err)
+	}
+
+	return args, nil
 }

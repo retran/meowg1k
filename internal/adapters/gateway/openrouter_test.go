@@ -118,10 +118,10 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 			}
 
 			// Verify request structure
-			if reqBody.Model == "" {
+			if reqBody.Model == nil || *reqBody.Model == "" {
 				t.Error("Expected model to be set")
 			}
-			if len(reqBody.Messages) == 0 {
+			if reqBody.Messages == nil || len(*reqBody.Messages) == 0 {
 				t.Error("Expected messages to be set")
 			}
 
@@ -130,7 +130,8 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 				Choices: []openrouterChoice{
 					{
 						Message: struct {
-							Content string `json:"content"`
+							Content   string               `json:"content"`
+							ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 						}{
 							Content: "Generated response",
 						},
@@ -305,6 +306,83 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 	})
 }
 
+func TestOpenRouterGateway_GenerateContentWithTools(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var reqBody openrouterRequest
+		if err := json.Unmarshal(body, &reqBody); err != nil {
+			t.Fatalf("Failed to parse request body: %v", err)
+		}
+		if reqBody.Tools == nil || len(*reqBody.Tools) != 1 {
+			t.Error("Expected tools to be set")
+		}
+
+		response := openrouterResponse{
+			Choices: []openrouterChoice{
+				{
+					Message: struct {
+						Content   string               `json:"content"`
+						ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
+					}{
+						Content: "",
+						ToolCalls: []openrouterToolCall{
+							{
+								ID:   "call-1",
+								Type: "function",
+								Function: openrouterToolCallEntry{
+									Name:      "workspace_read",
+									Arguments: `{"path":"README.md"}`,
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	gateway, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+	toolGateway, ok := gateway.(ports.ToolCallingGateway)
+	if !ok {
+		t.Fatal("Expected gateway to implement ToolCallingGateway")
+	}
+
+	toolDefs := []domainGateway.ToolDefinition{
+		{
+			Name:        "workspace_read",
+			Description: "Read file contents",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{"type": "string"},
+				},
+			},
+		},
+	}
+	request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System prompt", "User prompt", 1000)
+
+	resp, err := toolGateway.GenerateContentWithTools(ctx, request, toolDefs)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+	if resp == nil || len(resp.ToolCalls) != 1 {
+		t.Fatalf("Expected 1 tool call, got %#v", resp)
+	}
+	if resp.ToolCalls[0].Name != "workspace_read" {
+		t.Fatalf("Expected tool name workspace_read, got %q", resp.ToolCalls[0].Name)
+	}
+	if resp.ToolCalls[0].Arguments["path"] != "README.md" {
+		t.Fatalf("Expected argument path README.md, got %#v", resp.ToolCalls[0].Arguments["path"])
+	}
+}
+
 func TestOpenRouterGateway_WithAllParameters(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -341,7 +419,7 @@ func TestOpenRouterGateway_WithAllParameters(t *testing.T) {
 		if reqBody.Seed == nil {
 			t.Error("Expected seed to be set")
 		}
-		if len(reqBody.Stop) == 0 {
+		if reqBody.Stop == nil || len(*reqBody.Stop) == 0 {
 			t.Error("Expected stop sequences to be set")
 		}
 		if reqBody.N == nil {
@@ -352,7 +430,8 @@ func TestOpenRouterGateway_WithAllParameters(t *testing.T) {
 			Choices: []openrouterChoice{
 				{
 					Message: struct {
-						Content string `json:"content"`
+						Content   string               `json:"content"`
+						ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 					}{
 						Content: "Response with all params",
 					},
@@ -414,20 +493,23 @@ func TestOpenRouterGateway_WithSystemPrompt(t *testing.T) {
 		json.Unmarshal(body, &reqBody)
 
 		// Verify system message is included
-		if len(reqBody.Messages) < 2 {
+		if reqBody.Messages == nil || len(*reqBody.Messages) < 2 {
 			t.Error("Expected at least 2 messages (system + user)")
 		}
-		if reqBody.Messages[0].Role != "system" {
-			t.Errorf("Expected first message to be system, got %s", reqBody.Messages[0].Role)
-		}
-		if reqBody.Messages[1].Role != "user" {
-			t.Errorf("Expected second message to be user, got %s", reqBody.Messages[1].Role)
+		if reqBody.Messages != nil {
+			if (*reqBody.Messages)[0].Role != "system" {
+				t.Errorf("Expected first message to be system, got %s", (*reqBody.Messages)[0].Role)
+			}
+			if (*reqBody.Messages)[1].Role != "user" {
+				t.Errorf("Expected second message to be user, got %s", (*reqBody.Messages)[1].Role)
+			}
 		}
 
 		response := openrouterResponse{
 			Choices: []openrouterChoice{
 				{Message: struct {
-					Content string `json:"content"`
+					Content   string               `json:"content"`
+					ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 				}{Content: "Response"}},
 			},
 		}
@@ -449,17 +531,22 @@ func TestOpenRouterGateway_WithoutSystemPrompt(t *testing.T) {
 		json.Unmarshal(body, &reqBody)
 
 		// Verify only user message is included
-		if len(reqBody.Messages) != 1 {
-			t.Errorf("Expected 1 message (user only), got %d", len(reqBody.Messages))
+		if reqBody.Messages == nil || len(*reqBody.Messages) != 1 {
+			msgCount := 0
+			if reqBody.Messages != nil {
+				msgCount = len(*reqBody.Messages)
+			}
+			t.Errorf("Expected 1 message (user only), got %d", msgCount)
 		}
-		if reqBody.Messages[0].Role != "user" {
-			t.Errorf("Expected message to be user, got %s", reqBody.Messages[0].Role)
+		if reqBody.Messages != nil && (*reqBody.Messages)[0].Role != "user" {
+			t.Errorf("Expected message to be user, got %s", (*reqBody.Messages)[0].Role)
 		}
 
 		response := openrouterResponse{
 			Choices: []openrouterChoice{
 				{Message: struct {
-					Content string `json:"content"`
+					Content   string               `json:"content"`
+					ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 				}{Content: "Response"}},
 			},
 		}

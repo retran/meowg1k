@@ -30,6 +30,7 @@ const (
 	// Layout widths.
 	flowNameWidth = 42
 	stepNameWidth = 40
+	toolNameWidth = 36
 
 	// Configuration.
 	feedbackChanSize = 128
@@ -174,16 +175,20 @@ func (t *Tracker) redraw() {
 	t.mu.RLock()
 	for _, name := range t.order {
 		exec, exists := t.executions[name]
-		if !exists || exec == nil || exec.Level > 1 { // We only display level 0 and 1
+		if !exists || exec == nil || exec.Level > 2 { // We only display levels 0-2
 			continue
 		}
 
 		style := lineStyle{
 			nameWidth: flowNameWidth,
 		}
-		if exec.Level == 1 {
+		switch exec.Level {
+		case 1:
 			style.indent = "  "
 			style.nameWidth = stepNameWidth
+		case 2:
+			style.indent = "    "
+			style.nameWidth = toolNameWidth
 		}
 
 		output.WriteString(t.formatLine(exec, style))

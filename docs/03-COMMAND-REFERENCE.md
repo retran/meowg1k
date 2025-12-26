@@ -58,6 +58,36 @@ These flags can be used with any command.
 - `--update-cache`: Forces a cache refresh by making a fresh request to the LLM and updating the cache entry.
 - `--help`: Shows help information for any command.
 
+## `meow do`
+
+Runs a multi-step agent workflow (research → plan → execute → verify) to complete a task.
+Each step can use tools and prompts defined in the `agent` section of your config.
+
+### Usage
+
+```bash
+meow do "<task>"
+echo "<task>" | meow do
+```
+
+### Flags
+
+- `--profile <name>`: Override the default agent profile.
+- `--system-prompt <text>`: Override the default agent system prompt.
+- `-s, --snapshots <list>`: Snapshots to search for embeddings.
+- `-k, --top-k <n>`: Number of top results for embeddings search.
+- `--min-score <float>`: Minimum similarity score for embeddings search.
+
+### Examples
+
+```bash
+# Run the agent on a task
+meow do "Add a healthcheck endpoint and update docs"
+
+# Provide the task via stdin
+echo "Refactor the logger setup" | meow do
+```
+
 ## `meow generate` (aliases: `gen`, `g`)
 
 Generates content based on a prompt and/or context provided via standard input (stdin).

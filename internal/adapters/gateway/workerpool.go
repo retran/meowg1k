@@ -61,3 +61,42 @@ func (g *workerPoolGateway) GenerateContent(
 	}
 	return content, nil
 }
+
+// GenerateContentWithTools implements tool calling with worker pool concurrency control.
+func (g *workerPoolGateway) GenerateContentWithTools(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	tools []gateway.ToolDefinition,
+) (*gateway.GenerateContentResponse, error) {
+	if g == nil {
+		return nil, fmt.Errorf("worker pool gateway is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	inner, ok := g.gateway.(ports.ToolCallingGateway)
+	if !ok {
+		return nil, gateway.ErrToolCallingNotSupported
+	}
+
+	select {
+	case g.semaphore <- struct{}{}:
+		defer func() {
+			<-g.semaphore
+		}()
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
+	}
+
+	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+	return response, nil
+}

@@ -68,6 +68,36 @@ func (g *cachingGenerationGateway) GenerateContent(
 	return result, nil
 }
 
+// GenerateContentWithTools forwards tool calls without caching.
+func (g *cachingGenerationGateway) GenerateContentWithTools(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	tools []gateway.ToolDefinition,
+) (*gateway.GenerateContentResponse, error) {
+	if g == nil {
+		return nil, fmt.Errorf("caching generation gateway is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	inner, ok := g.gateway.(ports.ToolCallingGateway)
+	if !ok {
+		return nil, gateway.ErrToolCallingNotSupported
+	}
+
+	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content with tools: %w", err)
+	}
+	return response, nil
+}
+
 // createCacheKey generates a deterministic cache key from the request parameters.
 // Uses SHA256 to create a fixed-length key from all parameters.
 func (g *cachingGenerationGateway) createCacheKey(request *gateway.GenerateContentRequest) string {

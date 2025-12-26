@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/activities/agentstep"
 	"github.com/retran/meowg1k/internal/activities/applyfilters"
 	"github.com/retran/meowg1k/internal/activities/buildvectorindices"
 	"github.com/retran/meowg1k/internal/activities/chunkallfiles"
@@ -39,6 +40,7 @@ import (
 	indexRepo "github.com/retran/meowg1k/internal/adapters/sqlite/index"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/meta"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
+	agentcore "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/core/chunker"
 	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/filter"
@@ -56,6 +58,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
+	agentFlow "github.com/retran/meowg1k/internal/flows/agent"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
 	"github.com/retran/meowg1k/internal/flows/generate"
@@ -657,6 +660,67 @@ func buildIndexReconcileFactories(
 
 // CreateQueryFlow creates a complete query flow with all dependencies.
 func (c *Container) CreateQueryFlow() (executor.Flow, error) {
+	queryActivityFactory, err := c.buildQueryActivityFactory()
+	if err != nil {
+		return nil, err
+	}
+
+	// Create query flow factory
+	queryFlowFactory, err := queryFlow.NewFactory(
+		queryActivityFactory,
+		c.CommandService,
+		c.OutputService,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create query flow factory: %w", err)
+	}
+
+	return queryFlowFactory.NewFlow(), nil
+}
+
+// CreateAgentFlow creates the agent workflow with all dependencies.
+func (c *Container) CreateAgentFlow() (executor.Flow, error) {
+	common, err := c.buildCommonFlowServices()
+	if err != nil {
+		return nil, err
+	}
+
+	agentConfigService, err := agentcore.NewService(c.ConfigService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent config service: %w", err)
+	}
+
+	stepFactory, err := agentstep.NewFactory(common.invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent step factory: %w", err)
+	}
+
+	queryActivityFactory, err := c.buildQueryActivityFactory()
+	if err != nil {
+		return nil, err
+	}
+
+	flowFactory, err := agentFlow.NewFactory(
+		agentConfigService,
+		stepFactory,
+		c.CommandService,
+		common.profileService,
+		c.OutputService,
+		workspace.NewService(c.CommandService),
+		common.filterService,
+		common.gitService,
+		queryActivityFactory,
+		common.invokeLLMFactory,
+		c.CreateIndexReconcileFlow,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent flow factory: %w", err)
+	}
+
+	return flowFactory.NewFlow(), nil
+}
+
+func (c *Container) buildQueryActivityFactory() (executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output], error) {
 	// Initialize database and repositories
 	if err := c.initDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
@@ -676,7 +740,6 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create profile service: %w", err)
 	}
 
-	// Get resolved index configuration
 	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index config service: %w", err)
@@ -687,13 +750,11 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to get index config: %w", err)
 	}
 
-	// Initialize services
 	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vector search service: %w", err)
 	}
 
-	// Create gateway factory for embeddings
 	gatewayFactory, err := gateway.NewFactory(
 		c.GetRateLimitRepo(),
 		c.GetCacheRepo(),
@@ -706,35 +767,22 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	// Create embeddings gateway
 	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	// Create retrieval service with RetrievalDocument for indexing, RetrievalQuery for search
 	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
 
-	// Create query activity factory
 	queryActivityFactory, err := queryactivity.NewFactory(retrievalSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create query activity factory: %w", err)
 	}
 
-	// Create query flow factory
-	queryFlowFactory, err := queryFlow.NewFactory(
-		queryActivityFactory,
-		c.CommandService,
-		c.OutputService,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create query flow factory: %w", err)
-	}
-
-	return queryFlowFactory.NewFlow(), nil
+	return queryActivityFactory, nil
 }
 
 // CreateAskFlow creates a complete ask flow with all dependencies.

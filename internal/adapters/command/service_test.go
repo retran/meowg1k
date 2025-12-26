@@ -1539,3 +1539,96 @@ func TestGetSystemPromptFlagNilService(t *testing.T) {
 		t.Error("Expected error for nil service")
 	}
 }
+
+func TestGetTaskInputFromArgs(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+
+	cmd.SetArgs([]string{"do the thing"})
+	cmd.Execute()
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	taskInput, err := service.GetTaskInput()
+	if err != nil {
+		t.Fatalf("GetTaskInput failed: %v", err)
+	}
+
+	if taskInput != "do the thing" {
+		t.Errorf("Expected task input 'do the thing', got '%s'", taskInput)
+	}
+}
+
+func TestGetTaskInputFromStdin(t *testing.T) {
+	oldStdin := os.Stdin
+	defer func() {
+		os.Stdin = oldStdin
+	}()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	os.Stdin = r
+
+	testInput := "stdin task input\n"
+	if _, err := w.WriteString(testInput); err != nil {
+		t.Fatalf("Failed to write to pipe: %v", err)
+	}
+	w.Close()
+
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	taskInput, err := service.GetTaskInput()
+	if err != nil {
+		t.Fatalf("GetTaskInput failed: %v", err)
+	}
+
+	expected := strings.TrimSpace(testInput)
+	if taskInput != expected {
+		t.Errorf("Expected task input '%s', got '%s'", expected, taskInput)
+	}
+}
+
+func TestGetTaskInputNoArgsNoStdin(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetTaskInput()
+	if err == nil {
+		t.Error("Expected error when no args and no stdin")
+	}
+	if !strings.Contains(err.Error(), "task input is required") {
+		t.Errorf("Expected 'task input is required' error, got: %v", err)
+	}
+}
+
+func TestGetTaskInputNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetTaskInput()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}

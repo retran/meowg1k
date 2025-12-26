@@ -261,3 +261,186 @@ func (g *Service) GetBranchDiff(filePath, targetBranch string) (string, error) {
 
 	return diff, nil
 }
+
+// Status returns git status in porcelain format.
+func (g *Service) Status() (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("status", "--porcelain")
+	if err != nil {
+		return "", fmt.Errorf("failed to get status: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+// Diff returns git diff for a ref and optional path.
+func (g *Service) Diff(ref, path string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	args := []string{"diff"}
+	if strings.TrimSpace(ref) != "" {
+		args = append(args, ref)
+	}
+	if strings.TrimSpace(path) != "" {
+		args = append(args, "--", path)
+	}
+
+	output, err := g.runGitCommand(args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to get diff: %w", err)
+	}
+
+	return output, nil
+}
+
+// Show returns git show output for a ref.
+func (g *Service) Show(ref string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	if strings.TrimSpace(ref) == "" {
+		return "", fmt.Errorf("ref cannot be empty")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("show", ref)
+	if err != nil {
+		return "", fmt.Errorf("failed to show ref %s: %w", ref, err)
+	}
+
+	return output, nil
+}
+
+// Log returns git log output with optional limit and path.
+func (g *Service) Log(limit int, path string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	if limit <= 0 {
+		limit = 10
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	args := []string{"log", fmt.Sprintf("-n%d", limit), "--oneline"}
+	if strings.TrimSpace(path) != "" {
+		args = append(args, "--", path)
+	}
+
+	output, err := g.runGitCommand(args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to get log: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+// Branches returns a list of local branches.
+func (g *Service) Branches() ([]string, error) {
+	if g == nil {
+		return nil, fmt.Errorf("git service is nil")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("branch", "--list")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list branches: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	branches := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(line, "*"))
+		if trimmed != "" {
+			branches = append(branches, trimmed)
+		}
+	}
+
+	return branches, nil
+}
+
+// CurrentBranch returns the current branch name.
+func (g *Service) CurrentBranch() (string, error) {
+	return g.GetCurrentBranch()
+}
+
+// Stage stages the provided paths or all changes if none are provided.
+func (g *Service) Stage(paths []string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	args := []string{"add"}
+	if len(paths) == 0 {
+		args = append(args, "-A")
+	} else {
+		args = append(args, "--")
+		args = append(args, paths...)
+	}
+
+	output, err := g.runGitCommand(args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to stage files: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+// Commit creates a new commit with the provided message.
+func (g *Service) Commit(message string) (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	if strings.TrimSpace(message) == "" {
+		return "", fmt.Errorf("commit message cannot be empty")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("commit", "-m", message)
+	if err != nil {
+		return "", fmt.Errorf("failed to commit: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
+}
+
+// HeadHash returns the current HEAD hash.
+func (g *Service) HeadHash() (string, error) {
+	if g == nil {
+		return "", fmt.Errorf("git service is nil")
+	}
+
+	g.semaphore <- struct{}{}
+	defer func() { <-g.semaphore }()
+
+	output, err := g.runGitCommand("rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("failed to get HEAD hash: %w", err)
+	}
+
+	return strings.TrimSpace(output), nil
+}

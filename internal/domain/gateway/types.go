@@ -40,6 +40,29 @@ type GenerateContentRequest struct {
 	maxOutputTokens   int
 }
 
+// ErrToolCallingNotSupported indicates the gateway does not support tool calling.
+var ErrToolCallingNotSupported = fmt.Errorf("tool calling not supported")
+
+// ToolDefinition describes a tool/function that the model can call.
+type ToolDefinition struct {
+	Parameters  map[string]any `json:"parameters,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+}
+
+// ToolCall represents a model-emitted tool call.
+type ToolCall struct {
+	Arguments map[string]any `json:"arguments"`
+	Name      string         `json:"name"`
+	ID        string         `json:"id,omitempty"`
+}
+
+// GenerateContentResponse represents a model response that may include tool calls.
+type GenerateContentResponse struct {
+	Content   string     `json:"content,omitempty"`
+	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+}
+
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
 func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutputTokens int) *GenerateContentRequest {
 	return &GenerateContentRequest{

@@ -600,6 +600,47 @@ ask:
   - Lower `topK` (3-5)
   - Higher `minScore` (0.7-0.8)
 
+### `agent`
+
+The `agent` section configures the multi-step agent workflow used by `meow do`.
+Each step (research, plan, execute, verify) can define its own profile, system prompt,
+tool allow-list, and tool modes.
+
+```yaml
+agent:
+  defaults:
+    profile: "smart"
+    systemPrompt: >-
+      You are a multi-step agent that works in four steps: research, plan, execute, verify.
+      Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
+      Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
+  tools:
+    searchDefaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      topK: 8
+      minScore: 0.6
+  steps:
+    research:
+      profile: "fast"
+      systemPrompt: "Research step: discover context and constraints without modifying files."
+      tools: ["workspace", "search", "summarize", "git", "plan", "memory"]
+      toolModes:
+        workspace: ["list", "read", "stat", "exists"]
+        search: ["embeddings"]
+        summarize: ["text", "file", "diff"]
+        git: ["status", "log", "show", "diff", "branch", "current_branch"]
+        plan: ["list"]
+        memory: ["add", "list"]
+```
+
+**Notes:**
+
+- If a step omits `profile` or `systemPrompt`, it inherits from `defaults`.
+- The `defaults.systemPrompt` text is prepended to each step prompt to act as a shared instruction block.
+- The `verify` step should emit a `VerificationResult: pass|fail` line so the agent can determine whether to retry.
+- `toolModes` restricts which modes a tool can use; omit to allow all modes.
+- Search defaults apply to `search` tool calls and can be overridden by CLI flags.
+
 ## Next Steps
 
 Now that you know how to configure `meowg1k`, it's time to learn about the specific commands in the [Command Reference](./03-COMMAND-REFERENCE.md).

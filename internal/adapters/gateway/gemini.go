@@ -74,6 +74,53 @@ func (g *geminiGateway) GenerateContent(
 	return result.Text(), nil
 }
 
+// GenerateContentWithTools sends a content generation request with tool definitions.
+func (g *geminiGateway) GenerateContentWithTools(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	tools []gateway.ToolDefinition,
+) (*gateway.GenerateContentResponse, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if g == nil {
+		return nil, fmt.Errorf("gemini gateway is nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	if len(tools) == 0 {
+		return nil, gateway.ErrToolCallingNotSupported
+	}
+
+	config := buildGeminiGenerationConfig(request)
+	config.Tools = buildGeminiTools(tools)
+	config.ToolConfig = &genai.ToolConfig{
+		FunctionCallingConfig: &genai.FunctionCallingConfig{
+			Mode: genai.FunctionCallingConfigModeAuto,
+		},
+	}
+
+	userPrompt := genai.Text(request.UserPrompt())
+
+	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
+	}
+
+	if err := validateGeminiResponse(result, request.Model()); err != nil {
+		return nil, err
+	}
+
+	return &gateway.GenerateContentResponse{
+		Content:   result.Text(),
+		ToolCalls: mapGeminiToolCalls(result.FunctionCalls()),
+	}, nil
+}
+
 func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai.GenerateContentConfig {
 	config := &genai.GenerateContentConfig{}
 
@@ -85,6 +132,46 @@ func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai
 	applyGeminiLogprobConfig(config, request)
 
 	return config
+}
+
+func buildGeminiTools(tools []gateway.ToolDefinition) []*genai.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	functions := make([]*genai.FunctionDeclaration, 0, len(tools))
+	for _, tool := range tools {
+		functions = append(functions, &genai.FunctionDeclaration{
+			Name:                 tool.Name,
+			Description:          tool.Description,
+			ParametersJsonSchema: tool.Parameters,
+		})
+	}
+
+	return []*genai.Tool{
+		{
+			FunctionDeclarations: functions,
+		},
+	}
+}
+
+func mapGeminiToolCalls(calls []*genai.FunctionCall) []gateway.ToolCall {
+	if len(calls) == 0 {
+		return nil
+	}
+
+	result := make([]gateway.ToolCall, 0, len(calls))
+	for _, call := range calls {
+		if call == nil {
+			continue
+		}
+		result = append(result, gateway.ToolCall{
+			ID:        call.ID,
+			Name:      call.Name,
+			Arguments: call.Args,
+		})
+	}
+	return result
 }
 
 func applyGeminiSystemPrompt(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {

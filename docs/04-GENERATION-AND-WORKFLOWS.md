@@ -6,11 +6,12 @@ This guide covers `meowg1k`'s core generation capabilities for automating develo
 
 ## Overview
 
-`meowg1k` provides three main generation workflows:
+`meowg1k` provides four main workflows:
 
 1. **`meow generate`** — Generate or transform code based on prompts and context
 2. **`meow commit`** — Automatically generate commit messages from code changes
 3. **`meow pullrequest`** — Generate comprehensive PR descriptions from branch diffs
+4. **`meow do`** — Run a multi-step agent workflow with tool use
 
 Unlike interactive chat tools, meowg1k is designed for **automation and scripting**. Each command follows a predictable input→process→output model, making it suitable for Git hooks, CI/CD pipelines, and custom development workflows.
 
@@ -40,15 +41,16 @@ All generation commands follow a similar architecture:
 
 ## Commands and Configuration
 
-The generation system uses three main commands:
+The generation system uses four main commands:
 
 - **[`meow generate`](./03-COMMAND-REFERENCE.md#meow-generate-aliases-gen-g)** — General-purpose code and text generation
 - **[`meow commit`](./03-COMMAND-REFERENCE.md#meow-commit-alias-c)** — Generate commit messages from staged changes
 - **[`meow pullrequest`](./03-COMMAND-REFERENCE.md#meow-pullrequest-aliases-pr)** — Generate PR descriptions from branch diffs
+- **[`meow do`](./03-COMMAND-REFERENCE.md#meow-do)** — Multi-step agent with research → plan → execute → verify
 
 For complete command details including all flags and options, see the [Command Reference](./03-COMMAND-REFERENCE.md).
 
-For configuration details of the `generate`, `commit`, `pullrequest`, and `summarize` sections, see the [Configuration Guide](./02-CONFIGURATION.md#generate-commit-and-pullrequest).
+For configuration details of the `generate`, `commit`, `pullrequest`, `summarize`, and `agent` sections, see the [Configuration Guide](./02-CONFIGURATION.md#generate-commit-and-pullrequest).
 
 ## Quick Start
 

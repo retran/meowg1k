@@ -176,6 +176,74 @@ ask:
     Be precise, concise, and reference specific code elements when relevant.
     If the context doesn't contain enough information, clearly state that.
 
+# Configures the multi-step agent mode ("meow do").
+agent:
+  defaults:
+    profile: "smart"
+    systemPrompt: >-
+      You are a multi-step agent that works in four steps: research, plan, execute, verify.
+      Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
+      Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
+      Use tools when needed and respond in the required JSON format.
+  tools:
+    searchDefaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      topK: 8
+      minScore: 0.6
+  steps:
+    research:
+      profile: "fast"
+      systemPrompt: >-
+        Research step: discover context and constraints without modifying files.
+        Best practices: start with memory.list, inspect relevant files and configs, note assumptions and risks, avoid destructive commands, and finish by calling memory.add with key findings and references.
+      tools: ["workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"]
+      toolModes:
+        workspace: ["list", "read", "stat", "exists"]
+        search: ["embeddings"]
+        summarize: ["text", "file", "diff"]
+        git: ["status", "log", "show", "diff", "branch", "current_branch"]
+        plan: ["list"]
+        memory: ["add", "list"]
+    plan:
+      profile: "smart"
+      systemPrompt: >-
+        Plan step: build a clear, minimal task list to satisfy the goal.
+        Best practices: review memory.list, identify dependencies and tests, keep steps actionable and ordered, register tasks with plan.add, and finish by calling memory.add with the plan and notable risks.
+      tools: ["workspace", "summarize", "git", "plan", "memory"]
+      toolModes:
+        workspace: ["list", "read", "stat", "exists"]
+        summarize: ["text", "file", "diff"]
+        git: ["status", "diff"]
+        plan: ["add", "list"]
+        memory: ["add", "list"]
+    execute:
+      profile: "smart"
+      systemPrompt: >-
+        Execute step: implement the planned changes safely.
+        Best practices: review memory.list and plan tasks, make focused edits, keep diffs small, update plan task completion, and call memory.add with changes made, files touched, and any follow-ups.
+      tools: ["workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"]
+      toolModes:
+        workspace: ["list", "read", "write", "replace", "delete", "mkdir", "stat", "exists"]
+        search: ["embeddings"]
+        summarize: ["text", "file", "diff"]
+        git: ["status", "diff", "show", "log", "branch", "current_branch", "stage", "commit"]
+        plan: ["complete", "list"]
+        memory: ["add", "list"]
+    verify:
+      profile: "fast"
+      systemPrompt: >-
+        Verify step: validate changes and report gaps.
+        Best practices: review memory.list, check git status/diff and run tests if needed, confirm requirements are met, call out missing verification, and finish with memory.add summarizing results and next steps.
+        Output format: include a line `VerificationResult: pass|fail`. If fail, include a `FailureTasks:` section with bullet tasks to fix.
+      tools: ["workspace", "search", "summarize", "git", "plan", "memory"]
+      toolModes:
+        workspace: ["list", "read", "stat", "exists"]
+        search: ["embeddings"]
+        summarize: ["text", "file", "diff"]
+        git: ["status", "diff"]
+        plan: ["list"]
+        memory: ["add", "list"]
+
 # Configures the "map" step for 'commit' and 'pullrequest' commands (when using "summarize" strategy).
 summarize:
   # Default settings applied when no specific rule matches.

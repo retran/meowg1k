@@ -415,3 +415,25 @@ func (s *Service) GetSystemPromptFlag() (string, error) {
 	}
 	return val, nil
 }
+
+// GetTaskInput retrieves the task input from command arguments or stdin.
+func (s *Service) GetTaskInput() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	args := s.cmd.Flags().Args()
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	if s.stdin != "" {
+		return s.stdin, nil
+	}
+
+	return "", fmt.Errorf("task input is required (provide as argument or via stdin)")
+}

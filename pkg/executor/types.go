@@ -111,6 +111,25 @@ func (c *Context) Name() string {
 	return c.name
 }
 
+// Child returns a new context that reports feedback under the current activity.
+func (c *Context) Child(name string) *Context {
+	if c == nil {
+		return nil
+	}
+	if name == "" {
+		name = "child"
+	}
+	fullName := name
+	if c.name != "" {
+		fullName = fmt.Sprintf("%s::%s", c.name, name)
+	}
+	return &Context{
+		name:         fullName,
+		feedbackFunc: c.feedbackFunc,
+		Executor:     c.Executor,
+	}
+}
+
 // GetExecutor returns the executor associated with the context.
 func (c *Context) GetExecutor() Executor {
 	if c == nil {
