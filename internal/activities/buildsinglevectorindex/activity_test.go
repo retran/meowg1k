@@ -125,13 +125,13 @@ func TestActivity(t *testing.T) {
 		}
 
 		// Check messages without comparing timestamps.
-		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != fmt.Sprintf("Building index: %s", snapshotName) {
+		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != fmt.Sprintf("I'm building the index for %s", snapshotName) {
 			t.Errorf("unexpected running message.\n\t\tExpected Status: %v, Message: %s\n\t\tGot Status:      %v, Message: %s",
-				executor.StatusRunning, fmt.Sprintf("Building index: %s", snapshotName), feedbackMessages[0].Status, feedbackMessages[0].Message)
+				executor.StatusRunning, fmt.Sprintf("I'm building the index for %s", snapshotName), feedbackMessages[0].Status, feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != fmt.Sprintf("Built index for %s", snapshotName) {
+		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != fmt.Sprintf("I built the index for %s", snapshotName) {
 			t.Errorf("unexpected completed message.\nExpected Status: %v, Message: %s\nGot Status:      %v, Message: %s",
-				executor.StatusCompleted, fmt.Sprintf("Built index for %s", snapshotName), feedbackMessages[1].Status, feedbackMessages[1].Message)
+				executor.StatusCompleted, fmt.Sprintf("I built the index for %s", snapshotName), feedbackMessages[1].Status, feedbackMessages[1].Message)
 		}
 	})
 
@@ -175,9 +175,9 @@ func TestActivity(t *testing.T) {
 		}
 
 		// Check message without comparing timestamp.
-		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != fmt.Sprintf("Building index: %s", snapshotName) {
+		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != fmt.Sprintf("I'm building the index for %s", snapshotName) {
 			t.Errorf("unexpected running message.\nExpected Status: %v, Message: %s\nGot Status:      %v, Message: %s",
-				executor.StatusRunning, fmt.Sprintf("Building index: %s", snapshotName), feedbackMessages[0].Status, feedbackMessages[0].Message)
+				executor.StatusRunning, fmt.Sprintf("I'm building the index for %s", snapshotName), feedbackMessages[0].Status, feedbackMessages[0].Message)
 		}
 	})
 }

@@ -58,7 +58,7 @@ func NewFactory(
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Chunking %d file(s) (%s)", len(input.Files), input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("I'm splitting %d file(s) into chunks (%s)", len(input.Files), input.StateName))
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
@@ -97,7 +97,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Chunked %d file(s) → %d chunk(s)", len(fileChunks), len(allChunkTexts)))
+		executorCtx.SendCompleted(fmt.Sprintf("I split %d file(s) into %d chunk(s)", len(fileChunks), len(allChunkTexts)))
 		return &Output{
 			StateName:        input.StateName,
 			FileChunks:       fileChunks,

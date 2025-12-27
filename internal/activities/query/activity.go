@@ -63,7 +63,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf(
-			"Searching for %q (topK=%d, minScore=%.2f, snapshots=%d)",
+			"I'm searching for %q (top %d, min score %.2f, %d snapshot(s))",
 			input.QueryText,
 			input.TopK,
 			input.MinScore,
@@ -81,7 +81,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Found %d result(s)", len(results)))
+		executorCtx.SendCompleted(fmt.Sprintf("I found %d result(s)", len(results)))
 
 		return &Output{
 			Results: results,

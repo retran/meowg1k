@@ -105,7 +105,7 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 	if err != nil {
 		return err
 	}
-	flowCtx.SendRunning(fmt.Sprintf("Answer the question: %s", params.question))
+	flowCtx.SendRunning(fmt.Sprintf("I'm answering: %s", params.question))
 
 	resolvedProfile, err := f.profileResolver.Get(profile.Profile(params.profileName))
 	if err != nil {
@@ -137,7 +137,7 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 
-	flowCtx.SendCompleted(fmt.Sprintf("Answer ready for: %s", params.question))
+	flowCtx.SendCompleted("I finished writing the answer")
 
 	return nil
 }
@@ -146,7 +146,7 @@ func (f *Factory) handleEmptyContext(flowCtx *executor.Context, question string)
 	if err := f.outputWriter.PrintLine("No relevant context found to answer the question."); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	flowCtx.SendCompleted(fmt.Sprintf("No relevant context found for: %s", question))
+	flowCtx.SendCompleted("I couldn't find enough context to answer")
 	return nil
 }
 

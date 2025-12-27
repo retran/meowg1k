@@ -63,7 +63,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		executorCtx.SendRunning(fmt.Sprintf(
-			"Retrieving context for %q (topK=%d, minScore=%.2f, snapshots=%d)",
+			"I'm retrieving context for %q (top %d, min score %.2f, %d snapshot(s))",
 			input.QueryText,
 			input.TopK,
 			input.MinScore,
@@ -82,9 +82,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		if retrievedContext == "" {
-			executorCtx.SendCompleted(fmt.Sprintf("No context found (topK=%d)", input.TopK))
+			executorCtx.SendCompleted(fmt.Sprintf("I didn't find any useful context (top %d)", input.TopK))
 		} else {
-			executorCtx.SendCompleted(fmt.Sprintf("Context retrieved (topK=%d)", input.TopK))
+			executorCtx.SendCompleted(fmt.Sprintf("I pulled in relevant context (top %d)", input.TopK))
 		}
 
 		return &Output{

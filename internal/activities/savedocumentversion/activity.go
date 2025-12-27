@@ -51,7 +51,7 @@ func NewFactory(indexService ports.IndexService) (executor.ActivityFactory[*Inpu
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Saving: %s", input.FilePath))
+		executorCtx.SendRunning(fmt.Sprintf("I'm saving %s", input.FilePath))
 
 		serviceInput := &index.SaveVersionInput{
 			FilePath:    input.FilePath,
@@ -72,7 +72,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("unexpected result type from SaveNewVersion")
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Saved %s: %d chunks", input.FilePath, len(input.Chunks)))
+		executorCtx.SendCompletedWithDetails(
+			fmt.Sprintf("I saved %s", input.FilePath),
+			fmt.Sprintf("version %d\nchunks %d", saveResult.VersionID, len(input.Chunks)),
+		)
 		return &Output{
 			FilePath:  saveResult.FilePath,
 			VersionID: saveResult.VersionID,

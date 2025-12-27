@@ -58,7 +58,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Writing PR description from %d summary(ies)", len(input.Summaries)))
+		executorCtx.SendRunning(fmt.Sprintf("I'm writing the pull request description (from %d summary(ies))", len(input.Summaries)))
 
 		content := buildPRPrompt(input.Summaries, input.Intent)
 
@@ -71,7 +71,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to generate PR description: %w", err)
 		}
 
-		executorCtx.SendCompleted("PR description ready")
+		executorCtx.SendCompleted("I finished writing the pull request description")
 
 		return &Output{
 			PRDescription: invokeOutput.Content,

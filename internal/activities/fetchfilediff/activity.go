@@ -54,7 +54,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Fetching staged diff: %s", input.Filename))
+		executorCtx.SendRunning(fmt.Sprintf("I'm fetching the staged diff for %s", input.Filename))
 
 		change, err := f.stagedChangesReader.ReadStagedChanges(input.Filename)
 		if err != nil {
@@ -74,11 +74,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			return nil, err
 		}
 		if deleted {
-			executorCtx.SendCompleted(fmt.Sprintf("Deleted: %s", input.Filename))
+			executorCtx.SendCompletedWithDetails(fmt.Sprintf("I saw %s was deleted", input.Filename), strings.TrimSpace(change))
 			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Diff fetched: %s", input.Filename))
+		executorCtx.SendCompletedWithDetails(fmt.Sprintf("I fetched the staged diff for %s", input.Filename), strings.TrimSpace(change))
 
 		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
 	}

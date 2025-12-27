@@ -53,10 +53,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		numBatches := len(input.PreparedBatches.Batches)
 		totalChunks := len(input.PreparedBatches.ChunkResults.AllChunkTexts)
 
-		executorCtx.SendRunning(fmt.Sprintf("Computing %d embeddings (%s)", totalChunks, input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("I'm computing embeddings for %d chunk(s) (%s)", totalChunks, input.StateName))
 
 		if numBatches == 0 {
-			executorCtx.SendCompleted(fmt.Sprintf("No batches for %s", input.StateName))
+			executorCtx.SendCompleted(fmt.Sprintf("No embeddings to compute (%s)", input.StateName))
 			return &Output{
 				StateName:       input.StateName,
 				PreparedBatches: input.PreparedBatches,
@@ -90,7 +90,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("embedding count mismatch: got %d, expected %d", len(allEmbeddings), totalChunks)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Computed %d embeddings for %s", len(allEmbeddings), input.StateName))
+		executorCtx.SendCompleted(fmt.Sprintf("I computed %d embedding(s) (%s)", len(allEmbeddings), input.StateName))
 		return &Output{
 			StateName:       input.StateName,
 			PreparedBatches: input.PreparedBatches,

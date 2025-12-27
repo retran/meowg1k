@@ -49,10 +49,10 @@ func NewFactory(embeddingGW ports.EmbeddingsGateway, modelName string) (executor
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Embedding %d chunks (%s)", len(input.ChunkTexts), f.modelName))
+		executorCtx.SendRunning(fmt.Sprintf("I'm computing embeddings for %d chunk(s) (%s)", len(input.ChunkTexts), f.modelName))
 
 		if len(input.ChunkTexts) == 0 {
-			executorCtx.SendCompleted(fmt.Sprintf("No chunks for %s", f.modelName))
+			executorCtx.SendCompleted(fmt.Sprintf("I had no chunks to embed (%s)", f.modelName))
 			return &Output{Embeddings: []gateway.Embedding{}}, nil
 		}
 
@@ -71,7 +71,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("embedding count mismatch: got %d, expected %d", len(embeddings), len(input.ChunkTexts))
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Computed %d embeddings with %s", len(embeddings), f.modelName))
+		executorCtx.SendCompleted(fmt.Sprintf("I computed %d embedding(s) (%s)", len(embeddings), f.modelName))
 		return &Output{Embeddings: embeddings}, nil
 	}
 }

@@ -57,7 +57,7 @@ func NewFactory(
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
 		chunkResults := input.EmbeddingResults.PreparedBatches.ChunkResults
-		executorCtx.SendRunning(fmt.Sprintf("Saving %d documents (%s)", len(chunkResults.FileChunks), input.StateName))
+		executorCtx.SendRunning(fmt.Sprintf("I'm saving %d document(s) (%s)", len(chunkResults.FileChunks), input.StateName))
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
@@ -94,10 +94,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		if err := f.indexRepo.Checkpoint(ctx); err != nil {
-			executorCtx.SendRunning(fmt.Sprintf("I noted a WAL checkpoint warning while saving: %v", err))
+			executorCtx.SendRunning(fmt.Sprintf("I hit a database checkpoint warning while saving (I'll keep going): %v", err))
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("%d documents saved", len(versionMap)))
+		executorCtx.SendCompleted(fmt.Sprintf("I saved %d document(s)", len(versionMap)))
 		return &Output{
 			StateName:  input.StateName,
 			VersionMap: versionMap,

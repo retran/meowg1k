@@ -53,15 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, err
 		}
 
-		modelName := ""
-		if input.Profile != nil {
-			modelName = input.Profile.Model
-		}
-		if modelName == "" {
-			modelName = "unknown-model"
-		}
-
-		executorCtx.SendRunning(fmt.Sprintf("Thinking... (%s)", modelName))
+		executorCtx.SendRunning("Thinking...")
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
@@ -77,7 +69,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		executorCtx.SendCompletedWithDetails("", content)
 
 		return &Output{
-			Content:  content,
+			Content: content,
 		}, nil
 	}
 }

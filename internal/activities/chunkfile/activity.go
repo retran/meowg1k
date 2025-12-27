@@ -50,7 +50,7 @@ func NewFactory(chunkerService ports.ChunkerService) (executor.ActivityFactory[*
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(_ context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {
-		executorCtx.SendRunning(fmt.Sprintf("Chunking: %s", input.FilePath))
+		executorCtx.SendRunning(fmt.Sprintf("I'm chunking %s", input.FilePath))
 
 		contentHash := computeContentHash(input.Content)
 
@@ -59,7 +59,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to chunk file %s: %w", input.FilePath, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Chunked %s: %d chunks", input.FilePath, len(chunks)))
+		executorCtx.SendCompleted(fmt.Sprintf("I chunked %s into %d chunk(s)", input.FilePath, len(chunks)))
 		return &Output{
 			FilePath:    input.FilePath,
 			Content:     input.Content,

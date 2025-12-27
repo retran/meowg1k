@@ -279,9 +279,6 @@ func TestLogger_FeedbackHandler(t *testing.T) {
 		ActivityName: "TestActivity",
 		Status:       executor.StatusRunning,
 		Message:      "Processing",
-		Metadata: map[string]any{
-			"progress": 50,
-		},
 	}
 
 	handler(feedback)

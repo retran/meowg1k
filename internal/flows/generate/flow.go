@@ -95,16 +95,23 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 		if err != nil {
 			return err
 		}
-		flowCtx.SendRunning(fmt.Sprintf("Generate content for prompt: %s", truncatePrompt(userPrompt)))
+		_ = systemPrompt
+		flowCtx.SendRunning(fmt.Sprintf(
+			"I'm putting together a response for: %s",
+			truncatePrompt(userPrompt),
+		))
 
 		invokeOutput, err := f.runInvokeActivity(ctx, flowCtx, exec, taskConfig.Profile, userPrompt, systemPrompt)
 		if err != nil {
 			return err
 		}
 
-		flowCtx.SendCompleted("Generated the requested content")
+		if err := f.printOutput(invokeOutput); err != nil {
+			return err
+		}
 
-		return f.printOutput(invokeOutput)
+		flowCtx.SendCompleted("I finished writing the response")
+		return nil
 	}
 }
 

@@ -41,7 +41,7 @@ func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*gener
 	genericFactory, err := composeflat.NewFactory(
 		contentGenerationActivityFactory,
 		"Composing PR description",
-		"PR description",
+		"pull request description",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create generic factory: %w", err)

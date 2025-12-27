@@ -128,7 +128,7 @@ func (f *Factory) runPullRequestFlow(ctx context.Context, flowCtx *executor.Cont
 	if baseBranch == "" {
 		return fmt.Errorf("base branch is required for PR command (use --base flag)")
 	}
-	flowCtx.SendRunning(fmt.Sprintf("Compose a pull request description against %s", baseBranch))
+	flowCtx.SendRunning(fmt.Sprintf("I'm drafting a pull request description against %s", baseBranch))
 
 	files, err := f.listBranchFiles(ctx, flowCtx, exec, baseBranch)
 	if err != nil {
@@ -155,11 +155,11 @@ func (f *Factory) runPullRequestFlow(ctx context.Context, flowCtx *executor.Cont
 		return err
 	}
 
-	flowCtx.SendCompleted(fmt.Sprintf("Pull request description ready for %s", baseBranch))
-
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(prDescription)); err != nil {
 		return fmt.Errorf("failed to print PR description: %w", err)
 	}
+
+	flowCtx.SendCompleted(fmt.Sprintf("I finished writing the pull request description for %s", baseBranch))
 
 	return nil
 }

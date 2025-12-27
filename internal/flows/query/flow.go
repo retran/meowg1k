@@ -61,7 +61,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		if err != nil {
 			return err
 		}
-		flowCtx.SendRunning(fmt.Sprintf("Search for: %s", params.queryText))
+		flowCtx.SendRunning(fmt.Sprintf("I'm searching the code for: %s", params.queryText))
 
 		queryOutput, err := f.runQuery(ctx, flowCtx, params)
 		if err != nil {
@@ -72,7 +72,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return err
 		}
 
-		flowCtx.SendCompleted(fmt.Sprintf("Query output ready with %d result(s)", len(queryOutput.Results)))
+		flowCtx.SendCompleted(fmt.Sprintf("I finished the search (%d result(s))", len(queryOutput.Results)))
 		return nil
 	}
 }

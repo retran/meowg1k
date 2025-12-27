@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		totalFiles := len(input.Files)
-		executorCtx.SendRunning(fmt.Sprintf("Filtering %d file(s)", totalFiles))
+		executorCtx.SendRunning(fmt.Sprintf("I'm filtering %d file(s)", totalFiles))
 
 		filteredFiles := make([]string, 0, len(input.Files))
 
@@ -63,7 +63,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Kept %d of %d file(s)", len(filteredFiles), totalFiles))
+		executorCtx.SendCompleted(fmt.Sprintf("I kept %d of %d file(s)", len(filteredFiles), totalFiles))
 
 		return &Output{
 			Files: filteredFiles,

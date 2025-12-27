@@ -76,11 +76,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		intentNote := ""
-		if strings.TrimSpace(input.Intent) != "" {
-			intentNote = " with intent"
-		}
-		executorCtx.SendRunning(fmt.Sprintf("%s from %d changes%s", f.activityName, len(input.Changes), intentNote))
+		executorCtx.SendRunning(fmt.Sprintf("I'm writing the %s", f.contentType))
 
 		if err := validateTokenBudget(input.Profile, input.Changes); err != nil {
 			return nil, err
@@ -97,7 +93,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to generate %s: %w", f.contentType, err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Composed %s from %d changes%s", f.contentType, len(input.Changes), intentNote))
+		executorCtx.SendCompletedWithDetails(
+			fmt.Sprintf("I finished writing the %s", f.contentType),
+			strings.TrimSpace(invokeOutput.Content),
+		)
 
 		return &Output{
 			Content: invokeOutput.Content,
@@ -109,7 +108,7 @@ func validateTokenBudget(resolvedProfile *profile.ResolvedProfile, changes []*gi
 	estimatedTokens := estimateTokenCount(changes)
 	if resolvedProfile.MaxInputTokens > 0 && estimatedTokens > resolvedProfile.MaxInputTokens {
 		return fmt.Errorf(
-			"diff is too large for 'flat' strategy: estimated %d tokens exceeds profile limit of %d tokens. Consider using 'summarize' strategy instead",
+			"these changes are too large for the 'flat' strategy (estimated %d tokens, limit %d). Try the 'summarize' strategy instead",
 			estimatedTokens,
 			resolvedProfile.MaxInputTokens,
 		)

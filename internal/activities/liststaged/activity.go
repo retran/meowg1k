@@ -50,7 +50,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("list staged factory is nil")
 		}
 
-		executorCtx.SendRunning("Checking staged files")
+		executorCtx.SendRunning("I'm checking staged files")
 
 		if input == nil {
 			return nil, fmt.Errorf("input cannot be nil")
@@ -61,7 +61,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to read staged files: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("Found %d staged file(s)", len(files)))
+		executorCtx.SendCompleted(fmt.Sprintf("I found %d staged file(s)", len(files)))
 
 		return &Output{
 			Files: files,

@@ -178,7 +178,7 @@ func TestComposeFlatCommit_DiffTooLarge(t *testing.T) {
 		t.Fatal("Expected error for oversized diff, got nil")
 	}
 
-	expectedErrSubstring := "diff is too large for 'flat' strategy"
+	expectedErrSubstring := "too large for the 'flat' strategy"
 	if !strings.Contains(err.Error(), expectedErrSubstring) {
 		t.Errorf("Expected error to contain %q, got %q", expectedErrSubstring, err.Error())
 	}

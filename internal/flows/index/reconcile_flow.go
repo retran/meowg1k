@@ -106,7 +106,7 @@ func NewFactory(
 // 100% consistency by rebuilding all snapshots and vector indices from scratch.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		flowCtx.SendRunning("Starting index reconciliation")
+		flowCtx.SendRunning("I'm rebuilding the search index")
 
 		exec, err := f.validateFlowContext(ctx, flowCtx)
 		if err != nil {
@@ -141,7 +141,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Step 5.1.8: Flow completion
-		flowCtx.SendCompleted("Index reconciliation complete")
+		flowCtx.SendCompleted("I finished rebuilding the search index")
 		return nil
 	}
 }
@@ -186,7 +186,6 @@ func (f *Factory) runDeduplicate(
 	exec executor.Executor,
 	scanResult *scanworkspacestate.Output,
 ) (*deduplicateandprepare.Output, error) {
-	flowCtx.SendRunning("Deduplicating files")
 	deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
 	deduplicateInput := &deduplicateandprepare.Input{
 		WorkspaceState: scanResult,
@@ -205,11 +204,11 @@ func (f *Factory) processNewFiles(
 	filesToProcess []domainindex.FileToProcess,
 ) (map[string]int64, error) {
 	if len(filesToProcess) == 0 {
-		flowCtx.SendRunning("No new files to process; all files already indexed")
+		flowCtx.SendCompleted("Everything is already indexed")
 		return make(map[string]int64), nil
 	}
 
-	flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files", len(filesToProcess)))
+	flowCtx.SendRunning(fmt.Sprintf("I'm indexing %d file(s)", len(filesToProcess)))
 
 	chunkActivity := f.chunkAllFilesFactory.NewActivity()
 	chunkInput := &chunkallfiles.Input{
@@ -252,6 +251,7 @@ func (f *Factory) processNewFiles(
 		return nil, fmt.Errorf("save failed: %w", err)
 	}
 
+	flowCtx.SendCompleted(fmt.Sprintf("I indexed %d file(s)", len(saveResults.VersionMap)))
 	return saveResults.VersionMap, nil
 }
 
@@ -263,8 +263,6 @@ func (f *Factory) finalizeSnapshots(
 	existingVersions map[string]int64,
 	newVersions map[string]int64,
 ) error {
-	flowCtx.SendRunning("Finalizing snapshots")
-
 	finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
 	finalizeInput := &finalizesnapshots.Input{
 		ScanResult:       scanResult,
