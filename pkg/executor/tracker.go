@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,11 +23,14 @@ const (
 
 // BubbleTeaTracker provides a styled TUI for tracking execution progress.
 type BubbleTeaTracker struct {
-	program    *tea.Program
-	model      *bubbleModel
-	feedbackCh chan *Feedback
-	wg         sync.WaitGroup
-	silent     bool
+	program      *tea.Program
+	model        *bubbleModel
+	feedbackCh   chan *Feedback
+	feedbackDone chan struct{}
+	wg           sync.WaitGroup
+	silent       bool
+	stopOnce     sync.Once
+	stopped      atomic.Bool
 }
 
 type runningActivity struct {
@@ -82,6 +86,8 @@ func (t *BubbleTeaTracker) Start() {
 		return
 	}
 
+	t.feedbackDone = make(chan struct{})
+
 	t.wg.Add(1)
 	go t.processFeedback()
 
@@ -90,11 +96,13 @@ func (t *BubbleTeaTracker) Start() {
 	}
 
 	t.program = tea.NewProgram(t.model)
-	t.wg.Go(func() {
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
 		if _, err := t.program.Run(); err != nil {
 			_ = err
 		}
-	})
+	}()
 }
 
 // Stop stops the Bubbletea program.
@@ -103,12 +111,25 @@ func (t *BubbleTeaTracker) Stop() {
 		return
 	}
 
-	if t.feedbackCh != nil {
-		close(t.feedbackCh)
+	// Prevent further enqueues and close the feedback channel exactly once.
+	t.stopped.Store(true)
+	t.stopOnce.Do(func() {
+		if t.feedbackCh != nil {
+			close(t.feedbackCh)
+		}
+	})
+
+	// Wait until all feedback has been drained and (if applicable) forwarded to the program.
+	if t.feedbackDone != nil {
+		<-t.feedbackDone
 	}
 
+	// If the TUI is running, wait until all already-sent feedback has been applied
+	// by the Bubble Tea event loop before quitting.
 	if t.program != nil {
-		t.program.Quit()
+		done := make(chan struct{})
+		t.program.Send(stopAndFlushMsg{done: done})
+		<-done
 	}
 
 	t.wg.Wait()
@@ -120,6 +141,13 @@ func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 		if t == nil || t.feedbackCh == nil || feedback == nil {
 			return
 		}
+		if t.stopped.Load() {
+			return
+		}
+		defer func() {
+			// A concurrent Stop() can close the channel; avoid panicking on send.
+			_ = recover()
+		}()
 		select {
 		case t.feedbackCh <- feedback:
 		default:
@@ -130,6 +158,11 @@ func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 // processFeedback processes feedback messages and updates the model.
 func (t *BubbleTeaTracker) processFeedback() {
 	defer t.wg.Done()
+	defer func() {
+		if t.feedbackDone != nil {
+			close(t.feedbackDone)
+		}
+	}()
 
 	for feedback := range t.feedbackCh {
 		if t.program != nil {
@@ -202,6 +235,13 @@ func (t *BubbleTeaTracker) GetExecutionCount() int {
 
 type spinnerTickMsg struct{}
 
+// stopAndFlushMsg is sent as the final message to the Bubble Tea program.
+// Bubble Tea processes messages sequentially, so when Update receives this message,
+// all previously-sent feedback has already been applied to the model.
+type stopAndFlushMsg struct {
+	done chan struct{}
+}
+
 func spinnerTick() tea.Cmd {
 	return tea.Tick(spinnerInterval, func(time.Time) tea.Msg {
 		return spinnerTickMsg{}
@@ -231,6 +271,11 @@ func (m *bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner = (m.spinner + 1) % len(spinnerFrames)
 		}
 		return m, spinnerTick()
+	case stopAndFlushMsg:
+		if msg.done != nil {
+			close(msg.done)
+		}
+		return m, tea.Quit
 	}
 
 	return m, nil
