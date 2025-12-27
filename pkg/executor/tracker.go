@@ -191,7 +191,7 @@ func (t *Tracker) drawSpinner() {
 	}
 
 	spinner := spinnerChars[t.spinnerIndex%len(spinnerChars)]
-	fmt.Fprintf(os.Stderr, "\r%s Running: %s\033[K", spinner, displayName)
+	fmt.Fprintf(os.Stderr, "\r%s %s\033[K", spinner, displayName)
 	t.spinnerVisible = true
 }
 

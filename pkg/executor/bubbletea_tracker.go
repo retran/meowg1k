@@ -25,11 +25,12 @@ type BubbleTeaTracker struct {
 }
 
 type runningActivity struct {
-	name      string
-	message   string
-	startTime time.Time
-	metadata  map[string]any
-	status    Status
+	name       string
+	message    string
+	startTime  time.Time
+	lastUpdate time.Time
+	metadata   map[string]any
+	status     Status
 }
 
 type logEntry struct {
@@ -275,6 +276,7 @@ func (m *bubbleModel) handleFeedback(msg *Feedback) {
 		run.name = msg.ActivityName
 		run.message = msg.Message
 		run.status = msg.Status
+		run.lastUpdate = msg.Timestamp
 		if run.startTime.IsZero() {
 			run.startTime = msg.Timestamp
 		}
@@ -337,27 +339,52 @@ func (m *bubbleModel) View() string {
 		sb.WriteString("\n")
 	}
 
-	// Render running activities
+	// Render current running activity (only the most recent)
 	if len(m.running) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(styleSubtle.Render("Running:"))
-		sb.WriteString("\n")
-		for _, run := range m.running {
-			display := run.message
-			if strings.TrimSpace(display) == "" {
-				display = compactActivityName(run.name)
-			}
+		run := m.currentRunningLocked()
 
-			indicator := m.spinner.View()
-			if run.status == StatusPending {
-				indicator = styleSubtle.Render("...")
-			}
-
-			sb.WriteString(fmt.Sprintf(" %s %s\n", indicator, styleRunning.Render(display)))
+		display := run.message
+		if strings.TrimSpace(display) == "" {
+			display = compactActivityName(run.name)
 		}
+
+		indicator := m.spinner.View()
+		displayStyle := styleRunning
+		if run.status == StatusPending {
+			indicator = styleSubtle.Render(indicator)
+			displayStyle = styleSubtle
+		}
+
+		sb.WriteString(fmt.Sprintf(" %s %s\n", indicator, displayStyle.Render(display)))
 	}
 
 	return sb.String()
+}
+
+func (m *bubbleModel) currentRunningLocked() runningActivity {
+	var current runningActivity
+	for _, run := range m.running {
+		if current.name == "" {
+			current = run
+			continue
+		}
+		if run.lastUpdate.After(current.lastUpdate) {
+			current = run
+			continue
+		}
+		if run.lastUpdate.Equal(current.lastUpdate) {
+			if run.startTime.After(current.startTime) {
+				current = run
+				continue
+			}
+			if run.startTime.Equal(current.startTime) && run.name > current.name {
+				current = run
+			}
+		}
+	}
+
+	return current
 }
 
 func (m *bubbleModel) renderLogEntry(entry logEntry) string {
