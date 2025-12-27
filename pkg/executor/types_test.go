@@ -41,8 +41,8 @@ func TestNewContext_WithNilFeedbackHandler(t *testing.T) {
 	}
 
 	// Should not panic when sending feedback with nil handler replaced by NoOp
-	ctx.SendRunning("test", "")
-	ctx.SendCompleted("done", "")
+	ctx.SendRunning("test")
+	ctx.SendCompleted("done")
 }
 
 func TestContext_SendFeedback(t *testing.T) {
@@ -53,7 +53,7 @@ func TestContext_SendFeedback(t *testing.T) {
 
 	ctx := NewContext("test-activity", handler, nil)
 
-	ctx.SendRunning("running message", "")
+	ctx.SendRunning("running message")
 	if received == nil {
 		t.Fatal("feedback not received")
 	}
@@ -67,7 +67,7 @@ func TestContext_SendFeedback(t *testing.T) {
 		t.Errorf("expected message 'running message', got %q", received.Message)
 	}
 
-	ctx.SendCompleted("completed message", "")
+	ctx.SendCompleted("completed message")
 	if received.Status != StatusCompleted {
 		t.Errorf("expected status Completed, got %v", received.Status)
 	}
@@ -76,7 +76,7 @@ func TestContext_SendFeedback(t *testing.T) {
 	}
 
 	testErr := errors.New("test error")
-	ctx.SendFailed(testErr, "error message", "")
+	ctx.SendFailed(testErr, "error message")
 	if received.Status != StatusFailed {
 		t.Errorf("expected status Failed, got %v", received.Status)
 	}

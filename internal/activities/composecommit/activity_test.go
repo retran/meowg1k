@@ -100,7 +100,7 @@ func TestNewFactory_NilContentGenerationFactory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil content generation factory, got nil")
 	}
-	expectedMsg := "content generation activity factory cannot be nil"
+	expectedMsg := "contentGenerationActivityFactory cannot be nil"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
@@ -122,7 +122,7 @@ func TestNewActivity_NilFactory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil factory, got nil")
 	}
-	expectedMsg := "compose commit factory is nil"
+	expectedMsg := "factory is nil"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}

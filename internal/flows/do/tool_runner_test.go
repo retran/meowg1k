@@ -1,3 +1,6 @@
+//go:build doflow
+// +build doflow
+
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 

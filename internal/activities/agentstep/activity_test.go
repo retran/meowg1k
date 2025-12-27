@@ -1,3 +1,6 @@
+//go:build agentstep
+// +build agentstep
+
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 

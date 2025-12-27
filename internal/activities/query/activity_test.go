@@ -261,8 +261,8 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[1].Message != "Found 0 result(s)" {
-			t.Errorf("unexpected completion message: expected 'Found 0 result(s)', got '%s'", feedbackMessages[1].Message)
+		if feedbackMessages[1].Message != "I found 0 result(s)" {
+			t.Errorf("unexpected completion message: expected 'I found 0 result(s)', got '%s'", feedbackMessages[1].Message)
 		}
 	})
 }

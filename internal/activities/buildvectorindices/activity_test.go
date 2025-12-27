@@ -119,10 +119,10 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, but got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != "Building search indices" {
+		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != "I'm building search indices" {
 			t.Errorf("unexpected running message: got %+v", feedbackMessages[0])
 		}
-		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != "Search indices ready" {
+		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != "I finished building the search indices" {
 			t.Errorf("unexpected completed message: got %+v", feedbackMessages[1])
 		}
 	})

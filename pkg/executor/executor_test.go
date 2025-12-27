@@ -305,12 +305,12 @@ func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 	if feedbackCalls[0].Error == nil {
 		t.Error("Expected error in first retry feedback")
 	}
-	if feedbackCalls[0].Message != "Retrying" {
+	if feedbackCalls[0].Message != "Retrying operation" {
 		t.Errorf("Expected retry message, got %q", feedbackCalls[0].Message)
 	}
 
 	// Check third retry
-	if feedbackCalls[1].Message != "Retrying" {
+	if feedbackCalls[1].Message != "Retrying operation" {
 		t.Errorf("Expected retry message, got %q", feedbackCalls[1].Message)
 	}
 }

@@ -5,6 +5,7 @@ package composeflat
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/generatecontent"
@@ -159,8 +160,8 @@ func TestComposeFlat(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for diff too large")
 		}
-		if !contains(err.Error(), "diff is too large") {
-			t.Errorf("expected 'diff is too large' error, got %v", err)
+		if !strings.Contains(err.Error(), "too large for the 'flat' strategy") {
+			t.Errorf("expected diff-too-large error, got %v", err)
 		}
 	})
 
@@ -197,17 +198,4 @@ func TestComposeFlat(t *testing.T) {
 			t.Errorf("expected 'Multi-file content', got %q", output.Content)
 		}
 	})
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -197,7 +197,7 @@ func TestNewActivity_NilFactory(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil factory, got nil")
 	}
-	expectedMsg := "factory is nil"
+	expectedMsg := "invoke LLM factory is nil"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
 	}
