@@ -19,8 +19,8 @@ The agent can call tools for workspace operations, search, git, and more,
 based on step-specific configuration.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return runFlowCommand(cmd, "AgentFlow", func(container *app.Container) (executor.Flow, error) {
-			return container.CreateAgentFlow()
+		return runFlowCommand(cmd, "DoFlow", func(container *app.Container) (executor.Flow, error) {
+			return container.CreateDoFlow()
 		})
 	},
 }

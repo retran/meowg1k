@@ -5,53 +5,51 @@ package executor
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
-	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
-
-const (
-	feedbackChanSize = 128
-	maxMessageLength = 100
-)
-
-// batchProgressTracker tracks progress for batch operations like "Fetching 36 files".
-type batchProgressTracker struct {
-	activity  string
-	total     int
-	completed int
-}
 
 // BubbleTeaTracker provides a rich TUI experience for tracking execution progress.
 type BubbleTeaTracker struct {
 	program    *tea.Program
 	model      *bubbleModel
 	feedbackCh chan *Feedback
-	executions map[string]*Execution
-	order      []string
 	mu         sync.RWMutex
 	wg         sync.WaitGroup
 	silent     bool
 }
 
+type runningActivity struct {
+	name      string
+	message   string
+	startTime time.Time
+	metadata  map[string]any
+	status    Status
+}
+
+type logEntry struct {
+	timestamp    time.Time
+	activityName string
+	result       string
+	details      string
+	isError      bool
+	duration     time.Duration
+	err          error
+}
+
 // bubbleModel is the Bubbletea model for rendering the TUI.
 type bubbleModel struct {
-	executions    map[string]*Execution
-	order         []string
-	batchProgress map[string]*batchProgressTracker
-	toolCallCount map[string]int
-	mu            *sync.RWMutex
-	spinner       spinner.Model
-	progress      progress.Model
-	width         int
-	height        int
+	logLines []logEntry
+	running  map[string]runningActivity
+	mu       *sync.RWMutex
+	spinner  spinner.Model
+	width    int
+	height   int
 }
 
 type tickMsg time.Time
@@ -63,36 +61,25 @@ var (
 	styleCompleted = lipgloss.NewStyle().Foreground(lipgloss.Color("green"))
 	styleFailed    = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
 	styleDuration  = lipgloss.NewStyle().Faint(true)
-	styleLLMBlock  = lipgloss.NewStyle().Faint(true).PaddingLeft(1).BorderLeft(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
+	styleDetails   = lipgloss.NewStyle().Faint(true).PaddingLeft(1).BorderLeft(true).BorderStyle(lipgloss.NormalBorder()).BorderForeground(lipgloss.Color("240"))
 )
 
 // NewBubbleTeaTracker creates a new Bubbletea-based progress tracker.
 func NewBubbleTeaTracker(silent bool) *BubbleTeaTracker {
 	tracker := &BubbleTeaTracker{
 		feedbackCh: make(chan *Feedback, feedbackChanSize),
-		executions: make(map[string]*Execution),
-		order:      make([]string, 0),
 		silent:     silent,
-	}
-
-	if silent {
-		return tracker
 	}
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	p := progress.New(progress.WithDefaultGradient())
-
 	model := &bubbleModel{
-		spinner:       s,
-		progress:      p,
-		executions:    make(map[string]*Execution),
-		order:         make([]string, 0),
-		batchProgress: make(map[string]*batchProgressTracker),
-		toolCallCount: make(map[string]int),
-		mu:            &sync.RWMutex{},
+		spinner:  s,
+		logLines: make([]logEntry, 0),
+		running:  make(map[string]runningActivity),
+		mu:       &sync.RWMutex{},
 	}
 
 	tracker.model = model
@@ -106,22 +93,25 @@ func (t *BubbleTeaTracker) Start() {
 		return
 	}
 
-	// Always start feedback processor
+	// Start feedback processor
 	t.wg.Add(1)
 	go t.processFeedback()
 
-	// Only start TUI if not in silent mode
-	if !t.silent {
-		t.program = tea.NewProgram(t.model, tea.WithOutput(os.Stderr))
-		t.wg.Add(1)
-		go func() {
-			defer t.wg.Done()
-			if _, err := t.program.Run(); err != nil {
-				// Log error but don't crash
-				_ = err
-			}
-		}()
+	if t.silent {
+		return
 	}
+
+	t.program = tea.NewProgram(t.model)
+
+	// Start UI
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		if _, err := t.program.Run(); err != nil {
+			// Log error but don't crash
+			_ = err
+		}
+	}()
 }
 
 // Stop stops the Bubbletea program.
@@ -138,7 +128,7 @@ func (t *BubbleTeaTracker) Stop() {
 	time.Sleep(100 * time.Millisecond)
 
 	if t.program != nil {
-		t.program.Send(tea.Quit())
+		t.program.Quit()
 	}
 
 	t.wg.Wait()
@@ -163,136 +153,79 @@ func (t *BubbleTeaTracker) processFeedback() {
 	defer t.wg.Done()
 
 	for feedback := range t.feedbackCh {
-		t.mu.Lock()
-		t.updateExecution(feedback)
-		t.mu.Unlock()
-
 		if t.program != nil {
-			// Update the model
-			t.model.mu.Lock()
-			t.model.executions = copyExecutions(t.executions)
-			t.model.order = append([]string{}, t.order...)
-			t.model.mu.Unlock()
-
 			t.program.Send(feedback)
+		} else if t.model != nil {
+			t.model.handleFeedback(feedback)
 		}
-	}
-}
-
-// updateExecution updates execution state based on feedback.
-func (t *BubbleTeaTracker) updateExecution(feedback *Feedback) {
-	if feedback == nil || feedback.ActivityName == "" {
-		return
-	}
-
-	exec := t.getOrCreateExecution(feedback)
-	t.updateExecutionState(exec, feedback)
-	t.updateBatchProgress(exec, feedback)
-}
-
-// getOrCreateExecution gets existing execution or creates a new one.
-func (t *BubbleTeaTracker) getOrCreateExecution(feedback *Feedback) *Execution {
-	exec, exists := t.executions[feedback.ActivityName]
-	if exists {
-		return exec
-	}
-
-	parentName, level := parseActivityHierarchy(feedback.ActivityName)
-	exec = &Execution{
-		Name:       feedback.ActivityName,
-		StartTime:  feedback.Timestamp,
-		Metadata:   make(map[string]any),
-		ParentName: parentName,
-		Children:   make([]string, 0),
-		Level:      level,
-	}
-	t.executions[feedback.ActivityName] = exec
-	t.order = append(t.order, feedback.ActivityName)
-
-	if parent, ok := t.executions[parentName]; ok && parent != nil {
-		parent.Children = append(parent.Children, feedback.ActivityName)
-	}
-
-	return exec
-}
-
-// updateExecutionState updates the state fields of an execution.
-func (t *BubbleTeaTracker) updateExecutionState(exec *Execution, feedback *Feedback) {
-	exec.Status = feedback.Status
-	exec.Error = feedback.Error
-	exec.Message = sanitizeDescription(feedback.Message)
-
-	// Update metadata if provided
-	if feedback.Metadata != nil {
-		for k, v := range feedback.Metadata {
-			exec.Metadata[k] = v
-		}
-	}
-
-	if feedback.Status == StatusCompleted || feedback.Status == StatusFailed {
-		exec.Result = sanitizeDescription(feedback.Message)
-		endTime := feedback.Timestamp
-		exec.EndTime = &endTime
-	}
-}
-
-// updateBatchProgress updates batch progress tracking.
-func (t *BubbleTeaTracker) updateBatchProgress(exec *Execution, feedback *Feedback) {
-	if feedback.Status == StatusRunning {
-		t.initBatchProgress(exec)
-	}
-	if feedback.Status == StatusCompleted && exec.ParentName != "" && t.model != nil {
-		if batchProg, exists := t.model.batchProgress[exec.ParentName]; exists {
-			batchProg.completed++
-		}
-	}
-}
-
-// initBatchProgress initializes batch progress tracking.
-func (t *BubbleTeaTracker) initBatchProgress(exec *Execution) {
-	if exec == nil || exec.Message == "" || t.model == nil {
-		return
-	}
-
-	msg := exec.Message
-	var total int
-
-	if n, err := fmt.Sscanf(msg, "Fetching staged diffs for %d files", &total); err == nil && n == 1 {
-		t.model.batchProgress[exec.Name] = &batchProgressTracker{total: total, activity: "Fetching"}
-	} else if n, err := fmt.Sscanf(msg, "Summarizing changes in %d files", &total); err == nil && n == 1 {
-		t.model.batchProgress[exec.Name] = &batchProgressTracker{total: total, activity: "Summarizing"}
-	} else if n, err := fmt.Sscanf(msg, "Fetching branch diffs for %d files", &total); err == nil && n == 1 {
-		t.model.batchProgress[exec.Name] = &batchProgressTracker{total: total, activity: "Fetching"}
 	}
 }
 
 // GetExecution returns a copy of an execution (for testing).
 func (t *BubbleTeaTracker) GetExecution(name string) *Execution {
-	if t == nil {
+	if t == nil || t.model == nil {
 		return nil
 	}
 
-	t.mu.RLock()
-	defer t.mu.RUnlock()
+	t.model.mu.RLock()
+	defer t.model.mu.RUnlock()
 
-	exec, exists := t.executions[name]
-	if !exists || exec == nil {
-		return nil
+	var exec *Execution
+
+	// Check running
+	if run, ok := t.model.running[name]; ok {
+		exec = &Execution{
+			Name:      run.name,
+			Status:    run.status,
+			Message:   run.message,
+			StartTime: run.startTime,
+			Metadata:  run.metadata,
+		}
+	} else {
+		// Check logLines (reverse order to get latest)
+		for i := len(t.model.logLines) - 1; i >= 0; i-- {
+			entry := t.model.logLines[i]
+			if entry.activityName == name {
+				status := StatusCompleted
+				if entry.isError {
+					status = StatusFailed
+				}
+				endTime := entry.timestamp
+				startTime := endTime.Add(-entry.duration)
+
+				exec = &Execution{
+					Name:      entry.activityName,
+					Status:    status,
+					Result:    entry.result,
+					StartTime: startTime,
+					EndTime:   &endTime,
+					Error:     entry.err,
+				}
+				break
+			}
+		}
 	}
 
-	copyExec := *exec
-	return &copyExec
+	if exec != nil {
+		parts := strings.Split(exec.Name, "::")
+		exec.Level = len(parts) - 1
+		if len(parts) > 1 {
+			exec.ParentName = strings.Join(parts[:len(parts)-1], "::")
+		}
+	}
+
+	return exec
 }
 
 // GetExecutionCount returns the number of tracked executions (for testing).
 func (t *BubbleTeaTracker) GetExecutionCount() int {
-	if t == nil {
+	if t == nil || t.model == nil {
 		return 0
 	}
 
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return len(t.executions)
+	t.model.mu.RLock()
+	defer t.model.mu.RUnlock()
+	return len(t.model.running) + len(t.model.logLines)
 }
 
 // Bubbletea model methods
@@ -315,7 +248,6 @@ func (m *bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.progress.Width = msg.Width - 20
 		return m, nil
 
 	case spinner.TickMsg:
@@ -327,11 +259,66 @@ func (m *bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case *Feedback:
-		// Model is updated externally by processFeedback
+		m.handleFeedback(msg)
 		return m, nil
 	}
 
 	return m, nil
+}
+
+func (m *bubbleModel) handleFeedback(msg *Feedback) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if msg.Status == StatusRunning || msg.Status == StatusPending {
+		run := m.running[msg.ActivityName]
+		run.name = msg.ActivityName
+		run.message = msg.Message
+		run.status = msg.Status
+		if run.startTime.IsZero() {
+			run.startTime = msg.Timestamp
+		}
+		if msg.Metadata != nil {
+			run.metadata = msg.Metadata
+		}
+		m.running[msg.ActivityName] = run
+	} else if msg.Status == StatusCompleted || msg.Status == StatusFailed {
+		// Remove from running
+		start := time.Time{}
+		if run, ok := m.running[msg.ActivityName]; ok {
+			start = run.startTime
+			delete(m.running, msg.ActivityName)
+		}
+
+		// Create log entry
+		duration := time.Duration(0)
+		if !start.IsZero() {
+			duration = msg.Timestamp.Sub(start)
+		}
+
+		result := msg.Message
+		if strings.TrimSpace(result) == "" {
+			result = compactActivityName(msg.ActivityName)
+		}
+
+		details := ""
+		if msg.Metadata != nil {
+			if s, ok := msg.Metadata["details"].(string); ok {
+				details = strings.TrimSpace(s)
+			}
+		}
+
+		entry := logEntry{
+			timestamp:    msg.Timestamp,
+			activityName: msg.ActivityName,
+			result:       result,
+			details:      details,
+			isError:      msg.Status == StatusFailed,
+			duration:     duration,
+			err:          msg.Error,
+		}
+		m.logLines = append(m.logLines, entry)
+	}
 }
 
 func (m *bubbleModel) View() string {
@@ -344,240 +331,90 @@ func (m *bubbleModel) View() string {
 
 	var sb strings.Builder
 
-	m.renderCompletedExecutions(&sb)
-	m.renderDeepestRunningExecution(&sb)
+	// Render log lines
+	for _, entry := range m.logLines {
+		sb.WriteString(m.renderLogEntry(entry))
+		sb.WriteString("\n")
+	}
+
+	// Render running activities
+	if len(m.running) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(styleSubtle.Render("Running:"))
+		sb.WriteString("\n")
+		for _, run := range m.running {
+			display := run.message
+			if strings.TrimSpace(display) == "" {
+				display = compactActivityName(run.name)
+			}
+
+			indicator := m.spinner.View()
+			if run.status == StatusPending {
+				indicator = styleSubtle.Render("...")
+			}
+
+			sb.WriteString(fmt.Sprintf(" %s %s\n", indicator, styleRunning.Render(display)))
+		}
+	}
 
 	return sb.String()
 }
 
-func (m *bubbleModel) renderCompletedExecutions(sb *strings.Builder) {
-	for _, name := range m.order {
-		exec, exists := m.executions[name]
-		if !exists || exec == nil || exec.Status == StatusRunning {
-			continue
-		}
+func (m *bubbleModel) renderLogEntry(entry logEntry) string {
+	timestamp := entry.timestamp.Format("15:04:05")
+	duration := styleDuration.Render(fmt.Sprintf("(%s)", entry.duration.Round(time.Millisecond)))
 
-		line := m.renderExecution(exec)
-		if line != "" {
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
+	prefix := ""
+	if entry.isError {
+		prefix = styleFailed.Render("FAILED") + " "
 	}
+
+	line := fmt.Sprintf("%s %s%s %s", styleSubtle.Render(timestamp), prefix, entry.result, duration)
+
+	if entry.isError && entry.err != nil {
+		line += " — " + styleFailed.Render(entry.err.Error())
+	}
+	if entry.details != "" {
+		line += "\n" + m.renderBlock(entry.details, &styleDetails)
+	}
+
+	return line
 }
 
-func (m *bubbleModel) renderDeepestRunningExecution(sb *strings.Builder) {
-	var deepestRunning *Execution
-	maxLevel := -1
-	for _, name := range m.order {
-		exec, exists := m.executions[name]
-		if !exists || exec == nil || exec.Status != StatusRunning {
-			continue
-		}
-		if exec.Level > maxLevel {
-			maxLevel = exec.Level
-			deepestRunning = exec
-		}
-	}
-
-	if deepestRunning != nil {
-		line := m.renderExecution(deepestRunning)
-		if line != "" {
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
-	}
-}
-
-func (m *bubbleModel) renderExecution(exec *Execution) string {
-	if exec == nil {
-		return ""
-	}
-
+func (m *bubbleModel) renderBlock(content string, style *lipgloss.Style) string {
 	var result strings.Builder
-
-	// Get human-readable name and icon
-	readableName := getHumanReadableName(exec)
-	icon := m.getIcon(exec)
-	timestamp := exec.StartTime.Format("15:04:05")
-	duration := m.getDuration(exec)
-
-	// For running activities, show spinner and action
-	if exec.Status == StatusRunning {
-		result.WriteString(fmt.Sprintf("%s %s %s...",
-			styleSubtle.Render(timestamp), icon, styleRunning.Render(readableName)))
-		return result.String()
-	}
-
-	// For completed/failed, show result
-	if exec.Status == StatusFailed && exec.Error != nil {
-		errorMsg := styleFailed.Render(exec.Error.Error())
-		result.WriteString(fmt.Sprintf("%s %s %s%s — %s",
-			styleSubtle.Render(timestamp), icon, styleFailed.Render(readableName), duration, errorMsg))
-		return result.String()
-	}
-
-	// Completed successfully
-	result.WriteString(fmt.Sprintf("%s %s %s%s",
-		styleSubtle.Render(timestamp), icon, styleCompleted.Render(readableName), duration))
-
-	// If this execution has an LLM response, show it as a formatted block
-	if exec.Status == StatusCompleted {
-		if llmResponse, ok := exec.Metadata["llm_response"].(string); ok && llmResponse != "" {
-			result.WriteString("\n")
-			result.WriteString(m.renderLLMResponse(llmResponse))
-		}
-	}
-
-	return result.String()
-}
-
-// renderLLMResponse formats LLM response with proper markdown-like styling.
-func (m *bubbleModel) renderLLMResponse(response string) string {
-	var result strings.Builder
-	maxWidth := m.width - 6 // Account for border and padding
+	maxWidth := m.width - 6
 	if maxWidth <= 0 {
 		maxWidth = 74
 	}
 
-	// Split into lines
-	lines := strings.Split(response, "\n")
+	lines := strings.Split(content, "\n")
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
+		if strings.TrimSpace(line) == "" {
 			result.WriteString("\n")
 			continue
 		}
-
-		// Word wrap and render each line
 		wrappedLines := wordWrap(line, maxWidth)
 		for _, wrappedLine := range wrappedLines {
-			result.WriteString(styleLLMBlock.Render(wrappedLine))
+			result.WriteString(style.Render(wrappedLine))
 			result.WriteString("\n")
 		}
 	}
-
 	return result.String()
 }
 
-func (m *bubbleModel) getIcon(exec *Execution) string {
-	switch exec.Status {
-	case StatusRunning:
-		return styleRunning.Render(m.spinner.View())
-	case StatusCompleted:
-		return styleCompleted.Render("✓")
-	case StatusFailed:
-		return styleFailed.Render("✗")
-	case StatusPending:
-		return styleSubtle.Render("…")
-	default:
-		return styleSubtle.Render("→")
-	}
-}
-
-// getHumanReadableName converts technical activity names to human-readable descriptions.
-func getHumanReadableName(exec *Execution) string {
-	if exec == nil {
+func compactActivityName(activityName string) string {
+	if strings.TrimSpace(activityName) == "" {
 		return ""
 	}
-
-	// Always prefer the message from the activity itself
-	if exec.Message != "" {
-		return exec.Message
-	}
-
-	// Fall back to result if available
-	if exec.Result != "" {
-		return exec.Result
-	}
-
-	// Last resort: convert the activity name
-	parts := strings.Split(exec.Name, "::")
-	if len(parts) == 0 {
-		return "Working"
-	}
-
-	lastPart := parts[len(parts)-1]
-	return convertCamelToReadable(lastPart)
-}
-
-func (m *bubbleModel) getDuration(exec *Execution) string {
-	duration := exec.getDurationString()
-	if duration == "" {
-		return ""
-	}
-	return styleDuration.Render(fmt.Sprintf(" (%s)", duration))
+	parts := strings.Split(activityName, "::")
+	return strings.TrimSpace(parts[len(parts)-1])
 }
 
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
-}
-
-func copyExecutions(src map[string]*Execution) map[string]*Execution {
-	dst := make(map[string]*Execution, len(src))
-	for k, v := range src {
-		if v != nil {
-			execCopy := *v
-			dst[k] = &execCopy
-		}
-	}
-	return dst
-}
-
-// Helper functions moved from old tracker
-
-func sanitizeDescription(description string) string {
-	if description == "" {
-		return ""
-	}
-
-	var b strings.Builder
-	b.Grow(len(description))
-	for _, r := range description {
-		if unicode.IsPrint(r) && r != '\x1b' {
-			b.WriteRune(r)
-		}
-	}
-
-	return truncateString(b.String(), maxMessageLength)
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen-3] + "..."
-	}
-	return s
-}
-
-func convertCamelToReadable(s string) string {
-	if s == "" {
-		return ""
-	}
-
-	var result strings.Builder
-	result.Grow(len(s) + 5)
-	for i, r := range s {
-		if i > 0 && unicode.IsUpper(r) {
-			result.WriteRune(' ')
-		}
-		if i == 0 {
-			result.WriteRune(unicode.ToUpper(r))
-		} else {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
-func parseActivityHierarchy(activityName string) (parentName string, level int) {
-	parts := strings.Split(activityName, "::")
-	level = len(parts) - 1
-	if level > 0 {
-		parentName = strings.Join(parts[:level], "::")
-	}
-	return parentName, level
 }
 
 // wordWrap wraps text to fit within the specified width.

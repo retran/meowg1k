@@ -74,7 +74,7 @@ func (f *Factory) runStep(ctx context.Context, execCtx *executor.Context, input 
 
 	stepName := resolveStepName(input.StepConfig)
 
-	// Use more user-friendly step names with emojis
+	// Use user-friendly step names.
 	displayName := getStepDisplayName(stepName)
 	execCtx.SendRunning(displayName)
 
@@ -85,13 +85,13 @@ func (f *Factory) runStep(ctx context.Context, execCtx *executor.Context, input 
 func getStepDisplayName(stepName string) string {
 	switch strings.ToLower(stepName) {
 	case "research":
-		return "🧠 Researching..."
+		return "Researching"
 	case stepPlan:
-		return "📝 Planning..."
+		return "Planning"
 	case "execute":
-		return "🚀 Executing..."
+		return "Executing"
 	case "verify":
-		return "✅ Verifying..."
+		return "Verifying"
 	default:
 		return fmt.Sprintf("Agent step: %s", stepName)
 	}
@@ -166,7 +166,7 @@ func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input
 		if summary == "" {
 			summary = parsed.Content
 		}
-		execCtx.SendCompleted(fmt.Sprintf("✅ Completed: %s", stepName))
+		execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
 		return &Output{Summary: strings.TrimSpace(summary), Content: strings.TrimSpace(parsed.Content)}, nil, nil
 	case "tool":
 		if !input.StepConfig.AllowsToolMode(parsed.Tool, parsed.Mode) {
@@ -244,14 +244,14 @@ func handleNonJSONResponse(execCtx *executor.Context, stepName string, toolDefs 
 	if trimmed == "" {
 		return nil, nil, parseErr
 	}
-	execCtx.SendCompleted(fmt.Sprintf("✅ Completed: %s", stepName))
+	execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
 	return &Output{Summary: trimmed, Content: trimmed}, nil, nil
 }
 
 func buildSystemPrompt(basePrompt string, stepConfig *agent.StepConfig) string {
 	toolSchema := `If tool calling is not used, respond with JSON only. Use one of:
-{"type":"tool","tool":"<tool>","mode":"<mode>","params":{...}}
-{"type":"final","content":"...","summary":"..."}
+{"type":"tool","tool":"<tool>","mode":"<mode>","params":{}}
+{"type":"final","content":"<content>","summary":"<summary>"}
 `
 
 	toolsAndModes := buildToolModeSummary(stepConfig)

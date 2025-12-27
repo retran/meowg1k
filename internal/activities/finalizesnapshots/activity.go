@@ -41,7 +41,7 @@ func NewFactory(indexService *index.Service) (executor.ActivityFactory[*Input, s
 // NewActivity returns the activity implementation.
 func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (struct{}, error) {
-		executorCtx.SendRunning(fmt.Sprintf("🏁 Finalizing %d snapshots...", len(input.ExistingVersions)+len(input.NewVersions)))
+		executorCtx.SendRunning(fmt.Sprintf("Finalizing %d snapshots", len(input.ExistingVersions)+len(input.NewVersions)))
 
 		serviceInput := &index.FinalizeInput{
 			ScanResult:       input.ScanResult,
@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, struct{}] {
 			return struct{}{}, fmt.Errorf("failed to finalize snapshots: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("🏁 Finalized: %d existing, %d new", len(input.ExistingVersions), len(input.NewVersions)))
+		executorCtx.SendCompleted(fmt.Sprintf("Finalized snapshots: %d existing, %d new", len(input.ExistingVersions), len(input.NewVersions)))
 		return struct{}{}, nil
 	}
 }

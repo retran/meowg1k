@@ -103,7 +103,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return err
 		}
 
-		flowCtx.SendCompleted("")
+		flowCtx.SendCompleted("Generation complete")
 
 		return f.printOutput(invokeOutput)
 	}

@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("📊 Fetching changes from %d file(s)...", len(input.Files)))
+		executorCtx.SendRunning(fmt.Sprintf("Fetching staged diffs for %d file(s)", len(input.Files)))
 
 		exec := executorCtx.GetExecutor()
 		if exec == nil {
@@ -79,7 +79,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			changes = append(changes, change)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("📊 Fetched %d change(s)", len(changes)))
+		executorCtx.SendCompleted(fmt.Sprintf("Fetched %d diff(s)", len(changes)))
 
 		return &Output{
 			Changes: changes,

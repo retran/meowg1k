@@ -168,7 +168,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	flowCtx.SendCompleted("")
+	flowCtx.SendCompleted("Commit flow complete")
 
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
 		return fmt.Errorf("failed to print commit message: %w", err)

@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package agent
+package do
 
 import (
 	"bytes"
@@ -38,6 +38,7 @@ type ToolRunner struct {
 	lastIndexSig     string
 	searchDefaults   agentconfig.SearchDefaults
 	workspaceDirty   bool
+	toolCallCount    int
 }
 
 type planMemory struct {
@@ -94,35 +95,31 @@ func (r *ToolRunner) ResetPlanMemory() {
 
 // RunTool executes a tool call and returns its result.
 func (r *ToolRunner) RunTool(ctx context.Context, execCtx *executor.Context, tool, mode string, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
-	toolCtx := execCtx
-	toolLabel := fmt.Sprintf("Tool:%s.%s", strings.ToLower(tool), strings.ToLower(mode))
-	if execCtx != nil {
-		toolCtx = execCtx.Child(toolLabel)
-		toolCtx.SendRunning(fmt.Sprintf("Tool: %s.%s", strings.ToLower(tool), strings.ToLower(mode)))
+	r.toolCallCount++
+	toolLabel := fmt.Sprintf("Tool:%s.%s#%d", strings.ToLower(tool), strings.ToLower(mode), r.toolCallCount)
+
+	// Parse params to map for message generation
+	var paramsMap map[string]any
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &paramsMap); err != nil {
+			// ignore error, paramsMap will be empty
+			_ = err
+		}
 	}
 
-	var result *agentstep.ToolResult
-	var err error
-	switch strings.ToLower(tool) {
-	case "workspace":
-		result, err = r.runWorkspaceTool(ctx, toolCtx, mode, params)
-	case "search":
-		result, err = r.runSearchTool(ctx, toolCtx, mode, params)
-	case "git":
-		result, err = r.runGitTool(ctx, toolCtx, mode, params)
-	case "summarize":
-		result, err = r.runSummarizeTool(ctx, toolCtx, mode, params, resolvedProfile, systemPrompt)
-	case "plan":
-		result, err = r.runPlanTool(mode, params)
-	case "memory":
-		result, err = r.runMemoryTool(mode, params)
-	case "command":
-		result, err = r.runCommandTool(ctx, toolCtx, mode, params)
-	case "patch":
-		result, err = r.runPatchTool(ctx, toolCtx, mode, params)
-	default:
-		err = fmt.Errorf("unsupported tool %q", tool)
+	td := agentstep.GetToolDescription(strings.ToLower(tool), strings.ToLower(mode))
+
+	var toolCtx *executor.Context
+	if execCtx != nil {
+		toolCtx = execCtx.Child(toolLabel)
+		runningMsg := fmt.Sprintf("Tool: %s.%s", strings.ToLower(tool), strings.ToLower(mode))
+		if td != nil {
+			runningMsg = td.GetRunningMessage(paramsMap)
+		}
+		toolCtx.SendRunning(runningMsg)
 	}
+
+	result, err := r.dispatchTool(ctx, toolCtx, tool, mode, params, resolvedProfile, systemPrompt)
 
 	if err != nil {
 		if toolCtx != nil {
@@ -132,10 +129,47 @@ func (r *ToolRunner) RunTool(ctx context.Context, execCtx *executor.Context, too
 	}
 
 	if toolCtx != nil {
-		toolCtx.SendCompleted(fmt.Sprintf("%s.%s", strings.ToLower(tool), strings.ToLower(mode)))
+		completedMsg := fmt.Sprintf("%s.%s", strings.ToLower(tool), strings.ToLower(mode))
+		var details string
+		if td != nil {
+			completedMsg = td.GetCompletedMessage(result)
+			details = td.GetDetailsMessage(paramsMap, result)
+		}
+
+		if details != "" {
+			toolCtx.SendCompletedWithMetadata(completedMsg, map[string]any{
+				"details":      details,
+				"tool_details": details,
+			})
+		} else {
+			toolCtx.SendCompleted(completedMsg)
+		}
 	}
 
 	return result, nil
+}
+
+func (r *ToolRunner) dispatchTool(ctx context.Context, toolCtx *executor.Context, tool, mode string, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
+	switch strings.ToLower(tool) {
+	case "workspace":
+		return r.runWorkspaceTool(ctx, toolCtx, mode, params)
+	case "search":
+		return r.runSearchTool(ctx, toolCtx, mode, params)
+	case "git":
+		return r.runGitTool(ctx, toolCtx, mode, params)
+	case "summarize":
+		return r.runSummarizeTool(ctx, toolCtx, mode, params, resolvedProfile, systemPrompt)
+	case "plan":
+		return r.runPlanTool(mode, params)
+	case "memory":
+		return r.runMemoryTool(mode, params)
+	case "command":
+		return r.runCommandTool(ctx, toolCtx, mode, params)
+	case "patch":
+		return r.runPatchTool(ctx, toolCtx, mode, params)
+	default:
+		return nil, fmt.Errorf("unsupported tool %q", tool)
+	}
 }
 
 type workspaceListParams struct {
@@ -216,7 +250,14 @@ func (r *ToolRunner) handleWorkspaceList(ctx context.Context, params json.RawMes
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "workspace", Mode: modeList, Data: result}, nil
+
+	// Convert to []interface{} for tool details rendering
+	items := make([]interface{}, len(result))
+	for i, item := range result {
+		items[i] = item
+	}
+
+	return &agentstep.ToolResult{Tool: "workspace", Mode: modeList, Data: items}, nil
 }
 
 func (r *ToolRunner) handleWorkspaceRead(params json.RawMessage) (*agentstep.ToolResult, error) {
@@ -861,7 +902,7 @@ func (r *ToolRunner) runSearchTool(ctx context.Context, execCtx *executor.Contex
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
-	results := make([]searchResult, 0, len(output.Results))
+	results := make([]interface{}, 0, len(output.Results))
 	for _, result := range output.Results {
 		results = append(results, searchResult{
 			FilePath:  result.FilePath,
@@ -978,11 +1019,11 @@ func (r *ToolRunner) handleGitStatus(_ json.RawMessage) (*agentstep.ToolResult, 
 	if err != nil {
 		return nil, fmt.Errorf("git status failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "status", Data: map[string]string{"status": status}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "status", Data: status}, nil
 }
 
 func (r *ToolRunner) handleGitDiff(params json.RawMessage) (*agentstep.ToolResult, error) {
-	return handleGitWithParams(params, "diff", "diff", func(input gitDiffParams) (string, error) {
+	return handleGitWithParams(params, "diff", func(input gitDiffParams) (string, error) {
 		return r.gitService.Diff(input.Ref, input.Path)
 	})
 }
@@ -996,11 +1037,11 @@ func (r *ToolRunner) handleGitShow(params json.RawMessage) (*agentstep.ToolResul
 	if err != nil {
 		return nil, fmt.Errorf("git show failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "show", Data: map[string]string{"show": show}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "show", Data: show}, nil
 }
 
 func (r *ToolRunner) handleGitLog(params json.RawMessage) (*agentstep.ToolResult, error) {
-	return handleGitWithParams(params, "log", "log", func(input gitLogParams) (string, error) {
+	return handleGitWithParams(params, "log", func(input gitLogParams) (string, error) {
 		return r.gitService.Log(input.Limit, input.Path)
 	})
 }
@@ -1010,7 +1051,11 @@ func (r *ToolRunner) handleGitBranch(_ json.RawMessage) (*agentstep.ToolResult, 
 	if err != nil {
 		return nil, fmt.Errorf("git branch failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "branch", Data: branches}, nil
+	items := make([]interface{}, 0, len(branches))
+	for _, b := range branches {
+		items = append(items, b)
+	}
+	return &agentstep.ToolResult{Tool: "git", Mode: "branch", Data: items}, nil
 }
 
 func (r *ToolRunner) handleGitCurrentBranch(_ json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1018,7 +1063,7 @@ func (r *ToolRunner) handleGitCurrentBranch(_ json.RawMessage) (*agentstep.ToolR
 	if err != nil {
 		return nil, fmt.Errorf("git current_branch failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "current_branch", Data: map[string]string{"branch": branch}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "current_branch", Data: branch}, nil
 }
 
 func (r *ToolRunner) handleGitStage(params json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1030,7 +1075,7 @@ func (r *ToolRunner) handleGitStage(params json.RawMessage) (*agentstep.ToolResu
 	if err != nil {
 		return nil, fmt.Errorf("git stage failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "stage", Data: map[string]string{"output": output}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "stage", Data: output}, nil
 }
 
 func (r *ToolRunner) handleGitCommit(params json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1042,10 +1087,10 @@ func (r *ToolRunner) handleGitCommit(params json.RawMessage) (*agentstep.ToolRes
 	if err != nil {
 		return nil, fmt.Errorf("git commit failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "commit", Data: map[string]string{"output": output}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "commit", Data: output}, nil
 }
 
-func handleGitWithParams[T any](params json.RawMessage, mode string, resultKey string, action func(T) (string, error)) (*agentstep.ToolResult, error) {
+func handleGitWithParams[T any](params json.RawMessage, mode string, action func(T) (string, error)) (*agentstep.ToolResult, error) {
 	var input T
 	if err := json.Unmarshal(params, &input); err != nil {
 		return nil, fmt.Errorf("failed to parse git %s params: %w", mode, err)
@@ -1054,7 +1099,7 @@ func handleGitWithParams[T any](params json.RawMessage, mode string, resultKey s
 	if err != nil {
 		return nil, fmt.Errorf("git %s failed: %w", mode, err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: mode, Data: map[string]string{resultKey: output}}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: mode, Data: output}, nil
 }
 
 type summarizeTextParams struct {
@@ -1097,7 +1142,7 @@ func (r *ToolRunner) summarizeText(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "text", Data: map[string]string{"summary": summary}}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "text", Data: summary}, nil
 }
 
 func (r *ToolRunner) summarizeFile(ctx context.Context, execCtx *executor.Context, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
@@ -1113,7 +1158,7 @@ func (r *ToolRunner) summarizeFile(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "file", Data: map[string]string{"summary": summary}}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "file", Data: summary}, nil
 }
 
 func (r *ToolRunner) summarizeDiff(ctx context.Context, execCtx *executor.Context, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
@@ -1132,7 +1177,7 @@ func (r *ToolRunner) summarizeDiff(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "diff", Data: map[string]string{"summary": summary}}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "diff", Data: summary}, nil
 }
 
 func (r *ToolRunner) summarize(ctx context.Context, execCtx *executor.Context, text string, resolvedProfile *profile.ResolvedProfile, stepPrompt string) (string, error) {
@@ -1186,7 +1231,7 @@ func (r *ToolRunner) runPlanTool(mode string, params json.RawMessage) (*agentste
 		}
 		r.planMemory.nextID++
 		r.planMemory.items = append(r.planMemory.items, item)
-		return &agentstep.ToolResult{Tool: "plan", Mode: "add", Data: item}, nil
+		return &agentstep.ToolResult{Tool: "plan", Mode: "add", Data: map[string]any{"id": item.ID, "text": item.Text, "completed": item.Completed}}, nil
 	case "complete":
 		var input struct {
 			TaskID int `json:"task_id"`
@@ -1197,12 +1242,17 @@ func (r *ToolRunner) runPlanTool(mode string, params json.RawMessage) (*agentste
 		for i, item := range r.planMemory.items {
 			if item.ID == input.TaskID {
 				r.planMemory.items[i].Completed = true
-				return &agentstep.ToolResult{Tool: "plan", Mode: "complete", Data: r.planMemory.items[i]}, nil
+				updated := r.planMemory.items[i]
+				return &agentstep.ToolResult{Tool: "plan", Mode: "complete", Data: map[string]any{"id": updated.ID, "text": updated.Text, "completed": updated.Completed}}, nil
 			}
 		}
 		return nil, fmt.Errorf("plan item not found: %d", input.TaskID)
 	case modeList:
-		return &agentstep.ToolResult{Tool: "plan", Mode: modeList, Data: r.planMemory.items}, nil
+		items := make([]interface{}, len(r.planMemory.items))
+		for i, item := range r.planMemory.items {
+			items[i] = map[string]any{"id": item.ID, "text": item.Text, "completed": item.Completed}
+		}
+		return &agentstep.ToolResult{Tool: "plan", Mode: modeList, Data: items}, nil
 	default:
 		return nil, fmt.Errorf("unsupported plan mode %q", mode)
 	}
@@ -1226,9 +1276,13 @@ func (r *ToolRunner) runMemoryTool(mode string, params json.RawMessage) (*agents
 		}
 		r.memoryStore.nextID++
 		r.memoryStore.items = append(r.memoryStore.items, item)
-		return &agentstep.ToolResult{Tool: "memory", Mode: "add", Data: item}, nil
+		return &agentstep.ToolResult{Tool: "memory", Mode: "add", Data: map[string]any{"id": item.ID, "text": item.Text}}, nil
 	case modeList:
-		return &agentstep.ToolResult{Tool: "memory", Mode: modeList, Data: r.memoryStore.items}, nil
+		items := make([]interface{}, len(r.memoryStore.items))
+		for i, item := range r.memoryStore.items {
+			items[i] = map[string]any{"id": item.ID, "text": item.Text}
+		}
+		return &agentstep.ToolResult{Tool: "memory", Mode: modeList, Data: items}, nil
 	default:
 		return nil, fmt.Errorf("unsupported memory mode %q", mode)
 	}

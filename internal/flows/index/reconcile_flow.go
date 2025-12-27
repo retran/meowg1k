@@ -205,7 +205,7 @@ func (f *Factory) processNewFiles(
 	filesToProcess []domainindex.FileToProcess,
 ) (map[string]int64, error) {
 	if len(filesToProcess) == 0 {
-		flowCtx.SendRunning("No new files to process - all files already indexed")
+		flowCtx.SendRunning("No new files to process; all files already indexed")
 		return make(map[string]int64), nil
 	}
 
@@ -263,7 +263,7 @@ func (f *Factory) finalizeSnapshots(
 	existingVersions map[string]int64,
 	newVersions map[string]int64,
 ) error {
-	flowCtx.SendRunning("Finalizing snapshots...")
+	flowCtx.SendRunning("Finalizing snapshots")
 
 	finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
 	finalizeInput := &finalizesnapshots.Input{

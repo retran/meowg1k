@@ -156,7 +156,7 @@ func (f *Factory) runPullRequestFlow(ctx context.Context, flowCtx *executor.Cont
 		return err
 	}
 
-	flowCtx.SendCompleted("")
+	flowCtx.SendCompleted("Pull request description ready")
 
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(prDescription)); err != nil {
 		return fmt.Errorf("failed to print PR description: %w", err)

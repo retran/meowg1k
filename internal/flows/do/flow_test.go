@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package agent
+package do
 
 import (
 	"context"
@@ -150,7 +150,7 @@ func TestRunAgentFlowFinalOutput(t *testing.T) {
 	}
 
 	exec := executor.NewExecutor(2)
-	flowCtx := executor.NewContext("AgentFlow", executor.NoOpFeedbackHandler, exec)
+	flowCtx := executor.NewContext("DoFlow", executor.NoOpFeedbackHandler, exec)
 	flow := factory.NewFlow()
 	if err := flow(context.Background(), flowCtx); err != nil {
 		t.Fatalf("flow failed: %v", err)

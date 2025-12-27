@@ -162,8 +162,11 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, but got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Message != "🧹 Cleaning up old data..." || feedbackMessages[1].Message != "🧹 Cleanup complete" {
-			t.Errorf("unexpected messages: got %+v and %+v", feedbackMessages[0], feedbackMessages[1])
+		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != "Cleaning up old data" {
+			t.Errorf("unexpected running message: got %+v", feedbackMessages[0])
+		}
+		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != "Cleanup complete" || feedbackMessages[1].Progress != 1.0 {
+			t.Errorf("unexpected completed message: got %+v", feedbackMessages[1])
 		}
 	})
 

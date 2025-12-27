@@ -1,8 +1,8 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package agent implements the multi-step agent workflow.
-package agent
+// Package do implements the multi-step do workflow.
+package do
 
 import (
 	"context"
@@ -33,7 +33,7 @@ type ConfigReader interface {
 	Get() (*agentconfig.ResolvedConfig, error)
 }
 
-// Factory creates instances of the agent flow.
+// Factory creates instances of the do flow.
 type Factory struct {
 	agentConfigService *agentconfig.Service
 	stepFactory        *agentstep.Factory
@@ -48,7 +48,7 @@ type Factory struct {
 	indexFlowBuilder   func() (executor.Flow, error)
 }
 
-// NewFactory creates a new agent flow factory.
+// NewFactory creates a new do flow factory.
 func NewFactory(
 	agentConfigService *agentconfig.Service,
 	stepFactory *agentstep.Factory,
@@ -105,12 +105,12 @@ func NewFactory(
 // NewFlow creates and returns the agent flow function.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		return f.runAgentFlow(ctx, flowCtx)
+		return f.runDoFlow(ctx, flowCtx)
 	}
 }
 
-func (f *Factory) runAgentFlow(ctx context.Context, flowCtx *executor.Context) error {
-	flowCtx.SendRunning("Agent Flow")
+func (f *Factory) runDoFlow(ctx context.Context, flowCtx *executor.Context) error {
+	flowCtx.SendRunning("Do flow")
 
 	initialGoal, err := f.readGoal()
 	if err != nil {
@@ -139,8 +139,10 @@ func (f *Factory) runAgentFlow(ctx context.Context, flowCtx *executor.Context) e
 
 	finalContent = combineFinalOutput(finalContent, executeContent, summaries)
 
+	flowCtx.SendCompleted("Do output ready")
+
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(finalContent)); err != nil {
-		return fmt.Errorf("failed to print agent output: %w", err)
+		return fmt.Errorf("failed to print output: %w", err)
 	}
 
 	return nil
@@ -189,7 +191,7 @@ func (f *Factory) executeSteps(ctx context.Context, flowCtx *executor.Context, g
 	maxRetries := 2
 
 	for attempt := 1; ; attempt++ {
-		finalContent, summaries, executeContent, err = f.executeStepCycle(ctx, flowCtx, currentGoal, runtimeConfig, runner, executorInstance)
+		finalContent, summaries, executeContent, err = f.executeStepCycle(ctx, flowCtx, currentGoal, runtimeConfig, runner, executorInstance, attempt)
 		if err != nil {
 			return "", nil, "", err
 		}
@@ -204,7 +206,7 @@ func (f *Factory) executeSteps(ctx context.Context, flowCtx *executor.Context, g
 	}
 }
 
-func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, runner *ToolRunner, executorInstance executor.Executor) (finalContent string, summaries []string, executeContent string, err error) {
+func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, runner *ToolRunner, executorInstance executor.Executor, attempt int) (finalContent string, summaries []string, executeContent string, err error) {
 	summaries = make([]string, 0, len(agentconfig.StepOrder))
 	finalContent = ""
 	executeContent = ""
@@ -214,7 +216,7 @@ func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Contex
 		if step == nil {
 			return "", nil, "", fmt.Errorf("missing step config for %s", stepName)
 		}
-		output, err := f.runStep(ctx, flowCtx, goal, runner, executorInstance, stepName, step, &summaries)
+		output, err := f.runStep(ctx, flowCtx, goal, runner, executorInstance, stepName, step, &summaries, attempt)
 		if err != nil {
 			return "", nil, "", err
 		}
@@ -225,7 +227,7 @@ func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Contex
 	return finalContent, summaries, executeContent, nil
 }
 
-func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal string, runner *ToolRunner, executorInstance executor.Executor, stepName string, step *agentconfig.StepConfig, summaries *[]string) (*agentstep.Output, error) {
+func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal string, runner *ToolRunner, executorInstance executor.Executor, stepName string, step *agentconfig.StepConfig, summaries *[]string, attempt int) (*agentstep.Output, error) {
 	stepProfile, err := f.profileResolver.Get(profile.Profile(step.Profile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve profile %q: %w", step.Profile, err)
@@ -241,7 +243,12 @@ func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal s
 		ToolRunner:     runner,
 	}
 
-	output, err := executor.ExecuteActivity(ctx, executorInstance, flowCtx, fmt.Sprintf("AgentStep:%s", stepName), activity, input)
+	activityName := fmt.Sprintf("AgentStep:%s", stepName)
+	if attempt > 1 {
+		activityName = fmt.Sprintf("AgentStep:%s#%d", stepName, attempt)
+	}
+
+	output, err := executor.ExecuteActivity(ctx, executorInstance, flowCtx, activityName, activity, input)
 	if err != nil {
 		return nil, fmt.Errorf("agent step %s failed: %w", stepName, err)
 	}

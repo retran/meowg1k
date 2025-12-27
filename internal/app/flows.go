@@ -58,9 +58,9 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	agentFlow "github.com/retran/meowg1k/internal/flows/agent"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
+	agentFlow "github.com/retran/meowg1k/internal/flows/do"
 	"github.com/retran/meowg1k/internal/flows/generate"
 	indexFlow "github.com/retran/meowg1k/internal/flows/index"
 	pr "github.com/retran/meowg1k/internal/flows/pullrequest"
@@ -678,8 +678,8 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 	return queryFlowFactory.NewFlow(), nil
 }
 
-// CreateAgentFlow creates the agent workflow with all dependencies.
-func (c *Container) CreateAgentFlow() (executor.Flow, error) {
+// CreateDoFlow creates the do workflow with all dependencies.
+func (c *Container) CreateDoFlow() (executor.Flow, error) {
 	common, err := c.buildCommonFlowServices()
 	if err != nil {
 		return nil, err
@@ -714,10 +714,15 @@ func (c *Container) CreateAgentFlow() (executor.Flow, error) {
 		c.CreateIndexReconcileFlow,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create agent flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create do flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil
+}
+
+// CreateAgentFlow is a backward-compatible alias for CreateDoFlow.
+func (c *Container) CreateAgentFlow() (executor.Flow, error) {
+	return c.CreateDoFlow()
 }
 
 func (c *Container) buildQueryActivityFactory() (executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output], error) {

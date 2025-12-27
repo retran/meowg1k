@@ -60,14 +60,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("target branch cannot be empty")
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("📋 Finding changes vs %s...", input.TargetBranch))
+		executorCtx.SendRunning(fmt.Sprintf("Finding changes vs %s", input.TargetBranch))
 
 		files, err := f.branchFileListReader.GetChangedFilesInBranch(input.TargetBranch)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 		}
 
-		executorCtx.SendCompleted(fmt.Sprintf("📋 Found %d files vs %s", len(files), input.TargetBranch))
+		executorCtx.SendCompleted(fmt.Sprintf("Found %d files vs %s", len(files), input.TargetBranch))
 
 		return &Output{
 			Files: files,

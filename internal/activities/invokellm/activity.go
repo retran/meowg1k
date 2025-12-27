@@ -64,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			modelName = "unknown-model"
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("💭 Thinking (%s)...", modelName))
+		executorCtx.SendRunning(fmt.Sprintf("Thinking (%s)", modelName))
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
@@ -80,9 +80,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		metadata := map[string]any{}
 
 		completionMetadata := map[string]any{
+			"details":      content,
 			"llm_response": content,
 		}
-		executorCtx.SendCompletedWithMetadata(fmt.Sprintf("💭 Response from %s", modelName), completionMetadata)
+		executorCtx.SendCompletedWithMetadata(fmt.Sprintf("Response from %s", modelName), completionMetadata)
 
 		return &Output{
 			Content:   content,
