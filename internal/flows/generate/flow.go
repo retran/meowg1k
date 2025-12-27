@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
@@ -37,7 +37,7 @@ type FlowFactory struct {
 	taskConfigProvider               TaskConfigProvider
 	userPromptProvider               UserPromptProvider
 	systemPromptProvider             SystemPromptProvider
-	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 	outputWriter                     ports.OutputWriter
 }
 
@@ -46,7 +46,7 @@ func NewFlowFactory(
 	taskConfigProvider TaskConfigProvider,
 	userPromptProvider UserPromptProvider,
 	systemPromptProvider SystemPromptProvider,
-	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output],
 	outputWriter ports.OutputWriter,
 ) (*FlowFactory, error) {
 	if taskConfigProvider == nil {
@@ -91,22 +91,32 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			return fmt.Errorf("failed to get task config: %w", err)
 		}
 
-		flowCtx.SendRunning("Generating content")
-
 		userPrompt, systemPrompt, err := f.getPrompts()
 		if err != nil {
 			return err
 		}
+		flowCtx.SendRunning(fmt.Sprintf("Generate content for prompt: %s", truncatePrompt(userPrompt)))
 
 		invokeOutput, err := f.runInvokeActivity(ctx, flowCtx, exec, taskConfig.Profile, userPrompt, systemPrompt)
 		if err != nil {
 			return err
 		}
 
-		flowCtx.SendCompleted("Generation complete")
+		flowCtx.SendCompleted("Generated the requested content")
 
 		return f.printOutput(invokeOutput)
 	}
+}
+
+func truncatePrompt(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if trimmed == "" {
+		return "empty prompt"
+	}
+	if len(trimmed) > 80 {
+		return trimmed[:80] + "..."
+	}
+	return trimmed
 }
 
 func (f *FlowFactory) validateFlowContext(ctx context.Context, flowCtx *executor.Context) (executor.Executor, error) {
@@ -148,9 +158,9 @@ func (f *FlowFactory) runInvokeActivity(
 	resolvedProfile *profile.ResolvedProfile,
 	userPrompt string,
 	systemPrompt string,
-) (*invokellm.Output, error) {
+) (*generatecontent.Output, error) {
 	activity := f.contentGenerationActivityFactory.NewActivity()
-	input := &invokellm.Input{
+	input := &generatecontent.Input{
 		Profile:      resolvedProfile,
 		UserPrompt:   userPrompt,
 		SystemPrompt: systemPrompt,
@@ -170,7 +180,7 @@ func (f *FlowFactory) runInvokeActivity(
 	return invokeOutput, nil
 }
 
-func (f *FlowFactory) printOutput(invokeOutput *invokellm.Output) error {
+func (f *FlowFactory) printOutput(invokeOutput *generatecontent.Output) error {
 	time.Sleep(300 * time.Millisecond)
 
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Content)); err != nil {

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	queryactivity "github.com/retran/meowg1k/internal/activities/query"
 	agentconfig "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/core/retrieval"
@@ -65,9 +65,9 @@ type mockInvokeFactory struct {
 	content string
 }
 
-func (m *mockInvokeFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
-	return func(_ context.Context, _ *executor.Context, _ *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: m.content}, nil
+func (m *mockInvokeFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+	return func(_ context.Context, _ *executor.Context, _ *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: m.content}, nil
 	}
 }
 

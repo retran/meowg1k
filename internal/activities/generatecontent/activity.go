@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package invokellm implements an activity that invokes an LLM to generate text responses.
-package invokellm
+package generatecontent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -20,14 +19,12 @@ type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
 	UserPrompt   string
-	Tools        []gateway.ToolDefinition
 }
 
 // Output represents the output from the InvokeLLM activity.
 type Output struct {
-	Metadata  map[string]any
-	Content   string
-	ToolCalls []gateway.ToolCall
+	Metadata map[string]any
+	Content  string
 }
 
 // Factory creates instances of the InvokeLLM activity with injected dependencies.
@@ -64,7 +61,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			modelName = "unknown-model"
 		}
 
-		executorCtx.SendRunning(fmt.Sprintf("Thinking (%s)", modelName))
+		executorCtx.SendRunning(fmt.Sprintf("Thinking... (%s)", modelName))
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
@@ -72,23 +69,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		request := buildRequest(input)
-		content, toolCalls, err := generateWithOptionalTools(ctx, generationGateway, request, input.Tools)
+		content, err := generate(ctx, generationGateway, request)
 		if err != nil {
 			return nil, err
 		}
 
-		metadata := map[string]any{}
-
-		completionMetadata := map[string]any{
-			"details":      content,
-			"llm_response": content,
-		}
-		executorCtx.SendCompletedWithMetadata(fmt.Sprintf("Response from %s", modelName), completionMetadata)
+		executorCtx.SendCompletedWithDetails("", content)
 
 		return &Output{
-			Content:   content,
-			Metadata:  metadata,
-			ToolCalls: toolCalls,
+			Content:  content,
 		}, nil
 	}
 }
@@ -134,46 +123,14 @@ func buildRequest(input *Input) *gateway.GenerateContentRequest {
 		WithGrammar(input.Profile.Grammar)
 }
 
-func generateWithOptionalTools(
+func generate(
 	ctx context.Context,
 	generationGateway ports.GenerationGateway,
 	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
-) (string, []gateway.ToolCall, error) {
-	if len(tools) > 0 {
-		response, err := tryGenerateWithTools(ctx, generationGateway, request, tools)
-		if err != nil {
-			return "", nil, err
-		}
-		if response != nil {
-			return response.Content, response.ToolCalls, nil
-		}
-	}
-
+) (string, error) {
 	content, err := generationGateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to generate content: %w", err)
+		return "", fmt.Errorf("failed to generate content: %w", err)
 	}
-	return content, nil, nil
-}
-
-func tryGenerateWithTools(
-	ctx context.Context,
-	generationGateway ports.GenerationGateway,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
-) (*gateway.GenerateContentResponse, error) {
-	toolGateway, ok := generationGateway.(ports.ToolCallingGateway)
-	if !ok {
-		return nil, nil
-	}
-
-	response, err := toolGateway.GenerateContentWithTools(ctx, request, tools)
-	if err != nil {
-		if errors.Is(err, gateway.ErrToolCallingNotSupported) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("failed to generate content with tools: %w", err)
-	}
-	return response, nil
+	return content, nil
 }

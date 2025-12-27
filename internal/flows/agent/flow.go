@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package do implements the multi-step do workflow.
+// Package agent implements the multi-step agent workflow.
 package do
 
 import (
@@ -33,7 +33,7 @@ type ConfigReader interface {
 	Get() (*agentconfig.ResolvedConfig, error)
 }
 
-// Factory creates instances of the do flow.
+// Factory creates instances of the agent flow.
 type Factory struct {
 	agentConfigService *agentconfig.Service
 	stepFactory        *agentstep.Factory
@@ -48,7 +48,7 @@ type Factory struct {
 	indexFlowBuilder   func() (executor.Flow, error)
 }
 
-// NewFactory creates a new do flow factory.
+// NewFactory creates a new agent flow factory.
 func NewFactory(
 	agentConfigService *agentconfig.Service,
 	stepFactory *agentstep.Factory,
@@ -105,16 +105,17 @@ func NewFactory(
 // NewFlow creates and returns the agent flow function.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		return f.runDoFlow(ctx, flowCtx)
+		return f.runAgentFlow(ctx, flowCtx)
 	}
 }
 
-func (f *Factory) runDoFlow(ctx context.Context, flowCtx *executor.Context) error {
+func (f *Factory) runAgentFlow(ctx context.Context, flowCtx *executor.Context) error {
+	flowCtx.SendRunning("Do Flow")
+
 	initialGoal, err := f.readGoal()
 	if err != nil {
 		return err
 	}
-	flowCtx.SendRunning(fmt.Sprintf("Complete the task: %s", initialGoal))
 
 	runtimeConfig, err := f.loadRuntimeConfig()
 	if err != nil {
@@ -138,10 +139,10 @@ func (f *Factory) runDoFlow(ctx context.Context, flowCtx *executor.Context) erro
 
 	finalContent = combineFinalOutput(finalContent, executeContent, summaries)
 
-	flowCtx.SendCompleted(fmt.Sprintf("Task output ready for: %s", initialGoal))
+	flowCtx.SendCompleted("Do output ready")
 
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(finalContent)); err != nil {
-		return fmt.Errorf("failed to print output: %w", err)
+		return fmt.Errorf("failed to print agent output: %w", err)
 	}
 
 	return nil

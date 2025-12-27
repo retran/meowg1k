@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/composeflatpr"
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
@@ -23,12 +23,12 @@ type mockInvokeLLMFactory struct {
 	response string
 }
 
-func (m *mockInvokeLLMFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+func (m *mockInvokeLLMFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 		if m.err != nil {
 			return nil, m.err
 		}
-		return &invokellm.Output{
+		return &generatecontent.Output{
 			Content: m.response,
 		}, nil
 	}

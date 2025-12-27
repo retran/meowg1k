@@ -237,14 +237,14 @@ func (e *executorImpl) executeFlowImpl(
 
 	select {
 	case <-ctx.Done():
-		flowCtx.SendFailed(ctx.Err(), fmt.Sprintf("Flow %q is canceled", flowCtx.name))
+		flowCtx.SendFailed(ctx.Err(), "Flow canceled")
 		return fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err())
 	default:
 	}
 
 	err := flow(ctx, flowCtx)
 	if err != nil {
-		flowCtx.SendFailed(err, fmt.Sprintf("Flow %q is failed", flowCtx.name))
+		flowCtx.SendFailed(err, "Flow failed")
 		return fmt.Errorf("flow %q failed: %w", flowCtx.name, err)
 	}
 
@@ -281,7 +281,7 @@ func (e *executorImpl) executeActivityImpl(
 
 		// If this was the last attempt, return the error
 		if attempt == policy.MaxAttempts {
-			activityCtx.SendFailed(err, fmt.Sprintf("Activity %q failed after %d attempts", name, attempt))
+			activityCtx.SendFailed(err, "Activity failed")
 			return nil, fmt.Errorf("activity %q failed after %d attempts: %w", name, attempt, err)
 		}
 
@@ -340,7 +340,7 @@ func checkActivityCanceled(
 ) error {
 	select {
 	case <-ctx.Done():
-		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		activityCtx.SendFailed(ctx.Err(), "Activity canceled")
 		return fmt.Errorf(message, activityCtx.name, attempt, ctx.Err())
 	default:
 		return nil
@@ -357,7 +357,7 @@ func waitForRetry(
 ) (time.Duration, error) {
 	select {
 	case <-ctx.Done():
-		activityCtx.SendFailed(ctx.Err(), fmt.Sprintf("Activity %q is canceled", activityCtx.name))
+		activityCtx.SendFailed(ctx.Err(), "Activity canceled")
 		return delay, fmt.Errorf("activity %q canceled during retry backoff at attempt %d: %w", activityCtx.name, attempt, ctx.Err())
 	case <-time.After(delay):
 		return min(time.Duration(float64(delay)*multiplier), maxDelay), nil

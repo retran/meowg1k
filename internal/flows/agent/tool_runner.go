@@ -137,9 +137,12 @@ func (r *ToolRunner) RunTool(ctx context.Context, execCtx *executor.Context, too
 		}
 
 		if details != "" {
-			toolCtx.SendCompletedWithDetails(completedMsg, details)
+			toolCtx.SendCompletedWithMetadata(completedMsg, map[string]any{
+				"details":      details,
+				"tool_details": details,
+			})
 		} else {
-			toolCtx.SendCompletedWithDetails(completedMsg, details)
+			toolCtx.SendCompleted(completedMsg)
 		}
 	}
 
@@ -1016,11 +1019,11 @@ func (r *ToolRunner) handleGitStatus(_ json.RawMessage) (*agentstep.ToolResult, 
 	if err != nil {
 		return nil, fmt.Errorf("git status failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "status", Data: status}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "status", Data: map[string]string{"status": status}}, nil
 }
 
 func (r *ToolRunner) handleGitDiff(params json.RawMessage) (*agentstep.ToolResult, error) {
-	return handleGitWithParams(params, "diff", func(input gitDiffParams) (string, error) {
+	return handleGitWithParams(params, "diff", "diff", func(input gitDiffParams) (string, error) {
 		return r.gitService.Diff(input.Ref, input.Path)
 	})
 }
@@ -1034,11 +1037,11 @@ func (r *ToolRunner) handleGitShow(params json.RawMessage) (*agentstep.ToolResul
 	if err != nil {
 		return nil, fmt.Errorf("git show failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "show", Data: show}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "show", Data: map[string]string{"show": show}}, nil
 }
 
 func (r *ToolRunner) handleGitLog(params json.RawMessage) (*agentstep.ToolResult, error) {
-	return handleGitWithParams(params, "log", func(input gitLogParams) (string, error) {
+	return handleGitWithParams(params, "log", "log", func(input gitLogParams) (string, error) {
 		return r.gitService.Log(input.Limit, input.Path)
 	})
 }
@@ -1048,11 +1051,7 @@ func (r *ToolRunner) handleGitBranch(_ json.RawMessage) (*agentstep.ToolResult, 
 	if err != nil {
 		return nil, fmt.Errorf("git branch failed: %w", err)
 	}
-	items := make([]interface{}, 0, len(branches))
-	for _, b := range branches {
-		items = append(items, b)
-	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "branch", Data: items}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "branch", Data: branches}, nil
 }
 
 func (r *ToolRunner) handleGitCurrentBranch(_ json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1060,7 +1059,7 @@ func (r *ToolRunner) handleGitCurrentBranch(_ json.RawMessage) (*agentstep.ToolR
 	if err != nil {
 		return nil, fmt.Errorf("git current_branch failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "current_branch", Data: branch}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "current_branch", Data: map[string]string{"branch": branch}}, nil
 }
 
 func (r *ToolRunner) handleGitStage(params json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1072,7 +1071,7 @@ func (r *ToolRunner) handleGitStage(params json.RawMessage) (*agentstep.ToolResu
 	if err != nil {
 		return nil, fmt.Errorf("git stage failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "stage", Data: output}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "stage", Data: map[string]string{"output": output}}, nil
 }
 
 func (r *ToolRunner) handleGitCommit(params json.RawMessage) (*agentstep.ToolResult, error) {
@@ -1084,10 +1083,10 @@ func (r *ToolRunner) handleGitCommit(params json.RawMessage) (*agentstep.ToolRes
 	if err != nil {
 		return nil, fmt.Errorf("git commit failed: %w", err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: "commit", Data: output}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: "commit", Data: map[string]string{"output": output}}, nil
 }
 
-func handleGitWithParams[T any](params json.RawMessage, mode string, action func(T) (string, error)) (*agentstep.ToolResult, error) {
+func handleGitWithParams[T any](params json.RawMessage, mode string, resultKey string, action func(T) (string, error)) (*agentstep.ToolResult, error) {
 	var input T
 	if err := json.Unmarshal(params, &input); err != nil {
 		return nil, fmt.Errorf("failed to parse git %s params: %w", mode, err)
@@ -1096,7 +1095,7 @@ func handleGitWithParams[T any](params json.RawMessage, mode string, action func
 	if err != nil {
 		return nil, fmt.Errorf("git %s failed: %w", mode, err)
 	}
-	return &agentstep.ToolResult{Tool: "git", Mode: mode, Data: output}, nil
+	return &agentstep.ToolResult{Tool: "git", Mode: mode, Data: map[string]string{resultKey: output}}, nil
 }
 
 type summarizeTextParams struct {
@@ -1139,7 +1138,7 @@ func (r *ToolRunner) summarizeText(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "text", Data: summary}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "text", Data: map[string]string{"summary": summary}}, nil
 }
 
 func (r *ToolRunner) summarizeFile(ctx context.Context, execCtx *executor.Context, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
@@ -1155,7 +1154,7 @@ func (r *ToolRunner) summarizeFile(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "file", Data: summary}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "file", Data: map[string]string{"summary": summary}}, nil
 }
 
 func (r *ToolRunner) summarizeDiff(ctx context.Context, execCtx *executor.Context, params json.RawMessage, resolvedProfile *profile.ResolvedProfile, systemPrompt string) (*agentstep.ToolResult, error) {
@@ -1174,7 +1173,7 @@ func (r *ToolRunner) summarizeDiff(ctx context.Context, execCtx *executor.Contex
 	if err != nil {
 		return nil, err
 	}
-	return &agentstep.ToolResult{Tool: "summarize", Mode: "diff", Data: summary}, nil
+	return &agentstep.ToolResult{Tool: "summarize", Mode: "diff", Data: map[string]string{"summary": summary}}, nil
 }
 
 func (r *ToolRunner) summarize(ctx context.Context, execCtx *executor.Context, text string, resolvedProfile *profile.ResolvedProfile, stepPrompt string) (string, error) {
@@ -1228,7 +1227,7 @@ func (r *ToolRunner) runPlanTool(mode string, params json.RawMessage) (*agentste
 		}
 		r.planMemory.nextID++
 		r.planMemory.items = append(r.planMemory.items, item)
-		return &agentstep.ToolResult{Tool: "plan", Mode: "add", Data: map[string]any{"id": item.ID, "text": item.Text, "completed": item.Completed}}, nil
+		return &agentstep.ToolResult{Tool: "plan", Mode: "add", Data: item}, nil
 	case "complete":
 		var input struct {
 			TaskID int `json:"task_id"`
@@ -1239,15 +1238,14 @@ func (r *ToolRunner) runPlanTool(mode string, params json.RawMessage) (*agentste
 		for i, item := range r.planMemory.items {
 			if item.ID == input.TaskID {
 				r.planMemory.items[i].Completed = true
-				updated := r.planMemory.items[i]
-				return &agentstep.ToolResult{Tool: "plan", Mode: "complete", Data: map[string]any{"id": updated.ID, "text": updated.Text, "completed": updated.Completed}}, nil
+				return &agentstep.ToolResult{Tool: "plan", Mode: "complete", Data: r.planMemory.items[i]}, nil
 			}
 		}
 		return nil, fmt.Errorf("plan item not found: %d", input.TaskID)
 	case modeList:
 		items := make([]interface{}, len(r.planMemory.items))
 		for i, item := range r.planMemory.items {
-			items[i] = map[string]any{"id": item.ID, "text": item.Text, "completed": item.Completed}
+			items[i] = item
 		}
 		return &agentstep.ToolResult{Tool: "plan", Mode: modeList, Data: items}, nil
 	default:
@@ -1273,11 +1271,11 @@ func (r *ToolRunner) runMemoryTool(mode string, params json.RawMessage) (*agents
 		}
 		r.memoryStore.nextID++
 		r.memoryStore.items = append(r.memoryStore.items, item)
-		return &agentstep.ToolResult{Tool: "memory", Mode: "add", Data: map[string]any{"id": item.ID, "text": item.Text}}, nil
+		return &agentstep.ToolResult{Tool: "memory", Mode: "add", Data: item}, nil
 	case modeList:
 		items := make([]interface{}, len(r.memoryStore.items))
 		for i, item := range r.memoryStore.items {
-			items[i] = map[string]any{"id": item.ID, "text": item.Text}
+			items[i] = item
 		}
 		return &agentstep.ToolResult{Tool: "memory", Mode: modeList, Data: items}, nil
 	default:

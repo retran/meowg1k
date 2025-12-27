@@ -25,7 +25,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
 	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
 	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
 	"github.com/retran/meowg1k/internal/activities/liststaged"
 	"github.com/retran/meowg1k/internal/activities/preparebatches"
@@ -107,7 +107,7 @@ type commitServices struct {
 	summarizeService    *summarize.Service
 	profileService      *profile.Service
 	commitConfigService *commit.Service
-	invokeLLMFactory    executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory    executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 }
 
 type commitActivityFactories struct {
@@ -246,7 +246,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := generatecontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
@@ -301,7 +301,7 @@ type pullRequestServices struct {
 	summarizeService *summarize.Service
 	profileService   *profile.Service
 	prConfigService  *pullrequest.Service
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 }
 
 type pullRequestActivityFactories struct {
@@ -339,7 +339,7 @@ type commonFlowServices struct {
 	filterService    *filter.Service
 	summarizeService *summarize.Service
 	profileService   *profile.Service
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 }
 
 func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
@@ -375,7 +375,7 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := generatecontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
@@ -720,11 +720,6 @@ func (c *Container) CreateDoFlow() (executor.Flow, error) {
 	return flowFactory.NewFlow(), nil
 }
 
-// CreateAgentFlow is a backward-compatible alias for CreateDoFlow.
-func (c *Container) CreateAgentFlow() (executor.Flow, error) {
-	return c.CreateDoFlow()
-}
-
 func (c *Container) buildQueryActivityFactory() (executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output], error) {
 	// Initialize database and repositories
 	if err := c.initDB(); err != nil {
@@ -868,7 +863,7 @@ func (c *Container) buildAskFactories(
 	indexConfig *domainindex.ResolvedConfig,
 ) (
 	retrieveFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
-	invokeFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	invokeFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output],
 	err error,
 ) {
 	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
@@ -903,7 +898,7 @@ func (c *Container) buildAskFactories(
 		return nil, nil, fmt.Errorf("failed to create retrieve context factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := generatecontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create invoke LLM factory: %w", err)
 	}

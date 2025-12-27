@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -30,14 +30,14 @@ type Output struct {
 
 // Factory creates instances of the ComposePR activity with injected dependencies.
 type Factory struct {
-	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 }
 
 // Compile-time check to ensure Factory implements ActivityFactory interface.
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposePR activity factory with the provided content generation activity factory.
-func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]) (*Factory, error) {
+func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
 		return nil, fmt.Errorf("content generation activity factory cannot be nil")
 	}
@@ -62,7 +62,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		content := buildPRPrompt(input.Summaries, input.Intent)
 
-		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &invokellm.Input{
+		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &generatecontent.Input{
 			Profile:      input.Profile,
 			SystemPrompt: input.SystemPrompt,
 			UserPrompt:   content,
@@ -98,14 +98,14 @@ func buildPRPrompt(summaries []*summarizefile.Output, intent string) string {
 	return contentBuilder.String()
 }
 
-func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 	exec, err := requireExecutor(executorCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-	output, err := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+	output, err := executor.ExecuteActivity[*generatecontent.Input, *generatecontent.Output](
 		ctx,
 		exec,
 		executorCtx,

@@ -211,7 +211,7 @@ func TestFeedbackString(t *testing.T) {
 				Error:        errTest,
 				Timestamp:    time.Now(),
 			},
-			expected: "[test-activity] running: running with error (50.0%) (test error)",
+			expected: "[test-activity] running: running with error (test error)",
 		},
 		{
 			name: "error without progress",
@@ -235,7 +235,7 @@ func TestFeedbackString(t *testing.T) {
 				Error:        nil,
 				Timestamp:    time.Now(),
 			},
-			expected: "[test-activity] running: running (75.0%)",
+			expected: "[test-activity] running: running",
 		},
 		{
 			name: "no error no progress",
@@ -305,13 +305,13 @@ func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 	if feedbackCalls[0].Error == nil {
 		t.Error("Expected error in first retry feedback")
 	}
-	if feedbackCalls[0].Metadata["retry_attempt"] != 1 {
-		t.Errorf("Expected retry attempt 1, got %v", feedbackCalls[0].Metadata["retry_attempt"])
+	if feedbackCalls[0].Message != "Retrying" {
+		t.Errorf("Expected retry message, got %q", feedbackCalls[0].Message)
 	}
 
 	// Check third retry
-	if feedbackCalls[1].Metadata["retry_attempt"] != 3 {
-		t.Errorf("Expected retry attempt 3, got %v", feedbackCalls[1].Metadata["retry_attempt"])
+	if feedbackCalls[1].Message != "Retrying" {
+		t.Errorf("Expected retry message, got %q", feedbackCalls[1].Message)
 	}
 }
 

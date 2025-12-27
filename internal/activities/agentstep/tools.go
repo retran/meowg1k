@@ -746,39 +746,38 @@ func (td *ToolDescription) getGitDetails(result *ToolResult) string {
 			return ""
 		}
 		if len(diff) > 1000 {
-			return fmt.Sprintf("Diff (truncated):\n%s", diff[:1000])
+			return diff[:1000]
 		}
-		return fmt.Sprintf("Diff:\n%s", diff)
+		return diff
 	case modeStatus:
 		status, _ := result.Data.(string)
 		if status == "" {
 			return ""
 		}
-		return fmt.Sprintf("Status:\n%s", status)
+		return status
 	case modeLog:
 		log, _ := result.Data.(string)
 		if log == "" {
 			return ""
 		}
-		return fmt.Sprintf("Log:\n%s", log)
+		return log
 	case modeShow:
 		show, _ := result.Data.(string)
 		if show == "" {
 			return ""
 		}
-		return fmt.Sprintf("Commit:\n%s", show)
+		return show
 	case "current_branch":
 		branch, _ := result.Data.(string)
 		if branch == "" {
 			return ""
 		}
-		return fmt.Sprintf("Branch:\n%s", branch)
+		return branch
 	case "branch":
 		if data, ok := result.Data.([]interface{}); ok {
 			var sb strings.Builder
-			sb.WriteString("Branches:\n")
 			for _, item := range data {
-				sb.WriteString(fmt.Sprintf("- %v\n", item))
+				sb.WriteString(fmt.Sprintf("%v\n", item))
 			}
 			return sb.String()
 		}
@@ -787,7 +786,7 @@ func (td *ToolDescription) getGitDetails(result *ToolResult) string {
 		if strings.TrimSpace(output) == "" {
 			return ""
 		}
-		return fmt.Sprintf("Output:\n%s", output)
+		return output
 	}
 	return ""
 }
@@ -796,13 +795,8 @@ func (td *ToolDescription) getSearchDetails(result *ToolResult) string {
 	if td.Mode == modeEmbeddings {
 		if data, ok := result.Data.([]interface{}); ok {
 			var sb strings.Builder
-			sb.WriteString(fmt.Sprintf("Found %d results:\n", len(data)))
-			for i, item := range data {
-				if i >= 5 {
-					sb.WriteString(fmt.Sprintf("and %d more\n", len(data)-5))
-					break
-				}
-				sb.WriteString(fmt.Sprintf("- %v\n", item))
+			for _, item := range data {
+				sb.WriteString(formatSearchItem(item))
 			}
 			return sb.String()
 		}
@@ -815,26 +809,25 @@ func (td *ToolDescription) getPlanDetails(args map[string]any, result *ToolResul
 	case modeList:
 		if data, ok := result.Data.([]interface{}); ok {
 			var sb strings.Builder
-			sb.WriteString("Plan:\n")
 			for _, item := range data {
 				if m, ok := item.(map[string]any); ok {
 					id := m["id"]
 					text := m["text"]
 					completed := m["completed"]
 					if completed == true {
-						sb.WriteString(fmt.Sprintf("- %v (done): %v\n", id, text))
+						sb.WriteString(fmt.Sprintf("%v (done): %v\n", id, text))
 						continue
 					}
-					sb.WriteString(fmt.Sprintf("- %v: %v\n", id, text))
+					sb.WriteString(fmt.Sprintf("%v: %v\n", id, text))
 					continue
 				}
-				sb.WriteString(fmt.Sprintf("- %v\n", item))
+				sb.WriteString(fmt.Sprintf("%v\n", item))
 			}
 			return sb.String()
 		}
 	case modeAdd:
 		if text, ok := args["text"].(string); ok {
-			return fmt.Sprintf("Added to plan:\n%s", text)
+			return text
 		}
 	case modeComplete:
 		if id, ok := args["task_id"].(float64); ok {
@@ -852,7 +845,7 @@ func (td *ToolDescription) getPlanDetails(args map[string]any, result *ToolResul
 
 func (td *ToolDescription) getSummarizeDetails(_ map[string]any, result *ToolResult) string {
 	if summary, ok := result.Data.(string); ok {
-		return fmt.Sprintf("Summary:\n%s", summary)
+		return summary
 	}
 	return ""
 }
@@ -881,12 +874,13 @@ func (td *ToolDescription) getCommandDetails(result *ToolResult) string {
 
 	var sb strings.Builder
 	if stdout, ok := data["stdout"]; ok && stdout != "" {
-		sb.WriteString("Stdout:\n")
 		sb.WriteString(stdout)
 		sb.WriteString("\n")
 	}
 	if stderr, ok := data["stderr"]; ok && stderr != "" {
-		sb.WriteString("Stderr:\n")
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
 		sb.WriteString(stderr)
 		sb.WriteString("\n")
 	}
@@ -906,9 +900,9 @@ func (td *ToolDescription) getWorkspaceDetails(result *ToolResult) string {
 func (td *ToolDescription) getWorkspaceReadDetails(result *ToolResult) string {
 	if content, ok := result.Data.(string); ok {
 		if len(content) > 500 {
-			return fmt.Sprintf("Content (truncated):\n%s", content[:500])
+			return content[:500]
 		}
-		return fmt.Sprintf("Content:\n%s", content)
+		return content
 	}
 	return ""
 }
@@ -920,10 +914,9 @@ func (td *ToolDescription) getWorkspaceListDetails(result *ToolResult) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Listed %d items:\n", len(data)))
 	for i, item := range data {
 		if i >= 10 {
-			sb.WriteString(fmt.Sprintf("and %d more\n", len(data)-10))
+			sb.WriteString(fmt.Sprintf("%d more\n", len(data)-10))
 			break
 		}
 		sb.WriteString(formatWorkspaceItem(item))
@@ -935,8 +928,24 @@ func formatWorkspaceItem(item interface{}) string {
 	// Try to format item nicely if it's a map
 	if m, ok := item.(map[string]any); ok {
 		if path, ok := m["path"]; ok {
-			return fmt.Sprintf("- %v\n", path)
+			return fmt.Sprintf("%v\n", path)
 		}
 	}
-	return fmt.Sprintf("- %v\n", item)
+	return fmt.Sprintf("%v\n", item)
+}
+
+func formatSearchItem(item interface{}) string {
+	if m, ok := item.(map[string]any); ok {
+		path, _ := m["file_path"].(string)
+		start, _ := m["start_line"].(float64)
+		end, _ := m["end_line"].(float64)
+		score, _ := m["score"].(float64)
+		if path != "" {
+			if start > 0 && end > 0 {
+				return fmt.Sprintf("%s (lines %d-%d, score %.2f)\n", path, int(start), int(end), score)
+			}
+			return fmt.Sprintf("%s (score %.2f)\n", path, score)
+		}
+	}
+	return fmt.Sprintf("%v\n", item)
 }

@@ -136,11 +136,14 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	flowCtx.SendRunning("Commit Flow")
-
 	targetBranch, err := f.commandParametersReader.GetTargetBranchFlag()
 	if err != nil {
 		return fmt.Errorf("failed to get target-branch flag: %w", err)
+	}
+	if targetBranch != "" {
+		flowCtx.SendRunning(fmt.Sprintf("Generate a commit message for changes vs %s", targetBranch))
+	} else {
+		flowCtx.SendRunning("Generate a commit message for staged changes")
 	}
 
 	files, err := f.listFiles(ctx, flowCtx, exec, targetBranch)
@@ -168,7 +171,11 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	flowCtx.SendCompleted("Commit flow complete")
+	if targetBranch != "" {
+		flowCtx.SendCompleted(fmt.Sprintf("Commit message ready for changes vs %s", targetBranch))
+	} else {
+		flowCtx.SendCompleted("Commit message ready for staged changes")
+	}
 
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(commitMessage)); err != nil {
 		return fmt.Errorf("failed to print commit message: %w", err)

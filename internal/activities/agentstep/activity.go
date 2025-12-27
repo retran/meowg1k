@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -49,11 +49,11 @@ type Output struct {
 
 // Factory builds agent step activities.
 type Factory struct {
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 }
 
 // NewFactory creates a new agent step factory.
-func NewFactory(invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]) (*Factory, error) {
+func NewFactory(invokeLLMFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]) (*Factory, error) {
 	if invokeLLMFactory == nil {
 		return nil, fmt.Errorf("invokeLLMFactory is nil")
 	}
@@ -93,7 +93,7 @@ func getStepDisplayName(stepName string) string {
 	case "verify":
 		return "Verifying"
 	default:
-		return fmt.Sprintf("Agent step: %s", stepName)
+		return fmt.Sprintf("Working on step %s", stepName)
 	}
 }
 
@@ -150,36 +150,37 @@ func validateInput(factory *Factory, input *Input) error {
 	return nil
 }
 
-func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]*ToolDescription, response *invokellm.Output) (*Output, *ToolResult, error) {
-	if len(response.ToolCalls) > 0 {
-		return handleToolCalls(ctx, execCtx, input, stepName, toolNameMap, response.ToolCalls)
-	}
-
-	parsed, err := parseAgentResponse(response.Content)
-	if err != nil {
-		return handleNonJSONResponse(execCtx, stepName, toolDefs, response.Content, err)
-	}
-
-	switch parsed.Type {
-	case "final":
-		summary := parsed.Summary
-		if summary == "" {
-			summary = parsed.Content
-		}
-		execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
-		return &Output{Summary: strings.TrimSpace(summary), Content: strings.TrimSpace(parsed.Content)}, nil, nil
-	case "tool":
-		if !input.StepConfig.AllowsToolMode(parsed.Tool, parsed.Mode) {
-			return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", parsed.Tool, parsed.Mode, stepName)
-		}
-		result, err := input.ToolRunner.RunTool(ctx, execCtx, parsed.Tool, parsed.Mode, parsed.Params, input.Profile, stringValue(input.SystemPrompt))
-		if err != nil {
-			return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", parsed.Tool, parsed.Mode, err)
-		}
-		return nil, result, nil
-	default:
-		return nil, nil, fmt.Errorf("unsupported response type %q", parsed.Type)
-	}
+func handleResponse(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolDefs []gateway.ToolDefinition, toolNameMap map[string]*ToolDescription, response *generatecontent.Output) (*Output, *ToolResult, error) {
+	// if len(response.ToolCalls) > 0 {
+	// 	return handleToolCalls(ctx, execCtx, input, stepName, toolNameMap, response.ToolCalls)
+	// }
+	//
+	// parsed, err := parseAgentResponse(response.Content)
+	// if err != nil {
+	// 	return handleNonJSONResponse(execCtx, stepName, toolDefs, response.Content, err)
+	// }
+	//
+	// switch parsed.Type {
+	// case "final":
+	// 	summary := parsed.Summary
+	// 	if summary == "" {
+	// 		summary = parsed.Content
+	// 	}
+	// 	execCtx.SendCompleted(stepName)
+	// 	return &Output{Summary: strings.TrimSpace(summary), Content: strings.TrimSpace(parsed.Content)}, nil, nil
+	// case "tool":
+	// 	if !input.StepConfig.AllowsToolMode(parsed.Tool, parsed.Mode) {
+	// 		return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", parsed.Tool, parsed.Mode, stepName)
+	// 	}
+	// 	result, err := input.ToolRunner.RunTool(ctx, execCtx, parsed.Tool, parsed.Mode, parsed.Params, input.Profile, stringValue(input.SystemPrompt))
+	// 	if err != nil {
+	// 		return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", parsed.Tool, parsed.Mode, err)
+	// 	}
+	// 	return nil, result, nil
+	// default:
+	// 	return nil, nil, fmt.Errorf("unsupported response type %q", parsed.Type)
+	// }
+	return nil, nil, fmt.Errorf("tool calls are not yet implemented")
 }
 
 func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Input, stepName string, toolNameMap map[string]*ToolDescription, calls []gateway.ToolCall) (*Output, *ToolResult, error) {
@@ -198,10 +199,6 @@ func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Inpu
 			return nil, nil, fmt.Errorf("tool %q mode %q not allowed in step %q", toolDef.Tool, toolDef.Mode, stepName)
 		}
 
-		// Send running status for this tool call
-		runningMsg := toolDef.GetRunningMessage(toolCall.Arguments)
-		execCtx.SendRunning(runningMsg)
-
 		args := toolCall.Arguments
 		if args == nil {
 			args = map[string]any{}
@@ -214,10 +211,6 @@ func handleToolCalls(ctx context.Context, execCtx *executor.Context, input *Inpu
 		if err != nil {
 			return nil, nil, fmt.Errorf("tool %q mode %q failed: %w", toolDef.Tool, toolDef.Mode, err)
 		}
-
-		// Send completed status for this tool call
-		completedMsg := toolDef.GetCompletedMessage(result)
-		execCtx.SendCompleted(completedMsg)
 
 		// Accumulate results
 		toolResult := map[string]interface{}{
@@ -244,7 +237,7 @@ func handleNonJSONResponse(execCtx *executor.Context, stepName string, toolDefs 
 	if trimmed == "" {
 		return nil, nil, parseErr
 	}
-	execCtx.SendCompleted(fmt.Sprintf("Completed: %s", stepName))
+	execCtx.SendCompleted(stepName)
 	return &Output{Summary: trimmed, Content: trimmed}, nil, nil
 }
 
@@ -435,12 +428,12 @@ func (f *Factory) invokeLLM(
 	systemPrompt string,
 	userPrompt string,
 	tools []gateway.ToolDefinition,
-) (*invokellm.Output, error) {
-	input := &invokellm.Input{
+) (*generatecontent.Output, error) {
+	input := &generatecontent.Input{
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
-		Tools:        tools,
+//		Tools:        tools,
 	}
 
 	activity := f.invokeLLMFactory.NewActivity()

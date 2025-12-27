@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 type mockContentGenerationFactory struct {
-	newActivityFunc func() executor.Activity[*invokellm.Input, *invokellm.Output]
+	newActivityFunc func() executor.Activity[*generatecontent.Input, *generatecontent.Output]
 }
 
-func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
+func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 	if m.newActivityFunc != nil {
 		return m.newActivityFunc()
 	}
@@ -189,12 +189,12 @@ func TestActivity_SuccessWithAllContent(t *testing.T) {
 		},
 	}
 
-	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "test summary"}, nil
+	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "test summary"}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 			return mockLLM
 		},
 	}
@@ -242,12 +242,12 @@ func TestActivity_SuccessWithoutOriginalFile(t *testing.T) {
 		},
 	}
 
-	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "summary without original"}, nil
+	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "summary without original"}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 			return mockLLM
 		},
 	}
@@ -289,12 +289,12 @@ func TestActivity_SuccessWithoutChangedFile(t *testing.T) {
 		},
 	}
 
-	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "summary without changed"}, nil
+	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "summary without changed"}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 			return mockLLM
 		},
 	}
@@ -334,12 +334,12 @@ func TestActivity_GenerationError(t *testing.T) {
 		},
 	}
 
-	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 		return nil, fmt.Errorf("generation failed")
 	}
 
 	mockFactory := &mockContentGenerationFactory{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 			return mockLLM
 		},
 	}

@@ -57,12 +57,11 @@ func NewFactory(
 // NewFlow creates and returns the query flow function.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		flowCtx.SendRunning("Query flow")
-
 		params, err := f.resolveQueryParams()
 		if err != nil {
 			return err
 		}
+		flowCtx.SendRunning(fmt.Sprintf("Search for: %s", params.queryText))
 
 		queryOutput, err := f.runQuery(ctx, flowCtx, params)
 		if err != nil {
@@ -73,7 +72,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			return err
 		}
 
-		flowCtx.SendCompleted("Query output ready")
+		flowCtx.SendCompleted(fmt.Sprintf("Query output ready with %d result(s)", len(queryOutput.Results)))
 		return nil
 	}
 }

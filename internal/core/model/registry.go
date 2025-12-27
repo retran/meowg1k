@@ -214,13 +214,13 @@ var models = map[string]model2.Info{
 		Provider:         "openrouter",
 		MaxContextTokens: 131072,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "xAI Grok 3 - legacy model for general tasks",
+		Description:      "xAI Grok 3 - general-purpose model",
 	},
 	"x-ai/grok-3-mini": {
 		Provider:         "openrouter",
 		MaxContextTokens: 131072,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "xAI Grok 3 Mini - legacy model, fast and efficient",
+		Description:      "xAI Grok 3 Mini - fast and efficient model",
 	},
 
 	// Anthropic models (provider: openrouter)
@@ -367,10 +367,10 @@ var models = map[string]model2.Info{
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  8192,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3.5 Sonnet (Oct 2024) - DEPRECATED - balanced performance and speed",
+		Description:      "Anthropic Claude 3.5 Sonnet (Oct 2024) - balanced performance and speed",
 	},
 
-	// Claude 3 generation (legacy, 2024)
+	// Claude 3 generation (2024)
 	"claude-3-haiku-20240307": {
 		Provider:         "anthropic",
 		MaxContextTokens: 200000,
@@ -383,7 +383,7 @@ var models = map[string]model2.Info{
 		MaxContextTokens: 200000,
 		MaxOutputTokens:  4096,
 		TokenizerType:    model2.TokenizerCL100K,
-		Description:      "Anthropic Claude 3 Opus (Feb 2024) - DEPRECATED - most capable model for complex tasks",
+		Description:      "Anthropic Claude 3 Opus (Feb 2024) - most capable model for complex tasks",
 	},
 
 	// Google models (provider: openrouter)
@@ -412,7 +412,7 @@ var models = map[string]model2.Info{
 		Provider:         "openrouter",
 		MaxContextTokens: 2000000,
 		TokenizerType:    model2.TokenizerGemini,
-		Description:      "Google Gemini 1.5 Pro - DEPRECATED, unique 2M token context",
+		Description:      "Google Gemini 1.5 Pro - 2M token context",
 	},
 
 	// OpenAI models (provider: openrouter)

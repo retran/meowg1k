@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/composeflat"
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -37,7 +37,7 @@ type Factory struct {
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new ComposeFlatPR activity factory with the provided content generation activity factory.
-func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]) (*Factory, error) {
+func NewFactory(contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]) (*Factory, error) {
 	genericFactory, err := composeflat.NewFactory(
 		contentGenerationActivityFactory,
 		"Composing PR description",

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/activities/retrievecontext"
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -120,7 +120,7 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
 		retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output]
-		invokeLLMFactory       executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+		invokeLLMFactory       executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 		parametersReader       CommandParametersReader
 		profileResolver        ports.ProfileResolver
 		outputWriter           ports.OutputWriter
@@ -132,7 +132,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil retrieveContextFactory",
 			retrieveContextFactory: nil,
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
 			profileResolver:        &mockProfileResolver{},
 			outputWriter:           &mockOutputWriter{},
@@ -154,7 +154,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil parametersReader",
 			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       nil,
 			profileResolver:        &mockProfileResolver{},
 			outputWriter:           &mockOutputWriter{},
@@ -165,7 +165,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil profileResolver",
 			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
 			profileResolver:        nil,
 			outputWriter:           &mockOutputWriter{},
@@ -176,7 +176,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil outputWriter",
 			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
 			profileResolver:        &mockProfileResolver{},
 			outputWriter:           nil,
@@ -187,7 +187,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil configReader",
 			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
 			profileResolver:        &mockProfileResolver{},
 			outputWriter:           &mockOutputWriter{},
@@ -198,7 +198,7 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "successful factory creation",
 			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
 			profileResolver:        &mockProfileResolver{},
 			outputWriter:           &mockOutputWriter{},
@@ -258,7 +258,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					&mockCommandParametersReader{},
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -284,7 +284,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					&mockCommandParametersReader{},
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -317,7 +317,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -350,7 +350,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -384,7 +384,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -419,7 +419,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -455,7 +455,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -492,7 +492,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -529,7 +529,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					&mockProfileResolver{},
 					&mockOutputWriter{},
@@ -569,7 +569,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -609,7 +609,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -656,10 +656,10 @@ func TestFactory_NewFlow(t *testing.T) {
 						}
 					},
 				}
-				mockLLMFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-					newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-							return &invokellm.Output{
+				mockLLMFactory := &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{
+					newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+							return &generatecontent.Output{
 								Content: "Generated answer",
 							}, nil
 						}
@@ -716,7 +716,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					mockRetrieveFactory,
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -763,7 +763,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					mockRetrieveFactory,
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -811,9 +811,9 @@ func TestFactory_NewFlow(t *testing.T) {
 						}
 					},
 				}
-				mockLLMFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-					newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+				mockLLMFactory := &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{
+					newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 							return nil, errors.New("LLM error")
 						}
 					},

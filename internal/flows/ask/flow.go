@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/activities/retrievecontext"
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -34,7 +34,7 @@ type ConfigReader interface {
 // Factory creates instances of the ask flow.
 type Factory struct {
 	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output]
-	invokeLLMFactory       executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory       executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 	parametersReader       CommandParametersReader
 	profileResolver        ports.ProfileResolver
 	outputWriter           ports.OutputWriter
@@ -44,7 +44,7 @@ type Factory struct {
 // NewFactory creates a new ask flow factory.
 func NewFactory(
 	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	invokeLLMFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output],
 	parametersReader CommandParametersReader,
 	profileResolver ports.ProfileResolver,
 	outputWriter ports.OutputWriter,
@@ -96,8 +96,6 @@ Instructions:
 - If the question cannot be answered with the given context, clearly state that`
 
 func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) error {
-	flowCtx.SendRunning("Ask flow")
-
 	cfg, err := f.loadAskConfig()
 	if err != nil {
 		return err
@@ -107,6 +105,7 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 	if err != nil {
 		return err
 	}
+	flowCtx.SendRunning(fmt.Sprintf("Answer the question: %s", params.question))
 
 	resolvedProfile, err := f.profileResolver.Get(profile.Profile(params.profileName))
 	if err != nil {
@@ -124,7 +123,7 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 	}
 
 	if retrieveContextOutput.Context == "" {
-		return f.handleEmptyContext(flowCtx)
+		return f.handleEmptyContext(flowCtx, params.question)
 	}
 
 	userPrompt := fmt.Sprintf("Context:\n%s\n\nQuestion: %s", retrieveContextOutput.Context, params.question)
@@ -138,16 +137,16 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 
-	flowCtx.SendCompleted("Ask output ready")
+	flowCtx.SendCompleted(fmt.Sprintf("Answer ready for: %s", params.question))
 
 	return nil
 }
 
-func (f *Factory) handleEmptyContext(flowCtx *executor.Context) error {
+func (f *Factory) handleEmptyContext(flowCtx *executor.Context, question string) error {
 	if err := f.outputWriter.PrintLine("No relevant context found to answer the question."); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	flowCtx.SendCompleted("Ask complete (no relevant context)")
+	flowCtx.SendCompleted(fmt.Sprintf("No relevant context found for: %s", question))
 	return nil
 }
 
@@ -276,9 +275,9 @@ func (f *Factory) runInvokeLLM(
 	resolvedProfile *profile.ResolvedProfile,
 	systemPrompt string,
 	userPrompt string,
-) (*invokellm.Output, error) {
+) (*generatecontent.Output, error) {
 	invokeLLMActivity := f.invokeLLMFactory.NewActivity()
-	invokeLLMInput := &invokellm.Input{
+	invokeLLMInput := &generatecontent.Input{
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,

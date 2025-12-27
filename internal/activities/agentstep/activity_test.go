@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	agentconfig "github.com/retran/meowg1k/internal/core/agent"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -16,14 +16,14 @@ import (
 )
 
 type mockInvokeFactory struct {
-	outputs []*invokellm.Output
+	outputs []*generatecontent.Output
 	index   int
 }
 
-func (m *mockInvokeFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
-	return func(_ context.Context, _ *executor.Context, _ *invokellm.Input) (*invokellm.Output, error) {
+func (m *mockInvokeFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+	return func(_ context.Context, _ *executor.Context, _ *generatecontent.Input) (*generatecontent.Output, error) {
 		if m.index >= len(m.outputs) {
-			return &invokellm.Output{Content: `{"type":"final","content":"done"}`}, nil
+			return &generatecontent.Output{Content: `{"type":"final","content":"done"}`}, nil
 		}
 		out := m.outputs[m.index]
 		m.index++
@@ -46,7 +46,7 @@ func stringPtr(value string) *string {
 
 func TestAgentStepToolThenFinal(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
-		outputs: []*invokellm.Output{
+		outputs: []*generatecontent.Output{
 			{Content: `{"type":"tool","tool":"plan","mode":"list","params":{}}`},
 			{Content: `{"type":"final","content":"all good","summary":"done"}`},
 		},
@@ -89,7 +89,7 @@ func TestAgentStepToolThenFinal(t *testing.T) {
 
 func TestAgentStepToolCallResponse(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
-		outputs: []*invokellm.Output{
+		outputs: []*generatecontent.Output{
 			{
 				ToolCalls: []domainGateway.ToolCall{
 					{
@@ -140,7 +140,7 @@ func TestAgentStepToolCallResponse(t *testing.T) {
 
 func TestAgentStepMultipleToolCallsResponse(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
-		outputs: []*invokellm.Output{
+		outputs: []*generatecontent.Output{
 			{
 				ToolCalls: []domainGateway.ToolCall{
 					{
@@ -196,7 +196,7 @@ func TestAgentStepMultipleToolCallsResponse(t *testing.T) {
 
 func TestAgentStepNonJSONResponseWithTools(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
-		outputs: []*invokellm.Output{
+		outputs: []*generatecontent.Output{
 			{Content: "Not JSON"},
 		},
 	})
@@ -238,7 +238,7 @@ func TestAgentStepNonJSONResponseWithTools(t *testing.T) {
 
 func TestAgentStepDisallowedTool(t *testing.T) {
 	factory, err := NewFactory(&mockInvokeFactory{
-		outputs: []*invokellm.Output{
+		outputs: []*generatecontent.Output{
 			{Content: `{"type":"tool","tool":"workspace","mode":"read","params":{"path":"a"}}`},
 		},
 	})

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefile"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -15,15 +15,15 @@ import (
 
 // mockContentGenerationActivityFactory is a mock implementation of ContentGenerationActivityFactory for testing.
 type mockContentGenerationActivityFactory struct {
-	activity executor.Activity[*invokellm.Input, *invokellm.Output]
+	activity executor.Activity[*generatecontent.Input, *generatecontent.Output]
 }
 
-func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
+func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
 	if m.activity != nil {
 		return m.activity
 	}
-	return func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "test content"}, nil
+	return func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "test content"}, nil
 	}
 }
 
@@ -66,8 +66,8 @@ func TestActivityNilInput(t *testing.T) {
 }
 
 func TestActivitySuccess(t *testing.T) {
-	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{
 			Content: "test PR description",
 		}, nil
 	}
@@ -132,8 +132,8 @@ func TestNewActivity_NilFactory(t *testing.T) {
 }
 
 func TestActivity_SkippedSummaries(t *testing.T) {
-	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "PR description"}, nil
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "PR description"}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
@@ -163,8 +163,8 @@ func TestActivity_SkippedSummaries(t *testing.T) {
 }
 
 func TestActivity_EmptySummaries(t *testing.T) {
-	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-		return &invokellm.Output{Content: "empty PR"}, nil
+	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+		return &generatecontent.Output{Content: "empty PR"}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}

@@ -5,487 +5,463 @@ package executor
 
 import (
 	"fmt"
-	"maps"
-	"os"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 const (
-	// Status icons.
-	iconRunning   = ""
-	iconCompleted = ""
-	iconFailed    = "FAILED"
-	iconPending   = "..."
-
-	// Configuration.
 	feedbackChanSize = 128
-	tickerInterval   = 100 * time.Millisecond
-	maxMessageLength = 100
+	maxDetailsLines  = 15
+	spinnerInterval  = 120 * time.Millisecond
 )
 
-var spinnerChars = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-
-// Tracker tracks and displays the progress of executions in the terminal.
-type Tracker struct {
-	executions          map[string]*Execution
-	feedbackChan        chan *Feedback
-	batchProgress       map[string]*batchProgressTracker // Track progress for batch operations
-	order               []string
-	wg                  sync.WaitGroup
-	mu                  sync.RWMutex
-	spinnerIndex        int
-	currentRunningIndex int
-	silent              bool
-	spinnerVisible      bool
+// BubbleTeaTracker provides a styled TUI for tracking execution progress.
+type BubbleTeaTracker struct {
+	program    *tea.Program
+	model      *bubbleModel
+	feedbackCh chan *Feedback
+	wg         sync.WaitGroup
+	silent     bool
 }
 
-// batchProgressTracker tracks progress for batch operations like "Fetching 36 files".
-type batchProgressTracker struct {
-	activity  string // e.g., "Fetching staged diffs", "Summarizing files"
-	total     int
-	completed int
+type runningActivity struct {
+	name       string
+	message    string
+	lastUpdate time.Time
+	status     Status
 }
 
-// NewTracker creates a new progress tracker.
-func NewTracker(silent bool) *Tracker {
-	return &Tracker{
-		silent:              silent,
-		executions:          make(map[string]*Execution),
-		order:               make([]string, 0),
-		feedbackChan:        make(chan *Feedback, feedbackChanSize),
-		currentRunningIndex: -1,
-		batchProgress:       make(map[string]*batchProgressTracker),
+type logEntry struct {
+	message string
+	details string
+	isError bool
+}
+
+// bubbleModel is the Bubbletea model for rendering the TUI.
+type bubbleModel struct {
+	logLines []logEntry
+	running  map[string]runningActivity
+	mu       *sync.RWMutex
+	width    int
+	height   int
+	spinner  int
+}
+
+// Styles for the TUI.
+var (
+	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
+	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+)
+
+var spinnerFrames = []string{"-", "\\", "|", "/"}
+
+// NewBubbleTeaTracker creates a new Bubbletea-based progress tracker.
+func NewBubbleTeaTracker(silent bool) *BubbleTeaTracker {
+	model := &bubbleModel{
+		logLines: make([]logEntry, 0),
+		running:  make(map[string]runningActivity),
+		mu:       &sync.RWMutex{},
+	}
+
+	return &BubbleTeaTracker{
+		feedbackCh: make(chan *Feedback, feedbackChanSize),
+		silent:     silent,
+		model:      model,
 	}
 }
 
-// Start launches background processing for events and rendering the UI.
-func (t *Tracker) Start() {
-	if t == nil || t.silent {
+// Start launches the Bubbletea program.
+func (t *BubbleTeaTracker) Start() {
+	if t == nil {
 		return
 	}
 
 	t.wg.Add(1)
+	go t.processFeedback()
 
-	go t.run()
-}
-
-// Stop signals the tracker to stop and waits for it to finish.
-func (t *Tracker) Stop() {
-	if t == nil || t.silent {
+	if t.silent {
 		return
 	}
 
-	if t.feedbackChan != nil {
-		close(t.feedbackChan)
+	t.program = tea.NewProgram(t.model)
+	t.wg.Go(func() {
+		if _, err := t.program.Run(); err != nil {
+			_ = err
+		}
+	})
+}
+
+// Stop stops the Bubbletea program.
+func (t *BubbleTeaTracker) Stop() {
+	if t == nil {
+		return
+	}
+
+	if t.feedbackCh != nil {
+		close(t.feedbackCh)
+	}
+
+	if t.program != nil {
+		t.program.Quit()
 	}
 
 	t.wg.Wait()
 }
 
-// FeedbackHandler returns a handler function to receive progress feedback.
-func (t *Tracker) FeedbackHandler() FeedbackHandler {
+// FeedbackHandler returns a handler for receiving feedback.
+func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 	return func(feedback *Feedback) {
-		if t == nil || t.feedbackChan == nil || feedback == nil {
+		if t == nil || t.feedbackCh == nil || feedback == nil {
 			return
 		}
-		t.feedbackChan <- feedback
+		select {
+		case t.feedbackCh <- feedback:
+		default:
+		}
 	}
 }
 
-// GetExecution returns a copy of the execution progress for the given name.
-// Returns nil if the execution doesn't exist.
-// This method is thread-safe and primarily intended for testing.
-func (t *Tracker) GetExecution(name string) *Execution {
-	if t == nil {
-		return nil
+// processFeedback processes feedback messages and updates the model.
+func (t *BubbleTeaTracker) processFeedback() {
+	defer t.wg.Done()
+
+	for feedback := range t.feedbackCh {
+		if t.program != nil {
+			t.program.Send(feedback)
+		} else if t.model != nil {
+			t.model.handleFeedback(feedback)
+		}
 	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	exec, exists := t.executions[name]
-	if !exists || exec == nil {
-		return nil
-	}
-
-	// Return a shallow copy to avoid race conditions
-	copyExec := *exec
-	return &copyExec
 }
 
-// GetExecutionCount returns the number of tracked executions.
-// This method is thread-safe and primarily intended for testing.
-func (t *Tracker) GetExecutionCount() int {
-	if t == nil {
+// GetExecution returns a copy of an execution (for testing).
+func (t *BubbleTeaTracker) GetExecution(name string) *Execution {
+	if t == nil || t.model == nil {
+		return nil
+	}
+
+	t.model.mu.RLock()
+	defer t.model.mu.RUnlock()
+
+	var exec *Execution
+
+	if run, ok := t.model.running[name]; ok {
+		exec = &Execution{
+			Name:    run.name,
+			Status:  run.status,
+			Message: run.message,
+		}
+	} else {
+		for i := len(t.model.logLines) - 1; i >= 0; i-- {
+			entry := t.model.logLines[i]
+			if entry.message == "" {
+				continue
+			}
+			if entry.message == name {
+				status := StatusCompleted
+				if entry.isError {
+					status = StatusFailed
+				}
+				exec = &Execution{
+					Name:   name,
+					Status: status,
+					Result: entry.message,
+				}
+				break
+			}
+		}
+	}
+
+	if exec != nil {
+		parts := strings.Split(exec.Name, "::")
+		exec.Level = len(parts) - 1
+		if len(parts) > 1 {
+			exec.ParentName = strings.Join(parts[:len(parts)-1], "::")
+		}
+	}
+
+	return exec
+}
+
+// GetExecutionCount returns the number of tracked executions (for testing).
+func (t *BubbleTeaTracker) GetExecutionCount() int {
+	if t == nil || t.model == nil {
 		return 0
 	}
 
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return len(t.executions)
+	t.model.mu.RLock()
+	defer t.model.mu.RUnlock()
+	return len(t.model.running) + len(t.model.logLines)
 }
 
-// run is the main event processing and rendering loop.
-func (t *Tracker) run() {
-	defer t.wg.Done()
-	ticker := time.NewTicker(tickerInterval)
-	defer ticker.Stop()
+type spinnerTickMsg struct{}
 
-	for {
-		select {
-		case feedback, ok := <-t.feedbackChan:
-			if !ok {
-				t.clearSpinnerLine()
-				return
+func spinnerTick() tea.Cmd {
+	return tea.Tick(spinnerInterval, func(time.Time) tea.Msg {
+		return spinnerTickMsg{}
+	})
+}
+
+func (m *bubbleModel) Init() tea.Cmd {
+	return spinnerTick()
+}
+
+func (m *bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return m, tea.Quit
+		}
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
+	case *Feedback:
+		m.handleFeedback(msg)
+		return m, nil
+	case spinnerTickMsg:
+		if len(m.running) > 0 {
+			m.spinner = (m.spinner + 1) % len(spinnerFrames)
+		}
+		return m, spinnerTick()
+	}
+
+	return m, nil
+}
+
+func (m *bubbleModel) handleFeedback(msg *Feedback) {
+	if m == nil || msg == nil {
+		return
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Update running activities
+	if msg.Status == StatusRunning {
+		run := m.running[msg.ActivityName]
+		run.name = msg.ActivityName
+		run.message = strings.TrimSpace(msg.Message)
+		run.status = msg.Status
+		run.lastUpdate = msg.Timestamp
+		m.running[msg.ActivityName] = run
+	}
+
+	// Remove completed/failed activities from running
+	if msg.Status == StatusCompleted || msg.Status == StatusFailed {
+		delete(m.running, msg.ActivityName)
+	}
+
+	// Append to log entries
+	entry := logEntry{
+		message: strings.TrimSpace(msg.Message),
+		details: strings.TrimSpace(msg.Details),
+		isError: msg.Status == StatusFailed,
+	}
+	m.logLines = append(m.logLines, entry)
+}
+
+func (m *bubbleModel) View() string {
+	if m == nil {
+		return ""
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var sb strings.Builder
+
+	for _, entry := range m.logLines {
+		line := m.renderLogEntry(entry)
+		if line == "" {
+			continue
+		}
+		sb.WriteString(line)
+		sb.WriteString("\n")
+	}
+
+	if len(m.running) > 0 {
+		run := m.currentRunningLocked()
+		if strings.TrimSpace(run.message) != "" {
+			sb.WriteString("\n")
+			sb.WriteString(m.renderRunningLine(run))
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
+}
+
+func (m *bubbleModel) currentRunningLocked() runningActivity {
+	var current runningActivity
+	for _, run := range m.running {
+		if current.name == "" || run.lastUpdate.After(current.lastUpdate) {
+			current = run
+		}
+	}
+	return current
+}
+
+func (m *bubbleModel) renderLogEntry(entry logEntry) string {
+	message := strings.TrimSpace(entry.message)
+	details := strings.TrimSpace(entry.details)
+	if message == "" && details == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	if message != "" {
+		available := m.width
+		lines := wrapText(message, available)
+		if len(lines) == 0 {
+			lines = []string{message}
+		}
+
+		for i, line := range lines {
+			if i > 0 {
+				sb.WriteString("\n")
 			}
-			exec, shouldLog := t.updateExecution(feedback)
-			if shouldLog && exec != nil {
-				t.clearSpinnerLine()
-				fmt.Fprintln(os.Stderr, t.formatLogLine(exec))
+			rendered := line
+			if entry.isError {
+				rendered = styleFailed.Render(line)
 			}
-
-		case <-ticker.C:
-			t.spinnerIndex++
-			t.drawSpinner()
-		}
-	}
-}
-
-// drawSpinner renders only the spinner line.
-func (t *Tracker) drawSpinner() {
-	if t == nil {
-		return
-	}
-
-	t.mu.RLock()
-	runningIndex := t.currentRunningIndex
-	var runningName string
-	if runningIndex >= 0 && runningIndex < len(t.order) {
-		runningName = t.order[runningIndex]
-	}
-	t.mu.RUnlock()
-
-	if runningName == "" {
-		t.clearSpinnerLine()
-		return
-	}
-
-	exec := t.GetExecution(runningName)
-	if exec == nil {
-		t.clearSpinnerLine()
-		return
-	}
-
-	displayName := buildDisplayName(exec)
-
-	// Add batch progress if available
-	if progress, exists := t.batchProgress[exec.Name]; exists {
-		percentage := 0
-		if progress.total > 0 {
-			percentage = (progress.completed * 100) / progress.total
-		}
-		displayName = fmt.Sprintf("%s [%d/%d] %d%%", displayName, progress.completed, progress.total, percentage)
-	}
-
-	spinner := spinnerChars[t.spinnerIndex%len(spinnerChars)]
-	fmt.Fprintf(os.Stderr, "\r%s %s\033[K", spinner, displayName)
-	t.spinnerVisible = true
-}
-
-// updateExecution updates the state of an execution based on feedback.
-func (t *Tracker) updateExecution(feedback *Feedback) (*Execution, bool) {
-	if t == nil || feedback == nil || feedback.ActivityName == "" {
-		return nil, false
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	exec, execIndex := t.ensureExecution(feedback)
-	exec.Status = feedback.Status
-	exec.Error = feedback.Error
-	if feedback.Metadata != nil {
-		maps.Copy(exec.Metadata, feedback.Metadata)
-	}
-
-	shouldLog := t.applyFeedbackStatus(exec, feedback, execIndex)
-
-	return execCopy(exec), shouldLog
-}
-
-func (t *Tracker) ensureExecution(feedback *Feedback) (exec *Execution, execIndex int) {
-	exec, exists := t.executions[feedback.ActivityName]
-	if exists {
-		return exec, -1
-	}
-
-	parentName, level := parseActivityHierarchy(feedback.ActivityName)
-	exec = &Execution{
-		Name:       feedback.ActivityName,
-		StartTime:  feedback.Timestamp,
-		Metadata:   make(map[string]any),
-		ParentName: parentName,
-		Children:   make([]string, 0),
-		Level:      level,
-	}
-	t.executions[feedback.ActivityName] = exec
-	execIndex = len(t.order)
-	t.order = append(t.order, feedback.ActivityName)
-
-	if parent, ok := t.executions[parentName]; ok && parent != nil {
-		parent.Children = append(parent.Children, feedback.ActivityName)
-	}
-
-	return exec, execIndex
-}
-
-func (t *Tracker) applyFeedbackStatus(exec *Execution, feedback *Feedback, execIndex int) bool {
-	switch feedback.Status {
-	case StatusPending:
-		exec.Message = sanitizeDescription(feedback.Message)
-		return false
-	case StatusRunning:
-		exec.Message = sanitizeDescription(feedback.Message)
-		t.setCurrentRunning(execIndex, feedback.ActivityName)
-		// Check if this is a batch operation and init progress tracking
-		t.initBatchProgress(exec)
-		return false
-	case StatusCompleted:
-		exec.Result = sanitizeDescription(feedback.Message)
-		t.finishExecution(exec, feedback)
-		return true
-	case StatusFailed:
-		t.finishExecution(exec, feedback)
-		return true
-	default:
-		return false
-	}
-}
-
-func (t *Tracker) finishExecution(exec *Execution, feedback *Feedback) {
-	exec.Message = sanitizeDescription(feedback.Message)
-	endTime := feedback.Timestamp
-	exec.EndTime = &endTime
-	t.clearCurrentRunningIfMatch(feedback.ActivityName)
-}
-
-func (t *Tracker) setCurrentRunning(execIndex int, name string) {
-	if execIndex == -1 {
-		execIndex = findExecutionIndex(t.order, name)
-	}
-	if execIndex >= 0 {
-		t.currentRunningIndex = execIndex
-	}
-}
-
-func (t *Tracker) clearCurrentRunningIfMatch(name string) {
-	if t.currentRunningIndex >= 0 && t.currentRunningIndex < len(t.order) && t.order[t.currentRunningIndex] == name {
-		t.currentRunningIndex = -1
-	}
-}
-
-func findExecutionIndex(order []string, name string) int {
-	for i, entry := range order {
-		if entry == name {
-			return i
-		}
-	}
-	return -1
-}
-
-func (t *Tracker) formatLogLine(exec *Execution) string {
-	if t == nil || exec == nil {
-		return ""
-	}
-
-	// Check if this is a child of a batch operation - if so, hide it
-	if t.isChildOfBatchOperation(exec) {
-		// Update batch progress instead
-		t.updateBatchProgress(exec)
-		return ""
-	}
-
-	icon := getIcon(exec.Status)
-
-	displayName := buildDisplayName(exec)
-	indent := strings.Repeat("  ", exec.Level)
-
-	// Add batch progress if this is a batch operation
-	if progress, exists := t.batchProgress[exec.Name]; exists && exec.Status == StatusRunning {
-		displayName = fmt.Sprintf("%s [%d/%d]", displayName, progress.completed, progress.total)
-	}
-
-	duration := exec.getDurationString()
-	if duration != "" {
-		duration = fmt.Sprintf(" (%s)", duration)
-	}
-
-	var errorMsg string
-	if exec.Status == StatusFailed && exec.Error != nil {
-		errorMsg = fmt.Sprintf(" — %s", sanitizeDescription(exec.Error.Error()))
-	}
-
-	prefix := indent
-	if icon != "" {
-		prefix = fmt.Sprintf("%s%s ", indent, icon)
-	}
-
-	return fmt.Sprintf("%s%s%s%s", prefix, displayName, duration, errorMsg)
-}
-
-// isChildOfBatchOperation checks if an execution is a child of a batch operation.
-func (t *Tracker) isChildOfBatchOperation(exec *Execution) bool {
-	if exec == nil || exec.ParentName == "" {
-		return false
-	}
-
-	// Check if parent has batch progress tracking
-	_, exists := t.batchProgress[exec.ParentName]
-	return exists
-}
-
-// updateBatchProgress updates the progress counter for batch operations.
-func (t *Tracker) updateBatchProgress(exec *Execution) {
-	if exec == nil || exec.ParentName == "" || exec.Status != StatusCompleted {
-		return
-	}
-
-	if progress, exists := t.batchProgress[exec.ParentName]; exists {
-		progress.completed++
-	}
-}
-
-// initBatchProgress initializes batch progress tracking based on the activity message.
-func (t *Tracker) initBatchProgress(exec *Execution) {
-	if exec == nil || exec.Message == "" {
-		return
-	}
-
-	// Look for patterns like "Fetching staged diffs for 36 files" or "Summarizing changes in 36 files"
-	msg := exec.Message
-	var total int
-	var activity string
-
-	// Pattern 1: "Fetching ... for N files"
-	if n, err := fmt.Sscanf(msg, "Fetching staged diffs for %d files", &total); err == nil && n == 1 {
-		activity = "Fetching staged diffs"
-	} else if n, err := fmt.Sscanf(msg, "Summarizing changes in %d files", &total); err == nil && n == 1 {
-		activity = "Summarizing files"
-	} else if n, err := fmt.Sscanf(msg, "Fetching branch diffs for %d files", &total); err == nil && n == 1 {
-		activity = "Fetching branch diffs"
-	}
-
-	if total > 0 && activity != "" {
-		t.batchProgress[exec.Name] = &batchProgressTracker{
-			total:     total,
-			completed: 0,
-			activity:  activity,
-		}
-	}
-}
-
-func (t *Tracker) clearSpinnerLine() {
-	if t == nil || !t.spinnerVisible {
-		return
-	}
-	fmt.Fprint(os.Stderr, "\r\033[K")
-	t.spinnerVisible = false
-}
-
-func execCopy(exec *Execution) *Execution {
-	if exec == nil {
-		return nil
-	}
-	copyExec := *exec
-	return &copyExec
-}
-
-func buildDisplayName(exec *Execution) string {
-	if exec == nil {
-		return ""
-	}
-
-	if exec.Result != "" {
-		return truncateString(exec.Result, maxMessageLength)
-	}
-	if exec.Message != "" {
-		return truncateString(exec.Message, maxMessageLength)
-	}
-
-	parts := strings.Split(exec.Name, "::")
-	if len(parts) == 0 {
-		return ""
-	}
-	return convertCamelToReadable(parts[len(parts)-1])
-}
-
-func sanitizeDescription(description string) string {
-	if description == "" {
-		return ""
-	}
-
-	var b strings.Builder
-	b.Grow(len(description))
-	for _, r := range description {
-		if unicode.IsPrint(r) && r != '\x1b' {
-			b.WriteRune(r)
+			if i == 0 {
+				sb.WriteString(rendered)
+				continue
+			}
+			sb.WriteString(rendered)
 		}
 	}
 
-	return truncateString(b.String(), maxMessageLength)
+	if details != "" {
+		sb.WriteString("\n")
+		sb.WriteString(styleDetails.Render(formatDetailsBlock(details)))
+	}
+	return sb.String()
 }
 
-func truncateString(s string, maxLen int) string {
-	if len(s) > maxLen {
-		return s[:maxLen-3] + "..."
+func (m *bubbleModel) renderRunningLine(run runningActivity) string {
+	spinner := "-"
+	if len(spinnerFrames) > 0 {
+		spinner = spinnerFrames[m.spinner%len(spinnerFrames)]
+	}
+	prefixWidth := runewidth.StringWidth(spinner) + 1
+	available := m.width - prefixWidth
+	lines := wrapText(run.message, available)
+	if len(lines) == 0 {
+		lines = []string{run.message}
 	}
 
-	return s
-}
-
-func convertCamelToReadable(s string) string {
-	if s == "" {
-		return ""
-	}
-
-	var result strings.Builder
-	result.Grow(len(s) + 5)
-	for i, r := range s {
-		if i > 0 && unicode.IsUpper(r) {
-			result.WriteRune(' ')
+	var sb strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			sb.WriteString("\n")
 		}
+		rendered := styleRunning.Render(line)
 		if i == 0 {
-			result.WriteRune(unicode.ToUpper(r))
-		} else {
-			result.WriteRune(r)
+			sb.WriteString(styleRunning.Render(spinner))
+			sb.WriteString(" ")
+			sb.WriteString(rendered)
+			continue
 		}
+		sb.WriteString(strings.Repeat(" ", prefixWidth))
+		sb.WriteString(rendered)
 	}
-
-	return result.String()
+	return sb.String()
 }
 
-func parseActivityHierarchy(activityName string) (parentName string, level int) {
-	parts := strings.Split(activityName, "::")
-	level = len(parts) - 1
-	if level > 0 {
-		parentName = strings.Join(parts[:level], "::")
+func wrapText(text string, width int) []string {
+	if width <= 0 {
+		return []string{text}
 	}
-	return parentName, level
+
+	rawLines := strings.Split(text, "\n")
+	lines := make([]string, 0, len(rawLines))
+	for _, rawLine := range rawLines {
+		if rawLine == "" {
+			lines = append(lines, "")
+			continue
+		}
+		words := strings.Fields(rawLine)
+		if len(words) == 0 {
+			lines = append(lines, "")
+			continue
+		}
+		var current string
+		currentWidth := 0
+		for _, word := range words {
+			parts := splitLongWord(word, width)
+			for _, part := range parts {
+				partWidth := runewidth.StringWidth(part)
+				if current == "" {
+					current = part
+					currentWidth = partWidth
+					continue
+				}
+				if currentWidth+1+partWidth <= width {
+					current += " " + part
+					currentWidth += 1 + partWidth
+					continue
+				}
+				lines = append(lines, current)
+				current = part
+				currentWidth = partWidth
+			}
+		}
+		lines = append(lines, current)
+	}
+	return lines
 }
 
-func getIcon(status Status) string {
-	switch status {
-	case StatusPending:
-		return iconPending
-	case StatusRunning:
-		return iconRunning
-	case StatusCompleted:
-		return iconCompleted
-	case StatusFailed:
-		return iconFailed
+func splitLongWord(word string, width int) []string {
+	if width <= 0 || runewidth.StringWidth(word) <= width {
+		return []string{word}
 	}
-	return iconRunning
+
+	parts := make([]string, 0, (len(word)/width)+1)
+	var sb strings.Builder
+	currentWidth := 0
+	for _, r := range word {
+		runeWidth := runewidth.RuneWidth(r)
+		if currentWidth+runeWidth > width && sb.Len() > 0 {
+			parts = append(parts, sb.String())
+			sb.Reset()
+			currentWidth = 0
+		}
+		sb.WriteRune(r)
+		currentWidth += runeWidth
+	}
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
+	}
+	return parts
+}
+
+func formatDetailsBlock(details string) string {
+	clean := strings.ReplaceAll(details, "\r\n", "\n")
+	lines := strings.Split(clean, "\n")
+
+	if len(lines) > maxDetailsLines {
+		visible := maxDetailsLines - 1
+		moreCount := len(lines) - visible
+		lines = append(lines[:visible], fmt.Sprintf("[... and %d more lines]", moreCount))
+	}
+
+	var sb strings.Builder
+	for i, line := range lines {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("    | ")
+		sb.WriteString(line)
+	}
+	return sb.String()
 }

@@ -12,24 +12,20 @@ func (l *Logger) FeedbackHandler(inner executor.FeedbackHandler) executor.Feedba
 	}
 
 	return func(feedback *executor.Feedback) {
-		// Call the original handler first
 		if inner != nil {
 			inner(feedback)
 		}
 
-		// Log the execution event
 		entry := &ExecutionEventEntry{
 			ExecutionName: feedback.ActivityName,
 			Status:        string(feedback.Status),
 			Message:       feedback.Message,
-			Metadata:      feedback.Metadata,
 		}
 
 		if feedback.Error != nil {
 			entry.Error = feedback.Error.Error()
 		}
 
-		// Log in the background to avoid blocking (ignore errors).
 		go func() {
 			_ = l.LogExecutionEvent(entry) //nolint:errcheck // Async logging errors are not critical
 		}()

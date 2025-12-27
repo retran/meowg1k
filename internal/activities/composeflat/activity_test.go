@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -19,12 +19,12 @@ type mockContentGenerationFactory struct {
 	response string
 }
 
-func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*invokellm.Input, *invokellm.Output] {
-	return func(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+	return func(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 		if m.err != nil {
 			return nil, m.err
 		}
-		return &invokellm.Output{Content: m.response}, nil
+		return &generatecontent.Output{Content: m.response}, nil
 	}
 }
 

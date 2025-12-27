@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -36,7 +36,7 @@ type SummarizationConfigProvider interface {
 
 // Factory creates instances of the SummarizeFileChanges activity with injected dependencies.
 type Factory struct {
-	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 	summarizationConfigProvider      SummarizationConfigProvider
 }
 
@@ -45,7 +45,7 @@ var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
 // NewFactory creates a new SummarizeFileChanges activity factory with the provided dependencies.
 func NewFactory(
-	contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output],
 	summarizationConfigProvider SummarizationConfigProvider,
 ) (*Factory, error) {
 	if contentGenerationActivityFactory == nil {
@@ -87,7 +87,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		content := buildSummaryPrompt(input, config)
 
-		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &invokellm.Input{
+		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &generatecontent.Input{
 			Profile:      config.Profile,
 			SystemPrompt: config.SystemPrompt,
 			UserPrompt:   content,
@@ -130,14 +130,14 @@ func buildSkippedOutput(filename string) *Output {
 	}
 }
 
-func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 	exec, err := requireExecutor(executorCtx)
 	if err != nil {
 		return nil, err
 	}
 
 	contentGenerationActivity := f.contentGenerationActivityFactory.NewActivity()
-	output, err := executor.ExecuteActivity[*invokellm.Input, *invokellm.Output](
+	output, err := executor.ExecuteActivity[*generatecontent.Input, *generatecontent.Output](
 		ctx,
 		exec,
 		executorCtx,

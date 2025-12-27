@@ -94,7 +94,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		if err := f.indexRepo.Checkpoint(ctx); err != nil {
-			executorCtx.SendRunning(fmt.Sprintf("WAL checkpoint warning: %v", err))
+			executorCtx.SendRunning(fmt.Sprintf("I noted a WAL checkpoint warning while saving: %v", err))
 		}
 
 		executorCtx.SendCompleted(fmt.Sprintf("%d documents saved", len(versionMap)))

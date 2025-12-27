@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
+	"github.com/retran/meowg1k/internal/activities/generatecontent"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
@@ -76,7 +76,7 @@ func TestNewFlowFactory(t *testing.T) {
 		taskConfigProvider               TaskConfigProvider
 		userPromptProvider               UserPromptProvider
 		systemPromptProvider             SystemPromptProvider
-		contentGenerationActivityFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+		contentGenerationActivityFactory executor.ActivityFactory[*generatecontent.Input, *generatecontent.Output]
 		outputWriter                     ports.OutputWriter
 		name                             string
 		expectedErrMsg                   string
@@ -87,7 +87,7 @@ func TestNewFlowFactory(t *testing.T) {
 			taskConfigProvider:               nil,
 			userPromptProvider:               &mockUserPromptProvider{},
 			systemPromptProvider:             &mockSystemPromptProvider{},
-			contentGenerationActivityFactory: &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			contentGenerationActivityFactory: &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			outputWriter:                     &mockOutputWriter{},
 			wantErr:                          true,
 			expectedErrMsg:                   "taskConfigProvider is nil",
@@ -97,7 +97,7 @@ func TestNewFlowFactory(t *testing.T) {
 			taskConfigProvider:               &mockTaskConfigProvider{},
 			userPromptProvider:               nil,
 			systemPromptProvider:             &mockSystemPromptProvider{},
-			contentGenerationActivityFactory: &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			contentGenerationActivityFactory: &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			outputWriter:                     &mockOutputWriter{},
 			wantErr:                          true,
 			expectedErrMsg:                   "userPromptProvider is nil",
@@ -107,7 +107,7 @@ func TestNewFlowFactory(t *testing.T) {
 			taskConfigProvider:               &mockTaskConfigProvider{},
 			userPromptProvider:               &mockUserPromptProvider{},
 			systemPromptProvider:             nil,
-			contentGenerationActivityFactory: &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			contentGenerationActivityFactory: &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			outputWriter:                     &mockOutputWriter{},
 			wantErr:                          true,
 			expectedErrMsg:                   "systemPromptProvider is nil",
@@ -127,7 +127,7 @@ func TestNewFlowFactory(t *testing.T) {
 			taskConfigProvider:               &mockTaskConfigProvider{},
 			userPromptProvider:               &mockUserPromptProvider{},
 			systemPromptProvider:             &mockSystemPromptProvider{},
-			contentGenerationActivityFactory: &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			contentGenerationActivityFactory: &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			outputWriter:                     nil,
 			wantErr:                          true,
 			expectedErrMsg:                   "outputWriter is nil",
@@ -137,7 +137,7 @@ func TestNewFlowFactory(t *testing.T) {
 			taskConfigProvider:               &mockTaskConfigProvider{},
 			userPromptProvider:               &mockUserPromptProvider{},
 			systemPromptProvider:             &mockSystemPromptProvider{},
-			contentGenerationActivityFactory: &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			contentGenerationActivityFactory: &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 			outputWriter:                     &mockOutputWriter{},
 			wantErr:                          false,
 		},
@@ -203,7 +203,7 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 					&mockTaskConfigProvider{},
 					&mockUserPromptProvider{},
 					&mockSystemPromptProvider{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					&mockOutputWriter{},
 				)
 				return factory
@@ -221,7 +221,7 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 					&mockTaskConfigProvider{},
 					&mockUserPromptProvider{},
 					&mockSystemPromptProvider{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					&mockOutputWriter{},
 				)
 				return factory
@@ -239,7 +239,7 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 					&mockTaskConfigProvider{err: errors.New("task config error")},
 					&mockUserPromptProvider{},
 					&mockSystemPromptProvider{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 					&mockOutputWriter{},
 				)
 				return factory
@@ -282,7 +282,7 @@ func TestFlowFactory_NewFlow_UserPromptError(t *testing.T) {
 		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
 		&mockUserPromptProvider{err: errors.New("user prompt error")},
 		&mockSystemPromptProvider{},
-		&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+		&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 		&mockOutputWriter{},
 	)
 
@@ -307,7 +307,7 @@ func TestFlowFactory_NewFlow_SystemPromptError(t *testing.T) {
 		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
 		&mockUserPromptProvider{prompt: "test prompt"},
 		&mockSystemPromptProvider{err: errors.New("system prompt error")},
-		&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+		&mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{},
 		&mockOutputWriter{},
 	)
 
@@ -328,9 +328,9 @@ func TestFlowFactory_NewFlow_SystemPromptError(t *testing.T) {
 }
 
 func TestFlowFactory_NewFlow_ActivityExecutionError(t *testing.T) {
-	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	mockActivityFactory := &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 				return nil, errors.New("LLM invocation error")
 			}
 		},
@@ -361,10 +361,10 @@ func TestFlowFactory_NewFlow_ActivityExecutionError(t *testing.T) {
 }
 
 func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
-	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-				return &invokellm.Output{Content: "Generated content"}, nil
+	mockActivityFactory := &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
+				return &generatecontent.Output{Content: "Generated content"}, nil
 			}
 		},
 	}
@@ -398,9 +398,9 @@ func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
 func TestFlowFactory_NewFlow_Success(t *testing.T) {
 	testProfile := &profile.ResolvedProfile{Name: "test-profile"}
 
-	mockActivityFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-		newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-			return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+	mockActivityFactory := &mockActivityFactory[*generatecontent.Input, *generatecontent.Output]{
+		newActivityFunc: func() executor.Activity[*generatecontent.Input, *generatecontent.Output] {
+			return func(ctx context.Context, activityCtx *executor.Context, input *generatecontent.Input) (*generatecontent.Output, error) {
 				// Verify input
 				if input.Profile.Name != "test-profile" {
 					return nil, errors.New("unexpected profile")
@@ -411,7 +411,7 @@ func TestFlowFactory_NewFlow_Success(t *testing.T) {
 				if input.SystemPrompt != "system test prompt" {
 					return nil, errors.New("unexpected system prompt")
 				}
-				return &invokellm.Output{Content: "  Generated content with whitespace  "}, nil
+				return &generatecontent.Output{Content: "  Generated content with whitespace  "}, nil
 			}
 		},
 	}
