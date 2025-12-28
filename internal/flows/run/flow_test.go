@@ -47,7 +47,7 @@ func TestApplyOverrides(t *testing.T) {
 
 	cfg := &agentconfig.ResolvedConfig{
 		Defaults: agentconfig.Defaults{
-			Profile:      "smart",
+			Profile:      "gemini-pro",
 			SystemPrompt: "default",
 		},
 		Tools: agentconfig.Tools{
@@ -61,7 +61,7 @@ func TestApplyOverrides(t *testing.T) {
 	}
 
 	params := &mockParams{
-		profile:      "fast",
+		profile:      "gemini-flash",
 		systemPrompt: "override",
 		snapshots:    []string{"_workdir_"},
 		topK:         7,
@@ -74,7 +74,7 @@ func TestApplyOverrides(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if updated.Defaults.Profile != "fast" {
+	if updated.Defaults.Profile != "gemini-flash" {
 		t.Fatalf("expected profile override, got %q", updated.Defaults.Profile)
 	}
 	if updated.Tools.SearchDefaults.TopK != 7 {

@@ -222,7 +222,7 @@ Several possible reasons:
 meow index  # Look at the output to see how many files were processed
 
 # Try a broad search with low threshold
-meow query "authentication" --top-k 20 --min-score 0.3
+meow search "authentication" --top-k 20 --min-score 0.3
 
 # Verify filters aren't excluding important files
 # Check .meowg1k.yaml filter section
@@ -246,9 +246,9 @@ Chunking splits files into smaller pieces for embedding. The configuration affec
 
 **Recommended starting point:** `maxRunes: 1024` with `overlapRunes: 128`
 
-### Q: What's the difference between `meow query` and `meow ask`?
+### Q: What's the difference between `meow search` and `meow ask`?
 
-- **`meow query`**: Pure semantic search. Returns code chunks with similarity scores. Use when you want to find code, not get explanations.
+- **`meow search`**: Pure semantic search. Returns code chunks with similarity scores. Use when you want to find code, not get explanations.
 
 - **`meow ask`**: Semantic search + LLM reasoning. Retrieves code chunks, then uses an LLM to answer your question based on that code. Use when you want explanations, summaries, or answers.
 
@@ -256,7 +256,7 @@ Chunking splits files into smaller pieces for embedding. The configuration affec
 
 ```bash
 # Use query to find code
-meow query "authentication middleware"  # Returns: auth.go lines 45-67, middleware.go lines 12-34
+meow search "authentication middleware"  # Returns: auth.go lines 45-67, middleware.go lines 12-34
 
 # Use ask to understand code
 meow ask "How does authentication work?"  # Returns: "The authentication system uses JWT tokens..."
@@ -270,10 +270,10 @@ Currently, each project maintains its own index in the `.meowg1k/` directory. To
 
 ```bash
 # Search project A
-meow query "authentication" --workspace /path/to/project-a
+meow search "authentication" --workspace /path/to/project-a
 
 # Search project B
-meow query "authentication" --workspace /path/to/project-b
+meow search "authentication" --workspace /path/to/project-b
 ```
 
 **Option 2:** Create a script to search multiple projects:
@@ -282,7 +282,7 @@ meow query "authentication" --workspace /path/to/project-b
 #!/bin/bash
 for project in /path/to/projects/*; do
     echo "=== Searching $project ==="
-    meow query "$1" --workspace "$project"
+    meow search "$1" --workspace "$project"
 done
 ```
 

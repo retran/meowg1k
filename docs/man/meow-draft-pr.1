@@ -1,22 +1,19 @@
-.\" docs/man/meow-pr.1
-.TH MEOW-PULLREQUEST 1 "2025-10-04" "meowg1k" "User Commands"
+.\" docs/man/meow-draft-pr.1
+.TH MEOW-DRAFT-PR 1 "2025-10-04" "meow" "User Commands"
 .SH NAME
-meow-pullrequest \- generate Pull Request descriptions from branch diffs
+meow-draft-pr \- draft Pull Request descriptions from branch diffs
 .SH SYNOPSIS
-.B meow pullrequest \-\-base
-\fIBRANCH\fR [\fIflags\fR]
-.br
-.B meow pr \-b
-\fIBRANCH\fR [\fIflags\fR]
+.B meow draft pr
+[\fIflags\fR]
 .SH DESCRIPTION
-.B meow pullrequest
+.B meow draft pr
 generates Pull Request titles and descriptions by analyzing the differences
 between your current branch and a specified base branch. It creates
 comprehensive, Markdown-formatted PR descriptions suitable for GitHub,
 GitLab, Bitbucket, and other code review platforms.
 .PP
 The command supports two execution strategies (configured in the
-.B pullRequest
+.B pr
 section):
 .PP
 .B Summarize Strategy (default):
@@ -32,7 +29,7 @@ generated files).
 \fBReduce Phase:\fR The individual file summaries are combined and
 sent to the AI to generate the final PR description using the configuration
 from the
-.B pullRequest
+.B pr
 section.
 .PP
 This approach allows you to optimize for both quality (using powerful models
@@ -48,11 +45,14 @@ error suggesting you switch to the "summarize" strategy.
 
 .SH OPTIONS
 .TP
+.BR \-\-diff " " \fIMODE\fR
+Select the diff source. Use \fBbranch\fR (default) to compare against a base
+branch or \fBstaged\fR for staged changes.
+.TP
 .BR \-b ", " \-\-base " " \fIBRANCH\fR
-\fB(Required)\fR The base branch to compare against. This is the branch you
-intend to merge into. Common values: \fBmain\fR, \fBdev\fR, \fBmaster\fR.
-The command will analyze all file differences between the current branch
-and this base branch.
+Base branch to compare against when \fB\-\-diff branch\fR is set. Common
+values: \fBmain\fR, \fBdev\fR, \fBmaster\fR. The command will analyze all
+file differences between the current branch and this base branch.
 .TP
 .BR \-i ", " \-\-intent " " \fITEXT\fR
 Provide developer intent or high-level context for the PR. This helps the
@@ -96,7 +96,7 @@ Supports a default profile and rule-based overrides for specific file patterns:
 .nf
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
     systemPrompt: "Summarize this code change"
 
   rules:
@@ -106,7 +106,7 @@ summarize:
 
     # Use powerful model for critical services
     - match: "internal/services/**/*.go"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: "Deep analysis of business logic"
 
     # Skip test snapshots
@@ -114,13 +114,13 @@ summarize:
       skip: true
 .fi
 .PP
-.B pullRequest
+.B pr
 (required): Configure the Reduce phase where file summaries are combined
 into the final PR description. Also controls the execution strategy:
 .PP
 .nf
-pullRequest:
-  profile: "smart"
+pr:
+  profile: "gemini-pro"
   strategy: "summarize"  # or "flat" for small PRs
   systemPrompt: |
     You are an expert software engineer writing a Pull Request.
@@ -157,26 +157,26 @@ for complete configuration reference.
 Generate PR description for changes to merge into main:
 .PP
 .nf
-.B meow pullrequest \-\-base main
+.B meow draft pr \-\-base main
 .fi
 .PP
 Short form:
 .PP
 .nf
-.B meow pr \-b dev
+.B meow draft pr \-b dev
 .fi
 
 .SS Providing Developer Intent
 Via command-line flag:
 .PP
 .nf
-.B meow pullrequest \-b main \-i "Add complete Stripe payment integration"
+.B meow draft pr \-b main \-i "Add complete Stripe payment integration"
 .fi
 .PP
 Via stdin:
 .PP
 .nf
-.B echo "Refactor authentication to use JWT tokens" | meow pullrequest \-b main
+.B echo "Refactor authentication to use JWT tokens" | meow draft pr \-b main
 .fi
 
 .SS Advanced Configuration Example
@@ -202,7 +202,7 @@ filter:
 
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
 
   rules:
     # Skip docs and configs
@@ -213,15 +213,15 @@ summarize:
 
     # Deep analysis for critical code
     - match: "src/billing/**/*.ts"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: "Analyze payment logic carefully"
 
     - match: "src/auth/**/*.ts"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: "Security-focused code review"
 
 pr:
-  profile: "smart"
+  profile: "gemini-pro"
   systemPrompt: |
     Generate a professional PR description with:
     - Clear goal statement
@@ -233,7 +233,7 @@ pr:
 Then use:
 .PP
 .nf
-.B meow pr \-\-base main
+.B meow draft pr \-\-base main
 .fi
 
 .SS CI/CD Integration
@@ -268,7 +268,7 @@ jobs:
       - name: Generate Description
         id: generate
         run: |
-          DESCRIPTION=$(meow pr \\
+          DESCRIPTION=$(meow draft pr \\
             --base ${{ github.base_ref }} \\
             --silent)
           echo "DESCRIPTION<<EOF" >> $GITHUB_OUTPUT
@@ -280,7 +280,7 @@ jobs:
       - name: Update PR
         run: |
           gh pr edit ${{ github.event.pull_request.number }} \\
-            --body "${{ steps.generate.outputs.DESCRIPTION }}"
+            --body "${{ steps.write.outputs.DESCRIPTION }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 .fi
@@ -290,7 +290,7 @@ Use in shell scripts without progress indicators:
 .PP
 .nf
 .B #!/bin/bash
-.B PR_DESCRIPTION=$(meow pullrequest \-\-base main \-\-silent)
+.B PR_DESCRIPTION=$(meow draft pr \-\-base main \-\-silent)
 .B echo "$PR_DESCRIPTION" > pr_description.md
 .fi
 
@@ -342,7 +342,7 @@ API authentication failure
 .IP "1." 3
 Complete feature development on your branch
 .IP "2."
-Generate PR description: \fBmeow pr \-\-base main\fR
+Generate PR description: \fBmeow draft pr \-\-base main\fR
 .IP "3."
 Copy output and paste into PR description field
 .IP "4."
@@ -356,7 +356,7 @@ Push branch: \fBgit push origin feature-branch\fR
 .IP "3."
 Create PR with generated description:
 .br
-.B gh pr create \-\-title "Feature" \-\-body "$(meow pullrequest \-b main \-\-silent)"\fR
+.B gh pr create \-\-title "Feature" \-\-body "$(meow draft pr \-b main \-\-silent)"\fR
 
 .SH NOTES
 The
@@ -369,15 +369,15 @@ intended target.
 For convenience, create shell aliases:
 .PP
 .nf
-alias mpr='meow pullrequest \-\-base main'
-alias mprd='meow pullrequest \-\-base dev'
+alias mpr='meow draft pr \-\-base main'
+alias mprd='meow draft pr \-\-base dev'
 .fi
 
 .SH SEE ALSO
 .BR meow (1),
 .BR meow\-init (1),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
 .BR meow\-config (5),
 .BR git\-diff (1),
 .BR gh\-pr (1)
@@ -386,7 +386,7 @@ alias mprd='meow pullrequest \-\-base dev'
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

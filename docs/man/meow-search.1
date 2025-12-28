@@ -1,20 +1,20 @@
-.\" docs/man/meow-query.1
-.TH MEOW-QUERY 1 "2025-10-15" "meowg1k" "User Commands"
+.\" docs/man/meow-search.1
+.TH MEOW-SEARCH 1 "2025-10-15" "meow" "User Commands"
 .SH NAME
-meow-query \- search for code using semantic similarity
+meow-search \- search for code using semantic similarity
 .SH SYNOPSIS
-.B meow query
+.B meow search
 \fITEXT\fR [\fIflags\fR]
 .br
-.B meow q
+.B meow s
 \fITEXT\fR [\fIflags\fR]
 .br
 .B echo
 "\fITEXT\fR" |
-.B meow query
+.B meow search
 [\fIflags\fR]
 .SH DESCRIPTION
-.B meow query
+.B meow search
 searches for code chunks similar to the query text using vector similarity
 (semantic search). Unlike traditional text search that relies on exact keyword
 matching, semantic search uses vector embeddings to understand the
@@ -90,7 +90,7 @@ Switching embedding models requires re-indexing with
 Find authentication-related code:
 .PP
 .nf
-.B meow query "authentication logic"
+.B meow search "authentication logic"
 .fi
 .PP
 Example output:
@@ -117,41 +117,41 @@ func (s *Service) Authenticate(ctx context.Context, token string) (*User, error)
 Search for error handling with higher result count:
 .PP
 .nf
-.B meow query "error handling" \-\-top\-k 20
+.B meow search "error handling" \-\-top\-k 20
 .fi
 
 .SS Filter by Score
 Only show highly relevant results:
 .PP
 .nf
-.B meow query "database queries" \-\-min\-score 0.7
+.B meow search "database queries" \-\-min\-score 0.7
 .fi
 
 .SS Search Specific Snapshots
 Search only uncommitted changes:
 .PP
 .nf
-.B meow query "new feature" \-\-snapshots _workdir_
+.B meow search "new feature" \-\-snapshots _workdir_
 .fi
 .PP
 Search only committed code:
 .PP
 .nf
-.B meow query "authentication" \-\-snapshots _head_
+.B meow search "authentication" \-\-snapshots _head_
 .fi
 
 .SS JSON Output for Scripting
 Export results as JSON:
 .PP
 .nf
-.B meow query "API endpoints" \-\-json | jq '.[] | .FilePath'
+.B meow search "API endpoints" \-\-json | jq '.[] | .FilePath'
 .fi
 .PP
 Process results in a script:
 .PP
 .nf
 #!/bin/bash
-results=$(meow query "$1" \-\-json)
+results=$(meow search "$1" \-\-json)
 echo "$results" | jq -r '.[] | "\\(.FilePath):\\(.StartLine)"'
 .fi
 
@@ -159,13 +159,13 @@ echo "$results" | jq -r '.[] | "\\(.FilePath):\\(.StartLine)"'
 Pipe query text via stdin:
 .PP
 .nf
-.B echo "database connection" | meow query
+.B echo "database connection" | meow search
 .fi
 .PP
 Use in scripts:
 .PP
 .nf
-.B cat query.txt | meow query \-\-top\-k 5
+.B cat query.txt | meow search \-\-top\-k 5
 .fi
 
 .SS Finding Code Without Exact Terms
@@ -173,13 +173,13 @@ Semantic search finds code by meaning, not just keywords:
 .PP
 .nf
 # Finds error handling even without word "error"
-.B meow query "error handling and validation"
+.B meow search "error handling and validation"
 
 # Finds rate limiting code with various implementations
-.B meow query "rate limiting and throttling"
+.B meow search "rate limiting and throttling"
 
 # Finds database code regardless of ORM used
-.B meow query "database queries and transactions"
+.B meow search "database queries and transactions"
 .fi
 
 .SH TUNING GUIDELINES
@@ -195,7 +195,7 @@ Search all snapshots
 Example:
 .PP
 .nf
-.B meow query "how does the system work" \-\-top\-k 20 \-\-min\-score 0.5
+.B meow search "how does the system work" \-\-top\-k 20 \-\-min\-score 0.5
 .fi
 
 .SS Specific Questions
@@ -210,7 +210,7 @@ May limit to specific snapshots
 Example:
 .PP
 .nf
-.B meow query "login function implementation" \-\-top\-k 5 \-\-min\-score 0.7
+.B meow search "login function implementation" \-\-top\-k 5 \-\-min\-score 0.7
 .fi
 
 .SH TROUBLESHOOTING
@@ -227,7 +227,7 @@ Filters too aggressive: Check filter configuration
 .PP
 .nf
 # Debug with low threshold and high result count
-.B meow query "your query" \-\-top\-k 20 \-\-min\-score 0.3
+.B meow search "your query" \-\-top\-k 20 \-\-min\-score 0.3
 .fi
 
 .SS Results Not Relevant
@@ -293,7 +293,7 @@ Matches exact keywords. Fast but misses semantic matches. Example:
 searching "error" misses "failure", "exception", "err".
 .RE
 .PP
-.B Semantic search (meow query):
+.B Semantic search (meow search):
 .RS
 Matches by meaning. Finds relevant code even with different words.
 Example: "authentication logic" finds JWT validation, token verification,
@@ -310,7 +310,7 @@ user lookup, session management.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

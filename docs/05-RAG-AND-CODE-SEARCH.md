@@ -36,7 +36,7 @@ The RAG system in `meowg1k` consists of three core components:
 - Builds HNSW (Hierarchical Navigable Small World) vector indices for fast similarity search
 - Stores everything locally in SQLite with smart deduplication
 
-### 2. Querying (`meow query`)
+### 2. Querying (`meow search`)
 
 - Computes an embedding for your search query
 - Searches across HNSW indices for the most similar code chunks
@@ -64,18 +64,18 @@ models:
     model: "text-embedding-004"
 
 profiles:
-  embeddings:
+  gemini-embeddings:
     model: "gemini-embeddings"
 
 index:
-  profile: "embeddings"
+  profile: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
   batchSize: 64
 
-ask:
-  profile: "smart"
+answer:
+  profile: "gemini-pro"
   topK: 5
   minScore: 0.7
 ```
@@ -113,16 +113,16 @@ Find relevant code chunks using natural language:
 
 ```bash
 # Search for authentication-related code
-meow query "authentication logic"
+meow search "authentication logic"
 
 # Search with higher precision (more results, lower threshold)
-meow query "error handling" --top-k 20 --min-score 0.5
+meow search "error handling" --top-k 20 --min-score 0.5
 
 # Output results as JSON
-meow query "database connection" --json
+meow search "database connection" --json
 
 # Search only in uncommitted changes
-meow query "new feature" --snapshots _workdir_
+meow search "new feature" --snapshots _workdir_
 ```
 
 #### Question Answering with `ask`
@@ -134,7 +134,7 @@ Get AI-powered answers based on your codebase:
 meow ask "How does authentication work in this project?"
 
 # Use a more powerful model for complex questions
-meow ask "What's the error handling strategy?" --profile smart
+meow ask "What's the error handling strategy?" --profile gemini-pro
 
 # Search more thoroughly
 meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5
@@ -168,7 +168,7 @@ The main authentication flow is implemented in the `Authenticate` method at
 The RAG system uses three main commands:
 
 - **[`meow index`](./03-COMMAND-REFERENCE.md#meow-index)** — Index your codebase by computing embeddings and building vector indices
-- **[`meow query`](./03-COMMAND-REFERENCE.md#meow-query-text)** — Search for code using semantic similarity
+- **[`meow search`](./03-COMMAND-REFERENCE.md#meow-search-text)** — Search for code using semantic similarity
 - **[`meow ask`](./03-COMMAND-REFERENCE.md#meow-ask-question)** — Ask questions about your codebase with AI-powered answers
 
 For complete command details including all flags and options, see the [Command Reference](./03-COMMAND-REFERENCE.md).
@@ -244,7 +244,7 @@ To search only specific snapshots:
 
 ```bash
 # Only search uncommitted changes
-meow query "new feature" --snapshots _workdir_
+meow search "new feature" --snapshots _workdir_
 
 # Search staged and committed code
 meow ask "How does auth work?" --snapshots _stage_,_head_
@@ -345,7 +345,7 @@ Enable caching in your embedding profile:
 
 ```yaml
 profiles:
-  embeddings:
+  gemini-embeddings:
     model: "gemini-embeddings"
     cache:
       enabled: true
@@ -363,10 +363,10 @@ Example:
 
 ```yaml
 profiles:
-  embeddings:
+  gemini-embeddings:
     model: "gemini-embeddings" # Fast and free
 
-  smart:
+  claude-sonnet:
     model: "claude-sonnet" # Powerful for reasoning
 ```
 

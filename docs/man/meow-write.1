@@ -1,9 +1,9 @@
-.\" docs/man/meow-generate.1
-.TH MEOW-GENERATE 1 "2025-10-04" "meowg1k" "User Commands"
+.\" docs/man/meow-write.1
+.TH MEOW-WRITE 1 "2025-10-04" "meow" "User Commands"
 .SH NAME
-meow-generate \- generate content based on prompts and context
+meow-write \- generate content based on prompts and context
 .SH SYNOPSIS
-.B meow generate
+.B meow write
 [\fIflags\fR]
 .br
 .B meow gen
@@ -12,7 +12,7 @@ meow-generate \- generate content based on prompts and context
 .B meow g
 [\fIflags\fR]
 .SH DESCRIPTION
-.B meow generate
+.B meow write
 generates content using configured AI provider profiles and tasks. It is
 designed for automation and scripting, transforming input into AI-enhanced
 output through a predictable pipeline.
@@ -28,7 +28,7 @@ with smart defaults and minimal configuration required.
 .TP
 .BR \-t ", " \-\-task " " \fINAME\fR
 Run a predefined task from configuration. Tasks are defined in the
-.B generate.tasks
+.B write.tasks
 section of config files. Tasks can specify a profile, system prompt,
 and user prompt, allowing complex, reusable workflows to be invoked
 with a simple name.
@@ -68,17 +68,17 @@ section in configuration files defines default settings and tasks:
 .nf
 generate:
   default:
-    profile: "fast"              # Default profile for generate
+    profile: "gemini-flash"              # Default profile for generate
     systemPrompt: "You are..."   # Optional default system prompt
 
   tasks:
     review:
-      profile: "smart"           # Override profile for this task
+      profile: "gemini-pro"           # Override profile for this task
       systemPrompt: "Expert reviewer..."
       userPrompt: "Review this code thoroughly"
 
     security:
-      profile: "smart"
+      profile: "gemini-pro"
       userPrompt: "Analyze for security vulnerabilities"
 .fi
 .PP
@@ -94,20 +94,20 @@ Explicit config via \fB\-\-config\fR flag
 Run a code review task:
 .PP
 .nf
-.B cat main.go | meow generate \-t review
+.B cat main.go | meow write \-t review
 .fi
 .PP
 Security analysis with predefined configuration:
 .PP
 .nf
-.B cat auth.go | meow generate \-t security
+.B cat auth.go | meow write \-t security
 .fi
 
 .SS Ad-Hoc Prompts
 Provide context via stdin and instruction via flag:
 .PP
 .nf
-.B cat service.py | meow generate \-u "Add comprehensive error handling"
+.B cat service.py | meow write \-u "Add comprehensive error handling"
 .fi
 .PP
 Generate from text prompt alone:
@@ -152,7 +152,7 @@ With local llama.cpp server:
 Generate without progress indicators:
 .PP
 .nf
-.B cat input.txt | meow generate \-u "Summarize" \-\-silent > output.txt
+.B cat input.txt | meow write \-u "Summarize" \-\-silent > output.txt
 .fi
 
 .SH ENVIRONMENT

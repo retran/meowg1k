@@ -188,7 +188,7 @@ sudo dnf install ./meow-<version>-1.x86_64.rpm
 3. Use `--config` flag to specify custom location:
 
    ```bash
-   meow generate --config /path/to/config.yaml
+   meow write --config /path/to/config.yaml
    ```
 
 4. Check file permissions:
@@ -234,14 +234,14 @@ sudo dnf install ./meow-<version>-1.x86_64.rpm
 
 ## Command Usage
 
-### `meow pullrequest` requires `--base` flag
+### `meow draft pr` requires `--base` flag
 
 **Cause:** The command needs a base branch for comparison.
 
 **Solution:**
 
 ```bash
-meow pullrequest --base main
+meow draft pr --base main
 ```
 
 **Automation tip:** Create a shell function:
@@ -252,7 +252,7 @@ mpr() {
     local default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
     [[ -z "$default_branch" ]] && default_branch="main"
     echo "Using base branch: $default_branch"
-    meow pullrequest --base "$default_branch" "$@"
+    meow draft pr --base "$default_branch" "$@"
 }
 ```
 
@@ -262,7 +262,7 @@ Usage:
 mpr  # Automatically detects default branch
 ```
 
-### `meow commit` shows "no staged changes"
+### `meow draft commit` shows "no staged changes"
 
 **Cause:** No files staged with `git add`.
 
@@ -272,13 +272,13 @@ mpr  # Automatically detects default branch
 
 ```bash
 git add .
-meow commit
+meow draft commit
 ```
 
 **Option 2: Use target branch mode**
 
 ```bash
-meow commit --target-branch main
+meow draft commit --diff branch --base main
 ```
 
 This analyzes all changes on your branch vs the target.
@@ -309,7 +309,7 @@ profiles:
 ```yaml
 commit:
   strategy: "summarize" # Instead of "flat"
-  profile: "smart"
+  profile: "gemini-pro"
 ```
 
 **When to use each strategy:**
@@ -326,15 +326,15 @@ commit:
 1. **Provide developer intent:**
 
    ```bash
-   meow commit -i "Fix memory leak in cache layer"
+   meow draft commit -i "Fix memory leak in cache layer"
    ```
 
 2. **Use summarize strategy for detailed analysis:**
 
    ```yaml
-   commit:
-     strategy: "summarize"
-     profile: "smart"
+commit:
+  strategy: "summarize"
+  profile: "gemini-pro"
    ```
 
 3. **Improve system prompt:**
@@ -351,8 +351,8 @@ commit:
 
 4. **Use a more capable model:**
    ```yaml
-   commit:
-     profile: "smart" # Instead of "fast"
+commit:
+  profile: "gemini-pro" # Instead of "gemini-flash"
    ```
 
 ### Summaries being skipped unexpectedly
@@ -373,12 +373,12 @@ summarize:
       skip: true
 
     - match: "internal/core/**/*.go"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: "Analyze business logic changes carefully"
 
     # General rule last
     - match: "**/*.go"
-      profile: "fast"
+      profile: "gemini-flash"
 ```
 
 ---
@@ -411,16 +411,16 @@ Run this command:
 
    ```bash
    # Too specific
-   meow query "authenticationMiddleware function"
+   meow search "authenticationMiddleware function"
 
    # Better
-   meow query "authentication"
+   meow search "authentication"
    ```
 
 2. **Lower minimum score:**
 
    ```bash
-   meow query "error handling" --min-score 0.5
+   meow search "error handling" --min-score 0.5
    ```
 
 3. **Check what was indexed:**
@@ -549,14 +549,14 @@ Run this command:
 1. **Increase retrieved context:**
 
    ```yaml
-   ask:
+   answer:
      topK: 10 # Retrieve more chunks
    ```
 
 2. **Lower similarity threshold:**
 
    ```yaml
-   ask:
+   answer:
      minScore: 0.5 # Be less strict
    ```
 
@@ -612,12 +612,12 @@ Run this command:
 3. **Use faster model:**
 
    ```yaml
-   summarize:
-     default:
-       profile: "fast" # Use fast model for Map phase
+  summarize:
+    default:
+      profile: "gemini-flash" # Use fast model for Map phase
 
-   commit:
-     profile: "smart" # Use good model for Reduce phase
+  commit:
+    profile: "gemini-pro" # Use good model for Reduce phase
    ```
 
 4. **Enable caching:**
@@ -636,27 +636,27 @@ Run this command:
 1. **Multi-model strategy:**
 
    ```yaml
-   models:
-     cheap:
-       provider: "gemini"
-       model: "gemini-2.0-flash-exp"
+  models:
+    gemini-flash:
+      provider: "gemini"
+      model: "gemini-2.0-flash-exp"
 
-     expensive:
-       provider: "anthropic"
-       model: "claude-sonnet-4-5-20250929"
+    claude-sonnet:
+      provider: "anthropic"
+      model: "claude-sonnet-4-5-20250929"
 
-   profiles:
-     fast:
-       model: "cheap"
-     smart:
-       model: "expensive"
+  profiles:
+    gemini-flash:
+      model: "gemini-flash"
+    claude-sonnet:
+      model: "claude-sonnet"
 
-   summarize:
-     default:
-       profile: "fast" # Cheap model for many files
+  summarize:
+    default:
+      profile: "gemini-flash" # Cheap model for many files
 
-   commit:
-     profile: "smart" # Expensive model for final message
+  commit:
+    profile: "claude-sonnet" # Expensive model for final message
    ```
 
 2. **Use flat strategy when possible:**
@@ -870,7 +870,7 @@ If your problem is new, open a detailed bug report:
 1. **Command you ran:**
 
    ```bash
-   meow commit --target-branch main
+   meow draft commit --diff branch --base main
    ```
 
 2. **Configuration (with secrets removed):**
@@ -930,7 +930,7 @@ If your problem is new, open a detailed bug report:
 meow version
 
 # Validate config (run any command with --help)
-meow commit --help
+meow draft commit --help
 
 # View environment variables
 env | grep MEOW

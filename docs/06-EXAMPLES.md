@@ -17,7 +17,7 @@ echo "function getUser(id) { return fetch('/api/users/' + id).then(res => res.js
 
 **Explanation:**
 
-- The `echo` command pipes the JavaScript code into `meowg1k`'s standard input.
+- The `echo` command pipes the JavaScript code into `meow`'s standard input.
 - The `-u` flag provides the user prompt, telling the AI what to do with the provided code.
 - `meowg1k` combines the context (the code) and the prompt into a single request to the default LLM provider.
 
@@ -39,7 +39,7 @@ profiles:
   claude-secure:
     model: "claude-sonnet"
 
-generate:
+write:
   default:
     profile: "claude-secure"
   tasks:
@@ -56,14 +56,14 @@ cat ./internal/handlers/auth.go | meow g -t security-review
 
 **Explanation:**
 
-- The `-t security-review` flag tells `meowg1k` to use the complex `systemPrompt` and `userPrompt` defined under `generate.tasks.security-review` in the config file.
+- The `-t security-review` flag tells `meow` to use the complex `systemPrompt` and `userPrompt` defined under `write.tasks.security-review` in the config file.
 - This allows you to encapsulate detailed, expert-level prompts into simple, reusable commands.
 
 ## 3. Fully Automated Commit Messages
 
 This example shows the power of the `summarize` and `commit` workflow.
 
-**Goal:** Generate a Conventional Commit message based on staged changes, using a fast model for file analysis and a smart model for the final message to optimize cost.
+**Goal:** Generate a Conventional Commit message based on staged changes, using a fast model for file analysis and a more capable model for the final message to optimize cost.
 
 **Configuration (`.meowg1k.yaml`):**
 
@@ -77,20 +77,20 @@ models:
     model: "claude-sonnet-4-5-20250929"
 
 profiles:
-  fast:
+  gemini-flash:
     model: "gemini-flash"
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
 
 summarize:
   # Use the fast, cheap model to summarize each file change
   default:
-    profile: "fast"
+    profile: "gemini-flash"
     systemPrompt: "Provide a one-sentence summary of this code change."
 
 commit:
-  # Use the smart, expensive model to write the final commit message
-  profile: "smart"
+  # Use the more capable model to write the final commit message
+  profile: "claude-sonnet"
   systemPrompt: |
     You are an expert software engineer. Based on the file summaries, write a commit message in the Conventional Commits format.
     Deduce the type and scope, write a concise subject, and add a body explaining the 'why' if the change is non-trivial.
@@ -100,13 +100,13 @@ commit:
 
 ```bash
 git add .
-meow commit -i "Fix the user login bug and refactor token handling"
+meow draft commit -i "Fix the user login bug and refactor token handling"
 ```
 
 **Explanation:**
 
-- `meowg1k` first uses the `gemini-fast` profile to analyze each staged file change individually (the "Map" step).
-- Then, it collects all these individual summaries and sends them to the `claude-smart` profile, guided by the powerful `commit` system prompt, to generate the final, high-quality commit message (the "Reduce" step).
+- `meowg1k` first uses the `gemini-flash` profile to analyze each staged file change individually (the "Map" step).
+- Then, it collects all these individual summaries and sends them to the `claude-sonnet` profile, guided by the powerful `commit` system prompt, to generate the final, high-quality commit message (the "Reduce" step).
 
 ## 4. Fast Commit Messages for Small Changes
 
@@ -123,11 +123,11 @@ models:
     model: "gemini-2.5-flash"
 
 profiles:
-  fast:
+  gemini-flash:
     model: "gemini-flash"
 
 commit:
-  profile: "fast"
+  profile: "gemini-flash"
   strategy: "flat" # Skip the summarize step, send diff directly
   systemPrompt: |
     You are an expert software engineer. Write a concise commit message in Conventional Commits format based on this git diff.
@@ -142,7 +142,7 @@ echo "// TODO: Add validation" >> service.go
 git add service.go
 
 # Generate a quick commit message
-meow commit
+meow draft commit
 ```
 
 **Explanation:**
@@ -178,18 +178,18 @@ filter:
 
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
   rules:
     # Rule 1: Skip all documentation changes from the analysis
     - match: "**/*.md"
       skip: true
     # Rule 2: Use the best model for critical service logic
     - match: "internal/adapters/**/*.go"
-      profile: "smart"
+      profile: "claude-sonnet"
       systemPrompt: "Deeply analyze this business logic change. Focus on correctness, performance, and potential side effects."
 
-pullRequest:
-  profile: "smart"
+pr:
+  profile: "claude-sonnet"
   systemPrompt: |
     You are an expert engineer. Write a PR description with a title and a body using this Markdown template:
     ## Goal
@@ -200,21 +200,21 @@ pullRequest:
     (Provide step-by-step testing instructions)
 ```
 
-> **Note:** For complete documentation of the `filter`, `summarize`, and `pullRequest` configuration sections, see the [Configuration Guide](./02-CONFIGURATION.md).
+> **Note:** For complete documentation of the `filter`, `summarize`, and `pr` configuration sections, see the [Configuration Guide](./02-CONFIGURATION.md).
 
 **Command:**
 
 ```bash
-meow pullrequest --base main
+meow draft pr --base main
 ```
 
 **Explanation:**
 
-- When you run `meow pullrequest`, it first ignores any files in `dist/`.
+- When you run `meow draft pr`, it first ignores any files in `dist/`.
 - Then, it skips summarizing any changes to `.md` files.
-- For changes in `internal/services/`, it uses the powerful `claude-smart` profile and a specialized prompt.
-- All other files are summarized using the default `gemini-fast` profile.
-- Finally, the collected summaries are used by the `pullRequest` configuration to generate a well-structured Markdown description.
+- For changes in `internal/services/`, it uses the powerful `claude-sonnet` profile and a specialized prompt.
+- All other files are summarized using the default `gemini-flash` profile.
+- Finally, the collected summaries are used by the `pr` configuration to generate a well-structured Markdown description.
 
 ## 5. Using Local Models for Privacy
 
@@ -235,7 +235,7 @@ profiles:
   local-secure:
     model: "local"
 
-generate:
+write:
   tasks:
     local-analysis:
       profile: "local-secure"
@@ -274,20 +274,20 @@ models:
     model: "claude-sonnet-4-5-20250929"
 
 profiles:
-  embeddings:
+  gemini-embeddings:
     model: "gemini-embeddings"
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
 
 index:
-  profile: "embeddings"
+  profile: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
   batchSize: 64
 
-ask:
-  profile: "smart"
+answer:
+  profile: "claude-sonnet"
   topK: 5
   minScore: 0.7
 ```
@@ -301,7 +301,7 @@ ask:
 meow index
 
 # Step 2: Search for relevant code
-meow query "authentication middleware" --top-k 10
+meow search "authentication middleware" --top-k 10
 
 # Step 3: Ask high-level questions
 meow ask "How does the authentication system work?"
@@ -316,7 +316,7 @@ meow ask "How do I add a new protected endpoint?"
 **Explanation:**
 
 - First, `meow index` processes all files, computes embeddings, and builds vector indices
-- `meow query` performs semantic search to find relevant code chunks
+- `meow search` performs semantic search to find relevant code chunks
 - `meow ask` retrieves relevant context and uses an LLM to provide answers
 - This workflow is much faster than manually searching through files
 
@@ -339,16 +339,16 @@ Semantic search finds code by meaning, not just keywords.
 git grep "error" | grep -v "// error"  # Misses: err, failure, exception
 
 # Semantic search finds all error-related code
-meow query "error handling and validation" --top-k 20 --min-score 0.6
+meow search "error handling and validation" --top-k 20 --min-score 0.6
 
 # Find authentication code without knowing implementation details
-meow query "user authentication and authorization" --top-k 15
+meow search "user authentication and authorization" --top-k 15
 
 # Find database code regardless of ORM used
-meow query "database queries and transactions"
+meow search "database queries and transactions"
 
 # Find code related to a concept, not exact terms
-meow query "rate limiting and throttling"
+meow search "rate limiting and throttling"
 ```
 
 **Example output:**
@@ -429,9 +429,9 @@ Use RAG to perform more thorough code reviews.
 **Configuration (`.meowg1k.yaml`):**
 
 ```yaml
-generate:
+write:
   default:
-    profile: "smart"
+    profile: "gemini-pro"
   tasks:
     review-with-context:
       systemPrompt: |
@@ -451,7 +451,7 @@ generate:
 meow index
 
 # 2. Get context about related code
-meow query "authentication middleware" --top-k 10 > context.txt
+meow search "authentication middleware" --top-k 10 > context.txt
 
 # 3. Review the changes with context
 git diff HEAD~1 | cat context.txt - | meow g -t review-with-context
@@ -473,5 +473,5 @@ Explore how to integrate `meowg1k` into your daily workflow with the [Integratio
 
 For detailed guides on specific features:
 
-- [Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Deep dive into generate, commit, and pullrequest
+- [Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Deep dive into write, draft commit, and draft pr
 - [RAG and Code Search](./05-RAG-AND-CODE-SEARCH.md) — Semantic search and question answering

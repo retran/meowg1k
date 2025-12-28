@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package answer
+package ask
 
 import (
 	"context"

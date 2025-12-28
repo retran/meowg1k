@@ -1,8 +1,8 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package answer implements the workflow for answering questions about code using RAG.
-package answer
+// Package ask implements the workflow for answering questions about code using RAG.
+package ask
 
 import (
 	"context"
@@ -31,7 +31,7 @@ type ConfigReader interface {
 	Get() (*config.Config, error)
 }
 
-// Factory creates instances of the answer flow.
+// Factory creates instances of the ask flow.
 type Factory struct {
 	retrieveContextFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output]
 	invokeLLMFactory       executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
@@ -41,7 +41,7 @@ type Factory struct {
 	configReader           ConfigReader
 }
 
-// NewFactory creates a new answer flow factory.
+// NewFactory creates a new ask flow factory.
 func NewFactory(
 	retrieveContextFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output],
 	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output],
@@ -51,22 +51,22 @@ func NewFactory(
 	configReader ConfigReader,
 ) (*Factory, error) {
 	if retrieveContextFactory == nil {
-		return nil, fmt.Errorf("answer.NewFactory: retrieveContextFactory cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: retrieveContextFactory cannot be nil")
 	}
 	if invokeLLMFactory == nil {
-		return nil, fmt.Errorf("answer.NewFactory: invokeLLMFactory cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: invokeLLMFactory cannot be nil")
 	}
 	if parametersReader == nil {
-		return nil, fmt.Errorf("answer.NewFactory: parametersReader cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: parametersReader cannot be nil")
 	}
 	if profileResolver == nil {
-		return nil, fmt.Errorf("answer.NewFactory: profileResolver cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: profileResolver cannot be nil")
 	}
 	if outputWriter == nil {
-		return nil, fmt.Errorf("answer.NewFactory: outputWriter cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: outputWriter cannot be nil")
 	}
 	if configReader == nil {
-		return nil, fmt.Errorf("answer.NewFactory: configReader cannot be nil")
+		return nil, fmt.Errorf("ask.NewFactory: configReader cannot be nil")
 	}
 
 	return &Factory{
@@ -79,10 +79,10 @@ func NewFactory(
 	}, nil
 }
 
-// NewFlow creates and returns the answer flow function.
+// NewFlow creates and returns the ask flow function.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		return f.runAnswerFlow(ctx, flowCtx)
+		return f.runAskFlow(ctx, flowCtx)
 	}
 }
 
@@ -95,7 +95,7 @@ Instructions:
 - Cite specific files/locations from the context when relevant
 - If the question cannot be answered with the given context, clearly state that`
 
-func (f *Factory) runAnswerFlow(ctx context.Context, flowCtx *executor.Context) error {
+func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) error {
 	cfg, err := f.loadAnswerConfig()
 	if err != nil {
 		return err

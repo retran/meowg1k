@@ -8,9 +8,9 @@ This guide covers `meowg1k`'s core generation capabilities for automating develo
 
 `meowg1k` provides four main workflows:
 
-1. **`meow generate`** — Generate or transform code based on prompts and context
-2. **`meow commit`** — Automatically generate commit messages from code changes
-3. **`meow pullrequest`** — Generate comprehensive PR descriptions from branch diffs
+1. **`meow write`** — Generate or transform code based on prompts and context
+2. **`meow draft commit`** — Automatically generate commit messages from code changes
+3. **`meow draft pr`** — Generate comprehensive PR descriptions from branch diffs
 4. **`meow do`** — Run a multi-step agent workflow with tool use
 
 Unlike interactive chat tools, meowg1k is designed for **automation and scripting**. Each command follows a predictable input→process→output model, making it suitable for Git hooks, CI/CD pipelines, and custom development workflows.
@@ -43,14 +43,14 @@ All generation commands follow a similar architecture:
 
 The generation system uses four main commands:
 
-- **[`meow generate`](./03-COMMAND-REFERENCE.md#meow-generate-aliases-gen-g)** — General-purpose code and text generation
-- **[`meow commit`](./03-COMMAND-REFERENCE.md#meow-commit-alias-c)** — Generate commit messages from staged changes
-- **[`meow pullrequest`](./03-COMMAND-REFERENCE.md#meow-pullrequest-aliases-pr)** — Generate PR descriptions from branch diffs
+- **[`meow write`](./03-COMMAND-REFERENCE.md#meow-write)** — General-purpose code and text generation
+- **[`meow draft commit`](./03-COMMAND-REFERENCE.md#meow-draft-commit-alias-commit-msg)** — Generate commit messages from staged changes
+- **[`meow draft pr`](./03-COMMAND-REFERENCE.md#meow-draft-pr)** — Generate PR descriptions from branch diffs
 - **[`meow do`](./03-COMMAND-REFERENCE.md#meow-do)** — Multi-step agent with research → plan → execute → verify
 
 For complete command details including all flags and options, see the [Command Reference](./03-COMMAND-REFERENCE.md).
 
-For configuration details of the `generate`, `commit`, `pullrequest`, `summarize`, and `agent` sections, see the [Configuration Guide](./02-CONFIGURATION.md#generate-commit-and-pullrequest).
+For configuration details of the `write`, `commit`, `pr`, `summarize`, and `agent` sections, see the [Configuration Guide](./02-CONFIGURATION.md#write-commit-and-pr).
 
 ## Quick Start
 
@@ -75,9 +75,9 @@ For recurring tasks, define them in your config to ensure consistency:
 
 ```yaml
 # .meowg1k.yaml
-generate:
+write:
   default:
-    profile: "smart"
+    profile: "gemini-pro"
   tasks:
     review:
       userPrompt: "Perform a code review. Check for bugs, performance issues, and best practices."
@@ -96,7 +96,7 @@ cat handler.go | meow g -t review
 cat api.py | meow g -t document
 ```
 
-> **Note:** For complete documentation of the `generate` configuration section and all available parameters, see the [Configuration Guide](./02-CONFIGURATION.md#generate-commit-and-pullrequest).
+> **Note:** For complete documentation of the `write` configuration section and all available parameters, see the [Configuration Guide](./02-CONFIGURATION.md#write-commit-and-pr).
 
 ### Automated Commit Messages
 
@@ -110,11 +110,11 @@ models:
     model: "gemini-2.0-flash-exp"
 
 profiles:
-  fast:
+  gemini-flash:
     model: "gemini-flash"
 
 commit:
-  profile: "fast"
+  profile: "gemini-flash"
   strategy: "flat" # Fast for small commits
   systemPrompt: |
     Write a concise commit message in Conventional Commits format.
@@ -127,7 +127,7 @@ Usage:
 
 ```bash
 git add .
-meow commit
+meow draft commit
 ```
 
 ## The Map-Reduce Workflow
@@ -168,7 +168,7 @@ The `summarize` section controls the Map phase:
 ```yaml
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
     systemPrompt: "Summarize this code change in one sentence."
 
   rules:
@@ -178,7 +178,7 @@ summarize:
 
     # Use powerful model for critical code
     - match: "internal/core/**/*.go"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: "Analyze this business logic change. Focus on correctness and side effects."
 
     # Skip test files
@@ -192,7 +192,7 @@ summarize:
 
 ## Strategy: Flat vs Summarize
 
-Both `commit` and `pullrequest` commands support two strategies:
+Both `draft commit` and `draft pr` commands support two strategies:
 
 ### `flat` Strategy (Fast)
 
@@ -220,7 +220,7 @@ Sends the entire diff directly to the LLM without summarization.
 
 ```yaml
 commit:
-  profile: "fast"
+  profile: "gemini-flash"
   strategy: "flat"
   systemPrompt: "Write a concise commit message based on this diff."
 ```
@@ -253,7 +253,7 @@ Uses Map-Reduce to analyze files individually, then combines summaries.
 
 ```yaml
 commit:
-  profile: "smart"
+  profile: "gemini-pro"
   strategy: "summarize" # Default
   systemPrompt: |
     Based on the file summaries, write a high-quality commit message.
@@ -261,7 +261,7 @@ commit:
 
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
   rules:
     - match: "**/*.md"
       skip: true
@@ -284,17 +284,17 @@ models:
     model: "claude-sonnet-4-5-20250929"
 
 profiles:
-  fast:
+  gemini-flash:
     model: "gemini-flash"
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
 
 summarize:
   default:
-    profile: "fast" # Cheap model for 50 file summaries
+    profile: "gemini-flash" # Cheap model for 50 file summaries
 
 commit:
-  profile: "smart" # Expensive model for 1 final message
+  profile: "claude-sonnet" # Expensive model for 1 final message
   strategy: "summarize"
 ```
 
@@ -305,13 +305,13 @@ Different types of files need different analysis:
 ```yaml
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
     systemPrompt: "Summarize this code change."
 
   rules:
     # Database migrations need careful review
     - match: "db/migrations/**/*.sql"
-      profile: "smart"
+      profile: "gemini-pro"
       systemPrompt: |
         Analyze this SQL migration.
         - What schema changes are made?
@@ -320,7 +320,7 @@ summarize:
 
     # Configuration changes need context
     - match: "**/*.yaml"
-      profile: "fast"
+      profile: "gemini-flash"
       systemPrompt: "Describe what configuration changed and why it matters."
 
     # Skip generated files entirely
@@ -335,12 +335,12 @@ Provide high-level context to guide generation:
 ```bash
 # Without intent
 git add .
-meow commit
+meow draft commit
 # → "feat: update user service"
 
 # With intent
 git add .
-meow commit -i "Fix authentication bug where JWT tokens weren't validated correctly"
+meow draft commit -i "Fix authentication bug where JWT tokens weren't validated correctly"
 # → "fix(auth): validate JWT tokens properly
 #
 #    Previously, expired tokens were accepted due to missing
@@ -364,12 +364,12 @@ Then add complexity as needed:
 
 ```yaml
 commit:
-  profile: "smart"
+  profile: "gemini-pro"
   strategy: "summarize"
 
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
   rules:
     - match: "**/*.md"
       skip: true
@@ -419,7 +419,7 @@ COMMIT_MSG_FILE=$1
 COMMIT_SOURCE=$2
 
 if [ -z "$COMMIT_SOURCE" ]; then
-    meow commit --silent > "$COMMIT_MSG_FILE"
+    meow draft commit --silent > "$COMMIT_MSG_FILE"
 fi
 ```
 
@@ -442,7 +442,7 @@ For common issues and solutions related to generation workflows, see the [Troubl
 Build a library of reusable tasks:
 
 ```yaml
-generate:
+write:
   tasks:
     # Code quality
     review:
@@ -496,7 +496,7 @@ Generate a single message for an entire feature branch:
 
 ```bash
 # All changes on feature branch vs main
-meow commit --target-branch main -i "Complete user profile feature implementation"
+meow draft commit --diff branch --base main -i "Complete user profile feature implementation"
 ```
 
 ### 4. PR Templates
@@ -504,8 +504,8 @@ meow commit --target-branch main -i "Complete user profile feature implementatio
 Enforce consistent PR structure:
 
 ```yaml
-pullRequest:
-  profile: "smart"
+pr:
+  profile: "gemini-pro"
   systemPrompt: |
     Generate a PR description using this exact template:
 
@@ -527,7 +527,7 @@ pullRequest:
 ## Related Documentation
 
 - [Configuration Guide](./02-CONFIGURATION.md) — Detailed configuration reference for all generation settings
-- [Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for generate, commit, and pullrequest commands
+- [Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for write, draft commit, and draft pr commands
 - [Examples & Recipes](./06-EXAMPLES.md) — Practical examples and complete workflows
 - [Integrations Guide](./07-INTEGRATIONS.md) — Git hooks, CI/CD, and editor integrations
 

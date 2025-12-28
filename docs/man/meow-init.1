@@ -1,7 +1,7 @@
 .\" docs/man/meow-init.1
-.TH MEOW-INIT 1 "2025-10-11" "meowg1k" "User Commands"
+.TH MEOW-INIT 1 "2025-10-11" "meow" "User Commands"
 .SH NAME
-meow-init \- initialize a new meowg1k project configuration
+meow-init \- initialize a new meow project configuration
 .SH SYNOPSIS
 .B meow init
 [\fB\-f\fR|\fB\-\-force\fR]
@@ -14,7 +14,7 @@ command creates a new
 .B .meowg1k.yaml
 configuration file in the current directory (or in the directory specified
 by \fB\-\-workspace\fR). This file defines models, profiles, and settings
-for all meowg1k commands.
+for all meow commands.
 .PP
 The generated configuration uses Google Gemini as the default LLM provider
 with sensible defaults for all commands. After initialization, you must
@@ -89,7 +89,7 @@ Two profiles reference the models above:
 Default profiles and prompts for:
 .BR generate ,
 .BR commit ,
-.BR pullRequest ,
+.BR pr ,
 .BR summarize ,
 and
 .BR filter
@@ -154,7 +154,7 @@ Then restart your shell or run:
 .B 3. Test the setup
 .RS
 .nf
-.B echo "Create a hello world function" | meow generate
+.B echo "Create a hello world function" | meow write
 .fi
 .RE
 
@@ -201,9 +201,9 @@ OpenAI, Anthropic, OpenRouter, or local models via llama.cpp.
 
 .SH SEE ALSO
 .BR meow (1),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
-.BR meow\-pullrequest (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
+.BR meow\-draft\-pr (1),
 .BR meow\-config (5),
 .BR meow\-security (7)
 
@@ -211,7 +211,7 @@ OpenAI, Anthropic, OpenRouter, or local models via llama.cpp.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

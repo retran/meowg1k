@@ -10,7 +10,7 @@ models:
       tokensPerMinute: 1000000
       requestsPerDay: 10000
 
-  qwen:
+  qwen-plus:
     provider: "openrouter"
     model: "qwen/qwen3-coder-plus"
     rateLimit:
@@ -26,7 +26,7 @@ models:
       tokensPerMinute: 2000000
       requestsPerDay: 10000
 
-  gemini:
+  gemini-pro:
     provider: "gemini"
     model: "gemini-2.5-pro"
     rateLimit:
@@ -43,7 +43,7 @@ models:
       tokensPerMinute: 500000
       requestsPerDay: 100000
 
-  jina:
+  jina-embeddings:
     provider: "llama"
     model: "jina-embeddings-v4-text-retrieval-F16"
     baseURL: "http://localhost:8080"
@@ -53,15 +53,15 @@ models:
       requestsPerDay: 1000000
 
 profiles:
-  fast:
+  qwen-flash:
     model: "qwen-flash"
     temperature: 0.3
     cache:
       enabled: true
       ttl: "24h"
 
-  smart:
-    model: "qwen"
+  qwen-plus:
+    model: "qwen-plus"
     timeout: "10m"
     temperature: 0.2
     topP: 0.95
@@ -76,8 +76,8 @@ profiles:
       enabled: true
       ttl: "72h"
 
-  jina:
-    model: "jina"
+  jina-embeddings:
+    model: "jina-embeddings"
     timeout: "10m"
     cache:
       enabled: true
@@ -89,7 +89,7 @@ cache:
 
 write:
   default:
-    profile: "fast"
+    profile: "qwen-flash"
     systemPrompt: >-
       You are a helpful senior Go software developer and reviewer.
       Prefer clear, concise, and actionable feedback.
@@ -97,7 +97,7 @@ write:
 
   tasks:
     review:
-      profile: "smart"
+      profile: "qwen-plus"
       userPrompt: >-
         Perform a thorough code review of the following Go code.
 
@@ -116,7 +116,7 @@ write:
         If the code is fine, state so concisely and suggest minor polish only.
 
     doc:
-      profile: "smart"
+      profile: "qwen-plus"
       userPrompt: >-
         Write a complete GoDoc comment for the following exported function or type.
         Requirements:
@@ -126,7 +126,7 @@ write:
           - Do NOT include code; only the comment block.
 
     test:
-      profile: "smart"
+      profile: "qwen-plus"
       userPrompt: >-
         Write comprehensive table-driven unit tests using the standard "testing" package (no third-party deps).
         Requirements:
@@ -139,7 +139,7 @@ write:
         Return only compilable *_test.go code.
 
     refactor:
-      profile: "smart"
+      profile: "qwen-plus"
       userPrompt: >-
         Refactor the following Go code to improve readability, maintainability, and performance,
         while preserving behavior and public API.
@@ -169,7 +169,7 @@ index:
   batchSize: 64
 
 answer:
-  profile: "smart"
+  profile: "qwen-plus"
   topK: 20
   minScore: 0.4
   systemPrompt: >-
@@ -186,7 +186,7 @@ answer:
 
 summarize:
   default:
-    profile: "fast"
+    profile: "qwen-flash"
     strategy:
       type: "plain"
       includeOriginalFile: false
@@ -244,14 +244,14 @@ summarize:
     - match: "**/COPYRIGHT*"
       skip: true
     - match: "**/*.md"
-      profile: "fast"
+      profile: "qwen-flash"
       systemPrompt: |
         Summarize the documentation changes in 1-2 sentences.
         Focus on what content was added, updated, or restructured.
         Mention if it's new documentation, fixes, or improvements to existing content.
 
 commit:
-  profile: "smart"
+  profile: "qwen-plus"
   strategy: "summarize"
   systemPrompt: |
     You are an expert software engineer writing a commit message in Conventional Commits format.
@@ -293,7 +293,7 @@ commit:
     Generate only the commit message, nothing else.
 
 pr:
-  profile: "smart"
+  profile: "qwen-plus"
   strategy: "summarize"
   systemPrompt: |
     You are an expert software engineer creating a Pull Request description for a Go project.
@@ -373,7 +373,7 @@ pr:
 
 agent:
   defaults:
-    profile: "smart"
+    profile: "qwen-plus"
     systemPrompt: >-
       You are a multi-step agent that works in four steps: research, plan, execute, verify.
       Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
@@ -386,7 +386,7 @@ agent:
       minScore: 0.6
   steps:
     research:
-      profile: "fast"
+      profile: "qwen-flash"
       systemPrompt: >-
         Research step: discover context and constraints without modifying files.
         Best practices: start with memory.list, inspect relevant files and configs, note assumptions and risks, avoid destructive commands, and finish by calling memory.add with key findings and references.
@@ -399,7 +399,7 @@ agent:
         plan: ["list"]
         memory: ["add", "list"]
     plan:
-      profile: "smart"
+      profile: "qwen-plus"
       systemPrompt: >-
         Plan step: build a clear, minimal task list to satisfy the goal.
         Best practices: review memory.list, identify dependencies and tests, keep steps actionable and ordered, register tasks with plan.add, and finish by calling memory.add with the plan and notable risks.
@@ -411,7 +411,7 @@ agent:
         plan: ["add", "list"]
         memory: ["add", "list"]
     execute:
-      profile: "smart"
+      profile: "qwen-plus"
       systemPrompt: >-
         Execute step: implement the planned changes safely.
         Best practices: review memory.list and plan tasks, make focused edits, keep diffs small, update plan task completion, and call memory.add with changes made, files touched, and any follow-ups.
@@ -424,7 +424,7 @@ agent:
         plan: ["complete", "list"]
         memory: ["add", "list"]
     verify:
-      profile: "fast"
+      profile: "qwen-flash"
       systemPrompt: >-
         Verify step: validate changes and report gaps.
         Best practices: review memory.list, check git status/diff and run tests if needed, confirm requirements are met, call out missing verification, and finish with memory.add summarizing results and next steps.

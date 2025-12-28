@@ -18,7 +18,7 @@ var indexCmd = &cobra.Command{
 
 This command processes all files in the workspace according to filter rules,
 chunks them, computes embeddings, and builds vector indices for efficient
-similarity search. The indices are used by 'search' and 'answer' commands.
+similarity search. The indices are used by 'search' and 'ask' commands.
 
 The indexing process includes:
   - Scanning workspace state (workdir, stage, head)

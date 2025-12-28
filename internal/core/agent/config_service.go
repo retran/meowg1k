@@ -123,7 +123,7 @@ func applyDefaults(cfg *config.AgentDefaults) Defaults {
 
 	profile := cfg.Profile
 	if profile == "" {
-		profile = "smart"
+		profile = "gemini-pro"
 	}
 
 	systemPrompt := cfg.SystemPrompt
@@ -260,7 +260,7 @@ func normalizeToolModes(modes map[string][]string) map[string]map[string]bool {
 func defaultAgentConfig() *config.AgentConfig {
 	return &config.AgentConfig{
 		Defaults: &config.AgentDefaults{
-			Profile:      "smart",
+			Profile:      "gemini-pro",
 			SystemPrompt: "You are a multi-step agent that works in four steps: research, plan, execute, verify.\nResearch gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.\nUse the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.",
 		},
 		Tools: &config.AgentToolsConfig{
@@ -272,7 +272,7 @@ func defaultAgentConfig() *config.AgentConfig {
 		},
 		Steps: map[string]*config.AgentStepConfig{
 			"research": {
-				Profile:      stringPtr("fast"),
+				Profile:      stringPtr("gemini-flash"),
 				SystemPrompt: stringPtr("Research step: discover context and constraints without modifying files.\nBest practices: start with memory.list, inspect relevant files and configs, note assumptions and risks, avoid destructive commands, and finish by calling memory.add with key findings and references."),
 				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"},
 				ToolModes: map[string][]string{
@@ -285,7 +285,7 @@ func defaultAgentConfig() *config.AgentConfig {
 				},
 			},
 			"plan": {
-				Profile:      stringPtr("smart"),
+				Profile:      stringPtr("gemini-pro"),
 				SystemPrompt: stringPtr("Plan step: build a clear, minimal task list to satisfy the goal.\nBest practices: review memory.list, identify dependencies and tests, keep steps actionable and ordered, register tasks with plan.add, and finish by calling memory.add with the plan and notable risks."),
 				Tools:        []string{"workspace", "summarize", "git", "plan", "memory"},
 				ToolModes: map[string][]string{
@@ -297,7 +297,7 @@ func defaultAgentConfig() *config.AgentConfig {
 				},
 			},
 			"execute": {
-				Profile:      stringPtr("smart"),
+				Profile:      stringPtr("gemini-pro"),
 				SystemPrompt: stringPtr("Execute step: implement the planned changes safely.\nBest practices: review memory.list and plan tasks, make focused edits, keep diffs small, update plan task completion, and call memory.add with changes made, files touched, and any follow-ups."),
 				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"},
 				ToolModes: map[string][]string{
@@ -310,7 +310,7 @@ func defaultAgentConfig() *config.AgentConfig {
 				},
 			},
 			"verify": {
-				Profile:      stringPtr("fast"),
+				Profile:      stringPtr("gemini-flash"),
 				SystemPrompt: stringPtr("Verify step: validate changes and report gaps.\nBest practices: review memory.list, check git status/diff and run tests if needed, confirm requirements are met, call out missing verification, and finish with memory.add summarizing results and next steps.\nOutput format: include a line `VerificationResult: pass|fail`. If fail, include a `FailureTasks:` section with bullet tasks to fix."),
 				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory"},
 				ToolModes: map[string][]string{

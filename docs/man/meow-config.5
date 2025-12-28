@@ -1,5 +1,5 @@
 .\" docs/man/meow-config.5
-.TH MEOW-CONFIG 5 "2025-10-04" "meowg1k" "File Formats"
+.TH MEOW-CONFIG 5 "2025-10-04" "meow" "File Formats"
 .SH NAME
 meow-config \- configuration format for the \fBmeow\fR CLI
 .SH SYNOPSIS
@@ -50,7 +50,7 @@ summarize:
   default: { ... }
   rules: [ ... ]
 
-generate:
+write:
   default: { ... }
   tasks: { ... }
 
@@ -102,7 +102,7 @@ selection to top probability mass.
 \fBtopK\fR (optional): Top-K sampling parameter. Limits token selection to
 K most likely tokens.
 .IP \[bu]
-\fBmaxTokens\fR (optional): Maximum tokens to generate. Overrides maxOutputTokens.
+\fBmaxTokens\fR (optional): Maximum tokens to write. Overrides maxOutputTokens.
 .IP \[bu]
 \fBfrequencyPenalty\fR (optional): Penalty for token frequency (-2.0 to 2.0).
 Reduces repetition by penalizing tokens that appear frequently.
@@ -123,7 +123,7 @@ OpenRouter and llama.cpp only.
 \fBresponseSchema\fR (optional): JSON schema for structured output.
 Used with responseFormat: "json_schema".
 .IP \[bu]
-\fBcandidateCount\fR (optional): Number of response candidates to generate.
+\fBcandidateCount\fR (optional): Number of response candidates to write.
 Gemini and OpenAI (as 'n') only.
 .IP \[bu]
 \fBlogProbs\fR (optional): Enable log probabilities (boolean).
@@ -189,8 +189,8 @@ Fields:
 \fBsystemPrompt\fR: System prompt for matching files (overrides default).
 .RE
 
-.SS generate
-Configuration for the generate command.
+.SS write
+Configuration for the write command.
 .PP
 Fields:
 .IP \[bu] 2
@@ -236,8 +236,8 @@ intermediate summarization. Faster and more efficient for small commits
 token limit.
 .RE
 
-.SS pullRequest
-Configuration for the "Reduce" phase of the pullrequest command. Individual file
+.SS pr
+Configuration for the "Reduce" phase of the PR draft command. Individual file
 summaries are combined here to generate the final PR description.
 .PP
 Fields:
@@ -326,9 +326,9 @@ profiles:
     provider: "openai"
     model: "gpt-4o"
 
-generate:
+write:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
 .fi
 
 .SS Complete Project Configuration
@@ -388,7 +388,7 @@ summarize:
       skip: true
 
 # Generate command configuration
-generate:
+write:
   default:
     profile: "gemini-fast"
     systemPrompt: "You are an expert software engineer."
@@ -465,7 +465,7 @@ profiles:
     baseURL: "http://localhost:8080"
     timeout: "15m"
 
-generate:
+write:
   default:
     profile: "local-only"
 
@@ -569,9 +569,9 @@ sensitive codebases to keep data local.
 .SH SEE ALSO
 .BR meow (1),
 .BR meow\-init (1),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
-.BR meow\-pr (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
+.BR meow\-draft\-pr (1),
 .BR meow\-version (1),
 .BR meow\-security (7)
 
@@ -579,7 +579,7 @@ sensitive codebases to keep data local.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

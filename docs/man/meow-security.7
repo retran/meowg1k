@@ -1,13 +1,13 @@
-.TH MEOW-SECURITY 7 "2025-10-04" "meowg1k" "Security and Verification"
+.TH MEOW-SECURITY 7 "2025-10-04" "meow" "Security and Verification"
 .SH NAME
-meow-security \- verify meowg1k releases and review security metadata
+meow-security \- verify meow releases and review security metadata
 .SH SYNOPSIS
 .B cosign verify
 [\fIOPTIONS\fR] \fI<artifact-url>\fR
 .br
 Review SBOM files distributed with each release.
 .SH DESCRIPTION
-Security is a foundational requirement of \fBmeowg1k\fR, not an add-on.
+Security is a foundational requirement of \fBmeow\fR, not an add-on.
 The project implements security by design across multiple layers:
 .PP
 .B Release Verification:
@@ -138,16 +138,16 @@ standard SPDX tools.
 .BR jq (1),
 .BR meow (1),
 .BR meow\-config (5),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
-.BR meow\-pullrequest (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
+.BR meow\-draft\-pr (1),
 .BR meow\-version (1)
 
 .SH AUTHORS
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

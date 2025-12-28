@@ -52,12 +52,12 @@ func TestService_Get_Overrides(t *testing.T) {
 	cfg := &config.Config{
 		Agent: &config.AgentConfig{
 			Defaults: &config.AgentDefaults{
-				Profile:      "fast",
+				Profile:      "gemini-flash",
 				SystemPrompt: "Custom prompt",
 			},
 			Steps: map[string]*config.AgentStepConfig{
 				"research": {
-					Profile:      stringPtr("smart"),
+					Profile:      stringPtr("gemini-pro"),
 					SystemPrompt: stringPtr("Step prompt"),
 					Tools:        []string{"workspace"},
 					ToolModes: map[string][]string{
@@ -78,12 +78,12 @@ func TestService_Get_Overrides(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if resolved.Defaults.Profile != "fast" {
-		t.Fatalf("expected defaults profile 'fast', got %q", resolved.Defaults.Profile)
+	if resolved.Defaults.Profile != "gemini-flash" {
+		t.Fatalf("expected defaults profile 'gemini-flash', got %q", resolved.Defaults.Profile)
 	}
 	research := resolved.Steps["research"]
-	if research.Profile != "smart" {
-		t.Fatalf("expected research profile 'smart', got %q", research.Profile)
+	if research.Profile != "gemini-pro" {
+		t.Fatalf("expected research profile 'gemini-pro', got %q", research.Profile)
 	}
 	if !research.AllowsToolMode("workspace", "read") {
 		t.Fatal("expected workspace/read to be allowed")

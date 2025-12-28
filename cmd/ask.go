@@ -33,8 +33,8 @@ Examples:
   meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return runFlowCommand(cmd, "AnswerFlow", func(container *app.Container) (executor.Flow, error) {
-			return container.CreateAnswerFlow()
+		return runFlowCommand(cmd, "AskFlow", func(container *app.Container) (executor.Flow, error) {
+			return container.CreateAskFlow()
 		})
 	},
 }

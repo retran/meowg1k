@@ -7,32 +7,32 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/activities/agentturn"
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
+	"github.com/retran/meowg1k/internal/activities/buildbatches"
 	"github.com/retran/meowg1k/internal/activities/buildindexes"
-	"github.com/retran/meowg1k/internal/activities/splitfiles"
-	"github.com/retran/meowg1k/internal/activities/splitfile"
-	"github.com/retran/meowg1k/internal/activities/pruneindex"
 	"github.com/retran/meowg1k/internal/activities/draftcommit"
 	"github.com/retran/meowg1k/internal/activities/draftcommitflat"
-	"github.com/retran/meowg1k/internal/activities/draftprflat"
+	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/draftpr"
+	"github.com/retran/meowg1k/internal/activities/draftprflat"
 	"github.com/retran/meowg1k/internal/activities/embedall"
 	"github.com/retran/meowg1k/internal/activities/embedbatch"
-	"github.com/retran/meowg1k/internal/activities/prepareindex"
-	"github.com/retran/meowg1k/internal/activities/savechunks"
-	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
-	"github.com/retran/meowg1k/internal/activities/fetchstageddiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchdiff"
+	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
+	"github.com/retran/meowg1k/internal/activities/fetchcontext"
 	"github.com/retran/meowg1k/internal/activities/fetchstageddiff"
+	"github.com/retran/meowg1k/internal/activities/fetchstageddiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/finalizeindex"
-	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
 	"github.com/retran/meowg1k/internal/activities/liststagedfiles"
-	"github.com/retran/meowg1k/internal/activities/buildbatches"
-	queryactivity "github.com/retran/meowg1k/internal/activities/searchindex"
-	"github.com/retran/meowg1k/internal/activities/fetchcontext"
+	"github.com/retran/meowg1k/internal/activities/prepareindex"
+	"github.com/retran/meowg1k/internal/activities/pruneindex"
+	"github.com/retran/meowg1k/internal/activities/savechunks"
 	"github.com/retran/meowg1k/internal/activities/savefileversion"
 	"github.com/retran/meowg1k/internal/activities/scanworktree"
+	queryactivity "github.com/retran/meowg1k/internal/activities/searchindex"
+	"github.com/retran/meowg1k/internal/activities/splitfile"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizechanges"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
 	"github.com/retran/meowg1k/internal/adapters/gateway"
@@ -58,13 +58,13 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	answerFlow "github.com/retran/meowg1k/internal/flows/answer"
+	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commitmsg"
-	agentFlow "github.com/retran/meowg1k/internal/flows/run"
-	"github.com/retran/meowg1k/internal/flows/write"
 	indexFlow "github.com/retran/meowg1k/internal/flows/index"
 	prflow "github.com/retran/meowg1k/internal/flows/pr"
+	agentFlow "github.com/retran/meowg1k/internal/flows/run"
 	searchFlow "github.com/retran/meowg1k/internal/flows/search"
+	"github.com/retran/meowg1k/internal/flows/write"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -784,8 +784,8 @@ func (c *Container) buildSearchActivityFactory() (executor.ActivityFactory[*quer
 	return searchActivityFactory, nil
 }
 
-// CreateAnswerFlow creates a complete answer flow with all dependencies.
-func (c *Container) CreateAnswerFlow() (executor.Flow, error) {
+// CreateAskFlow creates a complete ask flow with all dependencies.
+func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	// Initialize database and repositories
 	if err := c.initDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
@@ -819,7 +819,7 @@ func (c *Container) CreateAnswerFlow() (executor.Flow, error) {
 	}
 
 	// Create answer flow factory with resolved parameters
-	answerFlowFactory, err := answerFlow.NewFactory(
+	askFlowFactory, err := askFlow.NewFactory(
 		retrieveContextFactory,
 		invokeLLMFactory,
 		c.CommandService,
@@ -831,7 +831,7 @@ func (c *Container) CreateAnswerFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create answer flow factory: %w", err)
 	}
 
-	return answerFlowFactory.NewFlow(), nil
+	return askFlowFactory.NewFlow(), nil
 }
 
 func (c *Container) loadAnswerConfig() (*config.Config, error) {

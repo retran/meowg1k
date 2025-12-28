@@ -43,7 +43,7 @@ This layered approach means that settings from the project/explicit config will 
 `meowg1k` automatically detects the workspace (project) root directory by walking up the directory tree from your current working directory. This workspace root is used for multiple purposes:
 
 - Finding the project configuration file (`.meowg1k.yaml` or `.yml`) when `--config` flag is not used
-- Setting the working context for various commands (such as `commit`, `pullrequest`, etc.)
+- Setting the working context for various commands (such as `commit`, `pr`, etc.)
 - Determining the scope of file operations and git operations
 
 The tool looks for the following markers in each directory, stopping at the first match:
@@ -77,7 +77,7 @@ If no markers are found, the current working directory is used as the workspace 
 You can override the automatic detection by using the `--workspace` flag:
 
 ```bash
-meow commit --workspace /path/to/project
+meow draft commit --workspace /path/to/project
 ```
 
 This is useful when:
@@ -131,12 +131,12 @@ Profiles define a reusable set of parameters for an LLM request, such as timeout
 
 ````yaml
 profiles:
-  # A profile for fast, general tasks
-  fast:
+  # A profile for lightweight, general tasks
+  openrouter-free:
     model: "openrouter-llama-free"
 
   # A profile for complex tasks that may take longer
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
     timeout: "10m" # Increase timeout for long tasks
     temperature: 0.2
@@ -327,7 +327,7 @@ This section configures the "Map" phase for `commit` and `pullrequest` commands,
 summarize:
   # Default settings applied when no specific rule matches
   default:
-    profile: "fast"
+    profile: "openrouter-free"
     systemPrompt: "Summarize this code change concisely."
 
   # Rules are evaluated top-down; the first match wins
@@ -338,7 +338,7 @@ summarize:
 
     # 2. Use a powerful model for critical Go files
     - match: "internal/adapters/**/*.go"
-      profile: "smart"
+      profile: "claude-sonnet"
       systemPrompt: "Analyze this Go code change, focusing on business logic and potential side effects."
 
     # 3. Skip generated test snapshots
@@ -367,19 +367,19 @@ Both `commit` and `pullrequest` commands support a `strategy` field that determi
 - Use `"summarize"` (default) for larger changesets, complex refactorings, or when you need detailed per-file analysis
 
 ```yaml
-generate:
+write:
   default:
-    profile: "smart"
+    profile: "claude-sonnet"
     systemPrompt: "You are an expert software engineer."
   tasks:
     security-review:
       userPrompt: "Perform a comprehensive security review of this code."
     add-tests:
-      profile: "smart" # Can override the default profile
+      profile: "claude-sonnet" # Can override the default profile
       userPrompt: "Write comprehensive unit tests for this code in Go."
 
 commit:
-  profile: "smart"
+  profile: "claude-sonnet"
   strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer reviewing code changes. Your task is to write a high-quality commit message in the Conventional Commits format based on the provided summaries of file changes.
@@ -391,8 +391,8 @@ commit:
     4.  **Body (Optional):** If the change is non-trivial, add a body explaining the "why" behind the change, not just the "what". Describe the problem and the solution.
     5.  **Footer:** If applicable, add a `BREAKING CHANGE:` notice or link to issues (e.g., `Closes #42`).
 
-pullRequest:
-  profile: "smart"
+pr:
+  profile: "claude-sonnet"
   strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer tasked with writing a Pull Request description. Based on the summaries of file changes, generate a complete PR description in Markdown format.
@@ -448,12 +448,12 @@ profiles:
     model: "default"
 
 # All commands will now use this profile by default.
-generate:
+write:
   default:
     profile: "default"
 commit:
   profile: "default"
-pullRequest:
+pr:
   profile: "default"
 ```
 
@@ -469,16 +469,21 @@ models:
     model: "gemini-1.5-flash-latest"
     rateLimit:
       requestsPerMinute: 30
+  gemini-embeddings:
+    provider: "gemini"
+    model: "text-embedding-004"
   claude-sonnet:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
 profiles:
-  fast:
+  gemini-flash:
     model: "gemini-flash"
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
     timeout: "15m"
+  gemini-embeddings:
+    model: "gemini-embeddings"
 
 filter:
   ignore:
@@ -488,29 +493,29 @@ filter:
 
 summarize:
   default:
-    profile: "fast"
+    profile: "gemini-flash"
     systemPrompt: "Summarize the following code change."
   rules:
     - match: "internal/database/**/*.sql"
-      profile: "smart"
+      profile: "claude-sonnet"
       systemPrompt: "Analyze this SQL migration. Explain schema changes and potential data loss risks."
 
-generate:
+write:
   default:
-    profile: "smart"
+    profile: "claude-sonnet"
   tasks:
     refactor:
       userPrompt: "Refactor this code to improve readability and performance."
     docs:
-      profile: "fast"
+      profile: "gemini-flash"
       userPrompt: "Generate GoDoc comments for all public functions."
 
 commit:
-  profile: "smart"
+  profile: "claude-sonnet"
   systemPrompt: "Write a Conventional Commit message based on the provided change summaries."
 
-pullRequest:
-  profile: "smart"
+pr:
+  profile: "claude-sonnet"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
 
@@ -522,7 +527,7 @@ The `index` section configures the document indexing process for RAG (Retrieval-
 index:
   # Profile for computing embeddings (required)
   # This profile must reference a model that supports embeddings
-  profile: "embeddings"
+  profile: "gemini-embeddings"
 
   # Chunker configuration
   chunker:
@@ -569,7 +574,7 @@ The `ask` section configures the RAG-based question answering feature.
 ask:
   # Profile for generating answers (required)
   # This should reference a capable LLM model for reasoning
-  profile: "smart"
+  profile: "gemini-pro"
 
   # Number of top chunks to retrieve for context
   # More chunks = more context but slower and may introduce noise
@@ -609,7 +614,7 @@ tool allow-list, and tool modes.
 ```yaml
 agent:
   defaults:
-    profile: "smart"
+    profile: "gemini-pro"
     systemPrompt: >-
       You are a multi-step agent that works in four steps: research, plan, execute, verify.
       Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
@@ -621,7 +626,7 @@ agent:
       minScore: 0.6
   steps:
     research:
-      profile: "fast"
+      profile: "gemini-flash"
       systemPrompt: "Research step: discover context and constraints without modifying files."
       tools: ["workspace", "search", "summarize", "git", "plan", "memory"]
       toolModes:

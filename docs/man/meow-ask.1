@@ -1,5 +1,5 @@
 .\" docs/man/meow-ask.1
-.TH MEOW-ASK 1 "2025-10-15" "meowg1k" "User Commands"
+.TH MEOW-ASK 1 "2025-10-15" "meow" "User Commands"
 .SH NAME
 meow-ask \- ask questions about your codebase using RAG
 .SH SYNOPSIS
@@ -22,7 +22,7 @@ explanations grounded in your actual codebase.
 .PP
 The command:
 .IP "1." 3
-Performs semantic search to find relevant code chunks (like \fBmeow query\fR)
+Performs semantic search to find relevant code chunks (like \fBmeow search\fR)
 .IP "2."
 Retrieves the top-K most relevant chunks based on similarity
 .IP "3."
@@ -33,7 +33,7 @@ Sends the context + your question to an LLM
 Returns an answer based on your actual code, not general knowledge
 .PP
 This is more powerful than
-.BR meow-query (1)
+.BR meow-search (1)
 because it synthesizes information from multiple code chunks and provides
 explanations, not just code locations.
 
@@ -41,7 +41,7 @@ explanations, not just code locations.
 .TP
 .BR \-\-profile " " \fINAME\fR
 Profile to use for answer generation. Overrides the profile configured in
-the \fBask\fR section. Use to select a more powerful model for complex
+the \fBanswer\fR section. Use to select a more powerful model for complex
 questions.
 .TP
 .BR \-k ", " \-\-top\-k " " \fINUMBER\fR
@@ -91,12 +91,12 @@ index:
   profile: "embeddings"
 .fi
 .PP
-.B ask
+.B answer
 (required): Configures answer generation and retrieval parameters:
 .PP
 .nf
-ask:
-  profile: "smart"      # LLM profile for generating answers
+answer:
+  profile: "gemini-pro"      # LLM profile for generating answers
   topK: 5               # Number of chunks to retrieve
   minScore: 0.7         # Minimum similarity score
   systemPrompt: >-
@@ -128,8 +128,8 @@ profiles:
 index:
   profile: "embeddings"
 
-ask:
-  profile: "smart"
+answer:
+  profile: "gemini-pro"
   topK: 5
   minScore: 0.7
 .fi
@@ -337,7 +337,7 @@ requires an existing index:
 
 .SH COMPARISON WITH QUERY
 .TP
-.BR meow-query (1)
+.BR meow-search (1)
 Returns code chunks with similarity scores. Use when you want to find code
 locations, not explanations. Output: file paths, line numbers, code snippets.
 .TP
@@ -415,7 +415,7 @@ Use powerful models for complex reasoning, fast models for simple questions.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

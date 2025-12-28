@@ -44,7 +44,7 @@ After running `meow init`, you need to:
 3. Restart your shell or run `source ~/.bashrc` (or `~/.zshrc`)
 4. Try it out:
    ```bash
-   echo "Create a hello world function" | meow generate
+   echo "Create a hello world function" | meow write
    ```
 
 ## Global Flags
@@ -88,14 +88,14 @@ meow do "Add a healthcheck endpoint and update docs"
 echo "Refactor the logger setup" | meow do
 ```
 
-## `meow generate` (aliases: `gen`, `g`)
+## `meow write` (aliases: `gen`, `g`)
 
 Generates content based on a prompt and/or context provided via standard input (stdin).
 
 ### Usage
 
 ```bash
-cat [file] | meow generate [flags]
+cat [file] | meow write [flags]
 echo "[text]" | meow g [flags]
 ```
 
@@ -120,7 +120,7 @@ echo "function add(a, b) { return a + b; }" | meow g \
   -u "Convert this JavaScript function to TypeScript with type hints"
 ```
 
-## `meow commit` (alias: `c`)
+## `meow draft commit` (alias: `commit-msg`)
 
 Generates a commit message based on staged changes or the difference between branches.
 
@@ -134,13 +134,14 @@ See the [Configuration Guide](./02-CONFIGURATION.md) for details on configuring 
 ### Usage
 
 ```bash
-meow commit [flags]
+meow draft commit [flags]
 ```
 
 ### Flags
 
 - `-i, --intent <text>`: Provides a high-level developer intent for the commit, which helps the AI generate a more accurate message. Can also be provided via stdin.
-- `-t, --target-branch <name>`: Switches the command to "squash commit mode". Instead of analyzing staged changes, it analyzes the diff between the current branch and the `<name>` branch.
+- `--diff <mode>`: Diff source to use: `staged` (default) or `branch`.
+- `-b, --base <branch>`: Base branch to compare against when `--diff branch` is set.
 
 ### Modes & Examples
 
@@ -153,29 +154,29 @@ This is the standard mode. It analyzes files you have staged with `git add`.
 git add .
 
 # Generate a commit message based on the staged changes
-meow commit
+meow draft commit
 
 # Provide intent to guide the AI
-meow commit -i "Refactor user authentication to use a new JWT library"
+meow draft commit -i "Refactor user authentication to use a new JWT library"
 ```
 
-#### 2. Squash Commit Mode
+#### 2. Branch Diff Mode
 
 Use this mode when you want to generate a single commit message that summarizes all changes on your feature branch before merging.
 
 ```bash
 # Generate a message for all changes on the current branch compared to 'main'
-meow commit --target-branch main
+meow draft commit --diff branch --base main
 
-# Provide intent for the squash commit
-meow commit -t dev -i "Implement the entire user profile feature"
+# Provide intent for the branch diff
+meow draft commit --diff branch --base dev -i "Implement the entire user profile feature"
 ```
 
-## `meow pullrequest` (aliases: `pr`)
+## `meow draft pr`
 
 Generates a Pull Request title and description based on the difference between your current branch and a base branch.
 
-The command supports two execution strategies (configured via the `pullRequest.strategy` field in your config file):
+The command supports two execution strategies (configured via the `pr.strategy` field in your config file):
 
 - **`summarize` (default)**: Uses a Map-Reduce approach, analyzing each file individually then combining summaries. Best for large PRs.
 - **`flat`**: Sends the entire diff directly to the model. Faster for small PRs, but fails if the diff is too large.
@@ -185,25 +186,26 @@ See the [Configuration Guide](./02-CONFIGURATION.md) for details on configuring 
 ### Usage
 
 ```bash
-meow pullrequest --base <branch> [flags]
+meow draft pr [flags]
 ```
 
 ### Flags
 
-- `-b, --base <branch>`: **(Required)** The base branch to compare against (e.g., `main`, `dev`, `master`).
+- `--diff <mode>`: Diff source to use: `branch` (default) or `staged`.
+- `-b, --base <branch>`: Base branch to compare against when `--diff branch` is set (e.g., `main`, `dev`, `master`).
 - `-i, --intent <text>`: Provides high-level context or intent for the PR. Can also be provided via stdin.
 
 ### Examples
 
 ```bash
 # Generate a PR description for changes to be merged into 'main'
-meow pullrequest --base main
+meow draft pr --base main
 
 # Provide intent to get a more focused PR description
-meow pullrequest -b dev -i "Add a complete Stripe payment integration"
+meow draft pr -b dev -i "Add a complete Stripe payment integration"
 
 # Pipe the intent via stdin
-echo "This PR adds a new caching layer using Redis" | meow pullrequest -b main
+echo "This PR adds a new caching layer using Redis" | meow draft pr -b main
 ```
 
 ## `meow index`
@@ -235,7 +237,7 @@ The indexing process includes:
 - Saving document versions and chunks to SQLite
 - Building and saving vector indices for each snapshot
 
-This command is required before using `meow query` or `meow ask`.
+This command is required before using `meow search` or `meow ask`.
 
 ### Examples
 
@@ -259,7 +261,7 @@ index:
 
 See the [RAG and Code Search guide](./09-RAG-AND-CODE-SEARCH.md) for detailed configuration examples.
 
-## `meow query <text>`
+## `meow search <text>`
 
 **Aliases:** `q`
 
@@ -268,8 +270,8 @@ Searches for code chunks similar to the query text using vector similarity (sema
 ### Usage
 
 ```bash
-meow query <text> [flags]
-echo "<text>" | meow query [flags]
+meow search <text> [flags]
+echo "<text>" | meow search [flags]
 ```
 
 ### Arguments
@@ -293,19 +295,19 @@ The command searches across specified snapshots (workdir, stage, head) and retur
 
 ```bash
 # Basic semantic search
-meow query "authentication logic"
+meow search "authentication logic"
 
 # Get more results with lower threshold
-meow query "error handling" --top-k 20 --min-score 0.5
+meow search "error handling" --top-k 20 --min-score 0.5
 
 # Search only in uncommitted changes
-meow query "new feature" --snapshots _workdir_
+meow search "new feature" --snapshots _workdir_
 
 # JSON output for scripting
-meow query "API endpoints" --json | jq '.[] | .FilePath'
+meow search "API endpoints" --json | jq '.[] | .FilePath'
 
 # Search from stdin
-echo "database connection" | meow query
+echo "database connection" | meow search
 ```
 
 ### Prerequisites
@@ -357,7 +359,7 @@ This is more powerful than `query` because it synthesizes information from multi
 meow ask "How does authentication work in this project?"
 
 # Use a more powerful model
-meow ask "What's the error handling strategy?" --profile smart
+meow ask "What's the error handling strategy?" --profile gemini-pro
 
 # See what context the AI is using
 meow ask "Explain the database layer" --show-context
@@ -374,8 +376,8 @@ echo "How do I add a new API endpoint?" | meow ask
 Configure the `ask` command in your `.meowg1k.yaml`:
 
 ```yaml
-ask:
-  profile: "smart" # Profile for generating answers
+answer:
+  profile: "gemini-pro" # Profile for generating answers
   topK: 5 # Number of chunks to retrieve
   minScore: 0.7 # Minimum similarity score
   systemPrompt: >-
@@ -401,6 +403,6 @@ meow version
 
 Now that you're familiar with the commands, check out:
 
-- [Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Learn about generate, commit, and pullrequest workflows
+- [Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Learn about write, draft commit, and draft pr workflows
 - [RAG and Code Search](./05-RAG-AND-CODE-SEARCH.md) — Semantic search and question answering
 - [Examples & Recipes](./06-EXAMPLES.md) — Practical examples and complete workflows
