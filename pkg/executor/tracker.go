@@ -96,13 +96,11 @@ func (t *BubbleTeaTracker) Start() {
 	}
 
 	t.program = tea.NewProgram(t.model)
-	t.wg.Add(1)
-	go func() {
-		defer t.wg.Done()
+	t.wg.Go(func() {
 		if _, err := t.program.Run(); err != nil {
 			_ = err
 		}
-	}()
+	})
 }
 
 // Stop stops the Bubbletea program.
@@ -111,7 +109,6 @@ func (t *BubbleTeaTracker) Stop() {
 		return
 	}
 
-	// Prevent further enqueues and close the feedback channel exactly once.
 	t.stopped.Store(true)
 	t.stopOnce.Do(func() {
 		if t.feedbackCh != nil {
@@ -119,13 +116,10 @@ func (t *BubbleTeaTracker) Stop() {
 		}
 	})
 
-	// Wait until all feedback has been drained and (if applicable) forwarded to the program.
 	if t.feedbackDone != nil {
 		<-t.feedbackDone
 	}
 
-	// If the TUI is running, wait until all already-sent feedback has been applied
-	// by the Bubble Tea event loop before quitting.
 	if t.program != nil {
 		done := make(chan struct{})
 		t.program.Send(stopAndFlushMsg{done: done})
@@ -145,7 +139,6 @@ func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 			return
 		}
 		defer func() {
-			// A concurrent Stop() can close the channel; avoid panicking on send.
 			_ = recover()
 		}()
 		select {
@@ -235,9 +228,6 @@ func (t *BubbleTeaTracker) GetExecutionCount() int {
 
 type spinnerTickMsg struct{}
 
-// stopAndFlushMsg is sent as the final message to the Bubble Tea program.
-// Bubble Tea processes messages sequentially, so when Update receives this message,
-// all previously-sent feedback has already been applied to the model.
 type stopAndFlushMsg struct {
 	done chan struct{}
 }
@@ -289,7 +279,6 @@ func (m *bubbleModel) handleFeedback(msg *Feedback) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Update running activities
 	if msg.Status == StatusRunning {
 		run := m.running[msg.ActivityName]
 		run.name = msg.ActivityName
@@ -299,12 +288,10 @@ func (m *bubbleModel) handleFeedback(msg *Feedback) {
 		m.running[msg.ActivityName] = run
 	}
 
-	// Remove completed/failed activities from running
 	if msg.Status == StatusCompleted || msg.Status == StatusFailed {
 		delete(m.running, msg.ActivityName)
 	}
 
-	// Append to log entries
 	entry := logEntry{
 		message: strings.TrimSpace(msg.Message),
 		details: strings.TrimSpace(msg.Details),
@@ -387,7 +374,9 @@ func (m *bubbleModel) renderLogEntry(entry logEntry) string {
 	}
 
 	if details != "" {
-		sb.WriteString("\n")
+		if message != "" {
+			sb.WriteString("\n")
+		}
 		sb.WriteString(styleDetails.Render(formatDetailsBlock(details)))
 	}
 	return sb.String()

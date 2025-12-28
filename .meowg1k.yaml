@@ -46,14 +46,14 @@ models:
 
 profiles:
   fast:
-    model: "gemini-flash"
+    model: "qwen-flash"
     temperature: 0.3
     cache:
       enabled: true
       ttl: "24h"
 
   smart:
-    model: "gemini-pro"
+    model: "qwen-flash"
     timeout: "10m"
     temperature: 0.2
     topP: 0.95
