@@ -5,32 +5,45 @@ package executor
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
+	"github.com/gosuri/uilive"
 	"github.com/mattn/go-runewidth"
 )
 
 const (
 	feedbackChanSize = 128
-	maxDetailsLines  = 15
 	spinnerInterval  = 120 * time.Millisecond
+	widthCacheTTL    = 500 * time.Millisecond
 )
 
-// BubbleTeaTracker provides a styled TUI for tracking execution progress.
+// BubbleTeaTracker provides a styled TUI-like log with a single live status line.
 type BubbleTeaTracker struct {
-	program      *tea.Program
-	model        *bubbleModel
 	feedbackCh   chan *Feedback
 	feedbackDone chan struct{}
 	wg           sync.WaitGroup
 	silent       bool
 	stopOnce     sync.Once
 	stopped      atomic.Bool
+
+	liveWriter  *uilive.Writer
+	bypass      io.Writer
+	spinnerStop chan struct{}
+	spinnerOnce sync.Once
+
+	mu       sync.RWMutex
+	running  map[string]runningActivity
+	spinner  int
+	logCount int
 }
 
 type runningActivity struct {
@@ -46,41 +59,31 @@ type logEntry struct {
 	isError bool
 }
 
-// bubbleModel is the Bubbletea model for rendering the TUI.
-type bubbleModel struct {
-	logLines []logEntry
-	running  map[string]runningActivity
-	mu       *sync.RWMutex
-	width    int
-	height   int
-	spinner  int
-}
-
 // Styles for the TUI.
 var (
+	styleTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
 	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
 	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 )
 
 var spinnerFrames = []string{"-", "\\", "|", "/"}
 
-// NewBubbleTeaTracker creates a new Bubbletea-based progress tracker.
-func NewBubbleTeaTracker(silent bool) *BubbleTeaTracker {
-	model := &bubbleModel{
-		logLines: make([]logEntry, 0),
-		running:  make(map[string]runningActivity),
-		mu:       &sync.RWMutex{},
-	}
+var (
+	cachedTerminalWidth atomic.Int64
+	cachedWidthAt       atomic.Int64
+)
 
+// NewBubbleTeaTracker creates a new progress tracker.
+func NewBubbleTeaTracker(silent bool) *BubbleTeaTracker {
 	return &BubbleTeaTracker{
 		feedbackCh: make(chan *Feedback, feedbackChanSize),
 		silent:     silent,
-		model:      model,
+		running:    make(map[string]runningActivity),
 	}
 }
 
-// Start launches the Bubbletea program.
+// Start launches the live status writer.
 func (t *BubbleTeaTracker) Start() {
 	if t == nil {
 		return
@@ -95,15 +98,17 @@ func (t *BubbleTeaTracker) Start() {
 		return
 	}
 
-	t.program = tea.NewProgram(t.model)
-	t.wg.Go(func() {
-		if _, err := t.program.Run(); err != nil {
-			_ = err
-		}
-	})
+	t.liveWriter = uilive.New()
+	t.liveWriter.Out = os.Stderr
+	t.liveWriter.Start()
+	t.bypass = t.liveWriter.Bypass()
+
+	t.spinnerStop = make(chan struct{})
+	t.wg.Add(1)
+	go t.spinnerLoop()
 }
 
-// Stop stops the Bubbletea program.
+// Stop stops the tracker.
 func (t *BubbleTeaTracker) Stop() {
 	if t == nil {
 		return
@@ -120,13 +125,13 @@ func (t *BubbleTeaTracker) Stop() {
 		<-t.feedbackDone
 	}
 
-	if t.program != nil {
-		done := make(chan struct{})
-		t.program.Send(stopAndFlushMsg{done: done})
-		<-done
-	}
+	t.stopSpinner()
 
 	t.wg.Wait()
+
+	if t.liveWriter != nil {
+		t.liveWriter.Stop()
+	}
 }
 
 // FeedbackHandler returns a handler for receiving feedback.
@@ -148,7 +153,7 @@ func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 	}
 }
 
-// processFeedback processes feedback messages and updates the model.
+// processFeedback processes feedback messages.
 func (t *BubbleTeaTracker) processFeedback() {
 	defer t.wg.Done()
 	defer func() {
@@ -158,49 +163,135 @@ func (t *BubbleTeaTracker) processFeedback() {
 	}()
 
 	for feedback := range t.feedbackCh {
-		if t.program != nil {
-			t.program.Send(feedback)
-		} else if t.model != nil {
-			t.model.handleFeedback(feedback)
+		t.handleFeedback(feedback)
+
+		if t.silent {
+			continue
 		}
+
+		entry := logEntry{
+			message: strings.TrimSpace(feedback.Message),
+			details: strings.TrimSpace(feedback.Details),
+			isError: feedback.Status == StatusFailed,
+		}
+		rendered := renderLogEntry(entry, terminalWidth())
+		if rendered == "" {
+			continue
+		}
+		t.writeLogLine(rendered)
+	}
+}
+
+func (t *BubbleTeaTracker) handleFeedback(msg *Feedback) {
+	if t == nil || msg == nil {
+		return
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	t.logCount++
+
+	if msg.Status == StatusRunning {
+		run := t.running[msg.ActivityName]
+		run.name = msg.ActivityName
+		run.message = strings.TrimSpace(msg.Message)
+		run.status = msg.Status
+		run.lastUpdate = msg.Timestamp
+		t.running[msg.ActivityName] = run
+	}
+
+	if msg.Status == StatusCompleted || msg.Status == StatusFailed {
+		delete(t.running, msg.ActivityName)
+	}
+}
+
+func (t *BubbleTeaTracker) spinnerLoop() {
+	defer t.wg.Done()
+
+	ticker := time.NewTicker(spinnerInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-t.spinnerStop:
+			t.renderStatus("")
+			return
+		case <-ticker.C:
+			run := t.currentRunning()
+			if strings.TrimSpace(run.message) == "" {
+				t.renderStatus("")
+				continue
+			}
+
+			t.spinner = (t.spinner + 1) % len(spinnerFrames)
+			line := renderRunningLine(run, t.spinner, terminalWidth())
+			t.renderStatus(line)
+		}
+	}
+}
+
+func (t *BubbleTeaTracker) stopSpinner() {
+	t.spinnerOnce.Do(func() {
+		if t.spinnerStop != nil {
+			close(t.spinnerStop)
+		}
+	})
+}
+
+func (t *BubbleTeaTracker) currentRunning() runningActivity {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	var current runningActivity
+	for _, run := range t.running {
+		if current.name == "" || run.lastUpdate.After(current.lastUpdate) {
+			current = run
+		}
+	}
+	return current
+}
+
+func (t *BubbleTeaTracker) renderStatus(line string) {
+	if t.liveWriter == nil {
+		return
+	}
+	if strings.TrimSpace(line) == "" {
+		_, err := fmt.Fprint(t.liveWriter, " \n")
+		logWriteError(err)
+		return
+	}
+	_, err := fmt.Fprintf(t.liveWriter, "%s\n", line)
+	logWriteError(err)
+}
+
+func (t *BubbleTeaTracker) writeLogLine(line string) {
+	if t.bypass == nil {
+		return
+	}
+	_, err := fmt.Fprint(t.bypass, line)
+	logWriteError(err)
+	if !strings.HasSuffix(line, "\n") {
+		_, err := fmt.Fprint(t.bypass, "\n")
+		logWriteError(err)
 	}
 }
 
 // GetExecution returns a copy of an execution (for testing).
 func (t *BubbleTeaTracker) GetExecution(name string) *Execution {
-	if t == nil || t.model == nil {
+	if t == nil {
 		return nil
 	}
 
-	t.model.mu.RLock()
-	defer t.model.mu.RUnlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 
 	var exec *Execution
-
-	if run, ok := t.model.running[name]; ok {
+	if run, ok := t.running[name]; ok {
 		exec = &Execution{
 			Name:    run.name,
 			Status:  run.status,
 			Message: run.message,
-		}
-	} else {
-		for i := len(t.model.logLines) - 1; i >= 0; i-- {
-			entry := t.model.logLines[i]
-			if entry.message == "" {
-				continue
-			}
-			if entry.message == name {
-				status := StatusCompleted
-				if entry.isError {
-					status = StatusFailed
-				}
-				exec = &Execution{
-					Name:   name,
-					Status: status,
-					Result: entry.message,
-				}
-				break
-			}
 		}
 	}
 
@@ -217,131 +308,16 @@ func (t *BubbleTeaTracker) GetExecution(name string) *Execution {
 
 // GetExecutionCount returns the number of tracked executions (for testing).
 func (t *BubbleTeaTracker) GetExecutionCount() int {
-	if t == nil || t.model == nil {
+	if t == nil {
 		return 0
 	}
 
-	t.model.mu.RLock()
-	defer t.model.mu.RUnlock()
-	return len(t.model.running) + len(t.model.logLines)
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.running) + t.logCount
 }
 
-type spinnerTickMsg struct{}
-
-type stopAndFlushMsg struct {
-	done chan struct{}
-}
-
-func spinnerTick() tea.Cmd {
-	return tea.Tick(spinnerInterval, func(time.Time) tea.Msg {
-		return spinnerTickMsg{}
-	})
-}
-
-func (m *bubbleModel) Init() tea.Cmd {
-	return spinnerTick()
-}
-
-func (m *bubbleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c":
-			return m, tea.Quit
-		}
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-	case *Feedback:
-		m.handleFeedback(msg)
-		return m, nil
-	case spinnerTickMsg:
-		if len(m.running) > 0 {
-			m.spinner = (m.spinner + 1) % len(spinnerFrames)
-		}
-		return m, spinnerTick()
-	case stopAndFlushMsg:
-		if msg.done != nil {
-			close(msg.done)
-		}
-		return m, tea.Quit
-	}
-
-	return m, nil
-}
-
-func (m *bubbleModel) handleFeedback(msg *Feedback) {
-	if m == nil || msg == nil {
-		return
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if msg.Status == StatusRunning {
-		run := m.running[msg.ActivityName]
-		run.name = msg.ActivityName
-		run.message = strings.TrimSpace(msg.Message)
-		run.status = msg.Status
-		run.lastUpdate = msg.Timestamp
-		m.running[msg.ActivityName] = run
-	}
-
-	if msg.Status == StatusCompleted || msg.Status == StatusFailed {
-		delete(m.running, msg.ActivityName)
-	}
-
-	entry := logEntry{
-		message: strings.TrimSpace(msg.Message),
-		details: strings.TrimSpace(msg.Details),
-		isError: msg.Status == StatusFailed,
-	}
-	m.logLines = append(m.logLines, entry)
-}
-
-func (m *bubbleModel) View() string {
-	if m == nil {
-		return ""
-	}
-
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var sb strings.Builder
-
-	for _, entry := range m.logLines {
-		line := m.renderLogEntry(entry)
-		if line == "" {
-			continue
-		}
-		sb.WriteString(line)
-		sb.WriteString("\n")
-	}
-
-	if len(m.running) > 0 {
-		run := m.currentRunningLocked()
-		if strings.TrimSpace(run.message) != "" {
-			sb.WriteString("\n")
-			sb.WriteString(m.renderRunningLine(run))
-			sb.WriteString("\n")
-		}
-	}
-
-	return sb.String()
-}
-
-func (m *bubbleModel) currentRunningLocked() runningActivity {
-	var current runningActivity
-	for _, run := range m.running {
-		if current.name == "" || run.lastUpdate.After(current.lastUpdate) {
-			current = run
-		}
-	}
-	return current
-}
-
-func (m *bubbleModel) renderLogEntry(entry logEntry) string {
+func renderLogEntry(entry logEntry, width int) string {
 	message := strings.TrimSpace(entry.message)
 	details := strings.TrimSpace(entry.details)
 	if message == "" && details == "" {
@@ -351,7 +327,7 @@ func (m *bubbleModel) renderLogEntry(entry logEntry) string {
 	var sb strings.Builder
 
 	if message != "" {
-		available := m.width
+		available := width
 		lines := wrapText(message, available)
 		if len(lines) == 0 {
 			lines = []string{message}
@@ -361,13 +337,9 @@ func (m *bubbleModel) renderLogEntry(entry logEntry) string {
 			if i > 0 {
 				sb.WriteString("\n")
 			}
-			rendered := line
+			rendered := styleTitle.Render(line)
 			if entry.isError {
 				rendered = styleFailed.Render(line)
-			}
-			if i == 0 {
-				sb.WriteString(rendered)
-				continue
 			}
 			sb.WriteString(rendered)
 		}
@@ -377,39 +349,85 @@ func (m *bubbleModel) renderLogEntry(entry logEntry) string {
 		if message != "" {
 			sb.WriteString("\n")
 		}
-		sb.WriteString(styleDetails.Render(formatDetailsBlock(details)))
+		sb.WriteString(styleDetails.Render(formatDetailsBlock(details, width)))
 	}
 	return sb.String()
 }
 
-func (m *bubbleModel) renderRunningLine(run runningActivity) string {
+func renderRunningLine(run runningActivity, spinnerIndex int, width int) string {
 	spinner := "-"
 	if len(spinnerFrames) > 0 {
-		spinner = spinnerFrames[m.spinner%len(spinnerFrames)]
+		spinner = spinnerFrames[spinnerIndex%len(spinnerFrames)]
 	}
 	prefixWidth := runewidth.StringWidth(spinner) + 1
-	available := m.width - prefixWidth
-	lines := wrapText(run.message, available)
-	if len(lines) == 0 {
-		lines = []string{run.message}
+	available := width - prefixWidth
+	if available < 0 {
+		available = 0
+	}
+
+	message := strings.TrimSpace(run.message)
+	if available > 0 {
+		message = truncateToWidth(message, available)
+	} else {
+		message = ""
+	}
+
+	renderedSpinner := styleRunning.Render(spinner)
+	renderedMessage := styleRunning.Render(message)
+	if message == "" {
+		return renderedSpinner
+	}
+	return fmt.Sprintf("%s %s", renderedSpinner, renderedMessage)
+}
+
+func truncateToWidth(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	text = strings.TrimSpace(text)
+	if runewidth.StringWidth(text) <= width {
+		return text
 	}
 
 	var sb strings.Builder
-	for i, line := range lines {
-		if i > 0 {
-			sb.WriteString("\n")
+	currentWidth := 0
+	for _, r := range text {
+		runeWidth := runewidth.RuneWidth(r)
+		if currentWidth+runeWidth > width {
+			break
 		}
-		rendered := styleRunning.Render(line)
-		if i == 0 {
-			sb.WriteString(styleRunning.Render(spinner))
-			sb.WriteString(" ")
-			sb.WriteString(rendered)
-			continue
-		}
-		sb.WriteString(strings.Repeat(" ", prefixWidth))
-		sb.WriteString(rendered)
+		sb.WriteRune(r)
+		currentWidth += runeWidth
 	}
 	return sb.String()
+}
+
+func terminalWidth() int {
+	now := time.Now()
+	if cached := int(cachedTerminalWidth.Load()); cached > 0 {
+		last := time.Unix(0, cachedWidthAt.Load())
+		if now.Sub(last) < widthCacheTTL {
+			return cached
+		}
+	}
+
+	if cols := os.Getenv("COLUMNS"); cols != "" {
+		if value, err := strconv.Atoi(cols); err == nil && value > 0 {
+			cachedTerminalWidth.Store(int64(value))
+			cachedWidthAt.Store(now.UnixNano())
+			return value
+		}
+	}
+	width, _, err := term.GetSize(uintptr(os.Stderr.Fd()))
+	if err != nil || width <= 0 {
+		cachedTerminalWidth.Store(80)
+		cachedWidthAt.Store(now.UnixNano())
+		return 80
+	}
+	cachedTerminalWidth.Store(int64(width))
+	cachedWidthAt.Store(now.UnixNano())
+	return width
 }
 
 func wrapText(text string, width int) []string {
@@ -479,23 +497,124 @@ func splitLongWord(word string, width int) []string {
 	return parts
 }
 
-func formatDetailsBlock(details string) string {
+func formatDetailsBlock(details string, width int) string {
 	clean := strings.ReplaceAll(details, "\r\n", "\n")
 	lines := strings.Split(clean, "\n")
-
-	if len(lines) > maxDetailsLines {
-		visible := maxDetailsLines - 1
-		moreCount := len(lines) - visible
-		lines = append(lines[:visible], fmt.Sprintf("[... and %d more lines]", moreCount))
+	prefix := "    | "
+	prefixWidth := runewidth.StringWidth(prefix)
+	available := width - prefixWidth
+	if available < 0 {
+		available = 0
 	}
 
 	var sb strings.Builder
 	for i, line := range lines {
-		if i > 0 {
-			sb.WriteString("\n")
+		wrapped := wrapTextPreserveSpaces(line, available)
+		if len(wrapped) == 0 {
+			wrapped = []string{""}
 		}
-		sb.WriteString("    | ")
-		sb.WriteString(line)
+		for j, wrappedLine := range wrapped {
+			if i > 0 || j > 0 {
+				sb.WriteString("\n")
+			}
+			sb.WriteString(prefix)
+			sb.WriteString(wrappedLine)
+		}
 	}
 	return sb.String()
+}
+
+func wrapTextPreserveSpaces(text string, width int) []string {
+	if width <= 0 {
+		return []string{text}
+	}
+
+	rawLines := strings.Split(text, "\n")
+	lines := make([]string, 0, len(rawLines))
+	for _, rawLine := range rawLines {
+		if rawLine == "" {
+			lines = append(lines, "")
+			continue
+		}
+		tokens := splitTokensPreserveSpaces(rawLine)
+		var current strings.Builder
+		currentWidth := 0
+		for _, token := range tokens {
+			tokenWidth := runewidth.StringWidth(token)
+			if tokenWidth == 0 {
+				continue
+			}
+			if currentWidth+tokenWidth <= width {
+				current.WriteString(token)
+				currentWidth += tokenWidth
+				continue
+			}
+
+			if tokenWidth > width {
+				if currentWidth > 0 {
+					lines = append(lines, current.String())
+					current.Reset()
+					currentWidth = 0
+				}
+				parts := splitLongWord(token, width)
+				for i, part := range parts {
+					if runewidth.StringWidth(part) == 0 {
+						continue
+					}
+					if i < len(parts)-1 {
+						lines = append(lines, part)
+					} else {
+						current.WriteString(part)
+						currentWidth = runewidth.StringWidth(part)
+					}
+				}
+				continue
+			}
+
+			if currentWidth > 0 {
+				lines = append(lines, current.String())
+				current.Reset()
+				currentWidth = 0
+			}
+			current.WriteString(token)
+			currentWidth = tokenWidth
+		}
+		if currentWidth > 0 || current.Len() > 0 {
+			lines = append(lines, current.String())
+		}
+	}
+	return lines
+}
+
+func splitTokensPreserveSpaces(line string) []string {
+	tokens := make([]string, 0, len(line))
+	var sb strings.Builder
+	var inSpace bool
+	for _, r := range line {
+		isSpace := r == ' ' || r == '\t'
+		if sb.Len() == 0 {
+			inSpace = isSpace
+			sb.WriteRune(r)
+			continue
+		}
+		if isSpace == inSpace {
+			sb.WriteRune(r)
+			continue
+		}
+		tokens = append(tokens, sb.String())
+		sb.Reset()
+		inSpace = isSpace
+		sb.WriteRune(r)
+	}
+	if sb.Len() > 0 {
+		tokens = append(tokens, sb.String())
+	}
+	return tokens
+}
+
+func logWriteError(err error) {
+	if err == nil {
+		return
+	}
+	log.Printf("tracker output error: %v", err)
 }
