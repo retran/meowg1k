@@ -86,6 +86,17 @@ func TestContext_SendFeedback(t *testing.T) {
 	if !errors.Is(received.Error, testErr) {
 		t.Errorf("expected error to be set")
 	}
+
+	ctx.SendProgressWithDetails("progress message", "progress details")
+	if received.Status != StatusProgress {
+		t.Errorf("expected status Progress for progress, got %v", received.Status)
+	}
+	if received.Message != "progress message" {
+		t.Errorf("expected message 'progress message', got %q", received.Message)
+	}
+	if received.Details != "progress details" {
+		t.Errorf("expected details 'progress details', got %q", received.Details)
+	}
 }
 
 func TestFeedback_String(t *testing.T) {

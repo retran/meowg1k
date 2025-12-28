@@ -15,6 +15,8 @@ type Status string
 const (
 	// StatusRunning indicates that the activity is running.
 	StatusRunning Status = "running"
+	// StatusProgress indicates that the activity has a progress update.
+	StatusProgress Status = "progress"
 	// StatusCompleted indicates that the activity has completed.
 	StatusCompleted Status = "completed"
 	// StatusFailed indicates that the activity has failed.
@@ -182,6 +184,16 @@ func (c *Context) SendFailedWithDetails(err error, message string, details strin
 func (c *Context) SendRetryWithDetails(message string, details string, attempt int, err error) {
 	_ = attempt
 	c.sendFeedback(StatusRunning, 0, message, details, err)
+}
+
+// SendProgress sends a running status feedback intended to be logged as progress.
+func (c *Context) SendProgress(message string) {
+	c.SendProgressWithDetails(message, "")
+}
+
+// SendProgressWithDetails sends a running status feedback intended to be logged as progress.
+func (c *Context) SendProgressWithDetails(message string, details string) {
+	c.sendFeedback(StatusProgress, 0, message, details, nil)
 }
 
 // Activity defines a function that can be executed by the executor.

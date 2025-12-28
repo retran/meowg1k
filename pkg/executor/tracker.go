@@ -61,13 +61,13 @@ type logEntry struct {
 
 // Styles for the TUI.
 var (
-	styleTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Bold(true)
-	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("33"))
-	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	styleTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
+	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
 )
 
-var spinnerFrames = []string{"-", "\\", "|", "/"}
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 var (
 	cachedTerminalWidth atomic.Int64
@@ -166,6 +166,10 @@ func (t *BubbleTeaTracker) processFeedback() {
 		t.handleFeedback(feedback)
 
 		if t.silent {
+			continue
+		}
+
+		if feedback.Status != StatusCompleted && feedback.Status != StatusFailed && feedback.Status != StatusProgress {
 			continue
 		}
 
@@ -327,7 +331,12 @@ func renderLogEntry(entry logEntry, width int) string {
 	var sb strings.Builder
 
 	if message != "" {
-		available := width
+		bullet := "• "
+		bulletWidth := runewidth.StringWidth(bullet)
+		available := width - bulletWidth
+		if available < 0 {
+			available = 0
+		}
 		lines := wrapText(message, available)
 		if len(lines) == 0 {
 			lines = []string{message}
@@ -337,9 +346,15 @@ func renderLogEntry(entry logEntry, width int) string {
 			if i > 0 {
 				sb.WriteString("\n")
 			}
-			rendered := styleTitle.Render(line)
+			renderedLine := line
+			if i == 0 {
+				renderedLine = bullet + line
+			} else {
+				renderedLine = strings.Repeat(" ", bulletWidth) + line
+			}
+			rendered := styleTitle.Render(renderedLine)
 			if entry.isError {
-				rendered = styleFailed.Render(line)
+				rendered = styleFailed.Render(renderedLine)
 			}
 			sb.WriteString(rendered)
 		}
@@ -359,7 +374,8 @@ func renderRunningLine(run runningActivity, spinnerIndex int, width int) string 
 	if len(spinnerFrames) > 0 {
 		spinner = spinnerFrames[spinnerIndex%len(spinnerFrames)]
 	}
-	prefixWidth := runewidth.StringWidth(spinner) + 1
+	prefix := fmt.Sprintf("%s ", spinner)
+	prefixWidth := runewidth.StringWidth(prefix)
 	available := width - prefixWidth
 	if available < 0 {
 		available = 0
@@ -372,12 +388,12 @@ func renderRunningLine(run runningActivity, spinnerIndex int, width int) string 
 		message = ""
 	}
 
-	renderedSpinner := styleRunning.Render(spinner)
+	renderedPrefix := styleRunning.Render(prefix)
 	renderedMessage := styleRunning.Render(message)
 	if message == "" {
-		return renderedSpinner
+		return renderedPrefix
 	}
-	return fmt.Sprintf("%s %s", renderedSpinner, renderedMessage)
+	return fmt.Sprintf("%s%s", renderedPrefix, renderedMessage)
 }
 
 func truncateToWidth(text string, width int) string {
@@ -500,7 +516,8 @@ func splitLongWord(word string, width int) []string {
 func formatDetailsBlock(details string, width int) string {
 	clean := strings.ReplaceAll(details, "\r\n", "\n")
 	lines := strings.Split(clean, "\n")
-	prefix := "    | "
+	prefix := "  │ "
+	continuation := strings.Repeat(" ", runewidth.StringWidth(prefix))
 	prefixWidth := runewidth.StringWidth(prefix)
 	available := width - prefixWidth
 	if available < 0 {
@@ -517,7 +534,11 @@ func formatDetailsBlock(details string, width int) string {
 			if i > 0 || j > 0 {
 				sb.WriteString("\n")
 			}
-			sb.WriteString(prefix)
+			if j == 0 {
+				sb.WriteString(prefix)
+			} else {
+				sb.WriteString(continuation)
+			}
 			sb.WriteString(wrappedLine)
 		}
 	}
