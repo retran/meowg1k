@@ -64,7 +64,7 @@ func newMockDBHost() (ports.Host, error) {
 	}, nil
 }
 
-func TestCreateCommitFlow(t *testing.T) {
+func TestCreateCommitMsgFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `models:
@@ -76,7 +76,7 @@ func TestCreateCommitFlow(t *testing.T) {
 profiles:
   test:
     model: "gpt-35-turbo"
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -114,19 +114,19 @@ filter:
 		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow, err := container.CreateCommitFlow()
+	flow, err := container.CreateCommitMsgFlow()
 	if err != nil {
-		t.Fatalf("CreateCommitFlow returned error: %v", err)
+		t.Fatalf("CreateCommitMsgFlow returned error: %v", err)
 	}
 	if flow == nil {
-		t.Error("CreateCommitFlow returned nil")
+		t.Error("CreateCommitMsgFlow returned nil")
 	}
 
 	// Note: We don't execute the flow here as it requires a full git environment
 	// and proper executor context. The fact that it was created without panic is sufficient.
 }
 
-func TestCreateGenerateFlow(t *testing.T) {
+func TestCreateWriteFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `models:
@@ -138,7 +138,7 @@ func TestCreateGenerateFlow(t *testing.T) {
 profiles:
   test:
     model: "gpt-35-turbo"
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -181,16 +181,16 @@ filter:
 		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow, err := container.CreateGenerateFlow()
+	flow, err := container.CreateWriteFlow()
 	if err != nil {
-		t.Errorf("CreateGenerateFlow returned error: %v", err)
+		t.Errorf("CreateWriteFlow returned error: %v", err)
 	}
 	if flow == nil {
-		t.Error("CreateGenerateFlow returned nil")
+		t.Error("CreateWriteFlow returned nil")
 	}
 }
 
-func TestCreateGenerateFlowWithUserPrompt(t *testing.T) {
+func TestCreateWriteFlowWithUserPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `models:
@@ -202,7 +202,7 @@ func TestCreateGenerateFlowWithUserPrompt(t *testing.T) {
 profiles:
   test:
     model: "gpt-35-turbo"
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -237,16 +237,16 @@ generate:
 		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow, err := container.CreateGenerateFlow()
+	flow, err := container.CreateWriteFlow()
 	if err != nil {
-		t.Errorf("CreateGenerateFlow returned error: %v", err)
+		t.Errorf("CreateWriteFlow returned error: %v", err)
 	}
 	if flow == nil {
-		t.Error("CreateGenerateFlow returned nil")
+		t.Error("CreateWriteFlow returned nil")
 	}
 }
 
-func TestCreateGenerateFlowWithMissingProfile(t *testing.T) {
+func TestCreateWriteFlowWithMissingProfile(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	// Create config with missing profile reference
@@ -257,7 +257,7 @@ func TestCreateGenerateFlowWithMissingProfile(t *testing.T) {
 profiles:
   test:
     model: "gpt-35-turbo"
-generate:
+write:
   default:
     profile: "nonexistent"
     systemPrompt: "You are a helpful assistant"
@@ -291,12 +291,12 @@ generate:
 		t.Fatalf("NewTestAppContainer returned error: %v", err)
 	}
 
-	flow, err := container.CreateGenerateFlow()
+	flow, err := container.CreateWriteFlow()
 	// This should return an error because the profile doesn't exist
 	if err == nil {
-		t.Error("CreateGenerateFlow should return error for missing profile")
+		t.Error("CreateWriteFlow should return error for missing profile")
 	}
 	if flow != nil {
-		t.Error("CreateGenerateFlow should return nil flow on error")
+		t.Error("CreateWriteFlow should return nil flow on error")
 	}
 }

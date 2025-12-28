@@ -53,7 +53,7 @@ func TestGetPRConfig(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			PullRequest: &config.CommandConfig{
+			Pr: &config.CommandConfig{
 				Profile:      "test",
 				SystemPrompt: "Test PR prompt",
 			},
@@ -89,7 +89,7 @@ func TestGetPRConfigDefault(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			PullRequest: nil,
+			Pr: nil,
 		},
 	}
 	profileSvc := &mockProfileResolver{
@@ -185,7 +185,7 @@ func TestGetWithEmptySystemPrompt(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			PullRequest: &config.CommandConfig{
+			Pr: &config.CommandConfig{
 				Profile:      "test",
 				SystemPrompt: "", // Empty system prompt
 			},

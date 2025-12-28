@@ -10,6 +10,14 @@ models:
       tokensPerMinute: 1000000
       requestsPerDay: 10000
 
+  qwen:
+    provider: "openrouter"
+    model: "qwen/qwen3-coder-plus"
+    rateLimit:
+      requestsPerMinute: 60
+      tokensPerMinute: 1000000
+      requestsPerDay: 10000
+
   gemini-flash:
     provider: "gemini"
     model: "gemini-2.5-flash"
@@ -18,7 +26,7 @@ models:
       tokensPerMinute: 2000000
       requestsPerDay: 10000
 
-  gemini-pro:
+  gemini:
     provider: "gemini"
     model: "gemini-2.5-pro"
     rateLimit:
@@ -53,7 +61,7 @@ profiles:
       ttl: "24h"
 
   smart:
-    model: "qwen-flash"
+    model: "qwen"
     timeout: "10m"
     temperature: 0.2
     topP: 0.95
@@ -79,7 +87,7 @@ cache:
   enabled: true
   ttl: "24h"
 
-generate:
+write:
   default:
     profile: "fast"
     systemPrompt: >-
@@ -143,7 +151,7 @@ generate:
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
 
 filter:
-  ignorePatterns:
+  ignore:
     - "**/*.lock"
     - "go.sum"
     - "dist/**"
@@ -160,7 +168,7 @@ index:
     overlapRunes: 128
   batchSize: 64
 
-ask:
+answer:
   profile: "smart"
   topK: 20
   minScore: 0.4
@@ -243,12 +251,11 @@ summarize:
         Mention if it's new documentation, fixes, or improvements to existing content.
 
 commit:
-  default:
-    profile: "smart"
-    strategy: "summarize"
-    systemPrompt: |
-      You are an expert software engineer writing a commit message in Conventional Commits format.
-      Based on the file change summaries provided, create a clear and informative commit message.
+  profile: "smart"
+  strategy: "summarize"
+  systemPrompt: |
+    You are an expert software engineer writing a commit message in Conventional Commits format.
+    Based on the file change summaries provided, create a clear and informative commit message.
 
       If "Developer Intent" is provided, use it to understand the purpose and context:
       - Extract GitHub issue references (like #123, #456) for footer as "Refs: #123, #456"
@@ -283,15 +290,14 @@ commit:
 
         BREAKING CHANGE: ValidationError interface changed
 
-      Generate only the commit message, nothing else.
+    Generate only the commit message, nothing else.
 
-pullRequest:
-  default:
-    profile: "smart"
-    strategy: "summarize"
-    systemPrompt: |
-      You are an expert software engineer creating a Pull Request description for a Go project.
-      Based on the file change summaries provided, create a comprehensive and actionable PR description.
+pr:
+  profile: "smart"
+  strategy: "summarize"
+  systemPrompt: |
+    You are an expert software engineer creating a Pull Request description for a Go project.
+    Based on the file change summaries provided, create a comprehensive and actionable PR description.
 
       If "Developer Intent" is provided, use it to understand the purpose and context:
       - Extract the main goal and motivation
@@ -363,7 +369,7 @@ pullRequest:
       - Use technical language appropriate for developers familiar with the codebase
       - Highlight anything reviewers should pay special attention to
 
-      Generate only the PR description in Markdown format, nothing else.
+    Generate only the PR description in Markdown format, nothing else.
 
 agent:
   defaults:
@@ -373,8 +379,6 @@ agent:
       Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
       Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
       Use tools when needed and respond in the required JSON format.
-    maxSteps: 100
-    maxToolCalls: 100
   tools:
     searchDefaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]

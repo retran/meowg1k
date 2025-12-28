@@ -112,7 +112,7 @@ func (g *anthropicGateway) GenerateContent(
 
 	response, err := g.client.Messages.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content from Anthropic for model %q: %w", model, err)
+		return "", fmt.Errorf("failed to write content from Anthropic for model %q: %w", model, err)
 	}
 
 	if len(response.Content) == 0 {

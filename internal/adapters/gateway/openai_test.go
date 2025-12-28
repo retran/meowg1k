@@ -170,8 +170,8 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 		t.Error("Expected error from failing server")
 	}
 
-	if !strings.Contains(err.Error(), "failed to generate content") {
-		t.Errorf("Expected 'failed to generate content' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to write content") {
+		t.Errorf("Expected 'failed to write content' in error, got: %v", err)
 	}
 }
 

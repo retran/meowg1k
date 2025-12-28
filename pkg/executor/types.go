@@ -162,7 +162,7 @@ func (c *Context) SendFailed(err error, message string) {
 
 // SendRetry sends a retry status feedback with the given attempt number and error.
 func (c *Context) SendRetry(attempt int, err error) {
-	c.SendRetryWithDetails("Retrying operation", "", attempt, err)
+	c.SendRetryWithDetails("I'm retrying the operation", "", attempt, err)
 }
 
 // SendRunningWithDetails sends a running status feedback with the given message and details.

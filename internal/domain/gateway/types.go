@@ -127,7 +127,7 @@ func (r *GenerateContentRequest) WithResponseSchema(responseSchema map[string]in
 	return r
 }
 
-// WithCandidateCount sets the number of candidates to generate and returns the request.
+// WithCandidateCount sets the number of candidates to write and returns the request.
 func (r *GenerateContentRequest) WithCandidateCount(candidateCount *int) *GenerateContentRequest {
 	r.candidateCount = candidateCount
 	return r
@@ -276,7 +276,7 @@ func (r *GenerateContentRequest) ResponseSchema() map[string]interface{} {
 	return r.responseSchema
 }
 
-// CandidateCount returns the number of candidates to generate for the content generation request.
+// CandidateCount returns the number of candidates to write for the content generation request.
 func (r *GenerateContentRequest) CandidateCount() *int {
 	return r.candidateCount
 }

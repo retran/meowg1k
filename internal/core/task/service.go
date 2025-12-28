@@ -30,11 +30,11 @@ func resolveTaskConfiguration(
 	taskName, cmdUserPrompt string,
 	cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
-	if taskName == "" || cfg.Generate == nil || cfg.Generate.Tasks == nil {
+	if taskName == "" || cfg.Write == nil || cfg.Write.Tasks == nil {
 		return resolveDefaultConfiguration(cmdUserPrompt, cfg)
 	}
 
-	task, exists := cfg.Generate.Tasks[taskName]
+	task, exists := cfg.Write.Tasks[taskName]
 	if !exists {
 		return "", "", "", fmt.Errorf("task not found in configuration: %s", taskName)
 	}
@@ -56,13 +56,13 @@ func resolveTaskConfiguration(
 func resolveDefaultConfiguration(
 	cmdUserPrompt string, cfg *config.Config,
 ) (profileName, systemPrompt, userPrompt string, err error) {
-	if cfg == nil || cfg.Generate == nil || cfg.Generate.Default == nil {
+	if cfg == nil || cfg.Write == nil || cfg.Write.Default == nil {
 		err = fmt.Errorf("no default configuration available")
 		return profileName, systemPrompt, userPrompt, err
 	}
 
-	profileName = strings.TrimSpace(cfg.Generate.Default.Profile)
-	systemPrompt = strings.TrimSpace(cfg.Generate.Default.SystemPrompt)
+	profileName = strings.TrimSpace(cfg.Write.Default.Profile)
+	systemPrompt = strings.TrimSpace(cfg.Write.Default.SystemPrompt)
 	userPrompt = strings.TrimSpace(cmdUserPrompt)
 
 	return profileName, systemPrompt, userPrompt, err
@@ -75,12 +75,12 @@ func applyDefaults(
 	finalProfileName = profileName
 	finalSystemPrompt = systemPrompt
 
-	if cfg != nil && cfg.Generate != nil && finalProfileName == "" && cfg.Generate.Default != nil {
-		finalProfileName = cfg.Generate.Default.Profile
+	if cfg != nil && cfg.Write != nil && finalProfileName == "" && cfg.Write.Default != nil {
+		finalProfileName = cfg.Write.Default.Profile
 	}
 
-	if cfg != nil && cfg.Generate != nil && finalSystemPrompt == "" && cfg.Generate.Default != nil {
-		finalSystemPrompt = cfg.Generate.Default.SystemPrompt
+	if cfg != nil && cfg.Write != nil && finalSystemPrompt == "" && cfg.Write.Default != nil {
+		finalSystemPrompt = cfg.Write.Default.SystemPrompt
 	}
 
 	return finalProfileName, finalSystemPrompt

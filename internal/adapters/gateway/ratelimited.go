@@ -48,7 +48,7 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 
 	content, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return "", fmt.Errorf("failed to write content: %w", err)
 	}
 	return content, nil
 }
@@ -83,7 +83,7 @@ func (g *rateLimitedGenerationGateway) GenerateContentWithTools(
 
 	response, err := inner.GenerateContentWithTools(ctx, request, tools)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
 	return response, nil
 }

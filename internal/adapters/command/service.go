@@ -171,8 +171,8 @@ func (s *Service) GetIntentFlag() (string, error) {
 	return val, nil
 }
 
-// GetTargetBranchFlag retrieves the target-branch flag from command flags.
-func (s *Service) GetTargetBranchFlag() (string, error) {
+// GetDiffFlag retrieves the diff flag from command flags.
+func (s *Service) GetDiffFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
 	}
@@ -181,9 +181,9 @@ func (s *Service) GetTargetBranchFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	val, err := s.cmd.Flags().GetString("target-branch")
+	val, err := s.cmd.Flags().GetString("diff")
 	if err != nil {
-		return "", fmt.Errorf("failed to get target-branch flag: %w", err)
+		return "", fmt.Errorf("failed to get diff flag: %w", err)
 	}
 	return val, nil
 }
@@ -248,7 +248,7 @@ func (s *Service) GetUpdateCacheFlag() (bool, error) {
 	return val, nil
 }
 
-// GetQueryTextFlag retrieves the query text from command arguments or stdin.
+// GetQueryTextFlag retrieves the searchindex text from command arguments or stdin.
 func (s *Service) GetQueryTextFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
@@ -269,7 +269,7 @@ func (s *Service) GetQueryTextFlag() (string, error) {
 		return s.stdin, nil
 	}
 
-	return "", fmt.Errorf("query text is required (provide as argument or via stdin)")
+	return "", fmt.Errorf("searchindex text is required (provide as argument or via stdin)")
 }
 
 // GetSnapshotsFlag retrieves the snapshots flag from command flags.

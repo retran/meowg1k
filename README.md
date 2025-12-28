@@ -153,16 +153,16 @@ echo "Create a hello world function in Python" | meow g
 
 # Generate a commit message
 git add .
-meow commit
+meow draft commit
 
 # Generate a Pull Request description
-meow pullrequest --base main
+meow draft pr --base main
 
 # Index your codebase for semantic search
 meow index
 
 # Search your code semantically
-meow query "authentication logic"
+meow search "authentication logic"
 
 # Ask questions about your codebase
 meow ask "How does error handling work in this project?"

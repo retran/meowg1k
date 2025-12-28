@@ -65,8 +65,8 @@ func (m *mockProfileResolver) Get(profileID profile.Profile) (*profile.ResolvedP
 func TestNewServiceSuccess(t *testing.T) {
 	// Setup mocks with valid configuration
 	cfg := &config.Config{
-		Generate: &config.GenerateConfig{
-			Default: &config.GenerateDefault{
+		Write: &config.WriteConfig{
+			Default: &config.WriteDefault{
 				Profile:      "test-profile",
 				SystemPrompt: "Default system prompt",
 			},
@@ -128,12 +128,12 @@ func TestNewServiceSuccess(t *testing.T) {
 func TestNewServiceWithSpecificTask(t *testing.T) {
 	// Setup configuration with a specific task
 	cfg := &config.Config{
-		Generate: &config.GenerateConfig{
-			Default: &config.GenerateDefault{
+		Write: &config.WriteConfig{
+			Default: &config.WriteDefault{
 				Profile:      "default-profile",
 				SystemPrompt: "Default system prompt",
 			},
-			Tasks: map[string]*config.GenerateTask{
+			Tasks: map[string]*config.WriteTask{
 				"specific-task": {
 					Profile:      "task-profile",
 					SystemPrompt: "Task system prompt",
@@ -191,12 +191,12 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 	// Test task that uses default profile when task doesn't specify one
 	cfg := &config.Config{
-		Generate: &config.GenerateConfig{
-			Default: &config.GenerateDefault{
+		Write: &config.WriteConfig{
+			Default: &config.WriteDefault{
 				Profile:      "default-profile",
 				SystemPrompt: "Default system prompt",
 			},
-			Tasks: map[string]*config.GenerateTask{
+			Tasks: map[string]*config.WriteTask{
 				"task-no-profile": {
 					UserPrompt: "Task user prompt",
 					// No Profile or SystemPrompt - should use defaults
@@ -264,8 +264,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 		{
 			name: "task not found",
 			config: &config.Config{
-				Generate: &config.GenerateConfig{
-					Tasks: map[string]*config.GenerateTask{},
+				Write: &config.WriteConfig{
+					Tasks: map[string]*config.WriteTask{},
 				},
 			},
 			commandSvc:  &mockTaskParametersReader{TaskName: "non-existent-task"},
@@ -282,8 +282,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 		{
 			name: "no profile configured",
 			config: &config.Config{
-				Generate: &config.GenerateConfig{
-					Default: &config.GenerateDefault{
+				Write: &config.WriteConfig{
+					Default: &config.WriteDefault{
 						Profile:      "", // Empty profile
 						SystemPrompt: "System prompt",
 					},
@@ -296,8 +296,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 		{
 			name: "user prompt required",
 			config: &config.Config{
-				Generate: &config.GenerateConfig{
-					Default: &config.GenerateDefault{
+				Write: &config.WriteConfig{
+					Default: &config.WriteDefault{
 						Profile:      "test-profile",
 						SystemPrompt: "System prompt",
 					},
@@ -314,8 +314,8 @@ func TestNewServiceErrorCases(t *testing.T) {
 		{
 			name: "profile resolution error",
 			config: &config.Config{
-				Generate: &config.GenerateConfig{
-					Default: &config.GenerateDefault{
+				Write: &config.WriteConfig{
+					Default: &config.WriteDefault{
 						Profile:      "non-existent-profile",
 						SystemPrompt: "System prompt",
 					},

@@ -16,8 +16,8 @@ type Config struct {
 	// Profiles define reusable LLM request configurations
 	Profiles map[string]*ProfileDefinition `yaml:"profiles" mapstructure:"profiles"`
 
-	// Generate command configuration
-	Generate *GenerateConfig `yaml:"generate" mapstructure:"generate"`
+	// Write command configuration
+	Write *WriteConfig `yaml:"write" mapstructure:"write"`
 
 	// Filter configuration for pre-analysis noise filtering
 	Filter *FilterConfig `yaml:"filter" mapstructure:"filter"`
@@ -28,14 +28,14 @@ type Config struct {
 	// Commit command configuration ("Reduce" phase)
 	Commit *CommandConfig `yaml:"commit" mapstructure:"commit"`
 
-	// PullRequest command configuration ("Reduce" phase)
-	PullRequest *CommandConfig `yaml:"pullRequest" mapstructure:"pullRequest"`
+	// Pr command configuration ("Reduce" phase)
+	Pr *CommandConfig `yaml:"pr" mapstructure:"pr"`
 
 	// Index configuration for document indexing
 	Index *IndexConfig `yaml:"index" mapstructure:"index"`
 
-	// Ask configuration for RAG-based question answering
-	Ask *AskConfig `yaml:"ask" mapstructure:"ask"`
+	// Answer configuration for RAG-based question answering
+	Answer *AnswerConfig `yaml:"answer" mapstructure:"answer"`
 
 	// Agent configuration for multi-step tool use
 	Agent *AgentConfig `yaml:"agent" mapstructure:"agent"`
@@ -111,17 +111,17 @@ type ProfileDefinition struct {
 	Timeout           time.Duration          `yaml:"timeout" mapstructure:"timeout"`
 }
 
-// GenerateConfig holds configuration for the generate command.
-type GenerateConfig struct {
+// WriteConfig holds configuration for the write command.
+type WriteConfig struct {
 	// Default settings used when no task is specified
-	Default *GenerateDefault `yaml:"default" mapstructure:"default"`
+	Default *WriteDefault `yaml:"default" mapstructure:"default"`
 
 	// Tasks define named generation tasks with specific prompts and settings
-	Tasks map[string]*GenerateTask `yaml:"tasks" mapstructure:"tasks"`
+	Tasks map[string]*WriteTask `yaml:"tasks" mapstructure:"tasks"`
 }
 
-// GenerateDefault defines default settings for the generate command.
-type GenerateDefault struct {
+// WriteDefault defines default settings for the write command.
+type WriteDefault struct {
 	// Profile references a profile defined in the profiles section
 	Profile string `yaml:"profile" mapstructure:"profile"`
 
@@ -129,9 +129,9 @@ type GenerateDefault struct {
 	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 }
 
-// GenerateTask defines a specific generation task.
+// WriteTask defines a specific generation task.
 // Tasks allow predefined prompts and settings for common use cases.
-type GenerateTask struct {
+type WriteTask struct {
 	// Profile references a profile defined in the profiles section (optional)
 	Profile string `yaml:"profile" mapstructure:"profile"`
 
@@ -266,8 +266,8 @@ type ChunkerConfig struct {
 	OverlapRunes int `yaml:"overlapRunes" mapstructure:"overlapRunes"`
 }
 
-// AskConfig defines configuration for RAG-based question answering.
-type AskConfig struct {
+// AnswerConfig defines configuration for RAG-based question answering.
+type AnswerConfig struct {
 	Profile      string  `yaml:"profile" mapstructure:"profile"`
 	SystemPrompt string  `yaml:"systemPrompt" mapstructure:"systemPrompt"`
 	TopK         int     `yaml:"topK" mapstructure:"topK"`

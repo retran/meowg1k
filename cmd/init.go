@@ -77,7 +77,7 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "2. Set the environment variable:\n")                                   //nolint:errcheck // Output errors are not critical
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   export MEOW_GEMINI_API_KEY=\"your-api-key-here\"\n")                //nolint:errcheck // Output errors are not critical
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "3. Try it out:\n")                                                     //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow generate\n")          //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow write\n")             //nolint:errcheck // Output errors are not critical
 		}
 
 		return nil

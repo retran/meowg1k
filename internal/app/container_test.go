@@ -214,7 +214,7 @@ func TestNewAppContainer(t *testing.T) {
     model: "gpt-3.5-turbo"
     maxInputTokens: 1000
     maxOutputTokens: 500
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -502,7 +502,7 @@ func TestNewAppContainerServicesCreation(t *testing.T) {
   anthropic:
     provider: "anthropic"
     model: "claude-3"
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -561,14 +561,14 @@ generate:
 		t.Errorf("Expected 2 profiles, got %d", len(cfg.Profiles))
 	}
 
-	if cfg.Generate == nil {
+	if cfg.Write == nil {
 		t.Error("Generate config should not be nil")
 	}
 
-	if cfg.Generate.Tasks == nil {
+	if cfg.Write.Tasks == nil {
 		t.Log("No explicit tasks configured beyond default")
-	} else if len(cfg.Generate.Tasks) != 1 {
-		t.Logf("Expected 1 task, got %d", len(cfg.Generate.Tasks))
+	} else if len(cfg.Write.Tasks) != 1 {
+		t.Logf("Expected 1 task, got %d", len(cfg.Write.Tasks))
 	}
 
 	taskName, err := container.CommandService.GetTaskName()
@@ -603,7 +603,7 @@ func TestAppContainerKeyContextValue(t *testing.T) {
   minimal:
     provider: "test"
     model: "test-model"
-generate:
+write:
   default:
     profile: "minimal"
 `

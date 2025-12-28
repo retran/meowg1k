@@ -792,8 +792,8 @@ func TestNilServiceMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("GetTargetBranchFlag on nil service", func(t *testing.T) {
-		_, err := service.GetTargetBranchFlag()
+	t.Run("GetDiffFlag on nil service", func(t *testing.T) {
+		_, err := service.GetDiffFlag()
 		if err == nil {
 			t.Error("Expected error for nil service, got nil")
 		}
@@ -960,7 +960,7 @@ func TestGetQueryTextFlagFromArgs(t *testing.T) {
 	}
 
 	// Simulate passing arguments
-	cmd.SetArgs([]string{"test query text"})
+	cmd.SetArgs([]string{"test searchindex text"})
 	cmd.Execute()
 
 	service, err := NewService(cmd)
@@ -973,8 +973,8 @@ func TestGetQueryTextFlagFromArgs(t *testing.T) {
 		t.Fatalf("GetQueryTextFlag failed: %v", err)
 	}
 
-	if queryText != "test query text" {
-		t.Errorf("Expected query text 'test query text', got '%s'", queryText)
+	if queryText != "test searchindex text" {
+		t.Errorf("Expected searchindex text 'test searchindex text', got '%s'", queryText)
 	}
 }
 
@@ -992,8 +992,8 @@ func TestGetQueryTextFlagNoArgsNoStdin(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no args and no stdin")
 	}
-	if !strings.Contains(err.Error(), "query text is required") {
-		t.Errorf("Expected 'query text is required' error, got: %v", err)
+	if !strings.Contains(err.Error(), "searchindex text is required") {
+		t.Errorf("Expected 'searchindex text is required' error, got: %v", err)
 	}
 }
 
@@ -1546,7 +1546,7 @@ func TestGetTaskInputFromArgs(t *testing.T) {
 		Run: func(cmd *cobra.Command, args []string) {},
 	}
 
-	cmd.SetArgs([]string{"do the thing"})
+	cmd.SetArgs([]string{"run the thing"})
 	cmd.Execute()
 
 	service, err := NewService(cmd)
@@ -1559,8 +1559,8 @@ func TestGetTaskInputFromArgs(t *testing.T) {
 		t.Fatalf("GetTaskInput failed: %v", err)
 	}
 
-	if taskInput != "do the thing" {
-		t.Errorf("Expected task input 'do the thing', got '%s'", taskInput)
+	if taskInput != "run the thing" {
+		t.Errorf("Expected task input 'run the thing', got '%s'", taskInput)
 	}
 }
 

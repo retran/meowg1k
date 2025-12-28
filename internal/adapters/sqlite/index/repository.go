@@ -223,7 +223,7 @@ func (r *Repository) GetAllEmbeddings(ctx context.Context) (map[int64]gateway.Em
 		WHERE embedding IS NOT NULL
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query embeddings: %w", err)
+		return nil, fmt.Errorf("failed to searchindex embeddings: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -289,7 +289,7 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Build query with placeholders for batch lookup using IN clause
+	// Build searchindex with placeholders for batch lookup using IN clause
 	placeholders := make([]string, len(contentHashes))
 	args := make([]interface{}, len(contentHashes))
 	for i, contentHash := range contentHashes {
@@ -297,18 +297,18 @@ func (r *Repository) FindVersionsByContentHashes(ctx context.Context, contentHas
 		args[i] = contentHash
 	}
 
-	// Build query with safe string concatenation (placeholders are not user input)
+	// Build searchindex with safe string concatenation (placeholders are not user input)
 	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
-	query := `
+	searchindex := `
 		SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
 		WHERE content_hash IN (` + strings.Join(placeholders, ", ") + `)
 		GROUP BY content_hash
 		HAVING id = MAX(id)`
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, searchindex, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query versions by content hashes: %w", err)
+		return nil, fmt.Errorf("failed to searchindex versions by content hashes: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -387,7 +387,7 @@ func (r *Repository) FindVersionsByFilePath(ctx context.Context, filePath string
 		filePath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query versions by file path: %w", err)
+		return nil, fmt.Errorf("failed to searchindex versions by file path: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -422,7 +422,7 @@ func (r *Repository) GetChunksByVersionID(ctx context.Context, versionID int64) 
 		versionID,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query chunks by version ID: %w", err)
+		return nil, fmt.Errorf("failed to searchindex chunks by version ID: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -441,7 +441,7 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Build query with placeholders for IN clause
+	// Build searchindex with placeholders for IN clause
 	placeholders := make([]string, len(chunkIDs))
 	args := make([]interface{}, len(chunkIDs))
 	for i, id := range chunkIDs {
@@ -449,17 +449,17 @@ func (r *Repository) GetChunksByIDs(ctx context.Context, chunkIDs []int64) ([]do
 		args[i] = id
 	}
 
-	// Build query with safe string concatenation (placeholders are not user input)
+	// Build searchindex with safe string concatenation (placeholders are not user input)
 	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
-	query := `
+	searchindex := `
 		SELECT id, document_version_id, chunk_type, text_content,
 		start_byte, end_byte, start_rune, end_rune, start_line, end_line, embedding
 		FROM chunks
 		WHERE id IN (` + strings.Join(placeholders, ", ") + `)`
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, searchindex, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query chunks by IDs: %w", err)
+		return nil, fmt.Errorf("failed to searchindex chunks by IDs: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -544,7 +544,7 @@ func (r *Repository) GetVersionIDsForSnapshot(ctx context.Context, commitHash st
 		commitHash,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query version IDs for snapshot %s: %w", commitHash, err)
+		return nil, fmt.Errorf("failed to searchindex version IDs for snapshot %s: %w", commitHash, err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -598,9 +598,9 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 		placeholders[i] = "?"
 	}
 
-	// Build query with safe string concatenation (placeholders are not user input)
+	// Build searchindex with safe string concatenation (placeholders are not user input)
 	// #nosec G202 -- placeholders are hardcoded "?" strings, not user input; actual values are parameterized
-	query := `SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
+	searchindex := `SELECT id, file_path, git_commit_hash_first_seen, content_hash, indexed_at
 		FROM document_versions
 		WHERE id IN (` + strings.Join(placeholders, ", ") + `)`
 
@@ -610,9 +610,9 @@ func (r *Repository) GetVersionsByIDs(ctx context.Context, versionIDs []int64) (
 		args[i] = id
 	}
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	rows, err := db.QueryContext(ctx, searchindex, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query versions by IDs: %w", err)
+		return nil, fmt.Errorf("failed to searchindex versions by IDs: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 

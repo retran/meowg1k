@@ -178,14 +178,14 @@ func TestSearchService_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("Empty query embedding", func(t *testing.T) {
+	t.Run("Empty searchindex embedding", func(t *testing.T) {
 		service, _ := NewSearchService(&mockMetaRepository{})
 
 		_, err := service.Search(context.Background(), "snap", gateway.Embedding{}, 5)
 		if err == nil {
-			t.Fatal("Expected error for empty query embedding")
+			t.Fatal("Expected error for empty searchindex embedding")
 		}
-		if !strings.Contains(err.Error(), "query embedding cannot be empty") {
+		if !strings.Contains(err.Error(), "searchindex embedding cannot be empty") {
 			t.Errorf("Expected embedding error, got: %v", err)
 		}
 	})

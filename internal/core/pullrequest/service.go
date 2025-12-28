@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/profile"
-	pullrequest2 "github.com/retran/meowg1k/internal/domain/pullrequest"
+	domainpullrequest "github.com/retran/meowg1k/internal/domain/pullrequest"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
@@ -35,7 +35,7 @@ func NewService(configResolver ports.ConfigResolver, profileResolver ports.Profi
 }
 
 // Get resolves the PR configuration.
-func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
+func (s *Service) Get() (*domainpullrequest.ResolvedConfig, error) {
 	if s == nil {
 		return nil, fmt.Errorf("pull request service is nil")
 	}
@@ -49,10 +49,10 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 	var systemPrompt string
 	var strategy string
 
-	if config.PullRequest != nil {
-		profileName = config.PullRequest.Profile
-		systemPrompt = config.PullRequest.SystemPrompt
-		strategy = config.PullRequest.Strategy
+	if config.Pr != nil {
+		profileName = config.Pr.Profile
+		systemPrompt = config.Pr.SystemPrompt
+		strategy = config.Pr.Strategy
 	}
 
 	// Default to "summarize" if strategy is not specified
@@ -69,7 +69,7 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 		return nil, fmt.Errorf("failed to get system prompt")
 	}
 
-	return &pullrequest2.ResolvedConfig{
+	return &domainpullrequest.ResolvedConfig{
 		Profile:      resolvedProfile,
 		Strategy:     strategy,
 		SystemPrompt: systemPrompt,

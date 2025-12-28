@@ -11,9 +11,9 @@ This document outlines the strategic product roadmap for `meowg1k`. The plan is 
 - **Core Command Suite**
   - **Description:** This release will deliver a complete and robust suite of foundational commands:
     - `init`: For easy project setup.
-    - `generate`: For flexible, task-based content generation.
-    - `commit`: For automated commit message generation.
-    - `pullrequest`: For automated PR description generation.
+    - `write`: For flexible, task-based content generation.
+    - `draft commit`: For automated commit message generation.
+    - `draft pr`: For automated PR description generation.
     - **`review`**: A new, dedicated command for performing automated code reviews. It will act as a user-friendly alias for the pre-configured `review` task, accepting file paths as arguments or code from `stdin` to provide comprehensive analysis.
   - **Purpose:** To provide a stable and feature-rich command-line experience that serves as the basis for all advanced functionality.
 
@@ -27,10 +27,10 @@ This document outlines the strategic product roadmap for `meowg1k`. The plan is 
 - **Project Intelligence (Local RAG)**
   - **Project Indexing (`meow index`):** An indexing engine to create local vector embeddings of the codebase, stored in SQLite.
   - **Semantic Search (`meow search`):** A command for performing natural-language searches across the indexed project.
-  - **Retrieval-Augmented Generation (RAG):** The `generate` command will be enhanced to automatically inject relevant code snippets from the index into the LLM context.
+  - **Retrieval-Augmented Generation (RAG):** The `write` command will be enhanced to automatically inject relevant code snippets from the index into the LLM context.
 
 - **IDE Integration & Autonomous Operation**
-  - **LSP Server (`meow lsp`):** `meowg1k` will function as a Language Server, providing deep IDE integration with intelligent, RAG-powered code completions.
+  - **LSP Server (`meow lsp`):** `meow` will function as a Language Server, providing deep IDE integration with intelligent, RAG-powered code completions.
   - **Autonomous Agent Framework (`meow agent run`):** A new agent mode for executing complex, multi-step tasks, built upon the `pkg/executor` framework.
   - **Agentic Tool Use:** The agent will be capable of executing external command-line tools (`git`, `docker`, `kubectl`, etc.) within a secure sandbox.
   - **Model Context Protocol (MCP):** The agent will use a structured protocol to assemble its context for the LLM, enabling more sophisticated reasoning.
@@ -43,7 +43,7 @@ This document outlines the strategic product roadmap for `meowg1k`. The plan is 
   - **Shared Team Indices:** A client-server model for a centralized, shared project index that can be automatically updated in CI/CD.
 
 - **Developer Experience (DX) & Usability**
-  - **AI-Powered Code Actions:** Building on the v0.1.0 LSP server, this will add contextual actions in the IDE (e.g., "Generate unit tests for this function"), integrating existing `generate` tasks.
+  - **AI-Powered Code Actions:** Building on the v0.1.0 LSP server, this will add contextual actions in the IDE (e.g., "Generate unit tests for this function"), integrating existing `write` tasks.
   - **Interactive Setup (`meow init --interactive`):** An interactive wizard to guide new users through the initial configuration process.
   - **Configuration Health Checks:** Introduction of `meow config validate` and `meow config test <profile>` to verify configuration correctness and provider connectivity.
 

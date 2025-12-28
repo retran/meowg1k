@@ -48,13 +48,13 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 		expectedType string
 	}{
 		{domainGateway.RetrievalDocument, "document"},
-		{domainGateway.RetrievalQuery, "query"},
-		{domainGateway.CodeRetrievalQuery, "query"},
+		{domainGateway.RetrievalQuery, "searchindex"},
+		{domainGateway.CodeRetrievalQuery, "searchindex"},
 		{domainGateway.Classification, "classification"},
 		{domainGateway.Clustering, "clustering"},
-		{domainGateway.SemanticSimilarity, "query"},
-		{domainGateway.QuestionAnswering, "query"},
-		{domainGateway.FactVerification, "query"},
+		{domainGateway.SemanticSimilarity, "searchindex"},
+		{domainGateway.QuestionAnswering, "searchindex"},
+		{domainGateway.FactVerification, "searchindex"},
 	}
 
 	for _, tc := range testCases {
@@ -69,16 +69,16 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 	t.Run("Unknown task type", func(t *testing.T) {
 		unknownType := domainGateway.TaskType("unknown")
 		result := mapTaskTypeToInputType(unknownType)
-		if result != "query" {
-			t.Errorf("Expected 'query' for unknown task type, got %s", result)
+		if result != "searchindex" {
+			t.Errorf("Expected 'searchindex' for unknown task type, got %s", result)
 		}
 	})
 
 	t.Run("Empty task type", func(t *testing.T) {
 		emptyType := domainGateway.TaskType("")
 		result := mapTaskTypeToInputType(emptyType)
-		if result != "query" {
-			t.Errorf("Expected 'query' for empty task type, got %s", result)
+		if result != "searchindex" {
+			t.Errorf("Expected 'searchindex' for empty task type, got %s", result)
 		}
 	})
 }

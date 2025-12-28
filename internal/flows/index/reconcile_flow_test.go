@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/chunkallfiles"
-	"github.com/retran/meowg1k/internal/activities/computeallembeddings"
-	"github.com/retran/meowg1k/internal/activities/deduplicateandprepare"
-	"github.com/retran/meowg1k/internal/activities/distributeandsave"
-	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
-	"github.com/retran/meowg1k/internal/activities/preparebatches"
-	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
+	"github.com/retran/meowg1k/internal/activities/embedall"
+	"github.com/retran/meowg1k/internal/activities/prepareindex"
+	"github.com/retran/meowg1k/internal/activities/savechunks"
+	"github.com/retran/meowg1k/internal/activities/finalizeindex"
+	"github.com/retran/meowg1k/internal/activities/buildbatches"
+	"github.com/retran/meowg1k/internal/activities/scanworktree"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -37,24 +37,24 @@ func (m *mockActivityFactory[I, O]) NewActivity() executor.Activity[I, O] {
 
 func TestNewFactory(t *testing.T) {
 	validCleanup := &mockActivityFactory[struct{}, struct{}]{}
-	validScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{}
-	validDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{}
-	validChunk := &mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{}
-	validPrepareBatches := &mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{}
-	validCompute := &mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{}
-	validDistribute := &mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{}
-	validFinalize := &mockActivityFactory[*finalizesnapshots.Input, struct{}]{}
+	validScan := &mockActivityFactory[struct{}, *scanworktree.Output]{}
+	validDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{}
+	validChunk := &mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{}
+	validPrepareBatches := &mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{}
+	validCompute := &mockActivityFactory[*embedall.Input, *embedall.Output]{}
+	validDistribute := &mockActivityFactory[*savechunks.Input, *savechunks.Output]{}
+	validFinalize := &mockActivityFactory[*finalizeindex.Input, struct{}]{}
 	validBuildVector := &mockActivityFactory[struct{}, struct{}]{}
 
 	tests := []struct {
-		computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
+		computeAllEmbeddingsFactory  executor.ActivityFactory[*embedall.Input, *embedall.Output]
 		cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
-		scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
-		deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
-		chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
-		prepareBatchesFactory        executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
-		distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
-		finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
+		scanStateFactory             executor.ActivityFactory[struct{}, *scanworktree.Output]
+		deduplicateAndPrepareFactory executor.ActivityFactory[*prepareindex.Input, *prepareindex.Output]
+		chunkAllFilesFactory         executor.ActivityFactory[*splitfiles.Input, *splitfiles.Output]
+		prepareBatchesFactory        executor.ActivityFactory[*buildbatches.Input, *buildbatches.Output]
+		distributeAndSaveFactory     executor.ActivityFactory[*savechunks.Input, *savechunks.Output]
+		finalizeSnapshotsFactory     executor.ActivityFactory[*finalizeindex.Input, struct{}]
 		buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
 		name                         string
 		expectedErrMsg               string
@@ -305,13 +305,13 @@ func TestFactory_NewFlow(t *testing.T) {
 			setupFactory: func() *Factory {
 				factory, _ := NewFactory(
 					&mockActivityFactory[struct{}, struct{}]{},
-					&mockActivityFactory[struct{}, *scanworkspacestate.Output]{},
-					&mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{},
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[struct{}, *scanworktree.Output]{},
+					&mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -328,13 +328,13 @@ func TestFactory_NewFlow(t *testing.T) {
 			setupFactory: func() *Factory {
 				factory, _ := NewFactory(
 					&mockActivityFactory[struct{}, struct{}]{},
-					&mockActivityFactory[struct{}, *scanworkspacestate.Output]{},
-					&mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{},
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[struct{}, *scanworktree.Output]{},
+					&mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -351,13 +351,13 @@ func TestFactory_NewFlow(t *testing.T) {
 			setupFactory: func() *Factory {
 				factory, _ := NewFactory(
 					&mockActivityFactory[struct{}, struct{}]{},
-					&mockActivityFactory[struct{}, *scanworkspacestate.Output]{},
-					&mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{},
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[struct{}, *scanworktree.Output]{},
+					&mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -383,13 +383,13 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					mockCleanup,
-					&mockActivityFactory[struct{}, *scanworkspacestate.Output]{},
-					&mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{},
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[struct{}, *scanworktree.Output]{},
+					&mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -407,9 +407,9 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "scan activity error",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
 							return nil, errors.New("scan error")
 						}
 					},
@@ -417,12 +417,12 @@ func TestFactory_NewFlow(t *testing.T) {
 				factory, _ := NewFactory(
 					&mockActivityFactory[struct{}, struct{}]{},
 					mockScan,
-					&mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{},
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -440,16 +440,16 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "deduplicate activity error",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
-							return &scanworkspacestate.Output{}, nil
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
+							return &scanworktree.Output{}, nil
 						}
 					},
 				}
-				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
-					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
+				mockDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{
+					newActivityFunc: func() executor.Activity[*prepareindex.Input, *prepareindex.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *prepareindex.Input) (*prepareindex.Output, error) {
 							return nil, errors.New("deduplicate error")
 						}
 					},
@@ -458,11 +458,11 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[struct{}, struct{}]{},
 					mockScan,
 					mockDeduplicate,
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
-					&mockActivityFactory[*finalizesnapshots.Input, struct{}]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
+					&mockActivityFactory[*finalizeindex.Input, struct{}]{},
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
 				)
@@ -480,26 +480,26 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "successful flow - no new files to process",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
-							return &scanworkspacestate.Output{}, nil
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
+							return &scanworktree.Output{}, nil
 						}
 					},
 				}
-				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
-					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
-							return &deduplicateandprepare.Output{
+				mockDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{
+					newActivityFunc: func() executor.Activity[*prepareindex.Input, *prepareindex.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *prepareindex.Input) (*prepareindex.Output, error) {
+							return &prepareindex.Output{
 								ExistingVersions: make(map[string]int64),
 								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},
 				}
-				mockFinalize := &mockActivityFactory[*finalizesnapshots.Input, struct{}]{
-					newActivityFunc: func() executor.Activity[*finalizesnapshots.Input, struct{}] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *finalizesnapshots.Input) (struct{}, error) {
+				mockFinalize := &mockActivityFactory[*finalizeindex.Input, struct{}]{
+					newActivityFunc: func() executor.Activity[*finalizeindex.Input, struct{}] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *finalizeindex.Input) (struct{}, error) {
 							return struct{}{}, nil
 						}
 					},
@@ -515,10 +515,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[struct{}, struct{}]{},
 					mockScan,
 					mockDeduplicate,
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
 					mockFinalize,
 					mockBuildVector,
 					10,
@@ -536,16 +536,16 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "successful flow - with files to process",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
-							return &scanworkspacestate.Output{}, nil
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
+							return &scanworktree.Output{}, nil
 						}
 					},
 				}
-				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
-					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
+				mockDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{
+					newActivityFunc: func() executor.Activity[*prepareindex.Input, *prepareindex.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *prepareindex.Input) (*prepareindex.Output, error) {
 							files := []domainindex.FileToProcess{{
 								FilePath: "test.go",
 								State: domainindex.FileState{
@@ -553,46 +553,46 @@ func TestFactory_NewFlow(t *testing.T) {
 									Content:     []byte("content"),
 								},
 							}}
-							return &deduplicateandprepare.Output{
+							return &prepareindex.Output{
 								ExistingVersions: make(map[string]int64),
 								FilesToProcess:   files,
 							}, nil
 						}
 					},
 				}
-				mockChunk := &mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{
-					newActivityFunc: func() executor.Activity[*chunkallfiles.Input, *chunkallfiles.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *chunkallfiles.Input) (*chunkallfiles.Output, error) {
-							return &chunkallfiles.Output{}, nil
+				mockChunk := &mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{
+					newActivityFunc: func() executor.Activity[*splitfiles.Input, *splitfiles.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *splitfiles.Input) (*splitfiles.Output, error) {
+							return &splitfiles.Output{}, nil
 						}
 					},
 				}
-				mockPrepareBatches := &mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{
-					newActivityFunc: func() executor.Activity[*preparebatches.Input, *preparebatches.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *preparebatches.Input) (*preparebatches.Output, error) {
-							return &preparebatches.Output{}, nil
+				mockPrepareBatches := &mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{
+					newActivityFunc: func() executor.Activity[*buildbatches.Input, *buildbatches.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *buildbatches.Input) (*buildbatches.Output, error) {
+							return &buildbatches.Output{}, nil
 						}
 					},
 				}
-				mockCompute := &mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{
-					newActivityFunc: func() executor.Activity[*computeallembeddings.Input, *computeallembeddings.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *computeallembeddings.Input) (*computeallembeddings.Output, error) {
-							return &computeallembeddings.Output{}, nil
+				mockCompute := &mockActivityFactory[*embedall.Input, *embedall.Output]{
+					newActivityFunc: func() executor.Activity[*embedall.Input, *embedall.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *embedall.Input) (*embedall.Output, error) {
+							return &embedall.Output{}, nil
 						}
 					},
 				}
-				mockDistribute := &mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{
-					newActivityFunc: func() executor.Activity[*distributeandsave.Input, *distributeandsave.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *distributeandsave.Input) (*distributeandsave.Output, error) {
-							return &distributeandsave.Output{
+				mockDistribute := &mockActivityFactory[*savechunks.Input, *savechunks.Output]{
+					newActivityFunc: func() executor.Activity[*savechunks.Input, *savechunks.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *savechunks.Input) (*savechunks.Output, error) {
+							return &savechunks.Output{
 								VersionMap: map[string]int64{"hash1": 1},
 							}, nil
 						}
 					},
 				}
-				mockFinalize := &mockActivityFactory[*finalizesnapshots.Input, struct{}]{
-					newActivityFunc: func() executor.Activity[*finalizesnapshots.Input, struct{}] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *finalizesnapshots.Input) (struct{}, error) {
+				mockFinalize := &mockActivityFactory[*finalizeindex.Input, struct{}]{
+					newActivityFunc: func() executor.Activity[*finalizeindex.Input, struct{}] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *finalizeindex.Input) (struct{}, error) {
 							return struct{}{}, nil
 						}
 					},
@@ -629,26 +629,26 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "finalize snapshots error",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
-							return &scanworkspacestate.Output{}, nil
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
+							return &scanworktree.Output{}, nil
 						}
 					},
 				}
-				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
-					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
-							return &deduplicateandprepare.Output{
+				mockDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{
+					newActivityFunc: func() executor.Activity[*prepareindex.Input, *prepareindex.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *prepareindex.Input) (*prepareindex.Output, error) {
+							return &prepareindex.Output{
 								ExistingVersions: make(map[string]int64),
 								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},
 				}
-				mockFinalize := &mockActivityFactory[*finalizesnapshots.Input, struct{}]{
-					newActivityFunc: func() executor.Activity[*finalizesnapshots.Input, struct{}] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *finalizesnapshots.Input) (struct{}, error) {
+				mockFinalize := &mockActivityFactory[*finalizeindex.Input, struct{}]{
+					newActivityFunc: func() executor.Activity[*finalizeindex.Input, struct{}] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *finalizeindex.Input) (struct{}, error) {
 							return struct{}{}, errors.New("finalize error")
 						}
 					},
@@ -657,10 +657,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[struct{}, struct{}]{},
 					mockScan,
 					mockDeduplicate,
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
 					mockFinalize,
 					&mockActivityFactory[struct{}, struct{}]{},
 					10,
@@ -679,26 +679,26 @@ func TestFactory_NewFlow(t *testing.T) {
 		{
 			name: "build vector indices error",
 			setupFactory: func() *Factory {
-				mockScan := &mockActivityFactory[struct{}, *scanworkspacestate.Output]{
-					newActivityFunc: func() executor.Activity[struct{}, *scanworkspacestate.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworkspacestate.Output, error) {
-							return &scanworkspacestate.Output{}, nil
+				mockScan := &mockActivityFactory[struct{}, *scanworktree.Output]{
+					newActivityFunc: func() executor.Activity[struct{}, *scanworktree.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input struct{}) (*scanworktree.Output, error) {
+							return &scanworktree.Output{}, nil
 						}
 					},
 				}
-				mockDeduplicate := &mockActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]{
-					newActivityFunc: func() executor.Activity[*deduplicateandprepare.Input, *deduplicateandprepare.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *deduplicateandprepare.Input) (*deduplicateandprepare.Output, error) {
-							return &deduplicateandprepare.Output{
+				mockDeduplicate := &mockActivityFactory[*prepareindex.Input, *prepareindex.Output]{
+					newActivityFunc: func() executor.Activity[*prepareindex.Input, *prepareindex.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *prepareindex.Input) (*prepareindex.Output, error) {
+							return &prepareindex.Output{
 								ExistingVersions: make(map[string]int64),
 								FilesToProcess:   []domainindex.FileToProcess{},
 							}, nil
 						}
 					},
 				}
-				mockFinalize := &mockActivityFactory[*finalizesnapshots.Input, struct{}]{
-					newActivityFunc: func() executor.Activity[*finalizesnapshots.Input, struct{}] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *finalizesnapshots.Input) (struct{}, error) {
+				mockFinalize := &mockActivityFactory[*finalizeindex.Input, struct{}]{
+					newActivityFunc: func() executor.Activity[*finalizeindex.Input, struct{}] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *finalizeindex.Input) (struct{}, error) {
 							return struct{}{}, nil
 						}
 					},
@@ -714,10 +714,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					&mockActivityFactory[struct{}, struct{}]{},
 					mockScan,
 					mockDeduplicate,
-					&mockActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]{},
-					&mockActivityFactory[*preparebatches.Input, *preparebatches.Output]{},
-					&mockActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]{},
-					&mockActivityFactory[*distributeandsave.Input, *distributeandsave.Output]{},
+					&mockActivityFactory[*splitfiles.Input, *splitfiles.Output]{},
+					&mockActivityFactory[*buildbatches.Input, *buildbatches.Output]{},
+					&mockActivityFactory[*embedall.Input, *embedall.Output]{},
+					&mockActivityFactory[*savechunks.Input, *savechunks.Output]{},
 					mockFinalize,
 					mockBuildVector,
 					10,

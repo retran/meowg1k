@@ -90,11 +90,11 @@ func TestInitCommandCreatesConfig(t *testing.T) {
 		"profiles:",
 		"fast:",
 		"smart:",
-		"generate:",
+		"write:",
 		"filter:",
 		"summarize:",
 		"commit:",
-		"pullRequest:",
+		"pr:",
 	}
 
 	for _, expected := range expectedStrings {

@@ -56,7 +56,7 @@ func (g *cachingGenerationGateway) GenerateContent(
 
 	result, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return "", fmt.Errorf("failed to write content: %w", err)
 	}
 
 	if err := g.cache.Set(ctx, cacheKey, result); err != nil {
@@ -93,7 +93,7 @@ func (g *cachingGenerationGateway) GenerateContentWithTools(
 
 	response, err := inner.GenerateContentWithTools(ctx, request, tools)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate content with tools: %w", err)
+		return nil, fmt.Errorf("failed to write content with tools: %w", err)
 	}
 	return response, nil
 }

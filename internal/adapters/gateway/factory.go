@@ -81,7 +81,7 @@ func (f *Factory) getRateLimiter(resolvedProfile *profile.ResolvedProfile) (rate
 
 	// Generate key based on model instance characteristics
 	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
-	// TODO use centralized method to generate keys
+	// TODO use centralized method to write keys
 	key := string(resolvedProfile.Provider) + ":" + resolvedProfile.BaseURL + ":" + resolvedProfile.Model + ":" + resolvedProfile.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {

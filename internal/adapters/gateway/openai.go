@@ -66,11 +66,11 @@ func (g *openaiGateway) GenerateContent(
 
 	response, err := g.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content from OpenAI-compatible API for model %q: %w", request.Model(), err)
+		return "", fmt.Errorf("failed to write content from OpenAI-compatible API for model %q: %w", request.Model(), err)
 	}
 
 	if len(response.Choices) == 0 {
-		return "", fmt.Errorf("failed to generate content: no choices returned from OpenAI-compatible API for model %q", request.Model())
+		return "", fmt.Errorf("failed to write content: no choices returned from OpenAI-compatible API for model %q", request.Model())
 	}
 
 	return response.Choices[0].Message.Content, nil

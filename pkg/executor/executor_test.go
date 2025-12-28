@@ -192,7 +192,7 @@ func TestNoOpFeedbackHandler(t *testing.T) {
 		Timestamp:    time.Now(),
 	}
 
-	handler(feedback) // Should do nothing and not panic
+	handler(feedback) // Should run nothing and not panic
 }
 
 func TestFeedbackString(t *testing.T) {
@@ -305,12 +305,12 @@ func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 	if feedbackCalls[0].Error == nil {
 		t.Error("Expected error in first retry feedback")
 	}
-	if feedbackCalls[0].Message != "Retrying operation" {
+	if feedbackCalls[0].Message != "I'm retrying the operation" {
 		t.Errorf("Expected retry message, got %q", feedbackCalls[0].Message)
 	}
 
 	// Check third retry
-	if feedbackCalls[1].Message != "Retrying operation" {
+	if feedbackCalls[1].Message != "I'm retrying the operation" {
 		t.Errorf("Expected retry message, got %q", feedbackCalls[1].Message)
 	}
 }

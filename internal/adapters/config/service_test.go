@@ -47,7 +47,7 @@ func TestNewServiceWithSpecificConfig(t *testing.T) {
 profiles:
   test:
     model: "gpt-35-turbo"
-generate:
+write:
   default:
     profile: "test"
     systemPrompt: "You are a helpful assistant"
@@ -119,16 +119,16 @@ generate:
 		t.Errorf("Expected model 'gpt-3.5-turbo', got '%s'", testModel.Model)
 	}
 
-	if config.Generate == nil {
+	if config.Write == nil {
 		t.Fatal("Generate config should not be nil")
 	}
 
-	if config.Generate.Default == nil {
+	if config.Write.Default == nil {
 		t.Fatal("Generate default should not be nil")
 	}
 
-	if config.Generate.Default.Profile != testProfileName {
-		t.Errorf("Expected default profile '%s', got '%s'", testProfileName, config.Generate.Default.Profile)
+	if config.Write.Default.Profile != testProfileName {
+		t.Errorf("Expected default profile '%s', got '%s'", testProfileName, config.Write.Default.Profile)
 	}
 }
 
@@ -233,7 +233,7 @@ func TestNewServiceWithConfigHome(t *testing.T) {
 profiles:
   default:
     model: "gpt4"
-generate:
+write:
   default:
     profile: "default"
 `
@@ -299,7 +299,7 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 profiles:
   user:
     model: "claude3"
-generate:
+write:
   default:
     profile: "user"
 `
@@ -361,7 +361,7 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 profiles:
   home:
     model: "gemini"
-generate:
+write:
   default:
     profile: "home"
 `
@@ -411,7 +411,7 @@ func TestNewServiceWithWorkspaceConfig(t *testing.T) {
 profiles:
   local:
     model: "llama-local"
-generate:
+write:
   default:
     profile: "local"
 `
@@ -486,7 +486,7 @@ profiles:
     model: "base-model"
   shared:
     model: "base-model"
-generate:
+write:
   default:
     profile: "user"
 `
@@ -768,7 +768,7 @@ func TestNewServiceWithYMLExtension(t *testing.T) {
 profiles:
   yml:
     model: "yml-test"
-generate:
+write:
   default:
     profile: "yml"
 `

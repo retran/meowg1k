@@ -66,7 +66,7 @@ func (s *SearchService) Search(
 	}
 
 	if len(queryEmbedding) == 0 {
-		return nil, fmt.Errorf("query embedding cannot be empty")
+		return nil, fmt.Errorf("searchindex embedding cannot be empty")
 	}
 
 	if topK <= 0 {
@@ -100,7 +100,7 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("failed to import HNSW graph for snapshot %q: %w", snapshotName, err)
 	}
 
-	// Step 4: Convert query embedding from float64 to float32
+	// Step 4: Convert searchindex embedding from float64 to float32
 	queryVec := make([]float32, len(queryEmbedding))
 	for i, val := range queryEmbedding {
 		queryVec[i] = float32(val)
@@ -116,7 +116,7 @@ func (s *SearchService) Search(
 	results := make([]QueryResult, 0, len(searchResults))
 	for _, node := range searchResults {
 		// Calculate similarity from the embeddings
-		// We'll compute cosine similarity: dot(query, node) / (||query|| * ||node||)
+		// We'll compute cosine similarity: dot(searchindex, node) / (||searchindex|| * ||node||)
 		similarity := cosineSimilarity(queryVec, node.Value)
 
 		results = append(results, QueryResult{

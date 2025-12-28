@@ -107,9 +107,9 @@ profiles:
       enabled: true
       ttl: "72h"
 
-# Configures pre-defined tasks for the 'meowg1k generate' command.
-generate:
-  # Default settings for all 'generate' tasks unless overridden.
+# Configures pre-defined tasks for the 'meow write' command.
+write:
+  # Default settings for all write tasks unless overridden.
   default:
     # (Required) The default profile to use.
     profile: "fast"
@@ -119,7 +119,7 @@ generate:
       Your responses must be clear, concise, and production-ready.
       Adhere strictly to the user's requirements.
 
-  # A collection of custom, reusable tasks, invokable with 'meowg1k generate -t <task_name>'.
+  # A collection of custom, reusable tasks, invokable with 'meow write -t <task_name>'.
   tasks:
     review:
       # (Optional) A specific profile for this task, overriding the default.
@@ -161,8 +161,8 @@ index:
   # (Optional, default: 32) Number of chunks to process in a single embedding API call.
   batchSize: 32
 
-# Configures the question-answering behavior of 'meowg1k ask'.
-ask:
+# Configures the question-answering behavior of 'meow ask'.
+answer:
   # (Required) Profile for generating the final answer.
   profile: "smart"
   # (Optional, default: 5) The number of top-matching document chunks to retrieve for context.
@@ -244,7 +244,7 @@ agent:
         plan: ["list"]
         memory: ["add", "list"]
 
-# Configures the "map" step for 'commit' and 'pullrequest' commands (when using "summarize" strategy).
+# Configures the "map" step for 'commit' and 'pr' commands (when using "summarize" strategy).
 summarize:
   # Default settings applied when no specific rule matches.
   default:
@@ -269,7 +269,7 @@ summarize:
       # (Optional) If true, files matching this pattern are not summarized.
       skip: true
 
-# Configures the 'meowg1k commit' command for generating Git commit messages.
+# Configures the 'meow draft commit' command for generating Git commit messages.
 commit:
   default:
     # (Required) Profile to use for generating the final commit message.
@@ -285,8 +285,8 @@ commit:
       Focus on the "why" and "what" of the changes, not the "how".
       The message should be suitable for a changelog.
 
-# Configures the 'meowg1k pullrequest' command for generating PR descriptions.
-pullRequest:
+# Configures the 'meow draft pr' command for generating PR descriptions.
+pr:
   default:
     # (Required) Profile to use for generating the PR description.
     profile: "smart"

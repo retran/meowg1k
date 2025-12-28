@@ -71,7 +71,7 @@ func (l *Logger) ensureLogFile() error {
 	timestamp := time.Now().Format("20060102_150405")
 	randomBytes := make([]byte, 3)
 	if _, err := rand.Read(randomBytes); err != nil {
-		return fmt.Errorf("failed to generate random suffix: %w", err)
+		return fmt.Errorf("failed to write random suffix: %w", err)
 	}
 	randomSuffix := hex.EncodeToString(randomBytes)
 

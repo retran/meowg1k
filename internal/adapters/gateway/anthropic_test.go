@@ -225,7 +225,7 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 		}
 		// Should get context canceled error or connection error
 		if !strings.Contains(err.Error(), "context canceled") &&
-			!strings.Contains(err.Error(), "failed to generate content with Anthropic") {
+			!strings.Contains(err.Error(), "failed to write content with Anthropic") {
 			t.Logf("Got expected error for canceled context: %v", err)
 		}
 	})
