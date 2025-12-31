@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -48,9 +49,29 @@ func (r *Registry) Get(name string) (Tool, bool) {
 func (r *Registry) ExecuteTool(ctx context.Context, execCtx *executor.Context, toolName string, args map[string]any) (any, error) {
 	tool, ok := r.Get(toolName)
 	if !ok {
+		if suggestion := r.suggestToolName(toolName); suggestion != "" {
+			return nil, fmt.Errorf("tool not found: %s (did you mean %s?)", toolName, suggestion)
+		}
 		return nil, fmt.Errorf("tool not found: %s", toolName)
 	}
 	return tool.Handler(ctx, execCtx, args)
+}
+
+func (r *Registry) suggestToolName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+
+	// Common LLM hallucinations / legacy names.
+	switch name {
+	case "execute_shell", "run_terminal":
+		if _, ok := r.Get("run_shell"); ok {
+			return "run_shell"
+		}
+	}
+
+	return ""
 }
 
 // GetDefinitions returns the definitions for the specified tool names.

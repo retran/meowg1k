@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -48,7 +49,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
 		}
 
-		flowCtx.SendRunningWithDetails("Running command", fmt.Sprintf("cmd=%s args=%v", input.Command, input.Args))
+		cmdLine := input.Command
+		if len(input.Args) > 0 {
+			cmdLine = cmdLine + " " + strings.Join(input.Args, " ")
+		}
+		flowCtx.SendRunning(fmt.Sprintf("Running: %s", cmdLine))
 
 		cmd := exec.CommandContext(ctx, input.Command, input.Args...)
 		cmd.Dir = workspaceRoot
@@ -71,7 +76,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		outStr := stdout.String()
 		errStr := stderr.String()
 
-		flowCtx.SendCompletedWithDetails("Ran command", fmt.Sprintf("exitCode=%d stdout_len=%d stderr_len=%d", exitCode, len(outStr), len(errStr)))
+		if exitCode == 0 {
+			flowCtx.SendCompleted(fmt.Sprintf("Ran: %s", cmdLine))
+		} else {
+			flowCtx.SendCompleted(fmt.Sprintf("Ran: %s (exit %d)", cmdLine, exitCode))
+		}
 
 		return &Output{
 			Stdout:   outStr,

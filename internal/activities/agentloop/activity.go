@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
-	agentconfig "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
@@ -20,34 +19,17 @@ import (
 
 const defaultMaxIterations = 20
 
-// ToolExecutor executes a model-emitted tool call.
-//
-// Callers can inject an implementation when ready.
-// Note: tool implementations are intentionally not provided yet.
-type ToolExecutor interface {
-	ExecuteTool(ctx context.Context, execCtx *executor.Context, toolName string, args map[string]any) (any, error)
-}
-
-// NoopToolExecutor returns a deterministic "not implemented" result.
-// This keeps the loop functional while we revise tool implementations.
-type NoopToolExecutor struct{}
-
-func (NoopToolExecutor) ExecuteTool(_ context.Context, _ *executor.Context, toolName string, _ map[string]any) (any, error) {
-	return map[string]any{"tool": toolName, "error": "tool not implemented"}, nil
-}
-
 // Input defines the agent iteration input parameters.
 type Input struct {
-	ToolExecutor   ToolExecutor // Deprecated: Use ToolRegistry
-	ToolRegistry   *tools.Registry
-	AllowedTools   []string
-	StepName       string
-	Profile        *profile.ResolvedProfile
-	StepConfig     *agentconfig.StepConfig
-	PriorSummaries *[]string
-	Goal           *string
-	SystemPrompt   *string
-	MaxIterations  *int
+	ToolRegistry             *tools.Registry
+	AllowedTools             []string
+	ToolDescriptionOverrides map[string]string
+	StepName                 string
+	Profile                  *profile.ResolvedProfile
+	PriorSummaries           *[]string
+	Goal                     *string
+	SystemPrompt             *string
+	MaxIterations            *int
 }
 
 // Output defines the agent iteration output.
@@ -78,30 +60,22 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		stepName := strings.TrimSpace(input.StepName)
 		if stepName == "" {
-			stepName = resolveStepName(input.StepConfig)
+			stepName = "unknown"
+		}
+		stepLabel := strings.TrimSpace(strings.Title(stepName))
+		if stepLabel == "" {
+			stepLabel = "Unknown"
 		}
 		execCtx.SendRunning(getStepDisplayName(stepName))
+		execCtx.SendProgress(fmt.Sprintf("Step started: %s", stepLabel))
 
 		maxIterations := defaultMaxIterations
 		if input.MaxIterations != nil && *input.MaxIterations > 0 {
 			maxIterations = *input.MaxIterations
 		}
 
-		var toolDefs []gateway.ToolDefinition
-		var toolExec ToolExecutor
-
-		if input.ToolRegistry != nil {
-			// Use the registry
-			toolDefs = input.ToolRegistry.GetDefinitions(input.AllowedTools)
-			toolExec = input.ToolRegistry
-		} else {
-			// Legacy/Fallback behavior
-			toolDefs = buildToolDefinitions(input.StepConfig)
-			toolExec = input.ToolExecutor
-			if toolExec == nil {
-				toolExec = NoopToolExecutor{}
-			}
-		}
+		toolDefs := input.ToolRegistry.GetDefinitions(input.AllowedTools)
+		applyToolDescriptionOverrides(toolDefs, input.ToolDescriptionOverrides)
 
 		state := &loopState{
 			transcript:  make([]transcriptEntry, 0),
@@ -111,12 +85,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		for iteration := 1; iteration <= maxIterations; iteration++ {
 			iterationCtx := execCtx.Child(fmt.Sprintf("Iteration#%d", iteration))
 
+			messages := buildMessages(stringValue(input.Goal), stringSliceValue(input.PriorSummaries), state)
 			resp, err := f.invokeLLM(
 				ctx,
 				iterationCtx,
 				input.Profile,
-				buildSystemPrompt(stringValue(input.SystemPrompt), input.StepConfig),
+				strings.TrimSpace(stringValue(input.SystemPrompt)),
 				buildUserPrompt(stringValue(input.Goal), stringSliceValue(input.PriorSummaries), state),
+				messages,
 				toolDefs,
 			)
 			if err != nil {
@@ -127,21 +103,30 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 
 			blocks := resp.Response.Blocks
-			iterationCtx.SendProgressWithDetails("agent.response", fmt.Sprintf("blocks=%d", len(blocks)))
 
 			hadToolCalls := false
+			pendingNarration := make([]string, 0)
+			postToolText := make([]string, 0)
 			for _, block := range blocks {
 				switch block.Kind {
 				case gateway.ContentBlockReasoning:
 					text := strings.TrimSpace(block.Text)
 					if text != "" {
-						iterationCtx.SendProgressWithDetails("agent.thought", text)
+						if hadToolCalls {
+							postToolText = append(postToolText, text)
+						} else {
+							pendingNarration = append(pendingNarration, text)
+						}
 						state.transcript = append(state.transcript, transcriptEntry{Kind: "reasoning", Text: text})
 					}
 				case gateway.ContentBlockText:
 					text := strings.TrimSpace(block.Text)
 					if text != "" {
-						iterationCtx.SendProgressWithDetails("agent.output", text)
+						if hadToolCalls {
+							postToolText = append(postToolText, text)
+						} else {
+							pendingNarration = append(pendingNarration, text)
+						}
 						state.transcript = append(state.transcript, transcriptEntry{Kind: "text", Text: text})
 					}
 				case gateway.ContentBlockToolCall:
@@ -149,6 +134,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 						continue
 					}
 					hadToolCalls = true
+					postToolText = postToolText[:0]
 
 					call := *block.ToolCall
 					args := call.Arguments
@@ -156,20 +142,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 						args = map[string]any{}
 					}
 
-					iterationCtx.SendProgressWithDetails("agent.tool_call", formatToolCallDetails(call))
-					toolCtx := iterationCtx.Child(fmt.Sprintf("Tool:%s", call.Name))
-					toolCtx.SendRunningWithDetails("I'm running a tool", fmt.Sprintf("name=%s", call.Name))
+					title := formatToolCallTitle(call.Name, args)
+					details := formatToolCallDetails(call, args, strings.Join(pendingNarration, "\n\n"))
+					pendingNarration = pendingNarration[:0]
+					iterationCtx.SendProgressWithDetails(title, details)
+					toolCtx := iterationCtx.Child(title)
 
-					result, toolErr := toolExec.ExecuteTool(ctx, toolCtx, call.Name, args)
+					result, toolErr := input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
 					if toolErr != nil {
-						toolCtx.SendFailedWithDetails(toolErr, "Tool failed", fmt.Sprintf("name=%s", call.Name))
+						toolCtx.SendFailedWithDetails(toolErr, "Tool failed", toolErr.Error())
 						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
 					}
-					toolCtx.SendCompletedWithDetails("I've finished running the tool", fmt.Sprintf("name=%s", call.Name))
 
 					state.toolResults = append(state.toolResults, toolResult{ID: call.ID, Name: call.Name, Args: args, Result: result})
+					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_call", ToolName: call.Name, ToolID: call.ID, ToolArgs: args})
 					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_result", ToolName: call.Name, ToolID: call.ID, ToolResult: result})
 				}
+			}
+
+			finalTextAfterTools := strings.TrimSpace(strings.Join(postToolText, "\n\n"))
+			if hadToolCalls && finalTextAfterTools != "" {
+				finalSummary := strings.TrimSpace(resp.Response.Reasoning())
+				if finalSummary == "" {
+					finalSummary = finalTextAfterTools
+				}
+				iterationCtx.SendProgressWithDetails("Answer", finalTextAfterTools)
+				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
+				return &Output{Summary: finalSummary, Content: finalTextAfterTools}, nil
 			}
 
 			if !hadToolCalls {
@@ -178,12 +177,44 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				if finalSummary == "" {
 					finalSummary = finalText
 				}
-				execCtx.SendCompletedWithDetails("agent.loop.ended", fmt.Sprintf("iterations=%d", iteration))
+				if finalText != "" {
+					iterationCtx.SendProgressWithDetails("Answer", finalText)
+				}
+				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
 				return &Output{Summary: finalSummary, Content: finalText}, nil
 			}
 		}
 
 		return nil, fmt.Errorf("agent iteration exceeded max iterations (%d)", maxIterations)
+	}
+}
+
+func applyToolDescriptionOverrides(defs []gateway.ToolDefinition, overrides map[string]string) {
+	if len(defs) == 0 || len(overrides) == 0 {
+		return
+	}
+
+	normalized := make(map[string]string, len(overrides))
+	for k, v := range overrides {
+		key := strings.ToLower(strings.TrimSpace(k))
+		val := strings.TrimSpace(v)
+		if key == "" || val == "" {
+			continue
+		}
+		normalized[key] = val
+	}
+	if len(normalized) == 0 {
+		return
+	}
+
+	for i := range defs {
+		name := strings.ToLower(strings.TrimSpace(defs[i].Name))
+		if name == "" {
+			continue
+		}
+		if desc, ok := normalized[name]; ok {
+			defs[i].Description = desc
+		}
 	}
 }
 
@@ -196,6 +227,7 @@ type toolResult struct {
 
 type transcriptEntry struct {
 	ToolResult any    `json:"tool_result,omitempty"`
+	ToolArgs   any    `json:"tool_args,omitempty"`
 	Kind       string `json:"kind"`
 	Text       string `json:"text,omitempty"`
 	ToolID     string `json:"tool_id,omitempty"`
@@ -217,21 +249,10 @@ func validateInput(factory *Factory, input *Input) error {
 	if input.Profile == nil {
 		return fmt.Errorf("profile is nil")
 	}
-	// StepConfig is only required for legacy tool-definition building.
-	if input.ToolRegistry == nil && input.StepConfig == nil {
-		return fmt.Errorf("step config is nil")
+	if input.ToolRegistry == nil {
+		return fmt.Errorf("tool registry is nil")
 	}
 	return nil
-}
-
-func resolveStepName(stepConfig *agentconfig.StepConfig) string {
-	if stepConfig == nil {
-		return "unknown"
-	}
-	if stepConfig.Index >= 0 && stepConfig.Index < len(agentconfig.StepOrder) {
-		return strings.ToLower(agentconfig.StepOrder[stepConfig.Index])
-	}
-	return "unknown"
 }
 
 func getStepDisplayName(stepName string) string {
@@ -247,51 +268,6 @@ func getStepDisplayName(stepName string) string {
 	default:
 		return fmt.Sprintf("I'm working on step %s", stepName)
 	}
-}
-
-func buildToolDefinitions(stepConfig *agentconfig.StepConfig) []gateway.ToolDefinition {
-	if stepConfig == nil {
-		return nil
-	}
-
-	defs := make([]gateway.ToolDefinition, 0)
-	for _, tool := range stepConfig.Tools {
-		toolLower := strings.ToLower(strings.TrimSpace(tool))
-		if toolLower == "" {
-			continue
-		}
-
-		modes := stepConfig.ToolModes[toolLower]
-		if len(modes) == 0 {
-			defs = append(defs, gateway.ToolDefinition{
-				Name:        toolLower,
-				Description: "Tool (implementation pending)",
-				Parameters:  map[string]any{"type": "object", "additionalProperties": true},
-			})
-			continue
-		}
-
-		for mode, allowed := range modes {
-			if !allowed {
-				continue
-			}
-			modeLower := strings.ToLower(strings.TrimSpace(mode))
-			if modeLower == "" {
-				continue
-			}
-			defs = append(defs, gateway.ToolDefinition{
-				Name:        fmt.Sprintf("%s.%s", toolLower, modeLower),
-				Description: "Tool (implementation pending)",
-				Parameters:  map[string]any{"type": "object", "additionalProperties": true},
-			})
-		}
-	}
-
-	return defs
-}
-
-func buildSystemPrompt(basePrompt string, _ *agentconfig.StepConfig) string {
-	return strings.TrimSpace(basePrompt)
 }
 
 func buildUserPrompt(goal string, summaries []string, state *loopState) string {
@@ -334,9 +310,68 @@ func buildUserPrompt(goal string, summaries []string, state *loopState) string {
 		}
 	}
 
-	sb.WriteString("Respond normally. If you need to use a tool, emit a tool call using the provided tool definitions.")
-
 	return strings.TrimSpace(sb.String())
+}
+
+func buildMessages(goal string, summaries []string, state *loopState) []gateway.Message {
+	goal = strings.TrimSpace(goal)
+
+	var user strings.Builder
+	if goal != "" {
+		user.WriteString("Goal:\n")
+		user.WriteString(goal)
+		user.WriteString("\n")
+	}
+	if len(summaries) > 0 {
+		user.WriteString("\nPriorSummaries:\n")
+		for _, s := range summaries {
+			trim := strings.TrimSpace(s)
+			if trim == "" {
+				continue
+			}
+			user.WriteString("- ")
+			user.WriteString(trim)
+			user.WriteString("\n")
+		}
+	}
+
+	messages := []gateway.Message{}
+	if strings.TrimSpace(user.String()) != "" {
+		messages = append(messages, gateway.Message{Role: gateway.MessageRoleUser, Content: strings.TrimSpace(user.String())})
+	}
+
+	if state == nil || len(state.toolResults) == 0 {
+		return messages
+	}
+
+	for _, tr := range state.transcript {
+		switch tr.Kind {
+		case "text", "reasoning":
+			if strings.TrimSpace(tr.Text) == "" {
+				continue
+			}
+			messages = append(messages, gateway.Message{Role: gateway.MessageRoleAssistant, Content: strings.TrimSpace(tr.Text)})
+		case "tool_call":
+			args := map[string]any{}
+			if tr.ToolArgs != nil {
+				if m, ok := tr.ToolArgs.(map[string]any); ok {
+					args = m
+				}
+			}
+			calls := []gateway.ToolCall{{ID: tr.ToolID, Name: tr.ToolName, Arguments: args}}
+			messages = append(messages, gateway.Message{Role: gateway.MessageRoleAssistant, ToolCalls: calls})
+		case "tool_result":
+			resultJSON := "{}"
+			if tr.ToolResult != nil {
+				if b, err := json.Marshal(tr.ToolResult); err == nil {
+					resultJSON = string(b)
+				}
+			}
+			messages = append(messages, gateway.Message{Role: gateway.MessageRoleTool, ToolCallID: tr.ToolID, ToolName: tr.ToolName, Content: resultJSON})
+		}
+	}
+
+	return messages
 }
 
 func (f *Factory) invokeLLM(
@@ -345,6 +380,7 @@ func (f *Factory) invokeLLM(
 	resolvedProfile *profile.ResolvedProfile,
 	systemPrompt string,
 	userPrompt string,
+	messages []gateway.Message,
 	tools []gateway.ToolDefinition,
 ) (*draftcontent.Output, error) {
 	activity := f.invokeLLMFactory.NewActivity()
@@ -352,6 +388,7 @@ func (f *Factory) invokeLLM(
 		Profile:      resolvedProfile,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
+		Messages:     messages,
 		Tools:        tools,
 	})
 	if err != nil {
@@ -374,10 +411,121 @@ func stringSliceValue(ptr *[]string) []string {
 	return *ptr
 }
 
-func formatToolCallDetails(call gateway.ToolCall) string {
-	b, _ := json.Marshal(call.Arguments)
-	if call.ID != "" {
-		return fmt.Sprintf("id=%s name=%s args=%s", call.ID, call.Name, string(b))
+func formatToolCallTitle(name string, args map[string]any) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "Using a tool"
 	}
-	return fmt.Sprintf("name=%s args=%s", call.Name, string(b))
+
+	switch name {
+	case "list_files":
+		return "Listing files"
+	case "read_file":
+		p, _ := args["path"].(string)
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "Reading a file"
+		}
+		return fmt.Sprintf("Reading %s", p)
+	case "write_file":
+		p, _ := args["path"].(string)
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "Writing a file"
+		}
+		return fmt.Sprintf("Writing %s", p)
+	case "edit_file":
+		p, _ := args["path"].(string)
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "Editing a file"
+		}
+		return fmt.Sprintf("Editing %s", p)
+	case "search_code":
+		q, _ := args["query"].(string)
+		q = strings.TrimSpace(q)
+		if q == "" {
+			return "Searching the codebase"
+		}
+		return fmt.Sprintf("Searching: %s", truncateOneLine(q, 80))
+	case "run_shell":
+		cmd, _ := args["command"].(string)
+		cmd = strings.TrimSpace(cmd)
+		if cmd == "" {
+			return "Running a shell command"
+		}
+		if rawArgs, ok := args["args"].([]any); ok && len(rawArgs) > 0 {
+			parts := make([]string, 0, len(rawArgs)+1)
+			parts = append(parts, cmd)
+			for _, a := range rawArgs {
+				if s, ok := a.(string); ok {
+					parts = append(parts, s)
+				}
+			}
+			return fmt.Sprintf("Running: %s", truncateOneLine(strings.Join(parts, " "), 100))
+		}
+		return fmt.Sprintf("Running: %s", truncateOneLine(cmd, 100))
+	case "get_diff":
+		staged, _ := args["staged"].(bool)
+		if staged {
+			return "Getting staged diff"
+		}
+		return "Getting diff"
+	case "create_plan":
+		if rawTasks, ok := args["tasks"].([]any); ok {
+			return fmt.Sprintf("Creating a plan (%d tasks)", len(rawTasks))
+		}
+		return "Creating a plan"
+	case "update_task":
+		id, _ := args["id"].(string)
+		status, _ := args["status"].(string)
+		id = strings.TrimSpace(id)
+		status = strings.TrimSpace(status)
+		if id != "" && status != "" {
+			return fmt.Sprintf("Updating task %s → %s", id, status)
+		}
+		return "Updating a task"
+	case "memorize_fact":
+		fact, _ := args["fact"].(string)
+		fact = strings.TrimSpace(fact)
+		if fact == "" {
+			return "Saving a note"
+		}
+		return fmt.Sprintf("Saving a note: %s", truncateOneLine(fact, 80))
+	case "summarize":
+		t, _ := args["type"].(string)
+		t = strings.TrimSpace(t)
+		if t == "" {
+			return "Summarizing"
+		}
+		return fmt.Sprintf("Summarizing (%s)", t)
+	case "restart_with_instruction":
+		return "Requesting a restart"
+	default:
+		return fmt.Sprintf("Using %s", name)
+	}
+}
+
+func formatToolCallDetails(call gateway.ToolCall, args map[string]any, narration string) string {
+	narration = strings.TrimSpace(narration)
+	if narration != "" {
+		return narration
+	}
+	return ""
+}
+
+func truncateOneLine(s string, max int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	s = strings.TrimSpace(s)
+	if max <= 0 {
+		return s
+	}
+	if len(s) <= max {
+		return s
+	}
+	if max <= 1 {
+		return s[:max]
+	}
+	return s[:max-1] + "…"
 }

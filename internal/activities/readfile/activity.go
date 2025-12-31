@@ -78,7 +78,20 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("path traversal attempt: %s", input.Path)
 		}
 
-		flowCtx.SendRunningWithDetails("Reading file", fmt.Sprintf("path=%s lines=%d-%d", cleanPath, input.StartLine, input.EndLine))
+		readTitle := fmt.Sprintf("Reading %s", cleanPath)
+		if input.StartLine > 0 || input.EndLine > 0 {
+			start := input.StartLine
+			end := input.EndLine
+			if start < 1 {
+				start = 1
+			}
+			if end > 0 {
+				readTitle = fmt.Sprintf("Reading %s (lines %d-%d)", cleanPath, start, end)
+			} else {
+				readTitle = fmt.Sprintf("Reading %s (from line %d)", cleanPath, start)
+			}
+		}
+		flowCtx.SendRunning(readTitle)
 
 		file, err := os.Open(fullPath)
 		if err != nil {
@@ -127,7 +140,12 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		content := strings.Join(lines[startIdx:endIdx], "\n")
 		isTruncated := start > 1 || end < totalLines
 
-		flowCtx.SendCompletedWithDetails("Read file", fmt.Sprintf("lines=%d total=%d", endIdx-startIdx, totalLines))
+		readLines := endIdx - startIdx
+		if isTruncated {
+			flowCtx.SendCompleted(fmt.Sprintf("Read %s (%d lines)", cleanPath, readLines))
+		} else {
+			flowCtx.SendCompleted(fmt.Sprintf("Read %s (%d lines)", cleanPath, readLines))
+		}
 
 		return &Output{
 				Content:     content,

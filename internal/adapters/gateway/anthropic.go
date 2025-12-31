@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
@@ -68,8 +69,55 @@ func (g *anthropicGateway) GenerateContent(
 		return nil, fmt.Errorf("model is required for anthropic content generation")
 	}
 
-	messages := []anthropic.MessageParam{
-		anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
+	messages := []anthropic.MessageParam{}
+	if msgs := request.Messages(); len(msgs) > 0 {
+		for _, m := range msgs {
+			switch m.Role {
+			case gateway.MessageRoleAssistant:
+				text := strings.TrimSpace(m.Content)
+				if len(m.ToolCalls) > 0 {
+					for _, c := range m.ToolCalls {
+						args, _ := json.Marshal(c.Arguments)
+						if text != "" {
+							text += "\n\n"
+						}
+						text += fmt.Sprintf("Tool call: %s (id=%s) args=%s", c.Name, c.ID, string(args))
+					}
+				}
+				if text != "" {
+					messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)))
+				}
+			case gateway.MessageRoleTool:
+				text := strings.TrimSpace(m.Content)
+				if m.ToolName != "" {
+					header := "Tool result: " + m.ToolName
+					if m.ToolCallID != "" {
+						header += " (tool_call_id=" + m.ToolCallID + ")"
+					}
+					text = header + "\n" + text
+				}
+				if text != "" {
+					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+				}
+			case gateway.MessageRoleSystem:
+				// handled via params.System below
+			case gateway.MessageRoleUser:
+				text := strings.TrimSpace(m.Content)
+				if text != "" {
+					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+				}
+			default:
+				text := strings.TrimSpace(m.Content)
+				if text != "" {
+					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+				}
+			}
+		}
+	}
+	if len(messages) == 0 {
+		messages = []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
+		}
 	}
 
 	params := anthropic.MessageNewParams{

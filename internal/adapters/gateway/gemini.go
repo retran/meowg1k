@@ -5,11 +5,13 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os"
+	"strings"
 
 	"google.golang.org/genai"
 
@@ -69,7 +71,55 @@ func (g *geminiGateway) GenerateContent(
 		}
 	}
 
-	userPrompt := genai.Text(request.UserPrompt())
+	userPromptText := request.UserPrompt()
+	if msgs := request.Messages(); len(msgs) > 0 {
+		var b strings.Builder
+		for _, m := range msgs {
+			role := string(m.Role)
+			if role == "" {
+				role = "unknown"
+			}
+			if len(m.ToolCalls) > 0 {
+				b.WriteString(strings.ToUpper(role))
+				b.WriteString(" TOOL_CALLS:\n")
+				for _, c := range m.ToolCalls {
+					args, _ := json.Marshal(c.Arguments)
+					b.WriteString("- ")
+					b.WriteString(c.Name)
+					if c.ID != "" {
+						b.WriteString(" (id=")
+						b.WriteString(c.ID)
+						b.WriteString(")")
+					}
+					b.WriteString(" args=")
+					b.Write(args)
+					b.WriteString("\n")
+				}
+				b.WriteString("\n")
+				continue
+			}
+			if m.Role == gateway.MessageRoleTool {
+				b.WriteString("TOOL ")
+				b.WriteString(m.ToolName)
+				if m.ToolCallID != "" {
+					b.WriteString(" (tool_call_id=")
+					b.WriteString(m.ToolCallID)
+					b.WriteString(")")
+				}
+				b.WriteString(":\n")
+				b.WriteString(strings.TrimSpace(m.Content))
+				b.WriteString("\n\n")
+				continue
+			}
+			b.WriteString(strings.ToUpper(role))
+			b.WriteString(":\n")
+			b.WriteString(strings.TrimSpace(m.Content))
+			b.WriteString("\n\n")
+		}
+		userPromptText = strings.TrimSpace(b.String())
+	}
+
+	userPrompt := genai.Text(userPromptText)
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {

@@ -82,7 +82,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("old_string is required")
 		}
 
-		flowCtx.SendRunningWithDetails("Editing file", fmt.Sprintf("path=%s", cleanPath))
+		if f.dryRun {
+			flowCtx.SendRunning(fmt.Sprintf("Editing %s (dry run)", cleanPath))
+		} else {
+			flowCtx.SendRunning(fmt.Sprintf("Editing %s", cleanPath))
+		}
 
 		contentBytes, err := os.ReadFile(fullPath)
 		if err != nil {
@@ -95,21 +99,23 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		count := strings.Count(content, input.OldString)
 		if count == 0 {
-			return nil, fmt.Errorf("original string not found in file")
+			return nil, fmt.Errorf(
+				"edit failed for %s: old_string not found (it must match the file content exactly, including spaces/newlines)",
+				cleanPath,
+			)
 		}
 		if count > 1 {
-			return nil, fmt.Errorf("ambiguous replacement: original string found %d times", count)
+			return nil, fmt.Errorf(
+				"edit failed for %s: old_string matched %d times (make old_string longer/more specific)",
+				cleanPath,
+				count,
+			)
 		}
 
 		newContent := strings.Replace(content, input.OldString, input.NewString, 1)
 
-		details := fmt.Sprintf("path=%s old_len=%d new_len=%d", cleanPath, len(input.OldString), len(input.NewString))
 		if f.dryRun {
-			details += " (DRY RUN)"
-		}
-
-		if f.dryRun {
-			flowCtx.SendCompletedWithDetails("Skipped editing file (dry run)", details)
+			flowCtx.SendCompleted(fmt.Sprintf("Skipped editing %s (dry run)", cleanPath))
 			return &Output{
 				Applied: false,
 				Message: fmt.Sprintf("Dry run: would have replaced text in %s", cleanPath),
@@ -120,7 +126,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 
-		flowCtx.SendCompletedWithDetails("Edited file", details)
+		flowCtx.SendCompleted(fmt.Sprintf("Edited %s", cleanPath))
 
 		return &Output{
 			Applied: true,

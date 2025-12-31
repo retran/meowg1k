@@ -81,10 +81,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if f.dryRun {
 			details += " (DRY RUN)"
 		}
-		flowCtx.SendRunningWithDetails("Writing file", details)
+		if f.dryRun {
+			flowCtx.SendRunning(fmt.Sprintf("Writing %s (dry run)", cleanPath))
+		} else {
+			flowCtx.SendRunning(fmt.Sprintf("Writing %s", cleanPath))
+		}
 
 		if f.dryRun {
-			flowCtx.SendCompletedWithDetails("Skipped writing file (dry run)", details)
+			flowCtx.SendCompleted(fmt.Sprintf("Skipped writing %s (dry run)", cleanPath))
 			return &Output{
 				Written: false,
 				Message: fmt.Sprintf("Dry run: would have written %d bytes to %s", len(input.Content), cleanPath),
@@ -101,7 +105,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 
-		flowCtx.SendCompletedWithDetails("Wrote file", details)
+		flowCtx.SendCompleted(fmt.Sprintf("Wrote %s (%d bytes)", cleanPath, len(input.Content)))
 
 		return &Output{
 			Written: true,

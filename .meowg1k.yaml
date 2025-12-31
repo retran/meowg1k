@@ -2,22 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 models:
-  qwen-flash:
-    provider: "openrouter"
-    model: "qwen/qwen3-coder-flash"
-    rateLimit:
-      requestsPerMinute: 60
-      tokensPerMinute: 1000000
-      requestsPerDay: 10000
-
-  qwen-plus:
-    provider: "openrouter"
-    model: "qwen/qwen3-coder-plus"
-    rateLimit:
-      requestsPerMinute: 60
-      tokensPerMinute: 1000000
-      requestsPerDay: 10000
-
   gemini-flash:
     provider: "gemini"
     model: "gemini-2.5-flash"
@@ -34,14 +18,13 @@ models:
       tokensPerMinute: 1000000
       requestsPerDay: 10000
 
-
   gemini-embeddings:
     provider: "gemini"
     model: "gemini-embedding-001"
     rateLimit:
       requestsPerMinute: 300
       tokensPerMinute: 500000
-      requestsPerDay: 100000
+      requestsPerDay: 10000
 
   jina-embeddings:
     provider: "llama"
@@ -55,6 +38,7 @@ models:
 profiles:
   flash:
     model: "gemini-flash"
+    timeout: "10m"
     temperature: 0.3
     cache:
       enabled: true
@@ -76,13 +60,6 @@ profiles:
       enabled: true
       ttl: "72h"
 
-  jina-embeddings:
-    model: "jina-embeddings"
-    timeout: "10m"
-    cache:
-      enabled: true
-      ttl: "1h"
-
 cache:
   enabled: true
   ttl: "24h"
@@ -91,9 +68,9 @@ write:
   default:
     profile: "flash"
     systemPrompt: >-
-      You are a helpful senior Go software developer and reviewer.
-      Prefer clear, concise, and actionable feedback.
-      When suggesting code, write clean, idiomatic, production-ready Go 1.25.2+.
+      You are an expert AI assistant for software development.
+      Be concise, correct, and production-minded.
+      Follow the user's requirements exactly.
 
   tasks:
     review:
@@ -149,6 +126,105 @@ write:
           2) A short bullet list explaining key changes (naming, structure, error handling, allocations, etc).
 
         Prefer idiomatic patterns (early returns, clear error wrapping, minimal allocations, small helpers).
+
+agent:
+  system_prompt: >-
+    You are an autonomous coding agent working in a real codebase.
+    Be concise and action-oriented.
+    Use tools when needed; prefer minimal, safe, reversible changes.
+    If you are unsure, ask for the smallest missing piece of context.
+
+    Guardrails:
+    - If ToolResults already contain what you need, answer directly; do NOT call more tools.
+    - Do NOT repeat the same tool call unless the previous ToolResults show an error or clearly missing/insufficient data.
+    - After using tools, you MUST end with a normal text answer (not another tool call).
+    - Avoid filler narration like "I will proceed"; output only the useful result.
+
+    Tool use:
+    - When you need to call a tool, emit a tool call using the provided tool definitions.
+  tools:
+    searchDefaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      topK: 8
+      minScore: 0.6
+  safety:
+    max_steps: 0
+    circuit_breaker:
+      max_restarts: 5
+    dry_run: false
+  flows:
+    default:
+      instructions: >-
+        Flow contract:
+        - Steps run in order and share context through PREVIOUS STEP OUTPUTS.
+        - Read and build on prior outputs; do not ignore them.
+        - Do not repeat the entire history; reference it and add only what is new.
+        - Keep results short, concrete, and suitable for the next step.
+      steps: ["discover", "plan", "execute", "verify"]
+    quick:
+      instructions: >-
+        Flow contract:
+        - Steps run in order and share context through PREVIOUS STEP OUTPUTS.
+        - Read and build on prior outputs; do not ignore them.
+        - Keep results short, concrete, and suitable for the next step.
+      steps: ["discover", "execute", "verify"]
+  personas:
+    discover:
+      role: "Code Discovery Agent"
+      profile: "flash"
+      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      system_persona: >-
+        You are a lead software engineer doing fast, high-signal codebase discovery.
+        You prioritize correctness and minimal context gathering.
+      user_instructions: >-
+        First: review MEMORY FACTS and avoid repeating work.
+        Objective: gather the minimum context needed to act on the goal.
+        Prefer list_files → search_code → read_file (only the most relevant files/sections).
+        Output: key findings, relevant file paths, and any important constraints.
+        Save notable findings with memorize_fact.
+        Do not modify files.
+    plan:
+      role: "Planning Agent"
+      profile: "smart"
+      tools: ["get_plan", "read_file", "create_plan", "memorize_fact"]
+      system_persona: >-
+        You are a pragmatic tech lead planning work.
+        You produce small, verifiable steps and avoid unnecessary refactors.
+      user_instructions: >-
+        First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
+        Objective: turn prior outputs into a minimal, ordered task list.
+        Output MUST be the task list (no filler like “I will proceed”).
+        Call get_plan once at the start.
+        If ToolResults already contain tasks (from get_plan/create_plan), do NOT call tools again — render the tasks and stop.
+        If no plan exists, call create_plan once with the minimal tasks, then render the tasks from ToolResults.
+        Save key decisions/assumptions with memorize_fact.
+        Do not modify files.
+    execute:
+      role: "Execution Agent"
+      profile: "smart"
+      tools: ["get_plan", "read_file", "write_file", "edit_file", "run_shell", "update_task", "memorize_fact"]
+      system_persona: >-
+        You are a senior software engineer implementing changes safely in an existing codebase.
+        You prefer the smallest correct diff.
+      user_instructions: >-
+        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+        Objective: implement the plan with focused diffs.
+        Update task status as you go.
+        Explain what changed and why, briefly.
+        Save important discoveries/decisions with memorize_fact.
+    verify:
+      role: "Verification Agent"
+      profile: "flash"
+      tools: ["get_plan", "run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction", "memorize_fact"]
+      system_persona: >-
+        You are a meticulous reviewer and release engineer.
+        You validate changes with tests and look for integration risks.
+      user_instructions: >-
+        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+        Objective: verify correctness.
+        Inspect diffs and run tests/commands when useful.
+        If issues remain, call restart_with_instruction with specific, actionable fix guidance.
+        Save important findings with memorize_fact.
 
 filter:
   ignore:
@@ -369,55 +445,3 @@ pr:
       - Highlight anything reviewers should pay special attention to
 
     Generate only the PR description in Markdown format, nothing else.
-
-agent:
-  defaults:
-    profile: "smart"
-    systemPrompt: >-
-      You are an autonomous multi-step coding agent.
-      Work iteratively: discover context, plan, execute, verify.
-      Use tools when needed and keep outputs concise.
-  tools:
-    searchDefaults:
-      snapshots: ["_workdir_", "_stage_", "_head_"]
-      topK: 8
-      minScore: 0.6
-  safety:
-    # 0 = unlimited
-    max_steps: 0
-    circuit_breaker:
-      max_restarts: 5
-    dry_run: false
-  flows:
-    default: ["discover", "plan", "execute", "verify"]
-    quick: ["discover", "execute", "verify"]
-  personas:
-    discover:
-      role: "Code Discovery Agent"
-      profile: "flash"
-      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
-      instructions: >-
-        Discover context for the goal.
-        Prefer listing files + searching before reading.
-        Do not modify files.
-    plan:
-      role: "Planning Agent"
-      profile: "smart"
-      tools: ["recall_facts", "read_file", "create_plan"]
-      instructions: >-
-        Turn discoveries into a minimal, ordered task list.
-        Use create_plan to register tasks.
-    execute:
-      role: "Execution Agent"
-      profile: "smart"
-      tools: ["recall_facts", "read_file", "write_file", "edit_file", "run_shell", "update_task"]
-      instructions: >-
-        Implement the plan with focused diffs.
-        Update task status as you go.
-    verify:
-      role: "Verification Agent"
-      profile: "flash"
-      tools: ["run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction"]
-      instructions: >-
-        Verify by inspecting diffs and running tests.
-        If issues remain, call restart_with_instruction with clear fix guidance.

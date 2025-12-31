@@ -46,7 +46,7 @@ func NewFactory(
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		if strings.TrimSpace(f.profileName) == "" {
-			return nil, fmt.Errorf("summarize tool profile is not set (configure agent.defaults.profile or pass a profile when constructing the summarize factory)")
+			return nil, fmt.Errorf("summarize tool profile is not set (configure agent.personas.<name>.profile so the do flow can pick one, or pass a profile when constructing the summarize factory)")
 		}
 
 		resolvedProfile, err := f.profileResolver.Get(profile.Profile(f.profileName))

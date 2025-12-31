@@ -150,12 +150,17 @@ type FilterConfig struct {
 
 // AgentConfig holds configuration for agent mode.
 type AgentConfig struct {
-	Defaults *AgentDefaults              `yaml:"defaults" mapstructure:"defaults"`
-	Tools    *AgentToolsConfig           `yaml:"tools" mapstructure:"tools"`
-	Steps    map[string]*AgentStepConfig `yaml:"steps" mapstructure:"steps"` // Legacy support
-	Flows    map[string][]string         `yaml:"flows" mapstructure:"flows"`
-	Personas map[string]*PersonaConfig   `yaml:"personas" mapstructure:"personas"`
-	Safety   *AgentSafetyConfig          `yaml:"safety" mapstructure:"safety"`
+	SystemPrompt string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
+	Tools        *AgentToolsConfig           `yaml:"tools" mapstructure:"tools"`
+	Flows        map[string]*AgentFlowConfig `yaml:"flows" mapstructure:"flows"`
+	Personas     map[string]*PersonaConfig   `yaml:"personas" mapstructure:"personas"`
+	Safety       *AgentSafetyConfig          `yaml:"safety" mapstructure:"safety"`
+}
+
+// AgentFlowConfig defines a named flow with shared prompt and step order.
+type AgentFlowConfig struct {
+	Instructions string   `yaml:"instructions" mapstructure:"instructions"`
+	Steps        []string `yaml:"steps" mapstructure:"steps"`
 }
 
 // PersonaConfig defines a reusable agent persona.
@@ -163,7 +168,8 @@ type PersonaConfig struct {
 	Role             string   `yaml:"role" mapstructure:"role"`
 	Profile          string   `yaml:"profile" mapstructure:"profile"`
 	Tools            []string `yaml:"tools" mapstructure:"tools"`
-	Instructions     string   `yaml:"instructions" mapstructure:"instructions"`
+	SystemPersona    string   `yaml:"system_persona" mapstructure:"system_persona"`
+	UserInstructions string   `yaml:"user_instructions" mapstructure:"user_instructions"`
 	AllowedDelegates []string `yaml:"allowed_delegates" mapstructure:"allowed_delegates"`
 	AllowedTasks     []string `yaml:"allowed_tasks" mapstructure:"allowed_tasks"`
 }
@@ -180,15 +186,13 @@ type CircuitBreakerConfig struct {
 	MaxRestarts int `yaml:"max_restarts" mapstructure:"max_restarts"`
 }
 
-// AgentDefaults defines defaults applied to all agent steps.
-type AgentDefaults struct {
-	Profile      string `yaml:"profile" mapstructure:"profile"`
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-}
-
 // AgentToolsConfig defines tool defaults for agent mode.
 type AgentToolsConfig struct {
 	SearchDefaults *AgentSearchDefaults `yaml:"searchDefaults" mapstructure:"searchDefaults"`
+
+	// ToolDescriptions allows overriding tool descriptions used in model prompts.
+	// Keys are tool names (e.g. "read_file", "run_shell").
+	ToolDescriptions map[string]string `yaml:"toolDescriptions" mapstructure:"toolDescriptions"`
 }
 
 // AgentSearchDefaults defines defaults for embeddings search.
@@ -196,14 +200,6 @@ type AgentSearchDefaults struct {
 	Snapshots []string `yaml:"snapshots" mapstructure:"snapshots"`
 	TopK      int      `yaml:"topK" mapstructure:"topK"`
 	MinScore  float32  `yaml:"minScore" mapstructure:"minScore"`
-}
-
-// AgentStepConfig defines configuration for a single agent step.
-type AgentStepConfig struct {
-	Profile      *string             `yaml:"profile" mapstructure:"profile"`
-	SystemPrompt *string             `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-	ToolModes    map[string][]string `yaml:"toolModes" mapstructure:"toolModes"`
-	Tools        []string            `yaml:"tools" mapstructure:"tools"`
 }
 
 // Strategy defines summarization strategy with its settings.

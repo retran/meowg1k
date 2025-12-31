@@ -6,6 +6,7 @@ package plan
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/core/agent/state"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -22,6 +23,7 @@ type Input struct {
 
 type Output struct {
 	Success bool
+	Tasks   []state.Task
 }
 
 type Factory struct{}
@@ -50,9 +52,50 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 		}
 
-		s.SetTasks(tasks)
-		flowCtx.SendCompleted("Plan created")
+		prev := s.GetTasks()
+		if equalTasks(prev, tasks) {
+			flowCtx.SendCompletedWithDetails("Plan unchanged", formatPlanDetails(tasks))
+			return &Output{Success: true, Tasks: tasks}, nil
+		}
 
-		return &Output{Success: true}, nil
+		s.SetTasks(tasks)
+		flowCtx.SendCompletedWithDetails("Plan created", formatPlanDetails(tasks))
+
+		return &Output{Success: true, Tasks: tasks}, nil
 	}
+}
+
+func equalTasks(a, b []state.Task) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID {
+			return false
+		}
+		if a[i].Description != b[i].Description {
+			return false
+		}
+		if a[i].Status != b[i].Status {
+			return false
+		}
+	}
+	return true
+}
+
+func formatPlanDetails(tasks []state.Task) string {
+	if len(tasks) == 0 {
+		return "(no tasks)"
+	}
+	var b strings.Builder
+	for _, t := range tasks {
+		b.WriteString("- [")
+		b.WriteString(string(t.Status))
+		b.WriteString("] ")
+		b.WriteString(t.ID)
+		b.WriteString(": ")
+		b.WriteString(t.Description)
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
 }

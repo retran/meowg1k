@@ -43,7 +43,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 		sort.Strings(files)
 
-		flowCtx.SendCompletedWithDetails("Listed files", fmt.Sprintf("count=%d", len(files)))
+		flowCtx.SendCompleted(fmt.Sprintf("Listed %d files", len(files)))
 
 		return &Output{Files: files}, nil
 	}

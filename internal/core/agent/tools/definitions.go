@@ -10,11 +10,11 @@ import (
 	"github.com/retran/meowg1k/internal/activities/control"
 	"github.com/retran/meowg1k/internal/activities/editfile"
 	"github.com/retran/meowg1k/internal/activities/getdiff"
+	"github.com/retran/meowg1k/internal/activities/getplan"
 	"github.com/retran/meowg1k/internal/activities/listfiles"
 	"github.com/retran/meowg1k/internal/activities/memorize"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
-	"github.com/retran/meowg1k/internal/activities/recall"
 	"github.com/retran/meowg1k/internal/activities/runcommand"
 	"github.com/retran/meowg1k/internal/activities/searchindex"
 	"github.com/retran/meowg1k/internal/activities/summarize"
@@ -33,8 +33,8 @@ type ToolDependencies struct {
 	SearchCode executor.ActivityFactory[*searchindex.Input, *searchindex.Output]
 	GetDiff    executor.ActivityFactory[*getdiff.Input, *getdiff.Output]
 	Memorize   executor.ActivityFactory[*memorize.Input, *memorize.Output]
-	Recall     executor.ActivityFactory[*recall.Input, *recall.Output]
 	Plan       executor.ActivityFactory[*plan.Input, *plan.Output]
+	GetPlan    executor.ActivityFactory[*getplan.Input, *getplan.Output]
 	TrackTask  executor.ActivityFactory[*tracktask.Input, *tracktask.Output]
 	Summarize  executor.ActivityFactory[*summarize.Input, *summarize.Output]
 	Restart    executor.ActivityFactory[*control.RestartInput, *control.Output]
@@ -262,31 +262,6 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 		})
 	}
 
-	// recall_facts
-	if deps.Recall != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "recall_facts",
-				Description: "Search flow memory for facts.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"query": map[string]any{"type": "string"},
-					},
-					"required": []string{"query"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input recall.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.Recall.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "recall_facts", act, &input)
-			},
-		})
-	}
-
 	// create_plan
 	if deps.Plan != nil {
 		r.Register(Tool{
@@ -318,6 +293,25 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 				}
 				act := deps.Plan.NewActivity()
 				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "create_plan", act, &input)
+			},
+		})
+	}
+
+	// get_plan
+	if deps.GetPlan != nil {
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "get_plan",
+				Description: "Get the current task plan (tasks + statuses).",
+				Parameters: map[string]any{
+					"type":       "object",
+					"properties": map[string]any{},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				var input getplan.Input
+				act := deps.GetPlan.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "get_plan", act, &input)
 			},
 		})
 	}

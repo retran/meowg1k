@@ -20,6 +20,7 @@ type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
 	UserPrompt   string
+	Messages     []gateway.Message
 	Tools        []gateway.ToolDefinition
 }
 
@@ -101,7 +102,8 @@ func buildRequest(input *Input) *gateway.GenerateContentRequest {
 		input.SystemPrompt,
 		input.UserPrompt,
 		input.Profile.MaxOutputTokens,
-	).WithTools(input.Tools).
+	).WithMessages(input.Messages).
+		WithTools(input.Tools).
 		WithTemperature(input.Profile.Temperature).
 		WithTopP(input.Profile.TopP).
 		WithTopK(input.Profile.TopK).

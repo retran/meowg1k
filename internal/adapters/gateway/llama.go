@@ -89,6 +89,71 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	var promptBuilder strings.Builder
 
+	if msgs := request.Messages(); len(msgs) > 0 {
+		// Best-effort conversion to ChatML-style prompt.
+		for _, m := range msgs {
+			switch m.Role {
+			case gateway.MessageRoleSystem:
+				if strings.TrimSpace(m.Content) == "" {
+					continue
+				}
+				promptBuilder.WriteString(systemPromptStart)
+				promptBuilder.WriteString(strings.TrimSpace(m.Content))
+				promptBuilder.WriteString(systemPromptEnd)
+			case gateway.MessageRoleUser:
+				if strings.TrimSpace(m.Content) == "" {
+					continue
+				}
+				promptBuilder.WriteString(userPromptStart)
+				promptBuilder.WriteString(strings.TrimSpace(m.Content))
+				promptBuilder.WriteString(userPromptEnd)
+			case gateway.MessageRoleAssistant:
+				if strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0 {
+					continue
+				}
+				promptBuilder.WriteString(assistantStart)
+				if strings.TrimSpace(m.Content) != "" {
+					promptBuilder.WriteString(strings.TrimSpace(m.Content))
+					promptBuilder.WriteString("\n")
+				}
+				if len(m.ToolCalls) > 0 {
+					promptBuilder.WriteString("ToolCalls:\n")
+					for _, c := range m.ToolCalls {
+						promptBuilder.WriteString("- ")
+						promptBuilder.WriteString(c.Name)
+						if c.ID != "" {
+							promptBuilder.WriteString(" (id=")
+							promptBuilder.WriteString(c.ID)
+							promptBuilder.WriteString(")")
+						}
+						promptBuilder.WriteString("\n")
+					}
+				}
+				promptBuilder.WriteString(systemPromptEnd)
+			case gateway.MessageRoleTool:
+				if strings.TrimSpace(m.Content) == "" {
+					continue
+				}
+				promptBuilder.WriteString(userPromptStart)
+				promptBuilder.WriteString("ToolResult")
+				if m.ToolName != "" {
+					promptBuilder.WriteString(" ")
+					promptBuilder.WriteString(m.ToolName)
+				}
+				if m.ToolCallID != "" {
+					promptBuilder.WriteString(" (tool_call_id=")
+					promptBuilder.WriteString(m.ToolCallID)
+					promptBuilder.WriteString(")")
+				}
+				promptBuilder.WriteString(":\n")
+				promptBuilder.WriteString(strings.TrimSpace(m.Content))
+				promptBuilder.WriteString(userPromptEnd)
+			}
+		}
+		promptBuilder.WriteString(assistantStart)
+		return promptBuilder.String()
+	}
+
 	if request.SystemPrompt() != "" {
 		promptBuilder.WriteString(systemPromptStart)
 		promptBuilder.WriteString(request.SystemPrompt())

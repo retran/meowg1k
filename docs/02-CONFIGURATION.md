@@ -608,43 +608,68 @@ ask:
 ### `agent`
 
 The `agent` section configures the multi-step agent workflow used by `meow do`.
-Each step (research, plan, execute, verify) can define its own profile, system prompt,
-tool allow-list, and tool modes.
+It is configured as:
+- `system_prompt`: base system prompt applied to all steps
+- `flows`: ordered step lists + shared flow prompt
+- `personas`: per-step profile/tools/instructions
+
+Prompt composition:
+- **System prompt** (concatenated):
+  1) `agent.system_prompt`
+  2) `agent.flows.<name>.instructions`
+  3) (runtime) a short role/step line
+  4) `agent.personas.<step>.system_persona`
+- **User message**: goal + MEMORY FACTS + PREVIOUS STEP OUTPUTS, then `agent.personas.<step>.user_instructions`
 
 ```yaml
 agent:
-  defaults:
-    profile: "gemini-pro"
-    systemPrompt: >-
-      You are a multi-step agent that works in four steps: research, plan, execute, verify.
-      Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
-      Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
+  system_prompt: >-
+    You are a multi-step agent.
+    Use tools when needed and be concise.
   tools:
     searchDefaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]
       topK: 8
       minScore: 0.6
-  steps:
-    research:
+  flows:
+    default:
+      instructions: >-
+        Flow contract: steps run in order and share context through PREVIOUS STEP OUTPUTS.
+      steps: ["discover", "plan", "execute", "verify"]
+  personas:
+    discover:
+      role: "Code Discovery Agent"
       profile: "gemini-flash"
-      systemPrompt: "Research step: discover context and constraints without modifying files."
-      tools: ["workspace", "search", "summarize", "git", "plan", "memory"]
-      toolModes:
-        workspace: ["list", "read", "stat", "exists"]
-        search: ["embeddings"]
-        summarize: ["text", "file", "diff"]
-        git: ["status", "log", "show", "diff", "branch", "current_branch"]
-        plan: ["list"]
-        memory: ["add", "list"]
+      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      system_persona: "You are a lead software engineer doing fast, high-signal codebase discovery."
+      user_instructions: >-
+        Gather the minimum context needed. Do not modify files.
+    plan:
+      role: "Planning Agent"
+      profile: "gemini-pro"
+      tools: ["get_plan", "read_file", "create_plan", "memorize_fact"]
+      system_persona: "You are a pragmatic tech lead planning work."
+      user_instructions: >-
+        Output the task list only.
+    execute:
+      role: "Execution Agent"
+      profile: "gemini-pro"
+      tools: ["get_plan", "read_file", "write_file", "edit_file", "run_shell", "update_task"]
+      system_persona: "You are a senior software engineer implementing changes safely in an existing codebase."
+      user_instructions: >-
+        Implement the plan and update task status.
+    verify:
+      role: "Verification Agent"
+      profile: "gemini-flash"
+      tools: ["run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction"]
+      system_persona: "You are a meticulous reviewer and release engineer."
+      user_instructions: >-
+        Verify correctness; request a restart if issues remain.
 ```
 
 **Notes:**
 
-- If a step omits `profile` or `systemPrompt`, it inherits from `defaults`.
-- The `defaults.systemPrompt` text is prepended to each step prompt to act as a shared instruction block.
-- The `verify` step should emit a `VerificationResult: pass|fail` line so the agent can determine whether to retry.
-- `toolModes` restricts which modes a tool can use; omit to allow all modes.
-- Search defaults apply to `search` tool calls and can be overridden by CLI flags.
+- Search defaults apply to `search_code` tool calls and can be overridden by CLI flags.
 
 ## Next Steps
 

@@ -38,9 +38,29 @@ type GenerateContentRequest struct {
 	model             string
 	systemPrompt      string
 	userPrompt        string
+	messages          []Message
 	stop              []string
 	tools             []ToolDefinition
 	maxOutputTokens   int
+}
+
+type MessageRole string
+
+const (
+	MessageRoleSystem    MessageRole = "system"
+	MessageRoleUser      MessageRole = "user"
+	MessageRoleAssistant MessageRole = "assistant"
+	MessageRoleTool      MessageRole = "tool"
+)
+
+// Message is a single chat turn. Tool messages should include ToolCallID.
+// Some providers may ignore fields they don't support.
+type Message struct {
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+	Role       MessageRole `json:"role"`
+	Content    string      `json:"content,omitempty"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
+	ToolName   string      `json:"tool_name,omitempty"`
 }
 
 // ErrToolCallingNotSupported indicates the gateway does not support tool calling.
@@ -135,9 +155,24 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutput
 		model:           model,
 		systemPrompt:    systemPrompt,
 		userPrompt:      userPrompt,
+		messages:        nil,
 		tools:           nil,
 		maxOutputTokens: maxOutputTokens,
 	}
+}
+
+// WithMessages sets chat messages for providers that support message history.
+// If messages are set, providers should prefer them over SystemPrompt/UserPrompt.
+func (r *GenerateContentRequest) WithMessages(messages []Message) *GenerateContentRequest {
+	r.messages = messages
+	return r
+}
+
+func (r *GenerateContentRequest) Messages() []Message {
+	if r == nil {
+		return nil
+	}
+	return r.messages
 }
 
 // WithTools sets tool definitions for native tool calling.

@@ -52,10 +52,11 @@ func NewOpenRouterGateway(
 
 // OpenRouter API request/response structures.
 type openrouterMessage struct {
-	Role      string               `json:"role"`
-	Content   string               `json:"content,omitempty"`
-	Reasoning string               `json:"reasoning,omitempty"`
-	ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
+	Role       string               `json:"role"`
+	Content    string               `json:"content,omitempty"`
+	Reasoning  string               `json:"reasoning,omitempty"`
+	ToolCallID string               `json:"tool_call_id,omitempty"`
+	ToolCalls  []openrouterToolCall `json:"tool_calls,omitempty"`
 }
 
 type openrouterRequest struct {
@@ -173,6 +174,34 @@ func (g *openrouterGateway) GenerateContent(
 }
 
 func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
+	if msgs := request.Messages(); len(msgs) > 0 {
+		mapped := make([]openrouterMessage, 0, len(msgs))
+		for _, m := range msgs {
+			om := openrouterMessage{Role: string(m.Role), Content: m.Content}
+			if len(m.ToolCalls) > 0 {
+				calls := make([]openrouterToolCall, 0, len(m.ToolCalls))
+				for _, c := range m.ToolCalls {
+					args, _ := json.Marshal(c.Arguments)
+					calls = append(calls, openrouterToolCall{
+						ID:   c.ID,
+						Type: "function",
+						Function: openrouterToolCallEntry{
+							Name:      c.Name,
+							Arguments: string(args),
+						},
+					})
+				}
+				om.ToolCalls = calls
+			}
+			if m.Role == gateway.MessageRoleTool {
+				om.Role = "tool"
+				om.ToolCallID = m.ToolCallID
+			}
+			mapped = append(mapped, om)
+		}
+		return mapped
+	}
+
 	messages := []openrouterMessage{}
 	if request.SystemPrompt() != "" {
 		messages = append(messages, openrouterMessage{

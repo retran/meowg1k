@@ -12,11 +12,11 @@ import (
 	"github.com/retran/meowg1k/internal/activities/control"
 	"github.com/retran/meowg1k/internal/activities/editfile"
 	"github.com/retran/meowg1k/internal/activities/getdiff"
+	"github.com/retran/meowg1k/internal/activities/getplan"
 	"github.com/retran/meowg1k/internal/activities/listfiles"
 	"github.com/retran/meowg1k/internal/activities/memorize"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
-	"github.com/retran/meowg1k/internal/activities/recall"
 	"github.com/retran/meowg1k/internal/activities/runcommand"
 	"github.com/retran/meowg1k/internal/activities/searchindex"
 	"github.com/retran/meowg1k/internal/activities/summarize"
@@ -110,8 +110,23 @@ func (f *Factory) NewFlow() executor.Flow {
 			return fmt.Errorf("failed to read dry-run flag: %w", err)
 		}
 
-		effectiveProfile := cfg.Defaults.Profile
-		baseSystemPrompt := strings.TrimSpace(cfg.Defaults.SystemPrompt)
+		baseSystemPrompt := strings.TrimSpace(cfg.SystemPrompt)
+		effectiveProfile := ""
+		if p, ok := cfg.Personas["discover"]; ok {
+			effectiveProfile = strings.TrimSpace(p.Profile)
+		}
+		if effectiveProfile == "" {
+			for _, p := range cfg.Personas {
+				if p == nil {
+					continue
+				}
+				candidate := strings.TrimSpace(p.Profile)
+				if candidate != "" {
+					effectiveProfile = candidate
+					break
+				}
+			}
+		}
 
 		// 5. Initialize Tools Registry
 		registry := tools.NewRegistry()
@@ -137,8 +152,8 @@ func (f *Factory) NewFlow() executor.Flow {
 			SearchCode: searchindex.MustNewFactory(f.retrievalService),
 			GetDiff:    getdiff.NewFactory(f.gitToolingService),
 			Memorize:   memorize.NewFactory(),
-			Recall:     recall.NewFactory(),
 			Plan:       plan.NewFactory(),
+			GetPlan:    getplan.NewFactory(),
 			TrackTask:  tracktask.NewFactory(),
 			Summarize:  summarize.NewFactory(f.gatewayFactory, f.profileResolver, effectiveProfile),
 			Restart:    control.NewRestartFactory(),
@@ -151,9 +166,16 @@ func (f *Factory) NewFlow() executor.Flow {
 
 		// 6. Determine Flow Steps
 		flowName := "default" // TODO: allow config override
-		flowSteps, ok := cfg.Flows[flowName]
+		flowCfg, ok := cfg.Flows[flowName]
 		if !ok {
 			return fmt.Errorf("flow %s not found", flowName)
+		}
+		if flowCfg == nil {
+			return fmt.Errorf("flow %s is nil", flowName)
+		}
+		flowSteps := flowCfg.Steps
+		if len(flowSteps) == 0 {
+			return fmt.Errorf("flow %s has no steps", flowName)
 		}
 
 		// 7. Execute Flow Loop (with Circuit Breaker)
@@ -165,7 +187,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		currentGoal := goal
 
 		for {
-			restartReq, err := f.executeSteps(ctx, flowCtx, flowSteps, cfg, registry, currentGoal, baseSystemPrompt)
+			restartReq, err := f.executeSteps(ctx, flowCtx, flowSteps, cfg, registry, currentGoal, baseSystemPrompt, strings.TrimSpace(flowCfg.Instructions))
 			if err != nil {
 				return err
 			}
@@ -205,18 +227,21 @@ func (f *Factory) executeSteps(
 	registry *tools.Registry,
 	goal string,
 	baseSystemPrompt string,
+	flowInstructions string,
 ) (string, error) {
 
 	exec := flowCtx.GetExecutor()
 
-	for _, personaName := range steps {
+	priorStepOutputs := make([]string, 0, len(steps))
+
+	for idx, personaName := range steps {
 		personaCfg, ok := cfg.Personas[personaName]
 		if !ok {
 			return "", fmt.Errorf("persona %s not found", personaName)
 		}
 
 		stepCtx := flowCtx.Child(strings.Title(personaName))
-		stepCtx.SendRunning(fmt.Sprintf("Agent %s is working", personaName))
+		stepCtx.SendRunning(fmt.Sprintf("Starting %s step", strings.Title(personaName)))
 
 		personaProfile := strings.TrimSpace(personaCfg.Profile)
 		prof, err := f.profileResolver.Get(profile.Profile(personaProfile))
@@ -229,26 +254,57 @@ func (f *Factory) executeSteps(
 
 		// Run Agent Loop for this Persona
 		agentAct := f.agentLoopFactory.NewActivity()
-		systemPrompt := strings.TrimSpace(personaCfg.Instructions)
+		personaDescription := strings.TrimSpace(personaCfg.SystemPersona)
+		sharedFlowPrompt := strings.TrimSpace(flowInstructions)
+		roleLine := buildFlowRoleLine(steps, idx, personaName)
+
+		// Required order:
+		// 1) shared flow system prompt
+		// 2) (user prompt contains prior step outputs)
+		// 3) system prompt of current step
+		systemPromptParts := make([]string, 0, 4)
 		if strings.TrimSpace(baseSystemPrompt) != "" {
-			if systemPrompt != "" {
-				systemPrompt = baseSystemPrompt + "\n\n" + systemPrompt
-			} else {
-				systemPrompt = baseSystemPrompt
-			}
+			systemPromptParts = append(systemPromptParts, strings.TrimSpace(baseSystemPrompt))
+		}
+		if sharedFlowPrompt != "" {
+			systemPromptParts = append(systemPromptParts, sharedFlowPrompt)
+		}
+		if roleLine != "" {
+			systemPromptParts = append(systemPromptParts, roleLine)
+		}
+		if personaDescription != "" {
+			systemPromptParts = append(systemPromptParts, personaDescription)
+		}
+		systemPrompt := strings.Join(systemPromptParts, "\n\n")
+
+		stepGoal := goal
+		if mem := buildMemoryFactsSection(ctx); mem != "" {
+			stepGoal = stepGoal + "\n\n" + mem
+		}
+		if len(priorStepOutputs) > 0 {
+			stepGoal = stepGoal + "\n\nPREVIOUS STEP OUTPUTS (in order):\n\n" + strings.Join(priorStepOutputs, "\n\n")
+		}
+		if instructions := strings.TrimSpace(personaCfg.UserInstructions); instructions != "" {
+			stepGoal = stepGoal + "\n\nINSTRUCTIONS:\n\n" + instructions
 		}
 		input := &agentloop.Input{
-			ToolRegistry: registry,
-			AllowedTools: personaCfg.Tools,
-			StepName:     personaName,
-			Profile:      prof,
-			Goal:         &goal,
-			SystemPrompt: &systemPrompt,
+			ToolRegistry:             registry,
+			AllowedTools:             personaCfg.Tools,
+			ToolDescriptionOverrides: cfg.Tools.ToolDescriptions,
+			StepName:                 personaName,
+			Profile:                  prof,
+			Goal:                     &stepGoal,
+			SystemPrompt:             &systemPrompt,
 		}
 
-		_, err = executor.ExecuteActivity(ctx, exec, stepCtx, "AgentLoop", agentAct, input)
+		out, err := executor.ExecuteActivity(ctx, exec, stepCtx, "AgentLoop", agentAct, input)
 		if err != nil {
 			return "", fmt.Errorf("agent loop failed for %s: %w", personaName, err)
+		}
+		stepCtx.SendCompleted(fmt.Sprintf("Finished %s step", strings.Title(personaName)))
+
+		if out != nil {
+			priorStepOutputs = append(priorStepOutputs, formatStepOutputForNextStep(personaName, out))
 		}
 
 		// Check for restart request after step completion
@@ -259,4 +315,69 @@ func (f *Factory) executeSteps(
 	}
 
 	return "", nil
+}
+
+func buildMemoryFactsSection(ctx context.Context) string {
+	flowState, err := state.GetFlowState(ctx)
+	if err != nil || flowState == nil {
+		return ""
+	}
+	facts := flowState.GetFacts()
+	if len(facts) == 0 {
+		return "MEMORY FACTS:\n(none yet)"
+	}
+	var b strings.Builder
+	b.WriteString("MEMORY FACTS:\n")
+	for _, f := range facts {
+		line := strings.TrimSpace(f.Content)
+		if line == "" {
+			continue
+		}
+		b.WriteString("- ")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func buildFlowRoleLine(steps []string, stepIndex int, stepName string) string {
+	if len(steps) == 0 {
+		return ""
+	}
+
+	prettySteps := make([]string, 0, len(steps))
+	for _, s := range steps {
+		prettySteps = append(prettySteps, strings.Title(strings.TrimSpace(s)))
+	}
+
+	current := strings.Title(strings.TrimSpace(stepName))
+	return fmt.Sprintf(
+		"Flow steps (in order): %s. Current step: %s (%d/%d). Use PREVIOUS STEP OUTPUTS as required context.",
+		strings.Join(prettySteps, " → "),
+		current,
+		stepIndex+1,
+		len(steps),
+	)
+}
+
+func formatStepOutputForNextStep(stepName string, out *agentloop.Output) string {
+	label := strings.Title(strings.TrimSpace(stepName))
+	if label == "" {
+		label = "Step"
+	}
+
+	content := strings.TrimSpace(out.Content)
+	summary := strings.TrimSpace(out.Summary)
+
+	header := fmt.Sprintf("[%s]", label)
+	if content == "" && summary == "" {
+		return header + "\n(no content)"
+	}
+	if content != "" && summary != "" {
+		return header + "\n\nSummary:\n" + summary + "\n\nAnswer:\n" + content
+	}
+	if content != "" {
+		return header + "\n" + content
+	}
+	return header + "\n" + summary
 }

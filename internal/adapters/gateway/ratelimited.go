@@ -40,7 +40,15 @@ func (g *rateLimitedGenerationGateway) GenerateContent(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
+	promptText := request.SystemPrompt() + request.UserPrompt()
+	if msgs := request.Messages(); len(msgs) > 0 {
+		promptText = ""
+		for _, m := range msgs {
+			promptText += string(m.Role) + ":" + m.Content + "\n"
+		}
+	}
+
+	tokenCount := estimateTokenCount(promptText)
 
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
 		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
