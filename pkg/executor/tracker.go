@@ -61,10 +61,10 @@ type logEntry struct {
 
 // Styles for the TUI.
 var (
-	styleTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true)
-	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	styleTitle   = lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true)
+	styleRunning = lipgloss.NewStyle().Foreground(lipgloss.Color("12")).Bold(true)
+	styleFailed  = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Bold(true)
+	styleDetails = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -196,17 +196,20 @@ func (t *BubbleTeaTracker) handleFeedback(msg *Feedback) {
 
 	t.logCount++
 
-	if msg.Status == StatusRunning {
+	message := strings.TrimSpace(msg.Message)
+	if msg.Status == StatusRunning && message != "" {
 		run := t.running[msg.ActivityName]
 		run.name = msg.ActivityName
-		run.message = strings.TrimSpace(msg.Message)
+		run.message = message
 		run.status = msg.Status
 		run.lastUpdate = msg.Timestamp
 		t.running[msg.ActivityName] = run
 	}
 
 	if msg.Status == StatusCompleted || msg.Status == StatusFailed {
-		delete(t.running, msg.ActivityName)
+		if _, ok := t.running[msg.ActivityName]; !ok {
+			delete(t.running, msg.ActivityName)
+		}
 	}
 }
 
@@ -330,6 +333,8 @@ func renderLogEntry(entry logEntry, width int) string {
 
 	var sb strings.Builder
 
+	sb.WriteString("\n")
+
 	if message != "" {
 		bullet := "• "
 		bulletWidth := runewidth.StringWidth(bullet)
@@ -366,6 +371,7 @@ func renderLogEntry(entry logEntry, width int) string {
 		}
 		sb.WriteString(styleDetails.Render(formatDetailsBlock(details, width)))
 	}
+
 	return sb.String()
 }
 
@@ -376,10 +382,7 @@ func renderRunningLine(run runningActivity, spinnerIndex int, width int) string 
 	}
 	prefix := fmt.Sprintf("%s ", spinner)
 	prefixWidth := runewidth.StringWidth(prefix)
-	available := width - prefixWidth
-	if available < 0 {
-		available = 0
-	}
+	available := max(width-prefixWidth, 0)
 
 	message := strings.TrimSpace(run.message)
 	if available > 0 {
@@ -430,6 +433,9 @@ func terminalWidth() int {
 
 	if cols := os.Getenv("COLUMNS"); cols != "" {
 		if value, err := strconv.Atoi(cols); err == nil && value > 0 {
+			if value > 72 {
+				value = 72
+			}
 			cachedTerminalWidth.Store(int64(value))
 			cachedWidthAt.Store(now.UnixNano())
 			return value
@@ -437,9 +443,9 @@ func terminalWidth() int {
 	}
 	width, _, err := term.GetSize(uintptr(os.Stderr.Fd()))
 	if err != nil || width <= 0 {
-		cachedTerminalWidth.Store(80)
+		cachedTerminalWidth.Store(72)
 		cachedWidthAt.Store(now.UnixNano())
-		return 80
+		return 72
 	}
 	cachedTerminalWidth.Store(int64(width))
 	cachedWidthAt.Store(now.UnixNano())
@@ -517,7 +523,6 @@ func formatDetailsBlock(details string, width int) string {
 	clean := strings.ReplaceAll(details, "\r\n", "\n")
 	lines := strings.Split(clean, "\n")
 	prefix := "  │ "
-	continuation := strings.Repeat(" ", runewidth.StringWidth(prefix))
 	prefixWidth := runewidth.StringWidth(prefix)
 	available := width - prefixWidth
 	if available < 0 {
@@ -534,11 +539,7 @@ func formatDetailsBlock(details string, width int) string {
 			if i > 0 || j > 0 {
 				sb.WriteString("\n")
 			}
-			if j == 0 {
-				sb.WriteString(prefix)
-			} else {
-				sb.WriteString(continuation)
-			}
+			sb.WriteString(prefix)
 			sb.WriteString(wrappedLine)
 		}
 	}

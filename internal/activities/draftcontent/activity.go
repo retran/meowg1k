@@ -53,7 +53,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, err
 		}
 
-		executorCtx.SendRunningWithDetails("Thinking about the response", fmt.Sprintf("model=%s", input.Profile.Model))
+		executorCtx.SendRunning("")
 
 		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
 		if err != nil {
@@ -66,7 +66,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, err
 		}
 
-		executorCtx.SendCompletedWithDetails("I've drafted the response", content)
+		executorCtx.SendCompleted("")
 
 		return &Output{
 			Content: content,
