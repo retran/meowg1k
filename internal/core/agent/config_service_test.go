@@ -35,16 +35,25 @@ func TestService_Get_Defaults(t *testing.T) {
 	if resolved.Tools.SearchDefaults.TopK == 0 {
 		t.Fatal("expected search defaults to be set")
 	}
+	if resolved.Safety == nil {
+		t.Fatal("expected safety config to be set")
+	}
+	if len(resolved.Flows) == 0 {
+		t.Fatal("expected flows to be set")
+	}
+	if len(resolved.Personas) == 0 {
+		t.Fatal("expected personas to be set")
+	}
 
 	research := resolved.Steps["research"]
 	if research == nil {
-		t.Fatal("expected research step to be present")
+		t.Fatal("expected research legacy step config to be present")
 	}
-	if research.Profile == "" {
-		t.Fatal("expected research profile to be set")
+	if research.Profile != "" {
+		t.Fatal("expected legacy research profile to be empty by default")
 	}
-	if len(research.Tools) == 0 {
-		t.Fatal("expected research tools to be set")
+	if len(research.Tools) != 0 {
+		t.Fatal("expected legacy research tools to be empty by default")
 	}
 }
 

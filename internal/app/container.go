@@ -33,6 +33,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/shutdown"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Writer writes output to the user (used in activities).
@@ -330,6 +331,16 @@ func (c *Container) GetCacheRepo() ports.CacheRepository {
 // GetHTTPClientService returns the HTTP client service.
 func (c *Container) GetHTTPClientService() ports.HTTPClientService {
 	return c.httpClientService
+}
+
+// GetSilentFlag returns the silent flag from the command service.
+func (c *Container) GetSilentFlag() (bool, error) {
+	return c.CommandService.GetSilentFlag()
+}
+
+// GetExecutor returns a new executor with the default configuration.
+func (c *Container) GetExecutor() executor.Executor {
+	return executor.NewExecutor(runtime.NumCPU() * 2)
 }
 
 // getLogDir returns the appropriate log directory for the current OS.

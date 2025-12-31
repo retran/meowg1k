@@ -244,7 +244,6 @@ summarize:
     - match: "**/COPYRIGHT*"
       skip: true
     - match: "**/*.md"
-      profile: "qwen-flash"
       systemPrompt: |
         Summarize the documentation changes in 1-2 sentences.
         Focus on what content was added, updated, or restructured.
@@ -375,65 +374,50 @@ agent:
   defaults:
     profile: "smart"
     systemPrompt: >-
-      You are a multi-step agent that works in four steps: research, plan, execute, verify.
-      Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.
-      Use the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.
-      Use tools when needed and respond in the required JSON format.
+      You are an autonomous multi-step coding agent.
+      Work iteratively: discover context, plan, execute, verify.
+      Use tools when needed and keep outputs concise.
   tools:
     searchDefaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]
       topK: 8
       minScore: 0.6
-  steps:
-    research:
-      profile: "qwen-flash"
-      systemPrompt: >-
-        Research step: discover context and constraints without modifying files.
-        Best practices: start with memory.list, inspect relevant files and configs, note assumptions and risks, avoid destructive commands, and finish by calling memory.add with key findings and references.
-      tools: ["workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"]
-      toolModes:
-        workspace: ["list", "read", "stat", "exists"]
-        search: ["embeddings"]
-        summarize: ["text", "file", "diff"]
-        git: ["status", "log", "show", "diff", "branch", "current_branch"]
-        plan: ["list"]
-        memory: ["add", "list"]
+  safety:
+    # 0 = unlimited
+    max_steps: 0
+    circuit_breaker:
+      max_restarts: 5
+    dry_run: false
+  flows:
+    default: ["discover", "plan", "execute", "verify"]
+    quick: ["discover", "execute", "verify"]
+  personas:
+    discover:
+      role: "Code Discovery Agent"
+      profile: "flash"
+      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      instructions: >-
+        Discover context for the goal.
+        Prefer listing files + searching before reading.
+        Do not modify files.
     plan:
-      profile: "qwen-plus"
-      systemPrompt: >-
-        Plan step: build a clear, minimal task list to satisfy the goal.
-        Best practices: review memory.list, identify dependencies and tests, keep steps actionable and ordered, register tasks with plan.add, and finish by calling memory.add with the plan and notable risks.
-      tools: ["workspace", "summarize", "git", "plan", "memory"]
-      toolModes:
-        workspace: ["list", "read", "stat", "exists"]
-        summarize: ["text", "file", "diff"]
-        git: ["status", "diff"]
-        plan: ["add", "list"]
-        memory: ["add", "list"]
+      role: "Planning Agent"
+      profile: "smart"
+      tools: ["recall_facts", "read_file", "create_plan"]
+      instructions: >-
+        Turn discoveries into a minimal, ordered task list.
+        Use create_plan to register tasks.
     execute:
-      profile: "qwen-plus"
-      systemPrompt: >-
-        Execute step: implement the planned changes safely.
-        Best practices: review memory.list and plan tasks, make focused edits, keep diffs small, update plan task completion, and call memory.add with changes made, files touched, and any follow-ups.
-      tools: ["workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"]
-      toolModes:
-        workspace: ["list", "read", "write", "replace", "delete", "mkdir", "stat", "exists"]
-        search: ["embeddings"]
-        summarize: ["text", "file", "diff"]
-        git: ["status", "diff", "show", "log", "branch", "current_branch", "stage", "commit"]
-        plan: ["complete", "list"]
-        memory: ["add", "list"]
+      role: "Execution Agent"
+      profile: "smart"
+      tools: ["recall_facts", "read_file", "write_file", "edit_file", "run_shell", "update_task"]
+      instructions: >-
+        Implement the plan with focused diffs.
+        Update task status as you go.
     verify:
-      profile: "qwen-flash"
-      systemPrompt: >-
-        Verify step: validate changes and report gaps.
-        Best practices: review memory.list, check git status/diff and run tests if needed, confirm requirements are met, call out missing verification, and finish with memory.add summarizing results and next steps.
-        Output format: include a line `VerificationResult: pass|fail`. If fail, include a `FailureTasks:` section with bullet tasks to fix.
-      tools: ["workspace", "search", "summarize", "git", "plan", "memory"]
-      toolModes:
-        workspace: ["list", "read", "stat", "exists"]
-        search: ["embeddings"]
-        summarize: ["text", "file", "diff"]
-        git: ["status", "diff"]
-        plan: ["list"]
-        memory: ["add", "list"]
+      role: "Verification Agent"
+      profile: "flash"
+      tools: ["run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction"]
+      instructions: >-
+        Verify by inspecting diffs and running tests.
+        If issues remain, call restart_with_instruction with clear fix guidance.

@@ -43,6 +43,15 @@ func NewFactory(retrievalService retrieval.Retriever) (executor.ActivityFactory[
 	}, nil
 }
 
+// MustNewFactory creates a new searchindex activity factory or panics.
+func MustNewFactory(retrievalService retrieval.Retriever) executor.ActivityFactory[*Input, *Output] {
+	f, err := NewFactory(retrievalService)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
 // NewActivity creates a new searchindex activity instance.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, executorCtx *executor.Context, input *Input) (*Output, error) {

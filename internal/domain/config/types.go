@@ -152,7 +152,32 @@ type FilterConfig struct {
 type AgentConfig struct {
 	Defaults *AgentDefaults              `yaml:"defaults" mapstructure:"defaults"`
 	Tools    *AgentToolsConfig           `yaml:"tools" mapstructure:"tools"`
-	Steps    map[string]*AgentStepConfig `yaml:"steps" mapstructure:"steps"`
+	Steps    map[string]*AgentStepConfig `yaml:"steps" mapstructure:"steps"` // Legacy support
+	Flows    map[string][]string         `yaml:"flows" mapstructure:"flows"`
+	Personas map[string]*PersonaConfig   `yaml:"personas" mapstructure:"personas"`
+	Safety   *AgentSafetyConfig          `yaml:"safety" mapstructure:"safety"`
+}
+
+// PersonaConfig defines a reusable agent persona.
+type PersonaConfig struct {
+	Role             string   `yaml:"role" mapstructure:"role"`
+	Profile          string   `yaml:"profile" mapstructure:"profile"`
+	Tools            []string `yaml:"tools" mapstructure:"tools"`
+	Instructions     string   `yaml:"instructions" mapstructure:"instructions"`
+	AllowedDelegates []string `yaml:"allowed_delegates" mapstructure:"allowed_delegates"`
+	AllowedTasks     []string `yaml:"allowed_tasks" mapstructure:"allowed_tasks"`
+}
+
+// AgentSafetyConfig defines safety limits for the agent.
+type AgentSafetyConfig struct {
+	MaxSteps       int                   `yaml:"max_steps" mapstructure:"max_steps"`
+	CircuitBreaker *CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
+	DryRun         bool                  `yaml:"dry_run" mapstructure:"dry_run"`
+}
+
+// CircuitBreakerConfig defines circuit breaker settings.
+type CircuitBreakerConfig struct {
+	MaxRestarts int `yaml:"max_restarts" mapstructure:"max_restarts"`
 }
 
 // AgentDefaults defines defaults applied to all agent steps.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	agentconfig "github.com/retran/meowg1k/internal/core/agent"
+	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -37,7 +38,10 @@ func (NoopToolExecutor) ExecuteTool(_ context.Context, _ *executor.Context, tool
 
 // Input defines the agent iteration input parameters.
 type Input struct {
-	ToolExecutor   ToolExecutor
+	ToolExecutor   ToolExecutor // Deprecated: Use ToolRegistry
+	ToolRegistry   *tools.Registry
+	AllowedTools   []string
+	StepName       string
 	Profile        *profile.ResolvedProfile
 	StepConfig     *agentconfig.StepConfig
 	PriorSummaries *[]string
@@ -72,7 +76,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, err
 		}
 
-		stepName := resolveStepName(input.StepConfig)
+		stepName := strings.TrimSpace(input.StepName)
+		if stepName == "" {
+			stepName = resolveStepName(input.StepConfig)
+		}
 		execCtx.SendRunning(getStepDisplayName(stepName))
 
 		maxIterations := defaultMaxIterations
@@ -80,11 +87,20 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			maxIterations = *input.MaxIterations
 		}
 
-		toolDefs := buildToolDefinitions(input.StepConfig)
+		var toolDefs []gateway.ToolDefinition
+		var toolExec ToolExecutor
 
-		toolExec := input.ToolExecutor
-		if toolExec == nil {
-			toolExec = NoopToolExecutor{}
+		if input.ToolRegistry != nil {
+			// Use the registry
+			toolDefs = input.ToolRegistry.GetDefinitions(input.AllowedTools)
+			toolExec = input.ToolRegistry
+		} else {
+			// Legacy/Fallback behavior
+			toolDefs = buildToolDefinitions(input.StepConfig)
+			toolExec = input.ToolExecutor
+			if toolExec == nil {
+				toolExec = NoopToolExecutor{}
+			}
 		}
 
 		state := &loopState{
@@ -198,11 +214,12 @@ func validateInput(factory *Factory, input *Input) error {
 	if input == nil {
 		return fmt.Errorf("input cannot be nil")
 	}
-	if input.StepConfig == nil {
-		return fmt.Errorf("step config is nil")
-	}
 	if input.Profile == nil {
 		return fmt.Errorf("profile is nil")
+	}
+	// StepConfig is only required for legacy tool-definition building.
+	if input.ToolRegistry == nil && input.StepConfig == nil {
+		return fmt.Errorf("step config is nil")
 	}
 	return nil
 }

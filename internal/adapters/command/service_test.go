@@ -1540,6 +1540,74 @@ func TestGetSystemPromptFlagNilService(t *testing.T) {
 	}
 }
 
+func TestGetDryRunFlagTrue(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("dry-run", false, "dry run")
+	cmd.Flags().Set("dry-run", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	dryRun, err := service.GetDryRunFlag()
+	if err != nil {
+		t.Fatalf("GetDryRunFlag failed: %v", err)
+	}
+
+	if !dryRun {
+		t.Error("Expected dry-run flag to be true")
+	}
+}
+
+func TestGetDryRunFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("dry-run", false, "dry run")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	dryRun, err := service.GetDryRunFlag()
+	if err != nil {
+		t.Fatalf("GetDryRunFlag failed: %v", err)
+	}
+
+	if dryRun {
+		t.Error("Expected dry-run flag to be false")
+	}
+}
+
+func TestGetDryRunFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetDryRunFlag()
+	if err == nil {
+		t.Error("Expected error when dry-run flag is not defined")
+	}
+}
+
+func TestGetDryRunFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetDryRunFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
 func TestGetTaskInputFromArgs(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",

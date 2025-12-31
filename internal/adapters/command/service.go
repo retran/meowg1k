@@ -416,6 +416,23 @@ func (s *Service) GetSystemPromptFlag() (string, error) {
 	return val, nil
 }
 
+// GetDryRunFlag retrieves the dry-run flag from command flags.
+func (s *Service) GetDryRunFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	val, err := s.cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		return false, fmt.Errorf("failed to get dry-run flag: %w", err)
+	}
+	return val, nil
+}
+
 // GetTaskInput retrieves the task input from command arguments or stdin.
 func (s *Service) GetTaskInput() (string, error) {
 	if s == nil {

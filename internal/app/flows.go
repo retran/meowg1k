@@ -50,7 +50,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/project"
 	"github.com/retran/meowg1k/internal/core/prompt"
 	"github.com/retran/meowg1k/internal/core/provider"
-	pullrequest "github.com/retran/meowg1k/internal/core/pullrequest"
+	"github.com/retran/meowg1k/internal/core/pullrequest"
 	"github.com/retran/meowg1k/internal/core/retrieval"
 	"github.com/retran/meowg1k/internal/core/summarize"
 	"github.com/retran/meowg1k/internal/core/task"
@@ -60,9 +60,9 @@ import (
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
 	commitFlow "github.com/retran/meowg1k/internal/flows/commitmsg"
+	doFlow "github.com/retran/meowg1k/internal/flows/do"
 	indexFlow "github.com/retran/meowg1k/internal/flows/index"
 	prflow "github.com/retran/meowg1k/internal/flows/pr"
-	agentFlow "github.com/retran/meowg1k/internal/flows/run"
 	searchFlow "github.com/retran/meowg1k/internal/flows/search"
 	"github.com/retran/meowg1k/internal/flows/write"
 	"github.com/retran/meowg1k/internal/ports"
@@ -677,35 +677,100 @@ func (c *Container) CreateSearchFlow() (executor.Flow, error) {
 	return searchFlowFactory.NewFlow(), nil
 }
 
-// CreateRunFlow creates the run workflow with all dependencies.
-func (c *Container) CreateRunFlow() (executor.Flow, error) {
-	common, err := c.buildCommonFlowServices()
+// CreateDoFlow creates a complete do flow with all dependencies.
+func (c *Container) CreateDoFlow() (executor.Flow, error) {
+	workspaceService := workspace.NewService(c.CommandService)
+	gitService, err := git.NewService(workspaceService)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create git service: %w", err)
 	}
+
+	filterService, err := filter.NewService(c.ConfigService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filter service: %w", err)
+	}
+
+	projectStateSvc := project.NewStateService(gitService, filterService, workspaceService)
 
 	agentConfigService, err := agentcore.NewService(c.ConfigService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent config service: %w", err)
 	}
 
-	stepFactory, err := agentloop.NewFactory(common.invokeLLMFactory)
+	providerService := provider.NewService()
+	modelService, err := model.NewService(c.ConfigService, providerService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create agent step factory: %w", err)
+		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	flowFactory, err := agentFlow.NewFactory(
-		agentConfigService,
-		stepFactory,
+	profileService, err := profile.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create profile service: %w", err)
+	}
+
+	// Initialize database and repositories
+	if err := c.initDB(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	metaRepo := meta.NewRepository(c.dbHost)
+	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
+
+	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vector search service: %w", err)
+	}
+
+	gatewayFactory, err := gateway.NewFactory(
+		c.GetRateLimitRepo(),
+		c.GetCacheRepo(),
 		c.CommandService,
-		common.profileService,
-		c.OutputService,
-		workspace.NewService(c.CommandService),
-		common.invokeLLMFactory,
+		c.TraceLogger,
+		c.CommandService,
+		c.GetHTTPClientService(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create run flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
+
+	// We need retrieval service for search_code tool
+	// Use default embedding profile from index config
+	indexConfig, err := c.resolveIndexConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
+	}
+
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
+	}
+
+	invokeLLMFactory, err := draftcontent.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
+	}
+
+	agentLoopFactory, err := agentloop.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent loop factory: %w", err)
+	}
+
+	flowFactory := doFlow.NewFactory(
+		agentConfigService,
+		profileService,
+		workspaceService,
+		gitService,
+		projectStateSvc,
+		retrievalSvc,
+		gatewayFactory,
+		agentLoopFactory,
+		c.CommandService,
+	)
 
 	return flowFactory.NewFlow(), nil
 }

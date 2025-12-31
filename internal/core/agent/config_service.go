@@ -28,9 +28,13 @@ func NewService(configResolver ports.ConfigResolver) (*Service, error) {
 
 // ResolvedConfig contains the agent configuration with defaults applied.
 type ResolvedConfig struct {
-	Steps    map[string]*StepConfig
+	Steps    map[string]*StepConfig // Legacy support
 	Defaults Defaults
 	Tools    Tools
+
+	Personas map[string]*config.PersonaConfig
+	Flows    map[string][]string
+	Safety   *config.AgentSafetyConfig
 }
 
 // Defaults are the base defaults for agent steps.
@@ -109,10 +113,28 @@ func (s *Service) Get() (*ResolvedConfig, error) {
 	tools := applyToolDefaults(agentCfg.Tools)
 	steps := applyStepDefaults(agentCfg.Steps)
 
+	personas := agentCfg.Personas
+	if len(personas) == 0 {
+		personas = defaultPersonas()
+	}
+
+	flows := agentCfg.Flows
+	if len(flows) == 0 {
+		flows = defaultFlows()
+	}
+
+	safety := agentCfg.Safety
+	if safety == nil {
+		safety = defaultSafety()
+	}
+
 	return &ResolvedConfig{
 		Defaults: defaults,
 		Tools:    tools,
 		Steps:    steps,
+		Personas: personas,
+		Flows:    flows,
+		Safety:   safety,
 	}, nil
 }
 
@@ -128,7 +150,7 @@ func applyDefaults(cfg *config.AgentDefaults) Defaults {
 
 	systemPrompt := cfg.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = "You are a multi-step agent that works in four steps: research, plan, execute, verify.\nResearch gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.\nUse the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs."
+		systemPrompt = "You are a multi-step agent."
 	}
 
 	return Defaults{
@@ -261,7 +283,7 @@ func defaultAgentConfig() *config.AgentConfig {
 	return &config.AgentConfig{
 		Defaults: &config.AgentDefaults{
 			Profile:      "gemini-pro",
-			SystemPrompt: "You are a multi-step agent that works in four steps: research, plan, execute, verify.\nResearch gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.\nUse the memory tool to keep context between steps: call memory.list at the start of each step, and call memory.add at the end of each step to store key findings, decisions, and outputs.",
+			SystemPrompt: "You are a multi-step agent.",
 		},
 		Tools: &config.AgentToolsConfig{
 			SearchDefaults: &config.AgentSearchDefaults{
@@ -270,59 +292,56 @@ func defaultAgentConfig() *config.AgentConfig {
 				MinScore:  0.6,
 			},
 		},
-		Steps: map[string]*config.AgentStepConfig{
-			"research": {
-				Profile:      stringPtr("gemini-flash"),
-				SystemPrompt: stringPtr("Research step: discover context and constraints without modifying files.\nBest practices: start with memory.list, inspect relevant files and configs, note assumptions and risks, avoid destructive commands, and finish by calling memory.add with key findings and references."),
-				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"},
-				ToolModes: map[string][]string{
-					"workspace": {"list", "read", "stat", "exists"},
-					"search":    {"embeddings"},
-					"summarize": {"text", "file", "diff"},
-					"git":       {"status", "log", "show", "diff", "branch", "current_branch"},
-					"plan":      {"list"},
-					"memory":    {"add", "list"},
-				},
-			},
-			"plan": {
-				Profile:      stringPtr("gemini-pro"),
-				SystemPrompt: stringPtr("Plan step: build a clear, minimal task list to satisfy the goal.\nBest practices: review memory.list, identify dependencies and tests, keep steps actionable and ordered, register tasks with plan.add, and finish by calling memory.add with the plan and notable risks."),
-				Tools:        []string{"workspace", "summarize", "git", "plan", "memory"},
-				ToolModes: map[string][]string{
-					"workspace": {"list", "read", "stat", "exists"},
-					"summarize": {"text", "file", "diff"},
-					"git":       {"status", "diff"},
-					"plan":      {"add", "list"},
-					"memory":    {"add", "list"},
-				},
-			},
-			"execute": {
-				Profile:      stringPtr("gemini-pro"),
-				SystemPrompt: stringPtr("Execute step: implement the planned changes safely.\nBest practices: review memory.list and plan tasks, make focused edits, keep diffs small, update plan task completion, and call memory.add with changes made, files touched, and any follow-ups."),
-				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory", "command", "patch"},
-				ToolModes: map[string][]string{
-					"workspace": {"list", "read", "write", "replace", "delete", "mkdir", "stat", "exists"},
-					"search":    {"embeddings"},
-					"summarize": {"text", "file", "diff"},
-					"git":       {"status", "diff", "show", "log", "branch", "current_branch", "stage", "commit"},
-					"plan":      {"complete", "list"},
-					"memory":    {"add", "list"},
-				},
-			},
-			"verify": {
-				Profile:      stringPtr("gemini-flash"),
-				SystemPrompt: stringPtr("Verify step: validate changes and report gaps.\nBest practices: review memory.list, check git status/diff and run tests if needed, confirm requirements are met, call out missing verification, and finish with memory.add summarizing results and next steps.\nOutput format: include a line `VerificationResult: pass|fail`. If fail, include a `FailureTasks:` section with bullet tasks to fix."),
-				Tools:        []string{"workspace", "search", "summarize", "git", "plan", "memory"},
-				ToolModes: map[string][]string{
-					"workspace": {"list", "read", "stat", "exists"},
-					"search":    {"embeddings"},
-					"summarize": {"text", "file", "diff"},
-					"git":       {"status", "diff"},
-					"plan":      {"list"},
-					"memory":    {"add", "list"},
-				},
-			},
+		// Legacy defaults
+		Steps: map[string]*config.AgentStepConfig{},
+	}
+}
+
+func defaultPersonas() map[string]*config.PersonaConfig {
+	return map[string]*config.PersonaConfig{
+		"discover": {
+			Role:             "Code Discovery Agent",
+			Profile:          "gemini-flash",
+			Tools:            []string{"list_files", "search_code", "read_file", "summarize", "memorize_fact", "delegate"},
+			Instructions:     "Discover the context for the user goal.\nList files and search for relevant logic.\nMemorize key findings. Do not edit files.",
+			AllowedDelegates: []string{"research_assistant"},
 		},
+		"plan": {
+			Role:         "Planning Agent",
+			Profile:      "gemini-pro",
+			Tools:        []string{"recall_facts", "read_file", "create_plan"},
+			Instructions: "Create a step-by-step task board based on discovered facts.\nVerify assumptions before finalizing.",
+		},
+		"execute": {
+			Role:         "Execution Agent",
+			Profile:      "gemini-pro",
+			Tools:        []string{"recall_facts", "read_file", "write_file", "edit_file", "run_shell", "update_task", "run_task"},
+			Instructions: "Execute the task board. Use edit_file for targeted changes.\nUpdate task status immediately.",
+			AllowedTasks: []string{"doc", "test", "review"},
+		},
+		"verify": {
+			Role:         "Verification Agent",
+			Profile:      "gemini-flash",
+			Tools:        []string{"run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction"},
+			Instructions: "Verify changes via tests/lints.\nIf failures exist, use restart_with_instruction to trigger a fix cycle.",
+		},
+	}
+}
+
+func defaultFlows() map[string][]string {
+	return map[string][]string{
+		"default": {"discover", "plan", "execute", "verify"},
+		"quick":   {"discover", "execute", "verify"},
+	}
+}
+
+func defaultSafety() *config.AgentSafetyConfig {
+	return &config.AgentSafetyConfig{
+		MaxSteps: 0,
+		CircuitBreaker: &config.CircuitBreakerConfig{
+			MaxRestarts: 5,
+		},
+		DryRun: false,
 	}
 }
 
