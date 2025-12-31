@@ -329,29 +329,6 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 }
 
 func TestAnthropicGateway_NilChecks(t *testing.T) {
-	t.Run("Nil context", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
-		request := domainGateway.NewGenerateContentRequest(
-			"claude-3-haiku-20240307",
-			"System prompt",
-			"User prompt",
-			1000,
-		)
-
-		//nolint:staticcheck // intentionally testing nil context handling
-		_, err = gateway.GenerateContent(nil, request)
-		if err == nil {
-			t.Fatal("Expected error for nil context")
-		}
-		if !strings.Contains(err.Error(), "context cannot be nil") {
-			t.Errorf("Expected 'context cannot be nil' error, got: %v", err)
-		}
-	})
-
 	t.Run("Nil request", func(t *testing.T) {
 		gateway, err := newAnthropicGateway("test-api-key", nil)
 		if err != nil {

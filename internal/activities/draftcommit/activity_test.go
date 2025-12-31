@@ -9,6 +9,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -54,7 +55,9 @@ func TestActivitySuccess(t *testing.T) {
 	// Create a mock activity that returns predefined content
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
 		return &draftcontent.Output{
-			Content: "test commit message",
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "test commit message"}},
+			},
 		}, nil
 	}
 
@@ -130,7 +133,11 @@ func TestNewActivity_NilFactory(t *testing.T) {
 
 func TestActivity_SkippedSummaries(t *testing.T) {
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "commit message"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "commit message"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
@@ -161,7 +168,11 @@ func TestActivity_SkippedSummaries(t *testing.T) {
 
 func TestActivity_EmptySummaries(t *testing.T) {
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "empty commit"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "empty commit"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}

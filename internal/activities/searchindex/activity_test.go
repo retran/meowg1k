@@ -120,11 +120,17 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Message != `I'm searching for "test searchindex" (top 10, min score 0.50, 3 snapshot(s))` {
+		if feedbackMessages[0].Message != "I'm searching the index" {
 			t.Errorf("unexpected running message: %s", feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Message != "I found 2 result(s)" {
+		if feedbackMessages[0].Details != "query=\"test searchindex\"\nsnapshots=3\ntop_k=10\nmin_score=0.50" {
+			t.Errorf("unexpected running details: %q", feedbackMessages[0].Details)
+		}
+		if feedbackMessages[1].Message != "I've found the results" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
+		}
+		if feedbackMessages[1].Details != "results=2" {
+			t.Errorf("unexpected completion details: %q", feedbackMessages[1].Details)
 		}
 	})
 
@@ -261,8 +267,11 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[1].Message != "I found 0 result(s)" {
-			t.Errorf("unexpected completion message: expected 'I found 0 result(s)', got '%s'", feedbackMessages[1].Message)
+		if feedbackMessages[1].Message != "I've found the results" {
+			t.Errorf("unexpected completion message: expected 'I've found the results', got '%s'", feedbackMessages[1].Message)
+		}
+		if feedbackMessages[1].Details != "results=0" {
+			t.Errorf("unexpected completion details: expected 'results=0', got %q", feedbackMessages[1].Details)
 		}
 	})
 }

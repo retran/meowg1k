@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/retran/meowg1k/internal/activities/draftflatcommit"
+	draftcommitflat "github.com/retran/meowg1k/internal/activities/draftcommitflat"
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/provider"
@@ -29,7 +30,9 @@ func (m *mockInvokeLLMFactory) NewActivity() executor.Activity[*draftcontent.Inp
 			return nil, m.err
 		}
 		return &draftcontent.Output{
-			Content: m.response,
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: m.response}},
+			},
 		}, nil
 	}
 }

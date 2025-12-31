@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
-	"github.com/retran/meowg1k/internal/activities/draftprflat"
 	"github.com/retran/meowg1k/internal/activities/draftpr"
+	"github.com/retran/meowg1k/internal/activities/draftprflat"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
 	"github.com/retran/meowg1k/internal/activities/summarizechanges"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"

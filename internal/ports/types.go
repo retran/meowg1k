@@ -34,12 +34,7 @@ type ProfileResolver interface {
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
 type GenerationGateway interface {
-	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error)
-}
-
-// ToolCallingGateway defines the contract for a client that supports tool calling.
-type ToolCallingGateway interface {
-	GenerateContentWithTools(ctx context.Context, request *gateway.GenerateContentRequest, tools []gateway.ToolDefinition) (*gateway.GenerateContentResponse, error)
+	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error)
 }
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings

@@ -172,7 +172,7 @@ func TestWriteCmdIntegration(t *testing.T) {
 			t.Error("Short description should be concise (under 80 characters)")
 		}
 
-		requiredTerms := []string{"write", "content"}
+		requiredTerms := []string{"generate", "content"}
 		shortLower := strings.ToLower(writeCmd.Short)
 
 		for _, term := range requiredTerms {

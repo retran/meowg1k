@@ -20,11 +20,13 @@ type mockGenerationGateway struct {
 	Content string
 }
 
-func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {
+func (m *mockGenerationGateway) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (*domainGateway.GenerateContentResponse, error) {
 	if m.Err != nil {
-		return "", m.Err
+		return nil, m.Err
 	}
-	return m.Content, nil
+	return &domainGateway.GenerateContentResponse{
+		Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: m.Content}},
+	}, nil
 }
 
 // mockGenerationGatewayFactory is a mock implementation of GenerationGatewayFactory for testing.
@@ -84,9 +86,11 @@ func TestGenerateContentActivity_Success(t *testing.T) {
 	if err != nil {
 		t.Errorf("Activity failed: %v", err)
 	}
-
-	if output.Content != "Generated content" {
-		t.Errorf("Expected 'Generated content', got '%s'", output.Content)
+	if output == nil || output.Response == nil {
+		t.Fatalf("expected non-nil response")
+	}
+	if output.Response.Text() != "Generated content" {
+		t.Errorf("Expected 'Generated content', got '%s'", output.Response.Text())
 	}
 }
 

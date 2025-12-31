@@ -53,15 +53,15 @@ models:
       requestsPerDay: 1000000
 
 profiles:
-  qwen-flash:
-    model: "qwen-flash"
+  flash:
+    model: "gemini-flash"
     temperature: 0.3
     cache:
       enabled: true
       ttl: "24h"
 
-  qwen-plus:
-    model: "qwen-plus"
+  smart:
+    model: "gemini-pro"
     timeout: "10m"
     temperature: 0.2
     topP: 0.95
@@ -89,7 +89,7 @@ cache:
 
 write:
   default:
-    profile: "qwen-flash"
+    profile: "flash"
     systemPrompt: >-
       You are a helpful senior Go software developer and reviewer.
       Prefer clear, concise, and actionable feedback.
@@ -97,7 +97,7 @@ write:
 
   tasks:
     review:
-      profile: "qwen-plus"
+      profile: "smart"
       userPrompt: >-
         Perform a thorough code review of the following Go code.
 
@@ -116,7 +116,7 @@ write:
         If the code is fine, state so concisely and suggest minor polish only.
 
     doc:
-      profile: "qwen-plus"
+      profile: "smart"
       userPrompt: >-
         Write a complete GoDoc comment for the following exported function or type.
         Requirements:
@@ -126,7 +126,7 @@ write:
           - Do NOT include code; only the comment block.
 
     test:
-      profile: "qwen-plus"
+      profile: "smart"
       userPrompt: >-
         Write comprehensive table-driven unit tests using the standard "testing" package (no third-party deps).
         Requirements:
@@ -139,7 +139,7 @@ write:
         Return only compilable *_test.go code.
 
     refactor:
-      profile: "qwen-plus"
+      profile: "smart"
       userPrompt: >-
         Refactor the following Go code to improve readability, maintainability, and performance,
         while preserving behavior and public API.
@@ -169,7 +169,7 @@ index:
   batchSize: 64
 
 answer:
-  profile: "qwen-plus"
+  profile: "smart"
   topK: 20
   minScore: 0.4
   systemPrompt: >-
@@ -186,7 +186,7 @@ answer:
 
 summarize:
   default:
-    profile: "qwen-flash"
+    profile: "flash"
     strategy:
       type: "plain"
       includeOriginalFile: false
@@ -251,7 +251,7 @@ summarize:
         Mention if it's new documentation, fixes, or improvements to existing content.
 
 commit:
-  profile: "qwen-plus"
+  profile: "smart"
   strategy: "summarize"
   systemPrompt: |
     You are an expert software engineer writing a commit message in Conventional Commits format.
@@ -293,7 +293,7 @@ commit:
     Generate only the commit message, nothing else.
 
 pr:
-  profile: "qwen-plus"
+  profile: "smart"
   strategy: "summarize"
   systemPrompt: |
     You are an expert software engineer creating a Pull Request description for a Go project.
@@ -373,7 +373,7 @@ pr:
 
 agent:
   defaults:
-    profile: "qwen-plus"
+    profile: "smart"
     systemPrompt: >-
       You are a multi-step agent that works in four steps: research, plan, execute, verify.
       Research gathers context without changes. Plan turns findings into ordered tasks. Execute applies the changes. Verify checks outcomes and reports gaps.

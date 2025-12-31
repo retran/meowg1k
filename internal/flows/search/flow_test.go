@@ -91,7 +91,7 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		searchFactory     executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
+		searchFactory    executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
 		parametersReader CommandParametersReader
 		outputWriter     ports.OutputWriter
 		name             string
@@ -100,7 +100,7 @@ func TestNewFactory(t *testing.T) {
 	}{
 		{
 			name:             "nil searchFactory",
-			searchFactory:     nil,
+			searchFactory:    nil,
 			parametersReader: &mockCommandParametersReader{},
 			outputWriter:     &mockOutputWriter{},
 			wantErr:          true,
@@ -108,7 +108,7 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:             "nil parametersReader",
-			searchFactory:     &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
+			searchFactory:    &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
 			parametersReader: nil,
 			outputWriter:     &mockOutputWriter{},
 			wantErr:          true,
@@ -116,7 +116,7 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:             "nil outputWriter",
-			searchFactory:     &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
+			searchFactory:    &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
 			parametersReader: &mockCommandParametersReader{},
 			outputWriter:     nil,
 			wantErr:          true,
@@ -124,7 +124,7 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:             "successful factory creation",
-			searchFactory:     &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
+			searchFactory:    &mockActivityFactory[*queryactivity.Input, *queryactivity.Output]{},
 			parametersReader: &mockCommandParametersReader{},
 			outputWriter:     &mockOutputWriter{},
 			wantErr:          false,

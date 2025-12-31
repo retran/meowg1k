@@ -5,8 +5,10 @@
 package gateway
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // GenerateContentRequest holds the parameters for a content generation request.
@@ -37,6 +39,7 @@ type GenerateContentRequest struct {
 	systemPrompt      string
 	userPrompt        string
 	stop              []string
+	tools             []ToolDefinition
 	maxOutputTokens   int
 }
 
@@ -57,10 +60,73 @@ type ToolCall struct {
 	ID        string         `json:"id,omitempty"`
 }
 
-// GenerateContentResponse represents a model response that may include tool calls.
+type ContentBlockKind string
+
+const (
+	ContentBlockText      ContentBlockKind = "text"
+	ContentBlockReasoning ContentBlockKind = "reasoning"
+	ContentBlockToolCall  ContentBlockKind = "tool_call"
+)
+
+// ContentBlock is an ordered element emitted by the model.
+//
+// Providers that support interleaving (e.g., Anthropic) should preserve the
+// original order when mapping to blocks.
+type ContentBlock struct {
+	ToolCall *ToolCall        `json:"tool_call,omitempty"`
+	Kind     ContentBlockKind `json:"kind"`
+	Text     string           `json:"text,omitempty"`
+}
+
+// GenerateContentResponse represents an ordered model response.
 type GenerateContentResponse struct {
-	Content   string     `json:"content,omitempty"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	Blocks []ContentBlock `json:"blocks,omitempty"`
+}
+
+func (r *GenerateContentResponse) Text() string {
+	if r == nil {
+		return ""
+	}
+	return joinTextBlocks(r.Blocks, ContentBlockText)
+}
+
+func (r *GenerateContentResponse) Reasoning() string {
+	if r == nil {
+		return ""
+	}
+	return joinTextBlocks(r.Blocks, ContentBlockReasoning)
+}
+
+func (r *GenerateContentResponse) ToolCalls() []ToolCall {
+	if r == nil {
+		return nil
+	}
+	toolCalls := make([]ToolCall, 0)
+	for _, b := range r.Blocks {
+		if b.Kind != ContentBlockToolCall || b.ToolCall == nil {
+			continue
+		}
+		toolCalls = append(toolCalls, *b.ToolCall)
+	}
+	return toolCalls
+}
+
+func joinTextBlocks(blocks []ContentBlock, kind ContentBlockKind) string {
+	var sb strings.Builder
+	for _, b := range blocks {
+		if b.Kind != kind {
+			continue
+		}
+		segment := strings.TrimSpace(b.Text)
+		if segment == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(segment)
+	}
+	return strings.TrimSpace(sb.String())
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -69,8 +135,36 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutput
 		model:           model,
 		systemPrompt:    systemPrompt,
 		userPrompt:      userPrompt,
+		tools:           nil,
 		maxOutputTokens: maxOutputTokens,
 	}
+}
+
+// WithTools sets tool definitions for native tool calling.
+func (r *GenerateContentRequest) WithTools(tools []ToolDefinition) *GenerateContentRequest {
+	r.tools = tools
+	return r
+}
+
+func (r *GenerateContentRequest) Tools() []ToolDefinition {
+	if r == nil {
+		return nil
+	}
+	return r.tools
+}
+
+func (r *GenerateContentRequest) ToolsJSON() (string, error) {
+	if r == nil {
+		return "", nil
+	}
+	if len(r.tools) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(r.tools)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal tools: %w", err)
+	}
+	return string(b), nil
 }
 
 // WithTemperature sets the temperature parameter and returns the request.

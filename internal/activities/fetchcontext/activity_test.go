@@ -111,10 +111,10 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[0].Message != `I'm retrieving context for "test searchindex" (top 10, min score 0.50, 3 snapshot(s))` {
+		if feedbackMessages[0].Message != "I'm retrieving context" {
 			t.Errorf("unexpected running message: %s", feedbackMessages[0].Message)
 		}
-		if feedbackMessages[1].Message != "I pulled in relevant context (top 10)" {
+		if feedbackMessages[1].Message != "I've gathered relevant context" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})
@@ -252,7 +252,7 @@ func TestActivity(t *testing.T) {
 		if len(feedbackMessages) != 2 {
 			t.Fatalf("expected 2 feedback messages, got %d", len(feedbackMessages))
 		}
-		if feedbackMessages[1].Message != "I didn't find any useful context (top 10)" {
+		if feedbackMessages[1].Message != "I couldn't find useful context" {
 			t.Errorf("unexpected completion message: %s", feedbackMessages[1].Message)
 		}
 	})

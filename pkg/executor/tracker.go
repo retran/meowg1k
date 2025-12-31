@@ -28,22 +28,20 @@ const (
 
 // BubbleTeaTracker provides a styled TUI-like log with a single live status line.
 type BubbleTeaTracker struct {
-	feedbackCh   chan *Feedback
+	bypass       io.Writer
 	feedbackDone chan struct{}
+	running      map[string]runningActivity
+	liveWriter   *uilive.Writer
+	spinnerStop  chan struct{}
+	feedbackCh   chan *Feedback
 	wg           sync.WaitGroup
-	silent       bool
+	logCount     int
+	spinner      int
+	mu           sync.RWMutex
+	spinnerOnce  sync.Once
 	stopOnce     sync.Once
 	stopped      atomic.Bool
-
-	liveWriter  *uilive.Writer
-	bypass      io.Writer
-	spinnerStop chan struct{}
-	spinnerOnce sync.Once
-
-	mu       sync.RWMutex
-	running  map[string]runningActivity
-	spinner  int
-	logCount int
+	silent       bool
 }
 
 type runningActivity struct {

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/splitfiles"
+	"github.com/retran/meowg1k/internal/activities/buildbatches"
 	"github.com/retran/meowg1k/internal/activities/embedall"
+	"github.com/retran/meowg1k/internal/activities/finalizeindex"
 	"github.com/retran/meowg1k/internal/activities/prepareindex"
 	"github.com/retran/meowg1k/internal/activities/savechunks"
-	"github.com/retran/meowg1k/internal/activities/finalizeindex"
-	"github.com/retran/meowg1k/internal/activities/buildbatches"
 	"github.com/retran/meowg1k/internal/activities/scanworktree"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
 )

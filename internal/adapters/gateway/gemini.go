@@ -48,40 +48,6 @@ func newGeminiGateway(ctx context.Context, apiKey string) (ports.Gateway, error)
 func (g *geminiGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
-	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
-	}
-
-	if g == nil {
-		return "", fmt.Errorf("gemini gateway is nil")
-	}
-
-	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
-	}
-
-	generationConfig := buildGeminiGenerationConfig(request)
-
-	userPrompt := genai.Text(request.UserPrompt())
-
-	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
-	}
-
-	if err := validateGeminiResponse(result, request.Model()); err != nil {
-		return "", err
-	}
-
-	return extractTextFromGeminiResponse(result), nil
-}
-
-// GenerateContentWithTools sends a content generation request with tool definitions.
-func (g *geminiGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
 ) (*gateway.GenerateContentResponse, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context cannot be nil")
@@ -95,21 +61,17 @@ func (g *geminiGateway) GenerateContentWithTools(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	if len(tools) == 0 {
-		return nil, gateway.ErrToolCallingNotSupported
-	}
-
-	config := buildGeminiGenerationConfig(request)
-	config.Tools = buildGeminiTools(tools)
-	config.ToolConfig = &genai.ToolConfig{
-		FunctionCallingConfig: &genai.FunctionCallingConfig{
-			Mode: genai.FunctionCallingConfigModeAuto,
-		},
+	generationConfig := buildGeminiGenerationConfig(request)
+	if tools := request.Tools(); len(tools) > 0 {
+		generationConfig.Tools = buildGeminiTools(tools)
+		generationConfig.ToolConfig = &genai.ToolConfig{
+			FunctionCallingConfig: &genai.FunctionCallingConfig{Mode: genai.FunctionCallingConfigModeAuto},
+		}
 	}
 
 	userPrompt := genai.Text(request.UserPrompt())
 
-	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, config)
+	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
 	}
@@ -118,10 +80,39 @@ func (g *geminiGateway) GenerateContentWithTools(
 		return nil, err
 	}
 
-	return &gateway.GenerateContentResponse{
-		Content:   extractTextFromGeminiResponse(result),
-		ToolCalls: mapGeminiToolCalls(result.FunctionCalls()),
-	}, nil
+	blocks := parseGeminiBlocksOrdered(result)
+	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+}
+
+func parseGeminiBlocksOrdered(resp *genai.GenerateContentResponse) []gateway.ContentBlock {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return nil
+	}
+
+	parts := resp.Candidates[0].Content.Parts
+	if len(parts) == 0 {
+		return nil
+	}
+
+	blocks := make([]gateway.ContentBlock, 0, len(parts))
+	for _, part := range parts {
+		if part == nil {
+			continue
+		}
+		if part.FunctionCall != nil {
+			call := gateway.ToolCall{ID: part.FunctionCall.ID, Name: part.FunctionCall.Name, Arguments: part.FunctionCall.Args}
+			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+			continue
+		}
+		if part.Text != "" {
+			kind := gateway.ContentBlockText
+			if part.Thought {
+				kind = gateway.ContentBlockReasoning
+			}
+			blocks = append(blocks, gateway.ContentBlock{Kind: kind, Text: part.Text})
+		}
+	}
+	return blocks
 }
 
 func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai.GenerateContentConfig {

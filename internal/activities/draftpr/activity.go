@@ -74,11 +74,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if err != nil {
 			return nil, fmt.Errorf("failed to write PR description: %w", err)
 		}
+		if invokeOutput == nil || invokeOutput.Response == nil {
+			return nil, fmt.Errorf("InvokeLLM returned nil response")
+		}
+		text := invokeOutput.Response.Text()
 
 		executorCtx.SendCompletedWithDetails("I've drafted the pull request description", details)
 
 		return &Output{
-			PRDescription: invokeOutput.Content,
+			PRDescription: text,
 		}, nil
 	}
 }

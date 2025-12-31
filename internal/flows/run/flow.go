@@ -9,9 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/agentturn"
+	"github.com/retran/meowg1k/internal/activities/agentloop"
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
-	queryactivity "github.com/retran/meowg1k/internal/activities/searchindex"
 	agentconfig "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
@@ -36,31 +35,23 @@ type ConfigReader interface {
 // Factory creates instances of the run flow.
 type Factory struct {
 	agentConfigService *agentconfig.Service
-	stepFactory        *agentturn.Factory
+	stepFactory        *agentloop.Factory
 	parametersReader   CommandParametersReader
 	profileResolver    ports.ProfileResolver
 	outputWriter       ports.OutputWriter
 	workspaceService   ports.WorkspaceService
-	filterService      ports.FilterService
-	gitService         ports.GitToolingService
-	queryFactory       executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output]
 	invokeLLMFactory   executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
-	indexFlowBuilder   func() (executor.Flow, error)
 }
 
 // NewFactory creates a new run flow factory.
 func NewFactory(
 	agentConfigService *agentconfig.Service,
-	stepFactory *agentturn.Factory,
+	stepFactory *agentloop.Factory,
 	parametersReader CommandParametersReader,
 	profileResolver ports.ProfileResolver,
 	outputWriter ports.OutputWriter,
 	workspaceService ports.WorkspaceService,
-	filterService ports.FilterService,
-	gitService ports.GitToolingService,
-	queryFactory executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output],
 	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output],
-	indexFlowBuilder func() (executor.Flow, error),
 ) (*Factory, error) {
 	if agentConfigService == nil {
 		return nil, fmt.Errorf("agent config service is nil")
@@ -80,9 +71,6 @@ func NewFactory(
 	if workspaceService == nil {
 		return nil, fmt.Errorf("workspace service is nil")
 	}
-	if queryFactory == nil {
-		return nil, fmt.Errorf("searchindex activity factory is nil")
-	}
 	if invokeLLMFactory == nil {
 		return nil, fmt.Errorf("invokeLLMFactory is nil")
 	}
@@ -94,11 +82,7 @@ func NewFactory(
 		profileResolver:    profileResolver,
 		outputWriter:       outputWriter,
 		workspaceService:   workspaceService,
-		filterService:      filterService,
-		gitService:         gitService,
-		queryFactory:       queryFactory,
 		invokeLLMFactory:   invokeLLMFactory,
-		indexFlowBuilder:   indexFlowBuilder,
 	}, nil
 }
 
@@ -121,17 +105,12 @@ func (f *Factory) runDoFlow(ctx context.Context, flowCtx *executor.Context) erro
 		return err
 	}
 
-	runner, err := f.buildToolRunner(runtimeConfig.Tools.SearchDefaults)
-	if err != nil {
-		return err
-	}
-
 	executorInstance := flowCtx.GetExecutor()
 	if executorInstance == nil {
 		return fmt.Errorf("executor not available")
 	}
 
-	finalContent, summaries, executeContent, err := f.executeSteps(ctx, flowCtx, initialGoal, runtimeConfig, runner, executorInstance)
+	finalContent, summaries, executeContent, err := f.executeSteps(ctx, flowCtx, initialGoal, runtimeConfig, executorInstance)
 	if err != nil {
 		return err
 	}
@@ -168,29 +147,12 @@ func (f *Factory) loadRuntimeConfig() (*agentconfig.ResolvedConfig, error) {
 	return runtimeConfig, nil
 }
 
-func (f *Factory) buildToolRunner(searchDefaults agentconfig.SearchDefaults) (*ToolRunner, error) {
-	workspaceRoot, err := f.workspaceService.Get()
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve workspace root: %w", err)
-	}
-
-	return NewToolRunner(
-		workspaceRoot,
-		f.filterService,
-		f.gitService,
-		f.queryFactory,
-		f.invokeLLMFactory,
-		f.indexFlowBuilder,
-		searchDefaults,
-	), nil
-}
-
-func (f *Factory) executeSteps(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, runner *ToolRunner, executorInstance executor.Executor) (finalContent string, summaries []string, executeContent string, err error) {
+func (f *Factory) executeSteps(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, executorInstance executor.Executor) (finalContent string, summaries []string, executeContent string, err error) {
 	currentGoal := goal
 	maxRetries := 2
 
 	for attempt := 1; ; attempt++ {
-		finalContent, summaries, executeContent, err = f.executeStepCycle(ctx, flowCtx, currentGoal, runtimeConfig, runner, executorInstance, attempt)
+		finalContent, summaries, executeContent, err = f.executeStepCycle(ctx, flowCtx, currentGoal, runtimeConfig, executorInstance, attempt)
 		if err != nil {
 			return "", nil, "", err
 		}
@@ -201,11 +163,10 @@ func (f *Factory) executeSteps(ctx context.Context, flowCtx *executor.Context, g
 		}
 
 		currentGoal = buildRetryGoal(goal, result.Tasks, finalContent)
-		runner.ResetPlanMemory()
 	}
 }
 
-func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, runner *ToolRunner, executorInstance executor.Executor, attempt int) (finalContent string, summaries []string, executeContent string, err error) {
+func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Context, goal string, runtimeConfig *agentconfig.ResolvedConfig, executorInstance executor.Executor, attempt int) (finalContent string, summaries []string, executeContent string, err error) {
 	summaries = make([]string, 0, len(agentconfig.StepOrder))
 	finalContent = ""
 	executeContent = ""
@@ -215,7 +176,7 @@ func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Contex
 		if step == nil {
 			return "", nil, "", fmt.Errorf("missing step config for %s", stepName)
 		}
-		output, err := f.runStep(ctx, flowCtx, goal, runner, executorInstance, stepName, step, &summaries, attempt)
+		output, err := f.runStep(ctx, flowCtx, goal, executorInstance, stepName, step, &summaries, attempt)
 		if err != nil {
 			return "", nil, "", err
 		}
@@ -226,20 +187,19 @@ func (f *Factory) executeStepCycle(ctx context.Context, flowCtx *executor.Contex
 	return finalContent, summaries, executeContent, nil
 }
 
-func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal string, runner *ToolRunner, executorInstance executor.Executor, stepName string, step *agentconfig.StepConfig, summaries *[]string, attempt int) (*agentturn.Output, error) {
+func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal string, executorInstance executor.Executor, stepName string, step *agentconfig.StepConfig, summaries *[]string, attempt int) (*agentloop.Output, error) {
 	stepProfile, err := f.profileResolver.Get(profile.Profile(step.Profile))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve profile %q: %w", step.Profile, err)
 	}
 
 	activity := f.stepFactory.NewActivity()
-	input := &agentturn.Input{
+	input := &agentloop.Input{
 		Goal:           stringPtr(goal),
 		Profile:        stepProfile,
 		SystemPrompt:   stringPtr(step.SystemPrompt),
 		StepConfig:     step,
 		PriorSummaries: summaries,
-		ToolRunner:     runner,
 	}
 
 	activityName := fmt.Sprintf("AgentStep:%s", stepName)
@@ -255,7 +215,7 @@ func (f *Factory) runStep(ctx context.Context, flowCtx *executor.Context, goal s
 	return output, nil
 }
 
-func applyStepOutput(stepName string, output *agentturn.Output, summaries *[]string, executeContent *string, finalContent *string) {
+func applyStepOutput(stepName string, output *agentloop.Output, summaries *[]string, executeContent *string, finalContent *string) {
 	if output == nil {
 		return
 	}

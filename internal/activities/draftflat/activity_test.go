@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -25,7 +26,11 @@ func (m *mockContentGenerationFactory) NewActivity() executor.Activity[*draftcon
 		if m.err != nil {
 			return nil, m.err
 		}
-		return &draftcontent.Output{Content: m.response}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: m.response}},
+			},
+		}, nil
 	}
 }
 

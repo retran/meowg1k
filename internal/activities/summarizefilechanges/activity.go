@@ -101,15 +101,19 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if err != nil {
 			return nil, fmt.Errorf("failed to write summary for %s: %w", input.Filename, err)
 		}
+		if invokeOutput == nil || invokeOutput.Response == nil {
+			return nil, fmt.Errorf("InvokeLLM returned nil response")
+		}
+		text := invokeOutput.Response.Text()
 
 		executorCtx.SendCompletedWithDetails(
 			fmt.Sprintf("I've summarized %s", input.Filename),
-			strings.TrimSpace(invokeOutput.Content),
+			strings.TrimSpace(text),
 		)
 
 		return &Output{
 			Filename: input.Filename,
-			Summary:  invokeOutput.Content,
+			Summary:  text,
 			Skipped:  false,
 		}, nil
 	}

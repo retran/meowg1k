@@ -6,7 +6,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/agentturn"
+	"github.com/retran/meowg1k/internal/activities/agentloop"
 	"github.com/retran/meowg1k/internal/activities/buildbatches"
 	"github.com/retran/meowg1k/internal/activities/buildindexes"
 	"github.com/retran/meowg1k/internal/activities/draftcommit"
@@ -689,14 +689,9 @@ func (c *Container) CreateRunFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create agent config service: %w", err)
 	}
 
-	stepFactory, err := agentturn.NewFactory(common.invokeLLMFactory)
+	stepFactory, err := agentloop.NewFactory(common.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent step factory: %w", err)
-	}
-
-	searchActivityFactory, err := c.buildSearchActivityFactory()
-	if err != nil {
-		return nil, err
 	}
 
 	flowFactory, err := agentFlow.NewFactory(
@@ -706,11 +701,7 @@ func (c *Container) CreateRunFlow() (executor.Flow, error) {
 		common.profileService,
 		c.OutputService,
 		workspace.NewService(c.CommandService),
-		common.filterService,
-		common.gitService,
-		searchActivityFactory,
 		common.invokeLLMFactory,
-		c.CreateIndexReconcileFlow,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create run flow factory: %w", err)

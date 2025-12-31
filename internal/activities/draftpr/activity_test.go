@@ -9,6 +9,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -23,7 +24,11 @@ func (m *mockContentGenerationActivityFactory) NewActivity() executor.Activity[*
 		return m.activity
 	}
 	return func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "test content"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "test content"}},
+			},
+		}, nil
 	}
 }
 
@@ -68,7 +73,9 @@ func TestActivityNilInput(t *testing.T) {
 func TestActivitySuccess(t *testing.T) {
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
 		return &draftcontent.Output{
-			Content: "test PR description",
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "test PR description"}},
+			},
 		}, nil
 	}
 
@@ -133,7 +140,11 @@ func TestNewActivity_NilFactory(t *testing.T) {
 
 func TestActivity_SkippedSummaries(t *testing.T) {
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "PR description"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "PR description"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}
@@ -164,7 +175,11 @@ func TestActivity_SkippedSummaries(t *testing.T) {
 
 func TestActivity_EmptySummaries(t *testing.T) {
 	mockInvokeLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "empty PR"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "empty PR"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationActivityFactory{activity: mockInvokeLLM}

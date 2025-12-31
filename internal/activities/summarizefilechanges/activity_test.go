@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -190,7 +191,11 @@ func TestActivity_SuccessWithAllContent(t *testing.T) {
 	}
 
 	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "test summary"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "test summary"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{
@@ -243,7 +248,11 @@ func TestActivity_SuccessWithoutOriginalFile(t *testing.T) {
 	}
 
 	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "summary without original"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "summary without original"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{
@@ -290,7 +299,11 @@ func TestActivity_SuccessWithoutChangedFile(t *testing.T) {
 	}
 
 	mockLLM := func(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: "summary without changed"}, nil
+		return &draftcontent.Output{
+			Response: &domainGateway.GenerateContentResponse{
+				Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "summary without changed"}},
+			},
+		}, nil
 	}
 
 	mockFactory := &mockContentGenerationFactory{

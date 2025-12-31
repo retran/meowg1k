@@ -65,21 +65,25 @@ func setupTestRepository(t *testing.T) (*sql.DB, *ratelimit2.Repository) {
 
 // mockGenerationGateway is a mock implementation for testing.
 type mockGenerationGateway struct {
-	err      error
-	response string
+	err          error
+	responseText string
 }
 
 func (m *mockGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *domainGateway.GenerateContentRequest,
-) (string, error) {
+) (*domainGateway.GenerateContentResponse, error) {
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
-	return m.response, nil
+	return &domainGateway.GenerateContentResponse{
+		Blocks: []domainGateway.ContentBlock{
+			{Kind: domainGateway.ContentBlockText, Text: m.responseText},
+		},
+	}, nil
 }
 
 func TestNewRateLimitedGenerationGateway(t *testing.T) {
@@ -87,7 +91,7 @@ func TestNewRateLimitedGenerationGateway(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: testResponseValue,
+		responseText: testResponseValue,
 	}
 
 	config := ratelimit.Unlimited
@@ -142,8 +146,8 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 			defer db.Close()
 
 			mockGateway := &mockGenerationGateway{
-				response: tt.mockResponse,
-				err:      tt.mockErr,
+				responseText: tt.mockResponse,
+				err:          tt.mockErr,
 			}
 
 			config := ratelimit.Unlimited
@@ -164,8 +168,8 @@ func TestRateLimitedGenerationGateway_GenerateContent(t *testing.T) {
 				return
 			}
 
-			if !tt.wantErr && response != tt.mockResponse {
-				t.Errorf("GenerateContent() = %v, want %v", response, tt.mockResponse)
+			if !tt.wantErr && response.Text() != tt.mockResponse {
+				t.Errorf("GenerateContent() = %v, want %v", response.Text(), tt.mockResponse)
 			}
 		})
 	}
@@ -176,7 +180,7 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: testResponseValue,
+		responseText: testResponseValue,
 	}
 
 	limiter, err := ratelimit.NewLimiter(context.Background(), ratelimit.Config{
@@ -198,8 +202,8 @@ func TestRateLimitedGenerationGateway_WithRateLimit(t *testing.T) {
 		t.Errorf("GenerateContent() unexpected error = %v", err)
 	}
 
-	if response != testResponseValue {
-		t.Errorf("GenerateContent() = %v, want %v", response, testResponseValue)
+	if response.Text() != testResponseValue {
+		t.Errorf("GenerateContent() = %v, want %v", response.Text(), testResponseValue)
 	}
 }
 
@@ -208,7 +212,7 @@ func TestRateLimitedGenerationGateway_ContextCancellation(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: testResponseValue,
+		responseText: testResponseValue,
 	}
 
 	// Use rate limits with low capacity
@@ -283,7 +287,7 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 	defer db.Close()
 
 	mockGateway := &mockGenerationGateway{
-		response: testResponseValue,
+		responseText: testResponseValue,
 	}
 
 	config := ratelimit.Unlimited
@@ -304,7 +308,7 @@ func TestRateLimitedGenerationGateway_WithTimeout(t *testing.T) {
 		t.Errorf("GenerateContent() unexpected error = %v", err)
 	}
 
-	if response != testResponseValue {
-		t.Errorf("GenerateContent() = %v, want %v", response, testResponseValue)
+	if response.Text() != testResponseValue {
+		t.Errorf("GenerateContent() = %v, want %v", response.Text(), testResponseValue)
 	}
 }

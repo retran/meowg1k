@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/draftcommit"
 	"github.com/retran/meowg1k/internal/activities/draftcommitflat"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchstageddiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
 	"github.com/retran/meowg1k/internal/activities/liststagedfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizechanges"

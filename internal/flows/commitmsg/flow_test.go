@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/draftcommit"
 	"github.com/retran/meowg1k/internal/activities/draftcommitflat"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
 	"github.com/retran/meowg1k/internal/activities/fetchstageddiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
 	"github.com/retran/meowg1k/internal/activities/liststagedfiles"
 	"github.com/retran/meowg1k/internal/activities/summarizechanges"
@@ -51,14 +51,14 @@ func (m *mockConfigProvider) Get() (*commit.ResolvedConfig, error) {
 
 // Mock command parameters reader.
 type mockCommandParametersReader struct {
-	diffErr      error
-	baseErr      error
-	intentErr    error
-	stdinErr     error
-	diffMode     string
-	baseBranch   string
-	intent       string
-	stdin        string
+	diffErr    error
+	baseErr    error
+	intentErr  error
+	stdinErr   error
+	diffMode   string
+	baseBranch string
+	intent     string
+	stdin      string
 }
 
 func (m *mockCommandParametersReader) GetDiffFlag() (string, error) {
@@ -440,7 +440,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			setupFactory: func() *Factory {
 				mockReader := &mockCommandParametersReader{
 					diffMode: "staged",
-					intent:       "test intent",
+					intent:   "test intent",
 				}
 
 				mockConfig := &mockConfigProvider{
@@ -512,10 +512,10 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "successful flow execution - branch mode",
 			setupFactory: func() *Factory {
 				mockReader := &mockCommandParametersReader{
-					diffMode:     "branch",
-					baseBranch:   "main",
-					intent:       "",
-					stdin:        "stdin intent",
+					diffMode:   "branch",
+					baseBranch: "main",
+					intent:     "",
+					stdin:      "stdin intent",
 				}
 
 				mockConfig := &mockConfigProvider{

@@ -6,6 +6,7 @@ package draftcontent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -19,12 +20,13 @@ type Input struct {
 	Profile      *profile.ResolvedProfile
 	SystemPrompt string
 	UserPrompt   string
+	Tools        []gateway.ToolDefinition
 }
 
 // Output represents the output from the InvokeLLM activity.
 type Output struct {
 	Metadata map[string]any
-	Content  string
+	Response *gateway.GenerateContentResponse
 }
 
 // Factory creates instances of the InvokeLLM activity with injected dependencies.
@@ -61,16 +63,25 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		request := buildRequest(input)
-		content, err := write(ctx, generationGateway, request)
+
+		response, err := write(ctx, generationGateway, request)
 		if err != nil {
-			return nil, err
+			// If tools were requested but the gateway doesn't support native tool calling,
+			// retry without tools so JSON fallback logic can still work upstream.
+			if len(input.Tools) > 0 && errors.Is(err, gateway.ErrToolCallingNotSupported) {
+				request = request.WithTools(nil)
+				response, err = write(ctx, generationGateway, request)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, err
+			}
 		}
 
 		executorCtx.SendCompleted("")
 
-		return &Output{
-			Content: content,
-		}, nil
+		return &Output{Response: response}, nil
 	}
 }
 
@@ -90,7 +101,8 @@ func buildRequest(input *Input) *gateway.GenerateContentRequest {
 		input.SystemPrompt,
 		input.UserPrompt,
 		input.Profile.MaxOutputTokens,
-	).WithTemperature(input.Profile.Temperature).
+	).WithTools(input.Tools).
+		WithTemperature(input.Profile.Temperature).
 		WithTopP(input.Profile.TopP).
 		WithTopK(input.Profile.TopK).
 		WithFrequencyPenalty(input.Profile.FrequencyPenalty).
@@ -119,10 +131,10 @@ func write(
 	ctx context.Context,
 	generationGateway ports.GenerationGateway,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	content, err := generationGateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to write content: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
 	return content, nil
 }

@@ -5,11 +5,14 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/shared"
+	"github.com/openai/openai-go/v2/shared/constant"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
@@ -49,31 +52,50 @@ func newOpenAIGateway(baseURL, apiKey string, httpClient *http.Client) ports.Gat
 func (g *openaiGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
-		return "", fmt.Errorf("openai gateway is nil")
+		return nil, fmt.Errorf("openai gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	params := buildOpenAIChatParams(request)
+	if tools := request.Tools(); len(tools) > 0 {
+		params.ToolChoice = openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
+		params.Tools = buildOpenAITools(tools)
+	}
 
 	response, err := g.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("failed to write content from OpenAI-compatible API for model %q: %w", request.Model(), err)
+		return nil, fmt.Errorf("failed to write content from OpenAI-compatible API for model %q: %w", request.Model(), err)
 	}
 
 	if len(response.Choices) == 0 {
-		return "", fmt.Errorf("failed to write content: no choices returned from OpenAI-compatible API for model %q", request.Model())
+		return nil, fmt.Errorf("failed to write content: no choices returned from OpenAI-compatible API for model %q", request.Model())
 	}
 
-	return response.Choices[0].Message.Content, nil
+	msg := response.Choices[0].Message
+	toolCalls, err := mapOpenAIToolCalls(msg.ToolCalls)
+	if err != nil {
+		return nil, err
+	}
+
+	blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
+	if msg.Content != "" {
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: msg.Content})
+	}
+	for i := range toolCalls {
+		call := toolCalls[i]
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+	}
+
+	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
 }
 
 func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatCompletionNewParams {
@@ -82,8 +104,9 @@ func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatC
 			openai.SystemMessage(request.SystemPrompt()),
 			openai.UserMessage(request.UserPrompt()),
 		},
-		Model:     request.Model(),
-		MaxTokens: openai.Int(int64(request.MaxOutputTokens())),
+		Model: request.Model(),
+		// Prefer MaxCompletionTokens (includes reasoning tokens); MaxTokens is deprecated for o-series.
+		MaxCompletionTokens: openai.Int(int64(request.MaxOutputTokens())),
 	}
 
 	applyOpenAISamplingParams(&params, request)
@@ -94,6 +117,52 @@ func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatC
 	applyOpenAISystemParams(&params, request)
 
 	return params
+}
+
+func buildOpenAITools(tools []gateway.ToolDefinition) []openai.ChatCompletionToolUnionParam {
+	if len(tools) == 0 {
+		return nil
+	}
+	result := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
+	for _, tool := range tools {
+		result = append(result, openai.ChatCompletionToolUnionParam{
+			OfFunction: &openai.ChatCompletionFunctionToolParam{
+				Type: constant.Function("function"),
+				Function: shared.FunctionDefinitionParam{
+					Name:        tool.Name,
+					Description: openai.String(tool.Description),
+					Parameters:  shared.FunctionParameters(tool.Parameters),
+				},
+			},
+		})
+	}
+	return result
+}
+
+func mapOpenAIToolCalls(calls []openai.ChatCompletionMessageToolCallUnion) ([]gateway.ToolCall, error) {
+	if len(calls) == 0 {
+		return nil, nil
+	}
+	result := make([]gateway.ToolCall, 0, len(calls))
+	for _, call := range calls {
+		// Only map function tool calls.
+		if call.Type != "function" {
+			continue
+		}
+		args := map[string]any{}
+		if call.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(call.Function.Arguments), &args); err != nil {
+				// Be resilient to invalid JSON; preserve the raw payload.
+				args = map[string]any{"_raw": call.Function.Arguments}
+			}
+		}
+		result = append(result, gateway.ToolCall{
+			ID:        call.ID,
+			Name:      call.Function.Name,
+			Arguments: args,
+		})
+	}
+	return result, nil
 }
 
 func applyOpenAISamplingParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {

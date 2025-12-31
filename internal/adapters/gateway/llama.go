@@ -56,17 +56,21 @@ func newLlamaGateway(baseURL, apiKey string, httpClient *http.Client) (ports.Gen
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", fmt.Errorf("llama gateway is nil")
+		return nil, fmt.Errorf("llama gateway is nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	if len(request.Tools()) > 0 {
+		return nil, gateway.ErrToolCallingNotSupported
 	}
 
 	prompt := buildLlamaPrompt(request)
@@ -74,10 +78,12 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 
 	response, err := g.client.Complete(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("failed to write content from local LLM API: %w", err)
+		return nil, fmt.Errorf("failed to write content from local LLM API: %w", err)
 	}
 
-	return response.Content, nil
+	return &gateway.GenerateContentResponse{
+		Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: response.Content}},
+	}, nil
 }
 
 func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {

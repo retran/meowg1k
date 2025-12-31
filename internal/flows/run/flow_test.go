@@ -11,10 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/agentturn"
+	"github.com/retran/meowg1k/internal/activities/agentloop"
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	agentconfig "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/domain/config"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -119,7 +120,7 @@ type mockInvokeFactoryFlow struct {
 
 func (m *mockInvokeFactoryFlow) NewActivity() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
 	return func(_ context.Context, _ *executor.Context, _ *draftcontent.Input) (*draftcontent.Output, error) {
-		return &draftcontent.Output{Content: m.content}, nil
+		return &draftcontent.Output{Response: &domainGateway.GenerateContentResponse{Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: m.content}}}}, nil
 	}
 }
 
@@ -130,7 +131,7 @@ func TestRunAgentFlowFinalOutput(t *testing.T) {
 	}
 
 	invokeFactory := &mockInvokeFactoryFlow{content: `{"type":"final","content":"done","summary":"ok"}`}
-	stepFactory, err := agentturn.NewFactory(invokeFactory)
+	stepFactory, err := agentloop.NewFactory(invokeFactory)
 	if err != nil {
 		t.Fatalf("failed to create step factory: %v", err)
 	}
@@ -145,11 +146,7 @@ func TestRunAgentFlowFinalOutput(t *testing.T) {
 		profileResolver:    &mockProfileResolver{},
 		outputWriter:       output,
 		workspaceService:   &mockWorkspaceService{root: t.TempDir()},
-		filterService:      nil,
-		gitService:         nil,
-		queryFactory:       nil,
 		invokeLLMFactory:   invokeFactory,
-		indexFlowBuilder:   nil,
 	}
 
 	exec := executor.NewExecutor(2)

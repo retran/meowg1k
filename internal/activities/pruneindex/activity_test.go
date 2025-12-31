@@ -165,7 +165,7 @@ func TestActivity(t *testing.T) {
 		if feedbackMessages[0].Status != executor.StatusRunning || feedbackMessages[0].Message != "I'm cleaning up stale index data" {
 			t.Errorf("unexpected running message: got %+v", feedbackMessages[0])
 		}
-		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != "I cleaned up stale index data" {
+		if feedbackMessages[1].Status != executor.StatusCompleted || feedbackMessages[1].Message != "I've cleaned up stale index data" {
 			t.Errorf("unexpected completed message: got %+v", feedbackMessages[1])
 		}
 	})

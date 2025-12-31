@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/draftflat"
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	"github.com/retran/meowg1k/internal/activities/draftflat"
 	"github.com/retran/meowg1k/internal/domain/git"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/pkg/executor"

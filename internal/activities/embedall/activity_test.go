@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/splitfiles"
-	"github.com/retran/meowg1k/internal/activities/embedbatch"
 	"github.com/retran/meowg1k/internal/activities/buildbatches"
+	"github.com/retran/meowg1k/internal/activities/embedbatch"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -155,8 +155,8 @@ func TestActivity(t *testing.T) {
 		if len(output.Embeddings) != 0 {
 			t.Errorf("expected 0 embeddings, got %d", len(output.Embeddings))
 		}
-		if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "No embeddings to compute (empty)" {
-			t.Errorf("expected 'No embeddings to compute (empty)' completion message, got %+v", feedbackMessages)
+		if len(feedbackMessages) != 2 || feedbackMessages[1].Message != "I've got no embeddings to compute" {
+			t.Errorf("expected 'I've got no embeddings to compute' completion message, got %+v", feedbackMessages)
 		}
 	})
 

@@ -45,13 +45,13 @@ func NoRetryPolicy() RetryPolicy {
 
 // Feedback contains information about activity execution progress.
 type Feedback struct {
-	Timestamp    time.Time      `json:"timestamp"`
-	Error        error          `json:"-"`
-	ActivityName string         `json:"activity_name"`
-	Status       Status         `json:"status"`
-	Message      string         `json:"message"`
-	Details      string         `json:"details,omitempty"`
-	Progress     float64        `json:"progress"`
+	Timestamp    time.Time `json:"timestamp"`
+	Error        error     `json:"-"`
+	ActivityName string    `json:"activity_name"`
+	Status       Status    `json:"status"`
+	Message      string    `json:"message"`
+	Details      string    `json:"details,omitempty"`
+	Progress     float64   `json:"progress"`
 }
 
 // String returns a string representation of the feedback.

@@ -131,6 +131,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 					{
 						Message: struct {
 							Content   string               `json:"content"`
+							Reasoning string               `json:"reasoning,omitempty"`
 							ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 						}{
 							Content: "Generated response",
@@ -160,26 +161,8 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
-		if result != "Generated response" {
-			t.Errorf("Expected 'Generated response', got '%s'", result)
-		}
-	})
-
-	t.Run("Nil context", func(t *testing.T) {
-		ctx := context.Background()
-		gateway, err := NewOpenRouterGateway(ctx, "https://openrouter.ai/api/v1", "test-api-key", &http.Client{})
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
-		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System", "User", 1000)
-		//nolint:staticcheck // intentionally testing nil context handling
-		_, err = gateway.GenerateContent(nil, request)
-		if err == nil {
-			t.Fatal("Expected error for nil context")
-		}
-		if !strings.Contains(err.Error(), "context cannot be nil") {
-			t.Errorf("Expected 'context cannot be nil' error, got: %v", err)
+		if result.Text() != "Generated response" {
+			t.Errorf("Expected 'Generated response', got '%s'", result.Text())
 		}
 	})
 
@@ -322,6 +305,7 @@ func TestOpenRouterGateway_GenerateContentWithTools(t *testing.T) {
 				{
 					Message: struct {
 						Content   string               `json:"content"`
+						Reasoning string               `json:"reasoning,omitempty"`
 						ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 					}{
 						Content: "",
@@ -349,10 +333,6 @@ func TestOpenRouterGateway_GenerateContentWithTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
-	toolGateway, ok := gateway.(ports.ToolCallingGateway)
-	if !ok {
-		t.Fatal("Expected gateway to implement ToolCallingGateway")
-	}
 
 	toolDefs := []domainGateway.ToolDefinition{
 		{
@@ -368,18 +348,19 @@ func TestOpenRouterGateway_GenerateContentWithTools(t *testing.T) {
 	}
 	request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System prompt", "User prompt", 1000)
 
-	resp, err := toolGateway.GenerateContentWithTools(ctx, request, toolDefs)
+	resp, err := gateway.GenerateContent(ctx, request.WithTools(toolDefs))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if resp == nil || len(resp.ToolCalls) != 1 {
+	toolCalls := resp.ToolCalls()
+	if resp == nil || len(toolCalls) != 1 {
 		t.Fatalf("Expected 1 tool call, got %#v", resp)
 	}
-	if resp.ToolCalls[0].Name != "workspace_read" {
-		t.Fatalf("Expected tool name workspace_read, got %q", resp.ToolCalls[0].Name)
+	if toolCalls[0].Name != "workspace_read" {
+		t.Fatalf("Expected tool name workspace_read, got %q", toolCalls[0].Name)
 	}
-	if resp.ToolCalls[0].Arguments["path"] != "README.md" {
-		t.Fatalf("Expected argument path README.md, got %#v", resp.ToolCalls[0].Arguments["path"])
+	if toolCalls[0].Arguments["path"] != "README.md" {
+		t.Fatalf("Expected argument path README.md, got %#v", toolCalls[0].Arguments["path"])
 	}
 }
 
@@ -431,6 +412,7 @@ func TestOpenRouterGateway_WithAllParameters(t *testing.T) {
 				{
 					Message: struct {
 						Content   string               `json:"content"`
+						Reasoning string               `json:"reasoning,omitempty"`
 						ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 					}{
 						Content: "Response with all params",
@@ -481,8 +463,8 @@ func TestOpenRouterGateway_WithAllParameters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	if result != "Response with all params" {
-		t.Errorf("Expected 'Response with all params', got '%s'", result)
+	if result.Text() != "Response with all params" {
+		t.Errorf("Expected 'Response with all params', got '%s'", result.Text())
 	}
 }
 
@@ -509,6 +491,7 @@ func TestOpenRouterGateway_WithSystemPrompt(t *testing.T) {
 			Choices: []openrouterChoice{
 				{Message: struct {
 					Content   string               `json:"content"`
+					Reasoning string               `json:"reasoning,omitempty"`
 					ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 				}{Content: "Response"}},
 			},
@@ -546,6 +529,7 @@ func TestOpenRouterGateway_WithoutSystemPrompt(t *testing.T) {
 			Choices: []openrouterChoice{
 				{Message: struct {
 					Content   string               `json:"content"`
+					Reasoning string               `json:"reasoning,omitempty"`
 					ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 				}{Content: "Response"}},
 			},

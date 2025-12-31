@@ -12,6 +12,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // mockTraceLogger implements TraceLogger for testing.
@@ -39,11 +40,13 @@ type mockLoggingGenerationGateway struct {
 	response string
 }
 
-func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
-	return m.response, nil
+	return &gateway.GenerateContentResponse{
+		Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: m.response}},
+	}, nil
 }
 
 // mockLoggingEmbeddingsGateway implements ports.EmbeddingsGateway for testing.
@@ -83,8 +86,8 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if content != "Generated content" {
-		t.Errorf("Expected 'Generated content', got %s", content)
+	if content.Text() != "Generated content" {
+		t.Errorf("Expected 'Generated content', got %s", content.Text())
 	}
 
 	// Wait for background logging.
@@ -152,7 +155,7 @@ func TestLoggingGenerationGateway_NilLogger(t *testing.T) {
 	wrapped := newLoggingGenerationGateway(inner, nil, "commit", "default", "openai")
 
 	// Should return the inner gateway when logger is nil
-	if wrapped != inner {
+	if wrapped != ports.GenerationGateway(inner) {
 		t.Error("Expected wrapped gateway to be the inner gateway when logger is nil")
 	}
 }

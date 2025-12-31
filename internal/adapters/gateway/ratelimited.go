@@ -27,37 +27,6 @@ func newRateLimitedGenerationGateway(innerGateway ports.GenerationGateway, limit
 func (g *rateLimitedGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
-	if g == nil {
-		return "", fmt.Errorf("rate limited generation gateway is nil")
-	}
-
-	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
-	}
-
-	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
-	}
-
-	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
-
-	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
-		return "", fmt.Errorf("failed to acquire rate limit tokens: %w", err)
-	}
-
-	content, err := g.gateway.GenerateContent(ctx, request)
-	if err != nil {
-		return "", fmt.Errorf("failed to write content: %w", err)
-	}
-	return content, nil
-}
-
-// GenerateContentWithTools implements tool calling with rate limiting.
-func (g *rateLimitedGenerationGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
 ) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
 		return nil, fmt.Errorf("rate limited generation gateway is nil")
@@ -71,21 +40,17 @@ func (g *rateLimitedGenerationGateway) GenerateContentWithTools(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	inner, ok := g.gateway.(ports.ToolCallingGateway)
-	if !ok {
-		return nil, gateway.ErrToolCallingNotSupported
-	}
-
 	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
+
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
 		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
-	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	content, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
-	return response, nil
+	return content, nil
 }
 
 func estimateTokenCount(text string) int {

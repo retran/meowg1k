@@ -78,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunningWithDetails(
 			fmt.Sprintf("I'm drafting the %s", f.contentType),
-			fmt.Sprintf("strategy=flat"),
+			"strategy=flat",
 		)
 
 		if err := validateTokenBudget(input.Profile, input.Changes); err != nil {
@@ -95,14 +95,18 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if err != nil {
 			return nil, fmt.Errorf("failed to write %s: %w", f.contentType, err)
 		}
+		if invokeOutput == nil || invokeOutput.Response == nil {
+			return nil, fmt.Errorf("InvokeLLM returned nil response")
+		}
+		text := invokeOutput.Response.Text()
 
 		executorCtx.SendCompletedWithDetails(
 			fmt.Sprintf("I've drafted the %s", f.contentType),
-			strings.TrimSpace(invokeOutput.Content),
+			strings.TrimSpace(text),
 		)
 
 		return &Output{
-			Content: invokeOutput.Content,
+			Content: text,
 		}, nil
 	}
 }

@@ -54,6 +54,7 @@ func NewOpenRouterGateway(
 type openrouterMessage struct {
 	Role      string               `json:"role"`
 	Content   string               `json:"content,omitempty"`
+	Reasoning string               `json:"reasoning,omitempty"`
 	ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 }
 
@@ -101,6 +102,7 @@ type openrouterToolCallEntry struct {
 type openrouterChoice struct {
 	Message struct {
 		Content   string               `json:"content"`
+		Reasoning string               `json:"reasoning,omitempty"`
 		ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
 	} `json:"message"`
 }
@@ -118,22 +120,29 @@ type openrouterResponse struct {
 func (g *openrouterGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	messages := buildOpenRouterMessages(request)
 	reqBody := buildOpenRouterRequest(request, messages)
+	if tools := request.Tools(); len(tools) > 0 {
+		toolList := buildOpenRouterTools(tools)
+		if len(toolList) > 0 {
+			reqBody.Tools = &toolList
+		}
+		reqBody.ToolChoice = stringPtr("auto")
+	}
 
 	// Marshal request
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Create HTTP request
@@ -144,7 +153,7 @@ func (g *openrouterGateway) GenerateContent(
 		bytes.NewBuffer(jsonData),
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	// Set headers
@@ -156,66 +165,11 @@ func (g *openrouterGateway) GenerateContent(
 	// Send request
 	resp, err := g.client.Do(httpReq)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request to OpenRouter: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
-
-	return parseOpenRouterResponse(resp)
-}
-
-// GenerateContentWithTools sends a content generation request with tool definitions.
-func (g *openrouterGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
-) (*gateway.GenerateContentResponse, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
-	}
-
-	if request == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-
-	if len(tools) == 0 {
-		return nil, gateway.ErrToolCallingNotSupported
-	}
-
-	messages := buildOpenRouterMessages(request)
-	reqBody := buildOpenRouterRequest(request, messages)
-	toolList := buildOpenRouterTools(tools)
-	if len(toolList) > 0 {
-		reqBody.Tools = &toolList
-	}
-	reqBody.ToolChoice = stringPtr("auto")
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		g.baseURL+"/chat/completions",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+g.apiKey)
-	httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
-	httpReq.Header.Set("X-Title", "meowg1k")
-
-	resp, err := g.client.Do(httpReq)
-	if err != nil {
 		return nil, fmt.Errorf("failed to send request to OpenRouter: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
-	return parseOpenRouterResponseWithTools(resp)
+	return parseOpenRouterResponse(resp)
 }
 
 func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
@@ -313,37 +267,7 @@ func applyOpenRouterControlParams(reqBody *openrouterRequest, request *gateway.G
 	}
 }
 
-func parseOpenRouterResponse(resp *http.Response) (string, error) {
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("OpenRouter API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var openrouterResp openrouterResponse
-	if err := json.Unmarshal(body, &openrouterResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if openrouterResp.Error != nil {
-		return "", fmt.Errorf("OpenRouter API error: %s (type: %s, code: %s)",
-			openrouterResp.Error.Message,
-			openrouterResp.Error.Type,
-			openrouterResp.Error.Code,
-		)
-	}
-
-	if len(openrouterResp.Choices) == 0 {
-		return "", fmt.Errorf("no choices returned from OpenRouter API")
-	}
-
-	return openrouterResp.Choices[0].Message.Content, nil
-}
-
-func parseOpenRouterResponseWithTools(resp *http.Response) (*gateway.GenerateContentResponse, error) {
+func parseOpenRouterResponse(resp *http.Response) (*gateway.GenerateContentResponse, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
@@ -376,10 +300,18 @@ func parseOpenRouterResponseWithTools(resp *http.Response) (*gateway.GenerateCon
 		return nil, err
 	}
 
-	return &gateway.GenerateContentResponse{
-		Content:   message.Content,
-		ToolCalls: toolCalls,
-	}, nil
+	blocks := make([]gateway.ContentBlock, 0, 2+len(toolCalls))
+	if message.Reasoning != "" {
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockReasoning, Text: message.Reasoning})
+	}
+	if message.Content != "" {
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: message.Content})
+	}
+	for i := range toolCalls {
+		call := toolCalls[i]
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+	}
+	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
 }
 
 func parseOpenRouterToolCalls(calls []openrouterToolCall) ([]gateway.ToolCall, error) {

@@ -8,8 +8,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/embedbatch"
 	"github.com/retran/meowg1k/internal/activities/buildbatches"
+	"github.com/retran/meowg1k/internal/activities/embedbatch"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
 )

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
@@ -364,7 +365,11 @@ func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
 	mockActivityFactory := &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{
 		newActivityFunc: func() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
 			return func(ctx context.Context, activityCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
-				return &draftcontent.Output{Content: "Generated content"}, nil
+				return &draftcontent.Output{
+					Response: &domainGateway.GenerateContentResponse{
+						Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "Generated content"}},
+					},
+				}, nil
 			}
 		},
 	}
@@ -411,7 +416,11 @@ func TestFlowFactory_NewFlow_Success(t *testing.T) {
 				if input.SystemPrompt != "system test prompt" {
 					return nil, errors.New("unexpected system prompt")
 				}
-				return &draftcontent.Output{Content: "  Generated content with whitespace  "}, nil
+				return &draftcontent.Output{
+					Response: &domainGateway.GenerateContentResponse{
+						Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "  Generated content with whitespace  "}},
+					},
+				}, nil
 			}
 		},
 	}

@@ -52,10 +52,10 @@ func newLoggingGenerationGateway(
 func (g *loggingGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	startTime := time.Now()
 
-	content, err := g.inner.GenerateContent(ctx, request)
+	response, err := g.inner.GenerateContent(ctx, request)
 
 	duration := time.Since(startTime)
 
@@ -71,7 +71,7 @@ func (g *loggingGenerationGateway) GenerateContent(
 			MaxOutputTokens: request.MaxOutputTokens(),
 		},
 		Response: tracelog.ResponseData{
-			Content: content,
+			Content: responseTextOrEmpty(response),
 		},
 		DurationMs: duration.Milliseconds(),
 	}
@@ -86,63 +86,16 @@ func (g *loggingGenerationGateway) GenerateContent(
 	}()
 
 	if err != nil {
-		return content, fmt.Errorf("content generation failed: %w", err)
-	}
-	return content, nil
-}
-
-// GenerateContentWithTools wraps the inner gateway's tool calling and logs the interaction.
-func (g *loggingGenerationGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
-) (*gateway.GenerateContentResponse, error) {
-	startTime := time.Now()
-
-	inner, ok := g.inner.(ports.ToolCallingGateway)
-	if !ok {
-		return nil, gateway.ErrToolCallingNotSupported
-	}
-
-	response, err := inner.GenerateContentWithTools(ctx, request, tools)
-
-	duration := time.Since(startTime)
-
-	entry := &tracelog.APIInteractionEntry{
-		Command:  g.command,
-		Profile:  g.profile,
-		Provider: g.provider,
-		Model:    request.Model(),
-		Request: tracelog.RequestData{
-			SystemPrompt:    request.SystemPrompt(),
-			UserPrompt:      request.UserPrompt(),
-			MaxOutputTokens: request.MaxOutputTokens(),
-		},
-		Response: tracelog.ResponseData{
-			Content: responseContentOrEmpty(response),
-		},
-		DurationMs: duration.Milliseconds(),
-	}
-
-	if err != nil {
-		entry.Response.Error = err.Error()
-	}
-
-	go func() {
-		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
-	}()
-
-	if err != nil {
 		return response, fmt.Errorf("content generation failed: %w", err)
 	}
 	return response, nil
 }
 
-func responseContentOrEmpty(response *gateway.GenerateContentResponse) string {
+func responseTextOrEmpty(response *gateway.GenerateContentResponse) string {
 	if response == nil {
 		return ""
 	}
-	return response.Content
+	return response.Text()
 }
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.

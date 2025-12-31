@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -33,46 +34,6 @@ func newCachingGenerationGateway(innerGateway ports.GenerationGateway, cache por
 func (g *cachingGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
-	if g == nil {
-		return "", fmt.Errorf("caching generation gateway is nil")
-	}
-
-	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
-	}
-
-	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
-	}
-
-	cacheKey := g.createCacheKey(request)
-
-	if !g.updateCache {
-		if cachedValue, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
-			return cachedValue, nil
-		}
-	}
-
-	result, err := g.gateway.GenerateContent(ctx, request)
-	if err != nil {
-		return "", fmt.Errorf("failed to write content: %w", err)
-	}
-
-	if err := g.cache.Set(ctx, cacheKey, result); err != nil {
-		// Log error but don't fail the request
-		// TODO: add logging when logger is available in this context
-		_ = err
-	}
-
-	return result, nil
-}
-
-// GenerateContentWithTools forwards tool calls without caching.
-func (g *cachingGenerationGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
 ) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
 		return nil, fmt.Errorf("caching generation gateway is nil")
@@ -86,26 +47,49 @@ func (g *cachingGenerationGateway) GenerateContentWithTools(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	inner, ok := g.gateway.(ports.ToolCallingGateway)
-	if !ok {
-		return nil, gateway.ErrToolCallingNotSupported
+	cacheKey := g.createCacheKey(request)
+
+	if !g.updateCache {
+		if cachedValue, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
+			var cachedResp gateway.GenerateContentResponse
+			if err := json.Unmarshal([]byte(cachedValue), &cachedResp); err == nil {
+				return &cachedResp, nil
+			}
+		}
 	}
 
-	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	result, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to write content with tools: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
-	return response, nil
+
+	encoded, err := json.Marshal(result)
+	if err == nil {
+		if err := g.cache.Set(ctx, cacheKey, string(encoded)); err != nil {
+			// Log error but don't fail the request
+			// TODO: add logging when logger is available in this context
+			_ = err
+		}
+	}
+	if err != nil {
+		// Log error but don't fail the request
+		// TODO: add logging when logger is available in this context
+		_ = err
+	}
+
+	return result, nil
 }
 
 // createCacheKey generates a deterministic cache key from the request parameters.
 // Uses SHA256 to create a fixed-length key from all parameters.
 func (g *cachingGenerationGateway) createCacheKey(request *gateway.GenerateContentRequest) string {
+	toolsJSON, _ := request.ToolsJSON()
 	data := fmt.Sprintf(
-		"gen:%s:%s:%s:%d",
+		"gen:%s:%s:%s:%s:%d",
 		request.Model(),
 		request.SystemPrompt(),
 		request.UserPrompt(),
+		toolsJSON,
 		request.MaxOutputTokens(),
 	)
 

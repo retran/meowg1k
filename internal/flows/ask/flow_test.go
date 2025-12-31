@@ -13,6 +13,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/fetchcontext"
 	"github.com/retran/meowg1k/internal/domain/config"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/profile"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -660,7 +661,9 @@ func TestFactory_NewFlow(t *testing.T) {
 					newActivityFunc: func() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
 						return func(ctx context.Context, activityCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
 							return &draftcontent.Output{
-								Content: "Generated answer",
+								Response: &domainGateway.GenerateContentResponse{
+									Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "Generated answer"}},
+								},
 							}, nil
 						}
 					},

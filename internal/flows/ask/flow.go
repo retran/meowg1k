@@ -141,8 +141,11 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 	if err != nil {
 		return err
 	}
+	if invokeLLMOutput.Response == nil {
+		return fmt.Errorf("InvokeLLM returned nil response")
+	}
 
-	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeLLMOutput.Content)); err != nil {
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeLLMOutput.Response.Text())); err != nil {
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 

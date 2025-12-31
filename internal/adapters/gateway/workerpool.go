@@ -33,40 +33,6 @@ func newWorkerPoolGateway(innerGateway ports.GenerationGateway, maxConcurrency i
 func (g *workerPoolGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
-	if g == nil {
-		return "", fmt.Errorf("worker pool gateway is nil")
-	}
-
-	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
-	}
-
-	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
-	}
-
-	select {
-	case g.semaphore <- struct{}{}:
-		defer func() {
-			<-g.semaphore
-		}()
-	case <-ctx.Done():
-		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
-	}
-
-	content, err := g.gateway.GenerateContent(ctx, request)
-	if err != nil {
-		return "", fmt.Errorf("failed to write content: %w", err)
-	}
-	return content, nil
-}
-
-// GenerateContentWithTools implements tool calling with worker pool concurrency control.
-func (g *workerPoolGateway) GenerateContentWithTools(
-	ctx context.Context,
-	request *gateway.GenerateContentRequest,
-	tools []gateway.ToolDefinition,
 ) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
 		return nil, fmt.Errorf("worker pool gateway is nil")
@@ -80,11 +46,6 @@ func (g *workerPoolGateway) GenerateContentWithTools(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	inner, ok := g.gateway.(ports.ToolCallingGateway)
-	if !ok {
-		return nil, gateway.ErrToolCallingNotSupported
-	}
-
 	select {
 	case g.semaphore <- struct{}{}:
 		defer func() {
@@ -94,9 +55,9 @@ func (g *workerPoolGateway) GenerateContentWithTools(
 		return nil, fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 
-	response, err := inner.GenerateContentWithTools(ctx, request, tools)
+	content, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
-	return response, nil
+	return content, nil
 }

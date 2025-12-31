@@ -70,11 +70,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		if err != nil {
 			return nil, fmt.Errorf("failed to write commit message: %w", err)
 		}
+		if invokeOutput == nil || invokeOutput.Response == nil {
+			return nil, fmt.Errorf("InvokeLLM returned nil response")
+		}
+		text := invokeOutput.Response.Text()
 
-		executorCtx.SendCompletedWithDetails("I've drafted the commit message", strings.TrimSpace(invokeOutput.Content))
+		executorCtx.SendCompletedWithDetails("I've drafted the commit message", strings.TrimSpace(text))
 
 		return &Output{
-			CommitMessage: invokeOutput.Content,
+			CommitMessage: text,
 		}, nil
 	}
 }

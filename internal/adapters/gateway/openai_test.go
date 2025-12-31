@@ -132,13 +132,13 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 		t.Fatalf("GenerateContent failed: %v", err)
 	}
 
-	if content == "" {
+	if content.Text() == "" {
 		t.Error("Expected non-empty content")
 	}
 
 	expectedContent := "This is a test response from the mocked OpenAI API."
-	if content != expectedContent {
-		t.Errorf("Expected content '%s', got '%s'", expectedContent, content)
+	if content.Text() != expectedContent {
+		t.Errorf("Expected content '%s', got '%s'", expectedContent, content.Text())
 	}
 }
 

@@ -191,8 +191,11 @@ func (f *FlowFactory) runInvokeActivity(
 
 func (f *FlowFactory) printOutput(invokeOutput *draftcontent.Output) error {
 	time.Sleep(300 * time.Millisecond)
+	if invokeOutput == nil || invokeOutput.Response == nil {
+		return fmt.Errorf("InvokeLLM returned nil response")
+	}
 
-	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Content)); err != nil {
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeOutput.Response.Text())); err != nil {
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 

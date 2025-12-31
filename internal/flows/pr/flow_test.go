@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/filterfiles"
-	"github.com/retran/meowg1k/internal/activities/draftprflat"
 	"github.com/retran/meowg1k/internal/activities/draftpr"
+	"github.com/retran/meowg1k/internal/activities/draftprflat"
 	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
 	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
 	"github.com/retran/meowg1k/internal/activities/summarizechanges"
 	domainpullrequest "github.com/retran/meowg1k/internal/domain/pullrequest"
@@ -47,7 +47,7 @@ func (m *mockPRConfigProvider) Get() (*domainpullrequest.ResolvedConfig, error) 
 
 // Mock command parameters reader.
 type mockCommandParametersReader struct {
-	diffErr   error
+	diffErr    error
 	baseErr    error
 	intentErr  error
 	stdinErr   error
@@ -374,7 +374,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			setupFactory: func() *Factory {
 				mockReader := &mockCommandParametersReader{
 					diffMode: "branch",
-					baseErr: errors.New("base branch error"),
+					baseErr:  errors.New("base branch error"),
 				}
 
 				factory, _ := NewFactory(
