@@ -322,30 +322,28 @@ summarize:
 
 # Configures the 'meow draft commit' command for generating Git commit messages.
 commit:
-  default:
-    # (Required) Profile to use for generating the final commit message.
-    profile: "gemini-pro"
-    # (Optional, default: "summarize") Determines how changes are processed.
-    # "summarize": Map-Reduce approach for large changes. Summarizes each file first.
-    # "flat": Sends the entire diff directly to the model. Faster for small changes.
-    strategy: "summarize"
-    # (Required) The system prompt guiding the commit message generation.
-    systemPrompt: >-
-      You are an expert on Git and Conventional Commits.
-      Generate a clear, concise commit message in the Conventional Commits format.
-      Focus on the "why" and "what" of the changes, not the "how".
-      The message should be suitable for a changelog.
+  # (Required) Profile to use for generating the final commit message.
+  profile: "gemini-pro"
+  # (Optional, default: "summarize") Determines how changes are processed.
+  # "summarize": Map-Reduce approach for large changes. Summarizes each file first.
+  # "flat": Sends the entire diff directly to the model. Faster for small changes.
+  strategy: "summarize"
+  # (Required) The system prompt guiding the commit message generation.
+  systemPrompt: >-
+    You are an expert on Git and Conventional Commits.
+    Generate a clear, concise commit message in the Conventional Commits format.
+    Focus on the "why" and "what" of the changes, not the "how".
+    The message should be suitable for a changelog.
 
 # Configures the 'meow draft pr' command for generating PR descriptions.
 pr:
-  default:
-    # (Required) Profile to use for generating the PR description.
-    profile: "gemini-pro"
-    strategy: "summarize"
-    # (Required) The system prompt guiding the PR description generation.
-    systemPrompt: >-
-      You are a senior technical writer specializing in pull request descriptions.
-      Generate a comprehensive PR description that clearly explains:
-      - The problem being solved (the "why").
-      - A summary of the changes made (the "what").
-      - Any potential impact, breaking changes, or required migrations.
+  # (Required) Profile to use for generating the PR description.
+  profile: "gemini-pro"
+  strategy: "summarize"
+  # (Required) The system prompt guiding the PR description generation.
+  systemPrompt: >-
+    You are a senior technical writer specializing in pull request descriptions.
+    Generate a comprehensive PR description that clearly explains:
+    - The problem being solved (the "why").
+    - A summary of the changes made (the "what").
+    - Any potential impact, breaking changes, or required migrations.
