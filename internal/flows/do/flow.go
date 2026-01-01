@@ -207,14 +207,13 @@ func (f *Factory) NewFlow() executor.Flow {
 
 			flowCtx.SendRunningWithDetails("Restarting flow", fmt.Sprintf("attempt=%d instruction=%s", count+1, restartReq))
 
-			// Update goal with restart instruction
-			currentGoal = fmt.Sprintf("ORIGINAL GOAL: %s\n\nFEEDBACK/INSTRUCTION: %s", goal, restartReq)
+			// Restart provides a new goal prompt for the flow.
+			currentGoal = buildRestartGoal(goal, restartReq)
 
-			// Note: We keep the Memory and TaskBoard! The design says "Flow restarts".
-			// Usually we want to keep memory (what we learned) but maybe reset Plan?
-			// The Verifier feedback feeds into Explorer.
-			// Explorer should see previous plan failure.
-			// So keeping state is correct.
+			// Restart semantics:
+			// - Keep Memory (facts): what we learned should persist.
+			// - Reset Plan (tasks): so the planner can rebuild from scratch.
+			flowState.ResetPlan()
 		}
 
 		flowCtx.SendCompleted("Agent flow completed successfully")
@@ -387,4 +386,12 @@ func formatStepOutputForNextStep(stepName string, out *agentloop.Output) string 
 		return header + "\n(no content)"
 	}
 	return header + "\n" + content
+}
+
+func buildRestartGoal(originalGoal, restartReq string) string {
+	r := strings.TrimSpace(restartReq)
+	if r == "" {
+		return strings.TrimSpace(originalGoal)
+	}
+	return r
 }

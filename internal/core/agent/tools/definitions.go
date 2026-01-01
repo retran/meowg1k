@@ -478,11 +478,11 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
 				Name:        "restart_with_instruction",
-				Description: "Trigger a restart of the entire flow with a new instruction/constraint.",
+				Description: "Restart the entire flow using a new, self-contained goal prompt. Use this when the current attempt is unrecoverable. The provided instruction becomes the next attempt's full prompt, so include all necessary context, constraints, and acceptance criteria. Memory facts are preserved, but the plan/task board is reset.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"instruction": map[string]any{"type": "string", "description": "The new instruction describing the failure and what to fix"},
+						"instruction": map[string]any{"type": "string", "description": "A full replacement goal prompt for the next flow attempt. Be specific and detailed: (1) brief diagnosis of what failed and why, (2) explicit constraints/requirements, (3) concrete steps or guidance, (4) clear success criteria. Do NOT assume the next attempt has access to the prior conversation beyond preserved memory facts."},
 					},
 					"required": []string{"instruction"},
 				},

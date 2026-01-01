@@ -23,10 +23,10 @@ type Fact struct {
 type TaskStatus string
 
 const (
-	StatusPending  TaskStatus = "pending"
-	StatusDone     TaskStatus = "done"
-	StatusFailed   TaskStatus = "failed"
-	StatusSkipped  TaskStatus = "skipped"
+	StatusPending TaskStatus = "pending"
+	StatusDone    TaskStatus = "done"
+	StatusFailed  TaskStatus = "failed"
+	StatusSkipped TaskStatus = "skipped"
 )
 
 // Task represents a unit of work in the plan.
@@ -80,6 +80,14 @@ func (s *FlowState) IncrementRestartCount() int {
 	defer s.mu.Unlock()
 	s.RestartCount++
 	return s.RestartCount
+}
+
+// ResetPlan clears the task board while keeping memory facts.
+// Useful when restarting a flow so the planner can rebuild from scratch.
+func (s *FlowState) ResetPlan() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Tasks = make([]Task, 0)
 }
 
 // AddFact adds a fact to the memory.
