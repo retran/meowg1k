@@ -44,23 +44,28 @@ type GenerateContentRequest struct {
 	maxOutputTokens   int
 }
 
+// MessageRole represents the role of a message in a conversation.
 type MessageRole string
 
 const (
-	MessageRoleSystem    MessageRole = "system"
-	MessageRoleUser      MessageRole = "user"
+	// MessageRoleSystem is the system role.
+	MessageRoleSystem MessageRole = "system"
+	// MessageRoleUser is the user role.
+	MessageRoleUser MessageRole = "user"
+	// MessageRoleAssistant is the assistant role.
 	MessageRoleAssistant MessageRole = "assistant"
-	MessageRoleTool      MessageRole = "tool"
+	// MessageRoleTool is the tool role.
+	MessageRoleTool MessageRole = "tool"
 )
 
 // Message is a single chat turn. Tool messages should include ToolCallID.
 // Some providers may ignore fields they don't support.
 type Message struct {
-	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
 	Role       MessageRole `json:"role"`
 	Content    string      `json:"content,omitempty"`
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 	ToolName   string      `json:"tool_name,omitempty"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
 }
 
 // ErrToolCallingNotSupported indicates the gateway does not support tool calling.
@@ -80,12 +85,16 @@ type ToolCall struct {
 	ID        string         `json:"id,omitempty"`
 }
 
+// ContentBlockKind represents the type of content block.
 type ContentBlockKind string
 
 const (
-	ContentBlockText      ContentBlockKind = "text"
+	// ContentBlockText is a text content block.
+	ContentBlockText ContentBlockKind = "text"
+	// ContentBlockReasoning is a reasoning content block.
 	ContentBlockReasoning ContentBlockKind = "reasoning"
-	ContentBlockToolCall  ContentBlockKind = "tool_call"
+	// ContentBlockToolCall is a tool call content block.
+	ContentBlockToolCall ContentBlockKind = "tool_call"
 )
 
 // ContentBlock is an ordered element emitted by the model.
@@ -103,6 +112,7 @@ type GenerateContentResponse struct {
 	Blocks []ContentBlock `json:"blocks,omitempty"`
 }
 
+// Text returns all text content blocks concatenated.
 func (r *GenerateContentResponse) Text() string {
 	if r == nil {
 		return ""
@@ -110,6 +120,7 @@ func (r *GenerateContentResponse) Text() string {
 	return joinTextBlocks(r.Blocks, ContentBlockText)
 }
 
+// Reasoning returns all reasoning content blocks concatenated.
 func (r *GenerateContentResponse) Reasoning() string {
 	if r == nil {
 		return ""
@@ -117,6 +128,7 @@ func (r *GenerateContentResponse) Reasoning() string {
 	return joinTextBlocks(r.Blocks, ContentBlockReasoning)
 }
 
+// ToolCalls returns all tool call blocks.
 func (r *GenerateContentResponse) ToolCalls() []ToolCall {
 	if r == nil {
 		return nil
@@ -168,6 +180,7 @@ func (r *GenerateContentRequest) WithMessages(messages []Message) *GenerateConte
 	return r
 }
 
+// Messages returns the chat messages if set.
 func (r *GenerateContentRequest) Messages() []Message {
 	if r == nil {
 		return nil
@@ -181,6 +194,7 @@ func (r *GenerateContentRequest) WithTools(tools []ToolDefinition) *GenerateCont
 	return r
 }
 
+// Tools returns the tool definitions if set.
 func (r *GenerateContentRequest) Tools() []ToolDefinition {
 	if r == nil {
 		return nil
@@ -188,6 +202,7 @@ func (r *GenerateContentRequest) Tools() []ToolDefinition {
 	return r.tools
 }
 
+// ToolsJSON returns the tool definitions as JSON string.
 func (r *GenerateContentRequest) ToolsJSON() (string, error) {
 	if r == nil {
 		return "", nil

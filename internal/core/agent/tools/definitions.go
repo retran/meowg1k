@@ -17,7 +17,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/memorize"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
-	"github.com/retran/meowg1k/internal/activities/runcommand"
+	"github.com/retran/meowg1k/internal/activities/runshell"
 	"github.com/retran/meowg1k/internal/activities/searchindex"
 	"github.com/retran/meowg1k/internal/activities/summarize"
 	"github.com/retran/meowg1k/internal/activities/tracktask"
@@ -26,11 +26,12 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// ToolDependencies holds the activity factories and configuration for standard tools.
 type ToolDependencies struct {
 	ReadFile   executor.ActivityFactory[*readfile.Input, *readfile.Output]
 	WriteFile  executor.ActivityFactory[*writefile.Input, *writefile.Output]
 	EditFile   executor.ActivityFactory[*editfile.Input, *editfile.Output]
-	RunCommand executor.ActivityFactory[*runcommand.Input, *runcommand.Output]
+	RunShell   executor.ActivityFactory[*runshell.Input, *runshell.Output]
 	ListFiles  executor.ActivityFactory[*listfiles.Input, *listfiles.Output]
 	SearchCode executor.ActivityFactory[*searchindex.Input, *searchindex.Output]
 	GetDiff    executor.ActivityFactory[*getdiff.Input, *getdiff.Output]
@@ -129,13 +130,13 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 	}
 
 	// run_shell
-	if deps.RunCommand != nil {
+	if deps.RunShell != nil {
 		handler := func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-			var input runcommand.Input
+			var input runshell.Input
 			if err := BindArgs(args, &input); err != nil {
 				return nil, err
 			}
-			act := deps.RunCommand.NewActivity()
+			act := deps.RunShell.NewActivity()
 			return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "run_shell", act, &input)
 		}
 
@@ -159,7 +160,7 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 	// grep_files
 	// Dedicated text search tool (rg preferred, grep fallback).
 	// This is intentionally narrower than run_shell.
-	if deps.RunCommand != nil {
+	if deps.RunShell != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
 				Name:        "grep_files",
@@ -177,7 +178,10 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 				},
 			},
 			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				pattern, _ := args["pattern"].(string)
+				pattern, ok := args["pattern"].(string)
+				if !ok {
+					return nil, fmt.Errorf("pattern must be a string")
+				}
 				pattern = strings.TrimSpace(pattern)
 				if pattern == "" {
 					return nil, fmt.Errorf("pattern is required")
@@ -193,14 +197,14 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 				glob, _ := args["glob"].(string)
 				glob = strings.TrimSpace(glob)
 
-				max := 0
+				maxResults := 0
 				if v, ok := args["max"].(float64); ok {
-					max = int(v)
+					maxResults = int(v)
 				} else if v, ok := args["max"].(int); ok {
-					max = v
+					maxResults = v
 				}
-				if max < 0 {
-					max = 0
+				if maxResults < 0 {
+					maxResults = 0
 				}
 
 				bin := "grep"
@@ -218,8 +222,8 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					if glob != "" {
 						cmdArgs = append(cmdArgs, "-g", glob)
 					}
-					if max > 0 {
-						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", max))
+					if maxResults > 0 {
+						cmdArgs = append(cmdArgs, "--max-count", fmt.Sprintf("%d", maxResults))
 					}
 					cmdArgs = append(cmdArgs, pattern, path)
 				default:
@@ -235,14 +239,14 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 						cmdArgs = append(cmdArgs, "--include", glob)
 						cmdArgs = append(cmdArgs, "-R")
 					}
-					if max > 0 {
-						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", max))
+					if maxResults > 0 {
+						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", maxResults))
 					}
 					cmdArgs = append(cmdArgs, pattern, path)
 				}
 
-				input := &runcommand.Input{Command: bin, Args: cmdArgs}
-				act := deps.RunCommand.NewActivity()
+				input := &runshell.Input{Command: bin, Args: cmdArgs}
+				act := deps.RunShell.NewActivity()
 				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "grep_files", act, input)
 			},
 		})
@@ -410,7 +414,7 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					"properties": map[string]any{},
 				},
 			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+			Handler: func(ctx context.Context, execCtx *executor.Context, _ map[string]any) (any, error) {
 				var input getplan.Input
 				act := deps.GetPlan.NewActivity()
 				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "get_plan", act, &input)

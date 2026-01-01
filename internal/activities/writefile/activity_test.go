@@ -9,9 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 type MockWorkspaceService struct {

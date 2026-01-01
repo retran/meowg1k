@@ -16,7 +16,7 @@ func newDoCmd() *cobra.Command {
 		Short: "Run an autonomous agent flow to accomplish a goal",
 		Long: `The 'do' command initiates a multi-agent workflow (Discover, Plan, Execute, Verify)
 to accomplish a complex task. It can read the goal from arguments or standard input.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runFlowCommand(cmd, "DoFlow", func(container *app.Container) (executor.Flow, error) {
 				return container.CreateDoFlow()
 			})

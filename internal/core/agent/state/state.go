@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package state manages flow execution state including memory and task planning.
 package state
 
 import (
@@ -23,9 +24,13 @@ type Fact struct {
 type TaskStatus string
 
 const (
+	// StatusPending indicates a task that has not been started.
 	StatusPending TaskStatus = "pending"
-	StatusDone    TaskStatus = "done"
-	StatusFailed  TaskStatus = "failed"
+	// StatusDone indicates a completed task.
+	StatusDone TaskStatus = "done"
+	// StatusFailed indicates a task that failed.
+	StatusFailed TaskStatus = "failed"
+	// StatusSkipped indicates a task that was skipped.
 	StatusSkipped TaskStatus = "skipped"
 )
 
@@ -38,11 +43,11 @@ type Task struct {
 
 // FlowState holds the mutable state for a flow execution (Memory + Plan).
 type FlowState struct {
-	mu             sync.RWMutex
+	RestartRequest *string
 	Facts          []Fact
 	Tasks          []Task
-	RestartRequest *string // If set, contains the new instruction for restart
 	RestartCount   int
+	mu             sync.RWMutex
 }
 
 // NewFlowState creates a new empty state.

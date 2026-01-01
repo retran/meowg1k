@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/retran/meowg1k/internal/activities/agentloop"
 	"github.com/retran/meowg1k/internal/activities/control"
 	"github.com/retran/meowg1k/internal/activities/editfile"
@@ -17,7 +20,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/memorize"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
-	"github.com/retran/meowg1k/internal/activities/runcommand"
+	"github.com/retran/meowg1k/internal/activities/runshell"
 	"github.com/retran/meowg1k/internal/activities/searchindex"
 	"github.com/retran/meowg1k/internal/activities/summarize"
 	"github.com/retran/meowg1k/internal/activities/tracktask"
@@ -44,6 +47,7 @@ type Factory struct {
 	outputWriter        ports.OutputWriter
 }
 
+// CommandParametersReader reads command parameters and flags.
 type CommandParametersReader interface {
 	GetTaskInput() (string, error)
 	GetStdIn() (string, error)
@@ -81,18 +85,18 @@ func (f *Factory) NewFlow() executor.Flow {
 		// 1. Load Config
 		cfg, err := f.configService.Get()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get config: %w", err)
 		}
 
 		// 2. Read Input (Goal + Stdin)
 		goal, err := f.parametersReader.GetTaskInput()
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get task input: %w", err)
 		}
 		// GetTaskInput already includes stdin if it was piped.
 		// But if we want to be explicit about concatenation:
-		stdin, _ := f.parametersReader.GetStdIn()
-		if stdin != "" && !strings.Contains(goal, stdin) {
+		stdin, err := f.parametersReader.GetStdIn()
+		if err == nil && stdin != "" && !strings.Contains(goal, stdin) {
 			goal = goal + "\n\n" + stdin
 		}
 
@@ -150,7 +154,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			ReadFile:   readfile.NewFactory(f.workspaceService),
 			WriteFile:  writefile.NewFactory(f.workspaceService, dryRun),
 			EditFile:   editfile.NewFactory(f.workspaceService, dryRun),
-			RunCommand: runcommand.NewFactory(f.workspaceService),
+			RunShell:   runshell.NewFactory(f.workspaceService),
 			ListFiles:  listfiles.NewFactory(f.projectStateService),
 			SearchCode: searchindex.MustNewFactory(f.retrievalService),
 			GetDiff:    getdiff.NewFactory(f.gitToolingService),
@@ -231,7 +235,6 @@ func (f *Factory) executeSteps(
 	baseSystemPrompt string,
 	flowInstructions string,
 ) (string, error) {
-
 	exec := flowCtx.GetExecutor()
 
 	priorStepOutputs := make([]string, 0, len(steps))
@@ -243,8 +246,9 @@ func (f *Factory) executeSteps(
 			return "", fmt.Errorf("persona %s not found", personaName)
 		}
 
-		stepCtx := flowCtx.Child(strings.Title(personaName))
-		stepCtx.SendRunning(fmt.Sprintf("Starting %s step", strings.Title(personaName)))
+		caser := cases.Title(language.English)
+		stepCtx := flowCtx.Child(caser.String(personaName))
+		stepCtx.SendRunning(fmt.Sprintf("Starting %s step", caser.String(personaName)))
 
 		personaProfile := strings.TrimSpace(personaCfg.Profile)
 		prof, err := f.profileResolver.Get(profile.Profile(personaProfile))
@@ -304,7 +308,7 @@ func (f *Factory) executeSteps(
 		if err != nil {
 			return "", fmt.Errorf("agent loop failed for %s: %w", personaName, err)
 		}
-		stepCtx.SendCompleted(fmt.Sprintf("Finished %s step", strings.Title(personaName)))
+		stepCtx.SendCompleted(fmt.Sprintf("Finished %s step", caser.String(personaName)))
 
 		if out != nil {
 			priorStepOutputs = append(priorStepOutputs, formatStepOutputForNextStep(personaName, out))
@@ -314,15 +318,15 @@ func (f *Factory) executeSteps(
 		}
 
 		// Check for restart request after step completion
-		flowState, _ := state.GetFlowState(ctx) // Error checked in loop
+		flowState, err := state.GetFlowState(ctx)
+		if err != nil {
+			return "", fmt.Errorf("failed to get flow state: %w", err)
+		}
 		if req, ok := flowState.GetRestartRequest(); ok {
 			return req, nil
 		}
 	}
 
-	if f.outputWriter == nil {
-		return "", fmt.Errorf("output writer is nil")
-	}
 	if err := f.outputWriter.PrintLine(strings.TrimSpace(finalStepContent)); err != nil {
 		return "", fmt.Errorf("failed to print final output: %w", err)
 	}
@@ -358,12 +362,13 @@ func buildFlowRoleLine(steps []string, stepIndex int, stepName string) string {
 		return ""
 	}
 
+	caser := cases.Title(language.English)
 	prettySteps := make([]string, 0, len(steps))
 	for _, s := range steps {
-		prettySteps = append(prettySteps, strings.Title(strings.TrimSpace(s)))
+		prettySteps = append(prettySteps, caser.String(strings.TrimSpace(s)))
 	}
 
-	current := strings.Title(strings.TrimSpace(stepName))
+	current := caser.String(strings.TrimSpace(stepName))
 	return fmt.Sprintf(
 		"Flow steps (in order): %s. Current step: %s (%d/%d). Use PREVIOUS STEP OUTPUTS as required context.",
 		strings.Join(prettySteps, " → "),
@@ -374,7 +379,8 @@ func buildFlowRoleLine(steps []string, stepIndex int, stepName string) string {
 }
 
 func formatStepOutputForNextStep(stepName string, out *agentloop.Output) string {
-	label := strings.Title(strings.TrimSpace(stepName))
+	caser := cases.Title(language.English)
+	label := caser.String(strings.TrimSpace(stepName))
 	if label == "" {
 		label = "Step"
 	}

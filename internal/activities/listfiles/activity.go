@@ -58,35 +58,30 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		state, err := f.projectStateSvc.GetWorkdirState(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get workdir state: %w", err)
 		}
 
 		entriesSet := make(map[string]struct{})
 		for path := range state {
-			p := strings.TrimSpace(path)
-			if p == "" {
-				continue
-			}
-
 			if dir == "." {
 				// Direct children of the workspace root: files and directories.
-				if strings.Contains(p, "/") {
-					first := strings.SplitN(p, "/", 2)[0]
+				if strings.Contains(path, "/") {
+					first := strings.SplitN(path, "/", 2)[0]
 					if first == "" {
 						continue
 					}
 					entriesSet[first+"/"] = struct{}{}
 					continue
 				}
-				entriesSet[p] = struct{}{}
+				entriesSet[path] = struct{}{}
 				continue
 			}
 
 			prefix := dir + "/"
-			if !strings.HasPrefix(p, prefix) {
+			if !strings.HasPrefix(path, prefix) {
 				continue
 			}
-			rel := strings.TrimPrefix(p, prefix)
+			rel := strings.TrimPrefix(path, prefix)
 			if rel == "" {
 				continue
 			}
@@ -99,7 +94,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				entriesSet[prefix+first+"/"] = struct{}{}
 				continue
 			}
-			entriesSet[p] = struct{}{}
+			entriesSet[path] = struct{}{}
 		}
 
 		entries := make([]string, 0, len(entriesSet))

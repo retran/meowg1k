@@ -30,7 +30,7 @@ func NewFactory(gitTooling ports.GitToolingService) *Factory {
 }
 
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		ref := ""
 		desc := "workdir"
 		if input.Staged {
@@ -42,7 +42,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		diff, err := f.gitTooling.Diff(ref, "")
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get diff: %w", err)
 		}
 
 		flowCtx.SendCompletedWithDetails("Got diff", fmt.Sprintf("len=%d", len(diff)))

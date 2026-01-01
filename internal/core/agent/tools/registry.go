@@ -18,8 +18,8 @@ type Handler func(ctx context.Context, execCtx *executor.Context, args map[strin
 
 // Tool represents a registered tool.
 type Tool struct {
-	Definition gateway.ToolDefinition
 	Handler    Handler
+	Definition gateway.ToolDefinition
 }
 
 // Registry manages the available tools.
@@ -85,11 +85,14 @@ func (r *Registry) GetDefinitions(names []string) []gateway.ToolDefinition {
 	return defs
 }
 
-// Helper to convert map[string]any to struct using JSON
+// BindArgs converts map[string]any to struct using JSON marshaling.
 func BindArgs(args map[string]any, target any) error {
 	b, err := json.Marshal(args)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal args: %w", err)
 	}
-	return json.Unmarshal(b, target)
+	if err := json.Unmarshal(b, target); err != nil {
+		return fmt.Errorf("failed to unmarshal to target: %w", err)
+	}
+	return nil
 }

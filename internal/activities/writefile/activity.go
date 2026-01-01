@@ -22,8 +22,8 @@ type Input struct {
 
 // Output defines the output of the write operation.
 type Output struct {
-	Written bool
 	Message string
+	Written bool
 }
 
 // Factory builds writefile activities.
@@ -44,7 +44,7 @@ func NewFactory(workspaceService ports.WorkspaceService, dryRun bool) *Factory {
 
 // NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		workspaceRoot, err := f.workspaceService.Get()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
@@ -79,8 +79,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		details := fmt.Sprintf("path=%s size=%d", cleanPath, len(input.Content))
 		if f.dryRun {
-			details += " (DRY RUN)"
+			details = details + " (DRY RUN)"
 		}
+		_ = details // Used for potential future logging
 		if f.dryRun {
 			flowCtx.SendRunning(fmt.Sprintf("Writing %s (dry run)", cleanPath))
 		} else {
@@ -97,11 +98,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
+		if err := os.MkdirAll(dir, 0750); err != nil {
+			return nil, fmt.Errorf("failed to create directory: %w", err)
 		}
 
-		if err := os.WriteFile(fullPath, []byte(input.Content), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(input.Content), 0600); err != nil {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 

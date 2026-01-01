@@ -77,15 +77,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		resp, err := gw.GenerateContent(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to generate content: %w", err)
 		}
 
 		summary := strings.TrimSpace(resp.Text())
 		if summary == "" {
 			return nil, fmt.Errorf("no response from LLM")
 		}
-
-		flowCtx.SendCompletedWithDetails("Summarized content", fmt.Sprintf("summary_len=%d", len(summary)))
 
 		return &Output{Summary: summary}, nil
 	}

@@ -12,9 +12,9 @@ import (
 )
 
 type fakeDraftFactory struct {
-	calls     int
 	inputs    []*draftcontent.Input
 	responses []*draftcontent.Output
+	calls     int
 }
 
 func (f *fakeDraftFactory) NewActivity() executor.Activity[*draftcontent.Input, *draftcontent.Output] {

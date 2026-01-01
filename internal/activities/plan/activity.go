@@ -12,33 +12,39 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// TaskInput represents a task to be added to the plan.
 type TaskInput struct {
 	ID          string
 	Description string
 }
 
+// Input is the input for creating a plan.
 type Input struct {
 	Tasks []TaskInput
 }
 
+// Output contains the created plan.
 type Output struct {
-	Success bool
 	Tasks   []state.Task
+	Success bool
 }
 
+// Factory creates plan activities.
 type Factory struct{}
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
 }
 
+// NewActivity creates a new activity that creates or updates a plan.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		s, err := state.GetFlowState(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get flow state: %w", err)
 		}
 
 		flowCtx.SendRunningWithDetails("Creating plan", fmt.Sprintf("tasks=%d", len(input.Tasks)))

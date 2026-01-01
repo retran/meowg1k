@@ -1,3 +1,6 @@
+// Copyright © 2025 The meowg1k Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package listfiles
 
 import (
@@ -92,23 +95,3 @@ func TestListFiles_NonRecursiveSubdir_IncludesDirsAndFiles(t *testing.T) {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-}	}		t.Fatalf("unexpected files: %#v", out.Files)	if len(out.Files) != 2 || out.Files[0] != "internal/a.go" || out.Files[1] != "internal/b.go" {	}		t.Fatalf("expected output")	if out == nil {	}		t.Fatalf("unexpected error: %v", err)	if err != nil {	out, err := f.NewActivity()(ctx, execCtx, &Input{Dir: "internal"})	execCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, executor.NewExecutor(0))	ctx := context.Background()	f := NewFactory(svc)	}}		"cmd/root.go":             {},		"internal/sub/deeper/d.go": {},		"internal/sub/c.go":       {},		"internal/b.go":           {},		"internal/a.go":           {},	svc := &mockProjectStateService{workdir: map[string]domainindex.FileState{func TestListFiles_NonRecursiveSubdir(t *testing.T) {}	}		t.Fatalf("unexpected files: %#v", out.Files)	if len(out.Files) != 1 || out.Files[0] != "README.md" {	}		t.Fatalf("expected output")	if out == nil {	}		t.Fatalf("unexpected error: %v", err)	if err != nil {	out, err := f.NewActivity()(ctx, execCtx, &Input{Dir: "."})	execCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, executor.NewExecutor(0))	ctx := context.Background()	f := NewFactory(svc)	}}		"internal/ignored_nested.go": {},		"cmd/sub/ignored_nested.go":  {},		"cmd/root.go":               {},		"internal/activities/b.go":   {},		"internal/activities/a.go":   {},		"README.md":                 {},	svc := &mockProjectStateService{workdir: map[string]domainindex.FileState{func TestListFiles_NonRecursiveRoot(t *testing.T) {}	return m.workdir, nil	_ = ctxfunc (m *mockProjectStateService) GetWorkdirState(ctx context.Context) (map[string]domainindex.FileState, error) {}	return nil, nil	_ = ctxfunc (m *mockProjectStateService) GetStagingState(ctx context.Context) (map[string]domainindex.FileState, error) {}	return nil, nil	_ = ctxfunc (m *mockProjectStateService) GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error) {}	workdir map[string]domainindex.FileStatetype mockProjectStateService struct {)	"github.com/retran/meowg1k/pkg/executor"	domainindex "github.com/retran/meowg1k/internal/domain/index"
-import (
-	"context"
-	"testing"

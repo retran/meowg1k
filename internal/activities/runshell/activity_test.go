@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package runcommand
+package runshell
 
 import (
 	"context"
@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/pkg/executor"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/retran/meowg1k/pkg/executor"
 )
 
 type MockWorkspaceService struct {
@@ -23,8 +24,8 @@ func (m *MockWorkspaceService) Get() (string, error) {
 	return args.String(0), args.Error(1)
 }
 
-func TestRunCommandActivity(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "meow-runcommand-test")
+func TestRunShellActivity(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "meow-runshell-test")
 	assert.NoError(t, err)
 	defer os.RemoveAll(tmpDir)
 

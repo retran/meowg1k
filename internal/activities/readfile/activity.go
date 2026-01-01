@@ -45,7 +45,7 @@ func NewFactory(workspaceService ports.WorkspaceService) *Factory {
 
 // NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		workspaceRoot, err := f.workspaceService.Get()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
@@ -100,7 +100,12 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}
 			return nil, fmt.Errorf("failed to open file: %w", err)
 		}
-		defer file.Close()
+		defer func() {
+			if closeErr := file.Close(); closeErr != nil {
+				// Log error but don't override the main error
+				_ = closeErr
+			}
+		}()
 
 		var lines []string
 		scanner := bufio.NewScanner(file)
@@ -133,10 +138,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				nil
 		}
 
-		// Adjust to 0-based index
 		startIdx := start - 1
 		endIdx := end
-
 		content := strings.Join(lines[startIdx:endIdx], "\n")
 		isTruncated := start > 1 || end < totalLines
 

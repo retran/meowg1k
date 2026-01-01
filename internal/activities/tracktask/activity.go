@@ -12,28 +12,33 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input is the input for tracking a task.
 type Input struct {
 	ID     string
 	Status string // pending, done, failed, skipped
 }
 
+// Output is the result of tracking a task.
 type Output struct {
 	Success bool
 }
 
+// Factory creates tracktask activities.
 type Factory struct{}
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{}
 }
 
+// NewActivity creates a new activity that updates the status of a task in the plan.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		s, err := state.GetFlowState(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get flow state: %w", err)
 		}
 
 		statusStr := strings.ToLower(input.Status)

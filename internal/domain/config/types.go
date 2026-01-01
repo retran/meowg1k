@@ -150,11 +150,11 @@ type FilterConfig struct {
 
 // AgentConfig holds configuration for agent mode.
 type AgentConfig struct {
-	SystemPrompt string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
 	Tools        *AgentToolsConfig           `yaml:"tools" mapstructure:"tools"`
 	Flows        map[string]*AgentFlowConfig `yaml:"flows" mapstructure:"flows"`
 	Personas     map[string]*PersonaConfig   `yaml:"personas" mapstructure:"personas"`
 	Safety       *AgentSafetyConfig          `yaml:"safety" mapstructure:"safety"`
+	SystemPrompt string                      `yaml:"system_prompt" mapstructure:"system_prompt"`
 }
 
 // AgentFlowConfig defines a named flow with shared prompt and step order.
@@ -176,8 +176,8 @@ type PersonaConfig struct {
 
 // AgentSafetyConfig defines safety limits for the agent.
 type AgentSafetyConfig struct {
-	MaxSteps       int                   `yaml:"max_steps" mapstructure:"max_steps"`
 	CircuitBreaker *CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
+	MaxSteps       int                   `yaml:"max_steps" mapstructure:"max_steps"`
 	DryRun         bool                  `yaml:"dry_run" mapstructure:"dry_run"`
 }
 

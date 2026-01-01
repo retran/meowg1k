@@ -23,8 +23,8 @@ type Input struct {
 
 // Output defines the output of the edit operation.
 type Output struct {
-	Applied bool
 	Message string
+	Applied bool
 }
 
 // Factory builds editfile activities.
@@ -45,7 +45,7 @@ func NewFactory(workspaceService ports.WorkspaceService, dryRun bool) *Factory {
 
 // NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		workspaceRoot, err := f.workspaceService.Get()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
@@ -122,7 +122,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}, nil
 		}
 
-		if err := os.WriteFile(fullPath, []byte(newContent), 0644); err != nil {
+		if err := os.WriteFile(fullPath, []byte(newContent), 0600); err != nil {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 

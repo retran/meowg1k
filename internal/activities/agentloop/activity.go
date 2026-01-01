@@ -22,14 +22,14 @@ const defaultMaxIterations = 20
 // Input defines the agent iteration input parameters.
 type Input struct {
 	ToolRegistry             *tools.Registry
-	AllowedTools             []string
 	ToolDescriptionOverrides map[string]string
-	StepName                 string
 	Profile                  *profile.ResolvedProfile
 	PriorSummaries           *[]string
 	Goal                     *string
 	SystemPrompt             *string
 	MaxIterations            *int
+	StepName                 string
+	AllowedTools             []string
 }
 
 // Output defines the agent iteration output.
@@ -541,7 +541,7 @@ func formatToolCallTitle(name string, args map[string]any) string {
 	}
 }
 
-func formatToolCallDetails(call gateway.ToolCall, args map[string]any, narration string) string {
+func formatToolCallDetails(_ gateway.ToolCall, _ map[string]any, narration string) string {
 	narration = strings.TrimSpace(narration)
 	if narration != "" {
 		return narration
@@ -549,18 +549,18 @@ func formatToolCallDetails(call gateway.ToolCall, args map[string]any, narration
 	return ""
 }
 
-func truncateOneLine(s string, max int) string {
+func truncateOneLine(s string, maxLimit int) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	s = strings.ReplaceAll(s, "\r", " ")
 	s = strings.TrimSpace(s)
-	if max <= 0 {
+	if maxLimit <= 0 {
 		return s
 	}
-	if len(s) <= max {
+	if len(s) <= maxLimit {
 		return s
 	}
-	if max <= 1 {
-		return s[:max]
+	if maxLimit <= 1 {
+		return s[:maxLimit]
 	}
-	return s[:max-1] + "…"
+	return s[:maxLimit-1] + "…"
 }

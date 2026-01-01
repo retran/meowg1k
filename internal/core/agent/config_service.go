@@ -29,18 +29,17 @@ func NewService(configResolver ports.ConfigResolver) (*Service, error) {
 
 // ResolvedConfig contains the agent configuration with defaults applied.
 type ResolvedConfig struct {
-	SystemPrompt string
 	Tools        Tools
-
-	Personas map[string]*config.PersonaConfig
-	Flows    map[string]*config.AgentFlowConfig
-	Safety   *config.AgentSafetyConfig
+	Personas     map[string]*config.PersonaConfig
+	Flows        map[string]*config.AgentFlowConfig
+	Safety       *config.AgentSafetyConfig
+	SystemPrompt string
 }
 
 // Tools are default tool settings for agent mode.
 type Tools struct {
-	SearchDefaults   SearchDefaults
 	ToolDescriptions map[string]string
+	SearchDefaults   SearchDefaults
 }
 
 // SearchDefaults are defaults for embeddings search.

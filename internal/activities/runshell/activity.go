@@ -1,11 +1,12 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package runcommand
+package runshell
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -27,14 +28,14 @@ type Output struct {
 	ExitCode int
 }
 
-// Factory builds runcommand activities.
+// Factory builds runshell activities.
 type Factory struct {
 	workspaceService ports.WorkspaceService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
-// NewFactory creates a new runcommand activity factory.
+// NewFactory creates a new runshell activity factory.
 func NewFactory(workspaceService ports.WorkspaceService) *Factory {
 	return &Factory{
 		workspaceService: workspaceService,
@@ -65,10 +66,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		err = cmd.Run()
 		exitCode := 0
 		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
 				exitCode = exitErr.ExitCode()
 			} else {
-				// Command failed to start or was killed
 				return nil, fmt.Errorf("failed to run command: %w", err)
 			}
 		}
