@@ -120,7 +120,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 }
 
 func buildSummaryPrompt(input *Input, config *summarize.ResolvedConfig) string {
-	contentParts := []string{fmt.Sprintf("File: %s", input.Filename)}
+	// Check if this is a rename by looking for "rename from" and "rename to" in the diff
+	renameFrom, renameTo := extractRenameInfo(input.Change)
+	isRename := renameFrom != "" && renameTo != ""
+
+	var contentParts []string
+
+	if isRename {
+		contentParts = []string{fmt.Sprintf("File: %s (renamed from %s)", input.Filename, renameFrom)}
+	} else {
+		contentParts = []string{fmt.Sprintf("File: %s", input.Filename)}
+	}
 
 	if config.IncludeOriginalFile {
 		contentParts = append(contentParts, fmt.Sprintf("\nOriginal content:\n%s", input.OriginalFileContent))
@@ -133,6 +143,20 @@ func buildSummaryPrompt(input *Input, config *summarize.ResolvedConfig) string {
 	contentParts = append(contentParts, fmt.Sprintf("\nDiff:\n%s", input.Change))
 
 	return strings.Join(contentParts, "")
+}
+
+// extractRenameInfo extracts the old and new filenames from a git diff with rename detection.
+func extractRenameInfo(diff string) (from string, to string) {
+	lines := strings.Split(diff, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "rename from ") {
+			from = strings.TrimPrefix(line, "rename from ")
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			to = strings.TrimPrefix(line, "rename to ")
+		}
+	}
+	return from, to
 }
 
 func buildSkippedOutput(filename string) *Output {
