@@ -91,7 +91,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		contentBytes, err := os.ReadFile(fullPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("file not found: %s", cleanPath)
+				return nil, executor.Expected(fmt.Errorf("file not found: %s", cleanPath))
 			}
 			return nil, fmt.Errorf("failed to read file: %w", err)
 		}
@@ -99,17 +99,17 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		count := strings.Count(content, input.OldString)
 		if count == 0 {
-			return nil, fmt.Errorf(
+			return nil, executor.Expected(fmt.Errorf(
 				"edit failed for %s: old_string not found (it must match the file content exactly, including spaces/newlines)",
 				cleanPath,
-			)
+			))
 		}
 		if count > 1 {
-			return nil, fmt.Errorf(
+			return nil, executor.Expected(fmt.Errorf(
 				"edit failed for %s: old_string matched %d times (make old_string longer/more specific)",
 				cleanPath,
 				count,
-			)
+			))
 		}
 
 		newContent := strings.Replace(content, input.OldString, input.NewString, 1)

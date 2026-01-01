@@ -6,6 +6,7 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -277,6 +278,14 @@ func (e *executorImpl) executeActivityImpl(
 		result, err := activity(ctx, activityCtx, input)
 		if err == nil {
 			return result, nil
+		}
+
+		// Expected errors are not retryable and should not mark the activity as failed.
+		// They still propagate to the caller to decide how to handle them.
+		var expected ExpectedError
+		if errors.As(err, &expected) {
+			activityCtx.SendProgressWithDetails("Activity returned expected error", err.Error())
+			return nil, fmt.Errorf("activity %q returned expected error: %w", name, err)
 		}
 
 		// If this was the last attempt, return the error

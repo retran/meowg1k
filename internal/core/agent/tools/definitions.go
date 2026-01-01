@@ -6,6 +6,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/control"
 	"github.com/retran/meowg1k/internal/activities/editfile"
@@ -154,20 +156,120 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 		})
 	}
 
+	// grep_files
+	// Dedicated text search tool (rg preferred, grep fallback).
+	// This is intentionally narrower than run_shell.
+	if deps.RunCommand != nil {
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "grep_files",
+				Description: "Keyword/regex search using rg (preferred) or grep (fallback). Prefer this ONLY after search_code returns nothing useful, or when you need exact string/identifier matches.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"pattern": map[string]any{"type": "string", "description": "Pattern to search for"},
+						"path":    map[string]any{"type": "string", "description": "Optional path to search within (relative to workspace root). Defaults to '.'"},
+						"fixed":   map[string]any{"type": "boolean", "description": "If true, treat pattern as a literal string (no regex)."},
+						"glob":    map[string]any{"type": "string", "description": "Optional file glob filter (e.g. '*.go')."},
+						"max":     map[string]any{"type": "integer", "description": "Optional max matches to return."},
+					},
+					"required": []string{"pattern"},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				pattern, _ := args["pattern"].(string)
+				pattern = strings.TrimSpace(pattern)
+				if pattern == "" {
+					return nil, fmt.Errorf("pattern is required")
+				}
+
+				path, _ := args["path"].(string)
+				path = strings.TrimSpace(path)
+				if path == "" {
+					path = "."
+				}
+
+				fixed, _ := args["fixed"].(bool)
+				glob, _ := args["glob"].(string)
+				glob = strings.TrimSpace(glob)
+
+				max := 0
+				if v, ok := args["max"].(float64); ok {
+					max = int(v)
+				} else if v, ok := args["max"].(int); ok {
+					max = v
+				}
+				if max < 0 {
+					max = 0
+				}
+
+				bin := "grep"
+				if _, err := exec.LookPath("rg"); err == nil {
+					bin = "rg"
+				}
+
+				cmdArgs := make([]string, 0, 10)
+				switch bin {
+				case "rg":
+					cmdArgs = append(cmdArgs, "--no-heading", "--line-number")
+					if fixed {
+						cmdArgs = append(cmdArgs, "-F")
+					}
+					if glob != "" {
+						cmdArgs = append(cmdArgs, "-g", glob)
+					}
+					if max > 0 {
+						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", max))
+					}
+					cmdArgs = append(cmdArgs, pattern, path)
+				default:
+					// grep -R can still recurse, so we keep it non-recursive by default
+					// and rely on the caller to pass a file/glob/path if desired.
+					// Use -n for line numbers; -F for fixed strings.
+					cmdArgs = append(cmdArgs, "-n")
+					if fixed {
+						cmdArgs = append(cmdArgs, "-F")
+					}
+					// Best-effort: if glob is set, ask the shell-less grep to match files via --include.
+					if glob != "" {
+						cmdArgs = append(cmdArgs, "--include", glob)
+						cmdArgs = append(cmdArgs, "-R")
+					}
+					if max > 0 {
+						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", max))
+					}
+					cmdArgs = append(cmdArgs, pattern, path)
+				}
+
+				input := &runcommand.Input{Command: bin, Args: cmdArgs}
+				act := deps.RunCommand.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "grep_files", act, input)
+			},
+		})
+	}
+
 	// list_files
 	if deps.ListFiles != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
 				Name:        "list_files",
-				Description: "List all files in the workspace (respects gitignore).",
+				Description: "List direct child files and directories in a directory (non-recursive, respects gitignore).",
 				Parameters: map[string]any{
-					"type":       "object",
-					"properties": map[string]any{},
+					"type": "object",
+					"properties": map[string]any{
+						"dir": map[string]any{
+							"type":        "string",
+							"description": "Directory path relative to workspace root (e.g. '.', 'internal', 'cmd'). Non-recursive listing.",
+						},
+					},
+					"required": []string{"dir"},
 				},
 			},
 			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
 				var input listfiles.Input
-				// BindArgs is safe for empty input
+				if err := BindArgs(args, &input); err != nil {
+					return nil, err
+				}
 				act := deps.ListFiles.NewActivity()
 				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "list_files", act, &input)
 			},
@@ -179,7 +281,7 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
 				Name:        "search_code",
-				Description: "Semantically search the codebase.",
+				Description: "Semantic search over indexed code/context. Prefer this FIRST for discovery; if it returns no relevant results (or results are too weak/irrelevant), fall back to grep_files.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{

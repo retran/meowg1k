@@ -96,7 +96,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		file, err := os.Open(fullPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("file not found: %s", cleanPath)
+				return nil, executor.Expected(fmt.Errorf("file not found: %s", cleanPath))
 			}
 			return nil, fmt.Errorf("failed to open file: %w", err)
 		}

@@ -137,7 +137,8 @@ func resolveStrict(agentCfg *config.AgentConfig) (*ResolvedConfig, error) {
 		if strings.TrimSpace(p.Profile) == "" {
 			return nil, fmt.Errorf("agent.personas.%s.profile is required", name)
 		}
-		if len(p.Tools) == 0 {
+		// Tools must be explicitly present in config (can be empty for no-tools steps).
+		if p.Tools == nil {
 			return nil, fmt.Errorf("agent.personas.%s.tools is required", name)
 		}
 		if strings.TrimSpace(p.SystemPersona) == "" {

@@ -34,8 +34,13 @@ type Input struct {
 
 // Output defines the agent iteration output.
 type Output struct {
+	// Content is the full user-facing output for the step, including narration
+	// emitted in tool-call iterations plus the final answer.
 	Content string
-	Summary string
+	// FinalMessage is the message emitted in the first iteration with no tool calls.
+	// This is typically what subsequent steps should use as the prior step output.
+	FinalMessage string
+	Summary      string
 }
 
 // Factory builds agent iteration activities.
@@ -56,6 +61,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, execCtx *executor.Context, input *Input) (*Output, error) {
 		if err := validateInput(f, input); err != nil {
 			return nil, err
+		}
+
+		allowed := make(map[string]struct{}, len(input.AllowedTools))
+		for _, name := range input.AllowedTools {
+			n := strings.TrimSpace(name)
+			if n == "" {
+				continue
+			}
+			allowed[n] = struct{}{}
 		}
 
 		stepName := strings.TrimSpace(input.StepName)
@@ -106,27 +120,18 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 			hadToolCalls := false
 			pendingNarration := make([]string, 0)
-			postToolText := make([]string, 0)
 			for _, block := range blocks {
 				switch block.Kind {
 				case gateway.ContentBlockReasoning:
 					text := strings.TrimSpace(block.Text)
 					if text != "" {
-						if hadToolCalls {
-							postToolText = append(postToolText, text)
-						} else {
-							pendingNarration = append(pendingNarration, text)
-						}
+						pendingNarration = append(pendingNarration, text)
 						state.transcript = append(state.transcript, transcriptEntry{Kind: "reasoning", Text: text})
 					}
 				case gateway.ContentBlockText:
 					text := strings.TrimSpace(block.Text)
 					if text != "" {
-						if hadToolCalls {
-							postToolText = append(postToolText, text)
-						} else {
-							pendingNarration = append(pendingNarration, text)
-						}
+						pendingNarration = append(pendingNarration, text)
 						state.transcript = append(state.transcript, transcriptEntry{Kind: "text", Text: text})
 					}
 				case gateway.ContentBlockToolCall:
@@ -134,7 +139,6 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 						continue
 					}
 					hadToolCalls = true
-					postToolText = postToolText[:0]
 
 					call := *block.ToolCall
 					args := call.Arguments
@@ -148,9 +152,21 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 					iterationCtx.SendProgressWithDetails(title, details)
 					toolCtx := iterationCtx.Child(title)
 
-					result, toolErr := input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
+					_, toolAllowed := allowed[call.Name]
+					var (
+						result  any
+						toolErr error
+					)
+					if !toolAllowed {
+						toolErr = fmt.Errorf("tool not allowed in this step: %s", call.Name)
+						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
+					} else {
+						result, toolErr = input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
+					}
 					if toolErr != nil {
-						toolCtx.SendFailedWithDetails(toolErr, "Tool failed", toolErr.Error())
+						// Tool errors are expected sometimes (e.g., guessed paths). Don't fail the
+						// activity/step; return the error back to the model as a normal tool result.
+						toolCtx.SendProgressWithDetails("Tool returned error", toolErr.Error())
 						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
 					}
 
@@ -160,28 +176,22 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				}
 			}
 
-			finalTextAfterTools := strings.TrimSpace(strings.Join(postToolText, "\n\n"))
-			if hadToolCalls && finalTextAfterTools != "" {
-				finalSummary := strings.TrimSpace(resp.Response.Reasoning())
-				if finalSummary == "" {
-					finalSummary = finalTextAfterTools
-				}
-				iterationCtx.SendProgressWithDetails("Answer", finalTextAfterTools)
-				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
-				return &Output{Summary: finalSummary, Content: finalTextAfterTools}, nil
+			if hadToolCalls {
+				continue
 			}
 
 			if !hadToolCalls {
-				finalText := strings.TrimSpace(resp.Response.Text())
+				finalMessage := strings.TrimSpace(strings.Join(pendingNarration, "\n\n"))
+				content := renderTranscriptOutput(state.transcript)
 				finalSummary := strings.TrimSpace(resp.Response.Reasoning())
 				if finalSummary == "" {
-					finalSummary = finalText
+					finalSummary = finalMessage
 				}
-				if finalText != "" {
-					iterationCtx.SendProgressWithDetails("Answer", finalText)
+				if strings.TrimSpace(finalMessage) != "" {
+					iterationCtx.SendProgressWithDetails("Agent output", finalMessage)
 				}
 				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
-				return &Output{Summary: finalSummary, Content: finalText}, nil
+				return &Output{Summary: finalSummary, Content: content, FinalMessage: finalMessage}, nil
 			}
 		}
 
@@ -237,6 +247,26 @@ type transcriptEntry struct {
 type loopState struct {
 	toolResults []toolResult
 	transcript  []transcriptEntry
+}
+
+func renderTranscriptOutput(transcript []transcriptEntry) string {
+	if len(transcript) == 0 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(transcript))
+	for _, tr := range transcript {
+		switch tr.Kind {
+		case "text", "reasoning":
+			seg := strings.TrimSpace(tr.Text)
+			if seg == "" {
+				continue
+			}
+			parts = append(parts, seg)
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
 func validateInput(factory *Factory, input *Input) error {
@@ -340,7 +370,7 @@ func buildMessages(goal string, summaries []string, state *loopState) []gateway.
 		messages = append(messages, gateway.Message{Role: gateway.MessageRoleUser, Content: strings.TrimSpace(user.String())})
 	}
 
-	if state == nil || len(state.toolResults) == 0 {
+	if state == nil || len(state.transcript) == 0 {
 		return messages
 	}
 
@@ -419,7 +449,12 @@ func formatToolCallTitle(name string, args map[string]any) string {
 
 	switch name {
 	case "list_files":
-		return "Listing files"
+		dir, _ := args["dir"].(string)
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			return "Listing files"
+		}
+		return fmt.Sprintf("Listing files in %s", dir)
 	case "read_file":
 		p, _ := args["path"].(string)
 		p = strings.TrimSpace(p)

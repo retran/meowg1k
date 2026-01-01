@@ -192,6 +192,8 @@ agent:
 
     Tool use:
     - When you need to call a tool, emit a tool call using the provided tool definitions.
+    - IMPORTANT: The final message in a step (the iteration with NO tool calls) must be a complete, consolidated report for that step.
+      Do not end with a placeholder like “done” or “continuing”. Assume this final message is what gets forwarded to later steps and printed to stdout.
   tools:
     searchDefaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]
@@ -215,33 +217,33 @@ agent:
         - Read and build on prior outputs; do not ignore them.
         - Do not repeat the entire history; reference it and add only what is new.
         - Keep results short, concrete, and suitable for the next step.
-      steps: ["discover", "plan", "execute", "verify"]
+      steps: ["discover", "plan", "execute", "verify", "final"]
     quick:
       instructions: >-
         Flow contract:
         - Steps run in order and share context through PREVIOUS STEP OUTPUTS.
         - Read and build on prior outputs; do not ignore them.
         - Keep results short, concrete, and suitable for the next step.
-      steps: ["discover", "execute", "verify"]
+      steps: ["discover", "execute", "verify", "final"]
   personas:
     discover:
       role: "Code Discovery Agent"
       profile: "gemini-flash"
-      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      tools: ["list_files", "grep_files", "search_code", "read_file", "summarize", "memorize_fact"]
       system_persona: >-
         You are a lead software engineer doing fast, high-signal codebase discovery.
         You prioritize correctness and minimal context gathering.
       user_instructions: >-
         First: review MEMORY FACTS and avoid repeating work.
         Objective: gather the minimum context needed to act on the goal.
-        Prefer list_files → search_code → read_file (only the most relevant files/sections).
+        Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
         Output: key findings, relevant file paths, and any important constraints.
         Save notable findings with memorize_fact.
         Do not modify files.
     plan:
       role: "Planning Agent"
       profile: "gemini-pro"
-      tools: ["get_plan", "read_file", "create_plan", "memorize_fact"]
+      tools: ["get_plan", "grep_files", "search_code", "read_file", "create_plan", "memorize_fact"]
       system_persona: >-
         You are a pragmatic tech lead planning work.
         You produce small, verifiable steps and avoid unnecessary refactors.
@@ -257,7 +259,7 @@ agent:
     execute:
       role: "Execution Agent"
       profile: "gemini-pro"
-      tools: ["get_plan", "read_file", "write_file", "edit_file", "run_shell", "update_task", "memorize_fact"]
+      tools: ["get_plan", "grep_files", "search_code", "read_file", "write_file", "edit_file", "run_shell", "update_task", "memorize_fact"]
       system_persona: >-
         You are a senior software engineer implementing changes safely in an existing codebase.
         You prefer the smallest correct diff.
@@ -270,7 +272,7 @@ agent:
     verify:
       role: "Verification Agent"
       profile: "gemini-flash"
-      tools: ["get_plan", "run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction", "memorize_fact"]
+      tools: ["get_plan", "grep_files", "search_code", "run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction", "memorize_fact"]
       system_persona: >-
         You are a meticulous reviewer and release engineer.
         You validate changes with tests and look for integration risks.
@@ -280,6 +282,18 @@ agent:
         Inspect diffs and run tests/commands when useful.
         If issues remain, call restart_with_instruction with specific, actionable fix guidance.
         Save important findings with memorize_fact.
+
+    final:
+      role: "Final Reporting Agent"
+      profile: "gemini-pro"
+      tools: []
+      system_persona: >-
+        You are a senior engineer writing the final user-facing report.
+        You produce a clear, structured answer based only on MEMORY FACTS and PREVIOUS STEP OUTPUTS.
+      user_instructions: >-
+        Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
+        Do NOT call tools.
+        Output only the final report/answer.
 
 # Configures the "map" step for 'commit' and 'pr' commands (when using "summarize" strategy).
 summarize:

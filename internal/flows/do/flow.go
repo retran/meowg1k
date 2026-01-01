@@ -41,6 +41,7 @@ type Factory struct {
 	gatewayFactory      ports.GenerationGatewayFactory
 	agentLoopFactory    *agentloop.Factory
 	parametersReader    CommandParametersReader
+	outputWriter        ports.OutputWriter
 }
 
 type CommandParametersReader interface {
@@ -59,6 +60,7 @@ func NewFactory(
 	gatewayFactory ports.GenerationGatewayFactory,
 	agentLoopFactory *agentloop.Factory,
 	parametersReader CommandParametersReader,
+	outputWriter ports.OutputWriter,
 ) *Factory {
 	return &Factory{
 		configService:       configService,
@@ -70,6 +72,7 @@ func NewFactory(
 		gatewayFactory:      gatewayFactory,
 		agentLoopFactory:    agentLoopFactory,
 		parametersReader:    parametersReader,
+		outputWriter:        outputWriter,
 	}
 }
 
@@ -233,6 +236,7 @@ func (f *Factory) executeSteps(
 	exec := flowCtx.GetExecutor()
 
 	priorStepOutputs := make([]string, 0, len(steps))
+	finalStepContent := ""
 
 	for idx, personaName := range steps {
 		personaCfg, ok := cfg.Personas[personaName]
@@ -305,6 +309,9 @@ func (f *Factory) executeSteps(
 
 		if out != nil {
 			priorStepOutputs = append(priorStepOutputs, formatStepOutputForNextStep(personaName, out))
+			if idx == len(steps)-1 {
+				finalStepContent = out.FinalMessage
+			}
 		}
 
 		// Check for restart request after step completion
@@ -312,6 +319,13 @@ func (f *Factory) executeSteps(
 		if req, ok := flowState.GetRestartRequest(); ok {
 			return req, nil
 		}
+	}
+
+	if f.outputWriter == nil {
+		return "", fmt.Errorf("output writer is nil")
+	}
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(finalStepContent)); err != nil {
+		return "", fmt.Errorf("failed to print final output: %w", err)
 	}
 
 	return "", nil
@@ -366,18 +380,11 @@ func formatStepOutputForNextStep(stepName string, out *agentloop.Output) string 
 		label = "Step"
 	}
 
-	content := strings.TrimSpace(out.Content)
-	summary := strings.TrimSpace(out.Summary)
+	content := strings.TrimSpace(out.FinalMessage)
 
 	header := fmt.Sprintf("[%s]", label)
-	if content == "" && summary == "" {
+	if content == "" {
 		return header + "\n(no content)"
 	}
-	if content != "" && summary != "" {
-		return header + "\n\nSummary:\n" + summary + "\n\nAnswer:\n" + content
-	}
-	if content != "" {
-		return header + "\n" + content
-	}
-	return header + "\n" + summary
+	return header + "\n" + content
 }

@@ -770,6 +770,7 @@ func (c *Container) CreateDoFlow() (executor.Flow, error) {
 		gatewayFactory,
 		agentLoopFactory,
 		c.CommandService,
+		c.OutputService,
 	)
 
 	return flowFactory.NewFlow(), nil
