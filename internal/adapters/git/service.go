@@ -66,6 +66,7 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 }
 
 // ReadStagedFiles returns a list of files that are currently staged.
+// For renamed files, returns the new filename.
 func (g *Service) ReadStagedFiles() ([]string, error) {
 	if g == nil {
 		return nil, fmt.Errorf("git service is nil")
@@ -74,7 +75,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	out, err := g.runGitCommand("diff", "--cached", "--name-only", "-M")
+	out, err := g.runGitCommand("diff", "--cached", "--name-status", "-M")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}
@@ -84,7 +85,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 		return []string{}, nil
 	}
 
-	return strings.Split(output, "\n"), nil
+	return parseNameStatus(output), nil
 }
 
 // ReadStagedChanges returns the staged changes (diff) for a specific file.
@@ -148,7 +149,45 @@ func (g *Service) GetCurrentBranch() (string, error) {
 	return strings.TrimSpace(branch), nil
 }
 
+// parseNameStatus parses the output of git diff --name-status.
+// Format: "<status>\t<filename>" or "R<similarity>\t<old>\t<new>" for renames.
+// Returns the list of affected filenames (new name for renames).
+func parseNameStatus(output string) []string {
+	lines := strings.Split(output, "\n")
+	files := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		// Split by tab
+		parts := strings.Split(trimmed, "\t")
+		if len(parts) < 2 {
+			continue
+		}
+
+		status := parts[0]
+
+		// Check if this is a rename (status starts with 'R')
+		if strings.HasPrefix(status, "R") {
+			// For renames: R<similarity>\told\tnew
+			if len(parts) >= 3 {
+				// Use the new filename (last part)
+				files = append(files, parts[2])
+			}
+		} else {
+			// For other changes (A, M, D, etc.): <status>\tfilename
+			files = append(files, parts[1])
+		}
+	}
+
+	return files
+}
+
 // GetChangedFilesInBranch returns the list of files that differ between the current branch and the target branch.
+// For renamed files, returns the new filename.
 func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
 	if g == nil {
 		return nil, fmt.Errorf("git service is nil")
@@ -161,7 +200,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	output, err := g.runGitCommand("diff", "--name-only", "-M", targetBranch+"...HEAD")
+	output, err := g.runGitCommand("diff", "--name-status", "-M", targetBranch+"...HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get changed files in branch: %w", err)
 	}
@@ -170,14 +209,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 		return []string{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	files := make([]string, 0, len(lines))
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			files = append(files, trimmed)
-		}
-	}
+	files := parseNameStatus(strings.TrimSpace(output))
 
 	return files, nil
 }
