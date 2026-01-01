@@ -150,62 +150,62 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 					narration := strings.Join(pendingNarration, "\n\n")
 					if strings.TrimSpace(narration) != "" {
 						iterationCtx.SendProgress(strings.TrimSpace(narration))
-				}
-				pendingNarration = pendingNarration[:0]
-
-				title := formatToolCallTitle(call.Name, args)
-				details := formatToolCallDetails(call, args, narration)
-				iterationCtx.SendProgressWithDetails(title, details)
-				toolCtx := iterationCtx.Child(title)
-
-				_, toolAllowed := allowed[call.Name]
-				var (
-					result  any
-					toolErr error
-				)
-				if !toolAllowed {
-					toolErr = fmt.Errorf("tool not allowed in this step: %s", call.Name)
-					result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
-				} else {
-					result, toolErr = input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
-				}
-				if toolErr != nil {
-					// Tool errors are expected sometimes (e.g., guessed paths). Don't fail the
-					// activity/step; return the error back to the model as a normal tool result.
-					toolCtx.SendProgressWithDetails("Tool returned error", toolErr.Error())
-					result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
-				} else {
-					// Show tool result summary
-					resultSummary := formatToolResult(call.Name, result)
-					if resultSummary != "" {
-						toolCtx.SendCompletedWithDetails("Result", resultSummary)
 					}
-				}
+					pendingNarration = pendingNarration[:0]
 
-				state.toolResults = append(state.toolResults, toolResult{ID: call.ID, Name: call.Name, Args: args, Result: result})
-				state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_call", ToolName: call.Name, ToolID: call.ID, ToolArgs: args})
-				state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_result", ToolName: call.Name, ToolID: call.ID, ToolResult: result})
+					title := formatToolCallTitle(call.Name, args)
+					details := formatToolCallDetails(call, args, narration)
+					iterationCtx.SendProgressWithDetails(title, details)
+					toolCtx := iterationCtx.Child(title)
+
+					_, toolAllowed := allowed[call.Name]
+					var (
+						result  any
+						toolErr error
+					)
+					if !toolAllowed {
+						toolErr = fmt.Errorf("tool not allowed in this step: %s", call.Name)
+						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
+					} else {
+						result, toolErr = input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
+					}
+					if toolErr != nil {
+						// Tool errors are expected sometimes (e.g., guessed paths). Don't fail the
+						// activity/step; return the error back to the model as a normal tool result.
+						toolCtx.SendProgressWithDetails("Tool returned error", toolErr.Error())
+						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
+					} else {
+						// Show tool result summary
+						resultSummary := formatToolResult(call.Name, result)
+						if resultSummary != "" {
+							toolCtx.SendCompletedWithDetails("Result", resultSummary)
+						}
+					}
+
+					state.toolResults = append(state.toolResults, toolResult{ID: call.ID, Name: call.Name, Args: args, Result: result})
+					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_call", ToolName: call.Name, ToolID: call.ID, ToolArgs: args})
+					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_result", ToolName: call.Name, ToolID: call.ID, ToolResult: result})
+				}
+			}
+
+			if hadToolCalls {
+				continue
+			}
+
+			if !hadToolCalls {
+				finalMessage := strings.TrimSpace(strings.Join(pendingNarration, "\n\n"))
+				content := renderTranscriptOutput(state.transcript)
+				finalSummary := strings.TrimSpace(resp.Response.Reasoning())
+				if finalSummary == "" {
+					finalSummary = finalMessage
+				}
+				if strings.TrimSpace(finalMessage) != "" {
+					iterationCtx.SendProgressWithDetails("Agent output", finalMessage)
+				}
+				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
+				return &Output{Summary: finalSummary, Content: content, FinalMessage: finalMessage}, nil
 			}
 		}
-
-				if hadToolCalls {
-					continue
-				}
-
-				if !hadToolCalls {
-					finalMessage := strings.TrimSpace(strings.Join(pendingNarration, "\n\n"))
-					content := renderTranscriptOutput(state.transcript)
-					finalSummary := strings.TrimSpace(resp.Response.Reasoning())
-					if finalSummary == "" {
-						finalSummary = finalMessage
-					}
-					if strings.TrimSpace(finalMessage) != "" {
-						iterationCtx.SendProgressWithDetails("Agent output", finalMessage)
-					}
-					execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
-					return &Output{Summary: finalSummary, Content: content, FinalMessage: finalMessage}, nil
-				}
-			}
 
 		return nil, fmt.Errorf("agent iteration exceeded max iterations (%d)", maxIterations)
 	}
