@@ -136,12 +136,9 @@ func buildFlatPrompt(changes []*git.FileChange, intent string) string {
 	contentBuilder.WriteString("Git Diff:\n\n")
 
 	for _, change := range changes {
-		// Check if this is a rename
-		renameFrom, renameTo := extractRenameInfo(change.Change)
-		isRename := renameFrom != "" && renameTo != ""
-
-		if isRename {
-			contentBuilder.WriteString(fmt.Sprintf("File: %s (renamed from %s)\n", change.Filename, renameFrom))
+		// Check if this is a rename using the RenamedFrom field
+		if change.RenamedFrom != "" {
+			contentBuilder.WriteString(fmt.Sprintf("File: %s (renamed from %s)\n", change.Filename, change.RenamedFrom))
 		} else {
 			contentBuilder.WriteString(fmt.Sprintf("File: %s\n", change.Filename))
 		}
@@ -156,20 +153,6 @@ func buildFlatPrompt(changes []*git.FileChange, intent string) string {
 	}
 
 	return contentBuilder.String()
-}
-
-// extractRenameInfo extracts the old and new filenames from a git diff with rename detection.
-func extractRenameInfo(diff string) (from string, to string) {
-	lines := strings.Split(diff, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "rename from ") {
-			from = strings.TrimPrefix(line, "rename from ")
-		}
-		if strings.HasPrefix(line, "rename to ") {
-			to = strings.TrimPrefix(line, "rename to ")
-		}
-	}
-	return from, to
 }
 
 func (f *Factory) invokeLLM(ctx context.Context, executorCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {

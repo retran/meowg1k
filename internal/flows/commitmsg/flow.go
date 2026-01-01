@@ -166,7 +166,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return fmt.Errorf("diff must be one of: staged, branch")
 	}
 
-	files, err := f.listFiles(ctx, flowCtx, exec, baseBranchForDiff(diffMode, baseBranch))
+	files, renames, err := f.listFiles(ctx, flowCtx, exec, baseBranchForDiff(diffMode, baseBranch))
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	changes, err := f.fetchChanges(ctx, flowCtx, exec, filteredFiles, baseBranchForDiff(diffMode, baseBranch))
+	changes, err := f.fetchChanges(ctx, flowCtx, exec, filteredFiles, renames, baseBranchForDiff(diffMode, baseBranch))
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func (f *Factory) listFiles(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	targetBranch string,
-) ([]string, error) {
+) ([]string, map[string]string, error) {
 	if targetBranch != "" {
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
 		branchFiles, err := executor.ExecuteActivity(
@@ -248,9 +248,9 @@ func (f *Factory) listFiles(
 			},
 		)
 		if err != nil {
-			return nil, fmt.Errorf("failed to list branch files: %w", err)
+			return nil, nil, fmt.Errorf("failed to list branch files: %w", err)
 		}
-		return branchFiles.Files, nil
+		return branchFiles.Files, branchFiles.Renames, nil
 	}
 
 	listStaged := f.listStagedFactory.NewActivity()
@@ -263,9 +263,9 @@ func (f *Factory) listFiles(
 		&liststagedfiles.Input{},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list staged files: %w", err)
+		return nil, nil, fmt.Errorf("failed to list staged files: %w", err)
 	}
-	return stagedFiles.Files, nil
+	return stagedFiles.Files, nil, nil
 }
 
 func (f *Factory) applyFilters(
@@ -296,6 +296,7 @@ func (f *Factory) fetchChanges(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	files []string,
+	renames map[string]string,
 	targetBranch string,
 ) ([]*git.FileChange, error) {
 	if targetBranch != "" {
@@ -308,6 +309,7 @@ func (f *Factory) fetchChanges(
 			fetchAllBranchDiffs,
 			&fetchbranchdiffs.Input{
 				Files:        files,
+				Renames:      renames,
 				TargetBranch: targetBranch,
 			},
 		)

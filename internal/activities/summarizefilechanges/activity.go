@@ -20,6 +20,7 @@ type Input struct {
 	Change              string
 	OriginalFileContent string
 	StagedFileContent   string
+	RenamedFrom         string
 }
 
 // Output defines the output structure for the SummarizeFile activity.
@@ -120,14 +121,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 }
 
 func buildSummaryPrompt(input *Input, config *summarize.ResolvedConfig) string {
-	// Check if this is a rename by looking for "rename from" and "rename to" in the diff
-	renameFrom, renameTo := extractRenameInfo(input.Change)
-	isRename := renameFrom != "" && renameTo != ""
+	// Check if this is a rename using the RenamedFrom field
+	isRename := input.RenamedFrom != ""
 
 	var contentParts []string
 
 	if isRename {
-		contentParts = []string{fmt.Sprintf("File: %s (renamed from %s)", input.Filename, renameFrom)}
+		contentParts = []string{fmt.Sprintf("File: %s (renamed from %s)", input.Filename, input.RenamedFrom)}
 	} else {
 		contentParts = []string{fmt.Sprintf("File: %s", input.Filename)}
 	}
@@ -143,20 +143,6 @@ func buildSummaryPrompt(input *Input, config *summarize.ResolvedConfig) string {
 	contentParts = append(contentParts, fmt.Sprintf("\nDiff:\n%s", input.Change))
 
 	return strings.Join(contentParts, "")
-}
-
-// extractRenameInfo extracts the old and new filenames from a git diff with rename detection.
-func extractRenameInfo(diff string) (from string, to string) {
-	lines := strings.Split(diff, "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "rename from ") {
-			from = strings.TrimPrefix(line, "rename from ")
-		}
-		if strings.HasPrefix(line, "rename to ") {
-			to = strings.TrimPrefix(line, "rename to ")
-		}
-	}
-	return from, to
 }
 
 func buildSkippedOutput(filename string) *Output {

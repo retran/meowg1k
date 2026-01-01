@@ -80,6 +80,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 					Change:              change.Change,
 					OriginalFileContent: change.OriginalFileContent,
 					StagedFileContent:   change.ChangedFileContent,
+					RenamedFrom:         change.RenamedFrom,
 				},
 			)
 			if err != nil {

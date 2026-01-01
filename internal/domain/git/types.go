@@ -10,4 +10,5 @@ type FileChange struct {
 	Change              string
 	OriginalFileContent string
 	ChangedFileContent  string
+	RenamedFrom         string
 }

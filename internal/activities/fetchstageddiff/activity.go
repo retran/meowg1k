@@ -78,7 +78,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 				"I've confirmed the file was deleted",
 				fmt.Sprintf("file=%s\n%s", input.Filename, strings.TrimSpace(change)),
 			)
-			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
+			return buildFileChange(input.Filename, change, originalFileContent, "", renameFrom), nil
 		}
 
 		executorCtx.SendCompletedWithDetails(
@@ -86,7 +86,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			fmt.Sprintf("file=%s\n%s", input.Filename, strings.TrimSpace(change)),
 		)
 
-		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent, renameFrom), nil
 	}
 }
 
@@ -161,11 +161,12 @@ func readStagedContent(reader StagedChangesReader, filename string) (content str
 	return "", false, fmt.Errorf("failed to read staged file content of %s: %w", filename, err)
 }
 
-func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+func buildFileChange(filename, change, originalContent, stagedContent, renameFrom string) *git.FileChange {
 	return &git.FileChange{
 		Filename:            filename,
 		Change:              change,
 		OriginalFileContent: originalContent,
 		ChangedFileContent:  stagedContent,
+		RenamedFrom:         renameFrom,
 	}
 }

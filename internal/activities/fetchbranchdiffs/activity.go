@@ -17,6 +17,7 @@ import (
 type Input struct {
 	TargetBranch string
 	Files        []string
+	Renames      map[string]string // Maps new filename -> old filename
 }
 
 // Output defines the output structure for the FetchAllBranchDiffs activity.
@@ -67,6 +68,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		changes := make([]*git.FileChange, 0, len(input.Files))
 		for _, file := range input.Files {
 			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
+
+			// Check if this file was renamed
+			oldPath := ""
+			if input.Renames != nil {
+				if old, isRenamed := input.Renames[file]; isRenamed {
+					oldPath = old
+				}
+			}
+
 			change, err := executor.ExecuteActivity[*fetchbranchdiff.Input, *git.FileChange](
 				ctx,
 				exec,
@@ -76,6 +86,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 				&fetchbranchdiff.Input{
 					Filename:     file,
 					TargetBranch: input.TargetBranch,
+					OldPath:      oldPath,
 				},
 			)
 			if err != nil {

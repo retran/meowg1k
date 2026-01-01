@@ -17,11 +17,13 @@ import (
 type Input struct {
 	Filename     string
 	TargetBranch string
+	OldPath      string // For renamed files: the old path to query git with
 }
 
 // BranchDiffReader reads file diffs between branches.
 type BranchDiffReader interface {
 	GetBranchDiff(filename, targetBranch string) (string, error)
+	GetBranchDiffWithOldPath(filename, targetBranch, oldPath string) (string, error)
 	ReadOriginalFileContent(filename string) (string, error)
 	ReadStagedFileContent(filename string) (string, error)
 }
@@ -61,10 +63,19 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			fmt.Sprintf("base=%s file=%s", input.TargetBranch, input.Filename),
 		)
 
-		change, err := f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
+		var change string
+		var err error
+		if input.OldPath != "" {
+			change, err = f.branchDiffReader.GetBranchDiffWithOldPath(input.Filename, input.TargetBranch, input.OldPath)
+		} else {
+			change, err = f.branchDiffReader.GetBranchDiff(input.Filename, input.TargetBranch)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to read branch diff in %s: %w", input.Filename, err)
 		}
+
+		renameFrom, renameTo := extractRename(change)
+		_ = renameTo // explicitly ignore renameTo as we only need renameFrom
 
 		originalFileContent, err := readBranchOriginalContent(f.branchDiffReader, input.Filename)
 		if err != nil {
@@ -80,7 +91,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 				fmt.Sprintf("I've confirmed %s was deleted", input.Filename),
 				strings.TrimSpace(change),
 			)
-			return buildFileChange(input.Filename, change, originalFileContent, ""), nil
+			return buildFileChange(input.Filename, change, originalFileContent, "", renameFrom), nil
 		}
 
 		executorCtx.SendCompletedWithDetails(
@@ -88,7 +99,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *git.FileChange] {
 			strings.TrimSpace(change),
 		)
 
-		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent), nil
+		return buildFileChange(input.Filename, change, originalFileContent, stagedFileContent, renameFrom), nil
 	}
 }
 
@@ -114,13 +125,27 @@ func readBranchStagedContent(reader BranchDiffReader, filename string) (content 
 	return "", false, fmt.Errorf("failed to read current file content of %s: %w", filename, err)
 }
 
-func buildFileChange(filename, change, originalContent, stagedContent string) *git.FileChange {
+func buildFileChange(filename, change, originalContent, stagedContent, renameFrom string) *git.FileChange {
 	return &git.FileChange{
 		Filename:            filename,
 		Change:              change,
 		OriginalFileContent: originalContent,
 		ChangedFileContent:  stagedContent,
+		RenamedFrom:         renameFrom,
 	}
+}
+
+func extractRename(diff string) (from string, to string) {
+	lines := strings.Split(diff, "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "rename from ") {
+			from = strings.TrimPrefix(line, "rename from ")
+		}
+		if strings.HasPrefix(line, "rename to ") {
+			to = strings.TrimPrefix(line, "rename to ")
+		}
+	}
+	return from, to
 }
 
 func isMissingOriginalContent(err error) bool {

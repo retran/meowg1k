@@ -144,7 +144,7 @@ func (f *Factory) runPullRequestFlow(ctx context.Context, flowCtx *executor.Cont
 	}
 	flowCtx.SendRunningWithDetails("I'm drafting the pull request description", fmt.Sprintf("diff=branch base=%s", baseBranch))
 
-	files, err := f.listBranchFiles(ctx, flowCtx, exec, baseBranch)
+	files, renames, err := f.listBranchFiles(ctx, flowCtx, exec, baseBranch)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (f *Factory) runPullRequestFlow(ctx context.Context, flowCtx *executor.Cont
 		return err
 	}
 
-	changes, err := f.fetchBranchChanges(ctx, flowCtx, exec, filteredFiles, baseBranch)
+	changes, err := f.fetchBranchChanges(ctx, flowCtx, exec, filteredFiles, renames, baseBranch)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (f *Factory) listBranchFiles(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	baseBranch string,
-) ([]string, error) {
+) ([]string, map[string]string, error) {
 	listBranchFiles := f.listBranchFilesFactory.NewActivity()
 	branchFiles, err := executor.ExecuteActivity(
 		ctx,
@@ -213,9 +213,9 @@ func (f *Factory) listBranchFiles(
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list branch files: %w", err)
+		return nil, nil, fmt.Errorf("failed to list branch files: %w", err)
 	}
-	return branchFiles.Files, nil
+	return branchFiles.Files, branchFiles.Renames, nil
 }
 
 func (f *Factory) applyFilters(
@@ -246,6 +246,7 @@ func (f *Factory) fetchBranchChanges(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	files []string,
+	renames map[string]string,
 	baseBranch string,
 ) ([]*git.FileChange, error) {
 	fetchAllBranchDiffs := f.fetchAllBranchDiffsFactory.NewActivity()
@@ -257,6 +258,7 @@ func (f *Factory) fetchBranchChanges(
 		fetchAllBranchDiffs,
 		&fetchbranchdiffs.Input{
 			Files:        files,
+			Renames:      renames,
 			TargetBranch: baseBranch,
 		},
 	)
