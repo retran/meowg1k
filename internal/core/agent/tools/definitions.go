@@ -10,11 +10,14 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/activities/control"
+	"github.com/retran/meowg1k/internal/activities/deletefile"
 	"github.com/retran/meowg1k/internal/activities/editfile"
 	"github.com/retran/meowg1k/internal/activities/getdiff"
 	"github.com/retran/meowg1k/internal/activities/getplan"
+	"github.com/retran/meowg1k/internal/activities/gitundo"
 	"github.com/retran/meowg1k/internal/activities/listfiles"
 	"github.com/retran/meowg1k/internal/activities/memorize"
+	"github.com/retran/meowg1k/internal/activities/movefile"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
 	"github.com/retran/meowg1k/internal/activities/runshell"
@@ -31,6 +34,9 @@ type ToolDependencies struct {
 	ReadFile   executor.ActivityFactory[*readfile.Input, *readfile.Output]
 	WriteFile  executor.ActivityFactory[*writefile.Input, *writefile.Output]
 	EditFile   executor.ActivityFactory[*editfile.Input, *editfile.Output]
+	MoveFile   executor.ActivityFactory[*movefile.Input, *movefile.Output]
+	DeleteFile executor.ActivityFactory[*deletefile.Input, *deletefile.Output]
+	GitUndo    executor.ActivityFactory[*gitundo.Input, *gitundo.Output]
 	RunShell   executor.ActivityFactory[*runshell.Input, *runshell.Output]
 	ListFiles  executor.ActivityFactory[*listfiles.Input, *listfiles.Output]
 	SearchCode executor.ActivityFactory[*searchindex.Input, *searchindex.Output]
@@ -49,16 +55,16 @@ type ToolDependencies struct {
 }
 
 func RegisterStandardTools(r *Registry, deps ToolDependencies) {
-	// read_file
+	// --- FILE Operations ---
 	if deps.ReadFile != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "read_file",
-				Description: "Read the content of a file, optionally limiting to specific lines.",
+				Name:        "file_read",
+				Description: "Read file content. Use `start_line` and `end_line` for large files. Path must be relative to workspace root.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"path":       map[string]any{"type": "string", "description": "Path to the file relative to workspace root"},
+						"path":       map[string]any{"type": "string", "description": "Path relative to workspace root (e.g. 'cmd/main.go')"},
 						"start_line": map[string]any{"type": "integer", "description": "1-based start line (inclusive)"},
 						"end_line":   map[string]any{"type": "integer", "description": "1-based end line (inclusive)"},
 					},
@@ -71,21 +77,20 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.ReadFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "read_file", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_read", act, &input)
 			},
 		})
 	}
 
-	// write_file
 	if deps.WriteFile != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "write_file",
-				Description: "Create or overwrite a file with full content.",
+				Name:        "file_write",
+				Description: "Create or overwrite a file. Content MUST be the complete file source code. Do not use placeholders.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"path":    map[string]any{"type": "string", "description": "Path to the file"},
+						"path":    map[string]any{"type": "string", "description": "Path relative to workspace root"},
 						"content": map[string]any{"type": "string", "description": "Full content of the file"},
 					},
 					"required": []string{"path", "content"},
@@ -97,23 +102,22 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.WriteFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "write_file", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_write", act, &input)
 			},
 		})
 	}
 
-	// edit_file
 	if deps.EditFile != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "edit_file",
-				Description: "Replace a specific block of text in a file.",
+				Name:        "file_edit",
+				Description: "Modify an existing file by replacing a specific text block. `old_string` must match exactly one continuous block in the file. Include surrounding lines in `old_string` to ensure uniqueness. Use this for refactoring or bug fixes in large files.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"path":       map[string]any{"type": "string"},
-						"old_string": map[string]any{"type": "string", "description": "Exact text to replace (must match exactly one location)"},
-						"new_string": map[string]any{"type": "string", "description": "New text to insert"},
+						"path":       map[string]any{"type": "string", "description": "Path relative to workspace root"},
+						"old_string": map[string]any{"type": "string", "description": "The exact block of text to be replaced. Must be unique in the file."},
+						"new_string": map[string]any{"type": "string", "description": "The new block of text to insert in place of old_string."},
 					},
 					"required": []string{"path", "old_string", "new_string"},
 				},
@@ -124,147 +128,94 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.EditFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "edit_file", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_edit", act, &input)
 			},
 		})
 	}
 
-	// run_shell
-	if deps.RunShell != nil {
-		handler := func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-			var input runshell.Input
-			if err := BindArgs(args, &input); err != nil {
-				return nil, err
-			}
-			act := deps.RunShell.NewActivity()
-			return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "run_shell", act, &input)
-		}
-
+	if deps.MoveFile != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "run_shell",
-				Description: "Execute a shell command.",
+				Name:        "file_move",
+				Description: "Move or rename a file or directory. Creates destination directories as needed. Uses git mv when in a git repository.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"command": map[string]any{"type": "string", "description": "Command to run (e.g. 'go')"},
-						"args":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Arguments for the command"},
+						"source_path": map[string]any{"type": "string", "description": "Current path relative to workspace root"},
+						"dest_path":   map[string]any{"type": "string", "description": "New path relative to workspace root"},
 					},
-					"required": []string{"command"},
-				},
-			},
-			Handler: handler,
-		})
-	}
-
-	// grep_files
-	// Dedicated text search tool (rg preferred, grep fallback).
-	// This is intentionally narrower than run_shell.
-	if deps.RunShell != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "grep_files",
-				Description: "Keyword/regex search using rg (preferred) or grep (fallback). Prefer this ONLY after search_code returns nothing useful, or when you need exact string/identifier matches.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"pattern": map[string]any{"type": "string", "description": "Pattern to search for"},
-						"path":    map[string]any{"type": "string", "description": "Optional path to search within (relative to workspace root). Defaults to '.'"},
-						"fixed":   map[string]any{"type": "boolean", "description": "If true, treat pattern as a literal string (no regex)."},
-						"glob":    map[string]any{"type": "string", "description": "Optional file glob filter (e.g. '*.go')."},
-						"max":     map[string]any{"type": "integer", "description": "Optional max matches to return."},
-					},
-					"required": []string{"pattern"},
+					"required": []string{"source_path", "dest_path"},
 				},
 			},
 			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				pattern, ok := args["pattern"].(string)
-				if !ok {
-					return nil, fmt.Errorf("pattern must be a string")
+				var input movefile.Input
+				if err := BindArgs(args, &input); err != nil {
+					return nil, err
 				}
-				pattern = strings.TrimSpace(pattern)
-				if pattern == "" {
-					return nil, fmt.Errorf("pattern is required")
-				}
-
-				path, _ := args["path"].(string)
-				path = strings.TrimSpace(path)
-				if path == "" {
-					path = "."
-				}
-
-				fixed, _ := args["fixed"].(bool)
-				glob, _ := args["glob"].(string)
-				glob = strings.TrimSpace(glob)
-
-				maxResults := 0
-				if v, ok := args["max"].(float64); ok {
-					maxResults = int(v)
-				} else if v, ok := args["max"].(int); ok {
-					maxResults = v
-				}
-				if maxResults < 0 {
-					maxResults = 0
-				}
-
-				bin := "grep"
-				if _, err := exec.LookPath("rg"); err == nil {
-					bin = "rg"
-				}
-
-				cmdArgs := make([]string, 0, 10)
-				switch bin {
-				case "rg":
-					cmdArgs = append(cmdArgs, "--no-heading", "--line-number")
-					if fixed {
-						cmdArgs = append(cmdArgs, "-F")
-					}
-					if glob != "" {
-						cmdArgs = append(cmdArgs, "-g", glob)
-					}
-					if maxResults > 0 {
-						cmdArgs = append(cmdArgs, "--max-count", fmt.Sprintf("%d", maxResults))
-					}
-					cmdArgs = append(cmdArgs, pattern, path)
-				default:
-					// grep -R can still recurse, so we keep it non-recursive by default
-					// and rely on the caller to pass a file/glob/path if desired.
-					// Use -n for line numbers; -F for fixed strings.
-					cmdArgs = append(cmdArgs, "-n")
-					if fixed {
-						cmdArgs = append(cmdArgs, "-F")
-					}
-					// Best-effort: if glob is set, ask the shell-less grep to match files via --include.
-					if glob != "" {
-						cmdArgs = append(cmdArgs, "--include", glob)
-						cmdArgs = append(cmdArgs, "-R")
-					}
-					if maxResults > 0 {
-						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", maxResults))
-					}
-					cmdArgs = append(cmdArgs, pattern, path)
-				}
-
-				input := &runshell.Input{Command: bin, Args: cmdArgs}
-				act := deps.RunShell.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "grep_files", act, input)
+				act := deps.MoveFile.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_move", act, &input)
 			},
 		})
 	}
 
-	// list_files
-	if deps.ListFiles != nil {
+	if deps.DeleteFile != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "list_files",
-				Description: "List direct child files and directories in a directory (non-recursive, respects gitignore).",
+				Name:        "file_delete",
+				Description: "Permanently delete a file. Use with caution.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"dir": map[string]any{
-							"type":        "string",
-							"description": "Directory path relative to workspace root (e.g. '.', 'internal', 'cmd'). Non-recursive listing.",
-						},
+						"path": map[string]any{"type": "string", "description": "Path relative to workspace root"},
+					},
+					"required": []string{"path"},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				var input deletefile.Input
+				if err := BindArgs(args, &input); err != nil {
+					return nil, err
+				}
+				act := deps.DeleteFile.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_delete", act, &input)
+			},
+		})
+	}
+
+	if deps.GitUndo != nil {
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "git_undo",
+				Description: "Discard uncommitted changes to a file (git checkout HEAD). Use this if a previous file_edit broke the code and you want to revert to the last clean state.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path": map[string]any{"type": "string", "description": "Path to the file to revert (relative to workspace root)"},
+					},
+					"required": []string{"path"},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				var input gitundo.Input
+				if err := BindArgs(args, &input); err != nil {
+					return nil, err
+				}
+				act := deps.GitUndo.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "git_undo", act, &input)
+			},
+		})
+	}
+
+	// --- DIRECTORY Operations ---
+	if deps.ListFiles != nil {
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "dir_list",
+				Description: "List direct children of a directory (non-recursive).",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"dir": map[string]any{"type": "string", "description": "Directory relative to root"},
 					},
 					"required": []string{"dir"},
 				},
@@ -275,17 +226,122 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.ListFiles.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "list_files", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "dir_list", act, &input)
 			},
 		})
 	}
 
-	// search_code
+	// --- SYSTEM/SHELL Operations ---
+	if deps.RunShell != nil {
+		handler := func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+			var input runshell.Input
+			if err := BindArgs(args, &input); err != nil {
+				return nil, err
+			}
+			act := deps.RunShell.NewActivity()
+			return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "shell_exec", act, &input)
+		}
+
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "shell_exec",
+				Description: "Execute a non-interactive shell command.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"command": map[string]any{"type": "string", "description": "Executable (e.g. 'go', 'ls')"},
+						"args":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+					},
+					"required": []string{"command"},
+				},
+			},
+			Handler: handler,
+		})
+
+		// --- SEARCH Operations ---
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "search_text",
+				Description: "Search text/regex using rg (ripgrep) or grep. Use this for exact string matches. Prefer `search_semantic` for concepts.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"pattern": map[string]any{"type": "string", "description": "Pattern to search"},
+						"path":    map[string]any{"type": "string", "description": "Search path (default '.')"},
+						"fixed":   map[string]any{"type": "boolean", "description": "Treat pattern as literal string"},
+						"glob":    map[string]any{"type": "string", "description": "File glob (e.g. '*.go')"},
+						"max":     map[string]any{"type": "integer", "description": "Max matches"},
+					},
+					"required": []string{"pattern"},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				pattern, ok := args["pattern"].(string)
+				if !ok || strings.TrimSpace(pattern) == "" {
+					return nil, fmt.Errorf("pattern is required")
+				}
+
+				path, _ := args["path"].(string)
+				if strings.TrimSpace(path) == "" {
+					path = "."
+				}
+
+				fixed, _ := args["fixed"].(bool)
+				glob, _ := args["glob"].(string)
+
+				maxResults := 0
+				if v, ok := args["max"].(float64); ok {
+					maxResults = int(v)
+				} else if v, ok := args["max"].(int); ok {
+					maxResults = v
+				}
+
+				bin := "grep"
+				if _, err := exec.LookPath("rg"); err == nil {
+					bin = "rg"
+				}
+
+				var cmdArgs []string
+				if bin == "rg" {
+					cmdArgs = append(cmdArgs, "--no-heading", "--line-number", "--color=never")
+					if fixed {
+						cmdArgs = append(cmdArgs, "-F")
+					}
+					if glob != "" {
+						cmdArgs = append(cmdArgs, "-g", glob)
+					}
+					if maxResults > 0 {
+						cmdArgs = append(cmdArgs, "--max-count", fmt.Sprintf("%d", maxResults))
+					}
+					cmdArgs = append(cmdArgs, pattern, path)
+				} else {
+					cmdArgs = append(cmdArgs, "-n")
+					if fixed {
+						cmdArgs = append(cmdArgs, "-F")
+					}
+					if glob != "" {
+						cmdArgs = append(cmdArgs, "--include", glob, "-R")
+					} else {
+						cmdArgs = append(cmdArgs, "-r")
+					}
+					if maxResults > 0 {
+						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", maxResults))
+					}
+					cmdArgs = append(cmdArgs, pattern, path)
+				}
+
+				input := &runshell.Input{Command: bin, Args: cmdArgs}
+				act := deps.RunShell.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_text", act, input)
+			},
+		})
+	}
+
 	if deps.SearchCode != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "search_code",
-				Description: "Semantic search over indexed code/context. Prefer this FIRST for discovery; if it returns no relevant results (or results are too weak/irrelevant), fall back to grep_files.",
+				Name:        "search_semantic",
+				Description: "Semantic code search. Use for discovery/concepts. Fallback to `search_text` if no results.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -314,21 +370,21 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 				}
 
 				act := deps.SearchCode.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_code", act, input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_semantic", act, input)
 			},
 		})
 	}
 
-	// get_diff
+	// --- GIT Operations ---
 	if deps.GetDiff != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "get_diff",
-				Description: "Get the git diff of changes.",
+				Name:        "git_diff",
+				Description: "Get git diff of changes in working directory.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"staged": map[string]any{"type": "boolean", "description": "If true, show staged changes. Else show workdir changes."},
+						"staged": map[string]any{"type": "boolean"},
 					},
 				},
 			},
@@ -338,42 +394,17 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.GetDiff.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "get_diff", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "git_diff", act, &input)
 			},
 		})
 	}
 
-	// memorize_fact
-	if deps.Memorize != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "memorize_fact",
-				Description: "Save a fact to the flow memory.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"fact": map[string]any{"type": "string", "description": "The information to remember"},
-					},
-					"required": []string{"fact"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input memorize.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.Memorize.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "memorize_fact", act, &input)
-			},
-		})
-	}
-
-	// create_plan
+	// --- PLAN Operations ---
 	if deps.Plan != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "create_plan",
-				Description: "Initialize the task plan.",
+				Name:        "plan_init",
+				Description: "Initialize a new task plan.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -398,17 +429,16 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.Plan.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "create_plan", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "plan_init", act, &input)
 			},
 		})
 	}
 
-	// get_plan
 	if deps.GetPlan != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "get_plan",
-				Description: "Get the current task plan (tasks + statuses).",
+				Name:        "plan_read",
+				Description: "Get the current task plan and statuses.",
 				Parameters: map[string]any{
 					"type":       "object",
 					"properties": map[string]any{},
@@ -417,17 +447,16 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 			Handler: func(ctx context.Context, execCtx *executor.Context, _ map[string]any) (any, error) {
 				var input getplan.Input
 				act := deps.GetPlan.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "get_plan", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "plan_read", act, &input)
 			},
 		})
 	}
 
-	// update_task
 	if deps.TrackTask != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "update_task",
-				Description: "Update the status of a task.",
+				Name:        "plan_update_task",
+				Description: "Update the status of a specific task.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -443,16 +472,40 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.TrackTask.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "update_task", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "plan_update_task", act, &input)
 			},
 		})
 	}
 
-	// summarize
+	// --- MEMORY/UTIL Operations ---
+	if deps.Memorize != nil {
+		r.Register(Tool{
+			Definition: gateway.ToolDefinition{
+				Name:        "mem_store",
+				Description: "Save a critical fact to long-term memory.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"fact": map[string]any{"type": "string"},
+					},
+					"required": []string{"fact"},
+				},
+			},
+			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+				var input memorize.Input
+				if err := BindArgs(args, &input); err != nil {
+					return nil, err
+				}
+				act := deps.Memorize.NewActivity()
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "mem_store", act, &input)
+			},
+		})
+	}
+
 	if deps.Summarize != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "summarize",
+				Name:        "util_summarize",
 				Description: "Summarize text, files, or diffs.",
 				Parameters: map[string]any{
 					"type": "object",
@@ -472,21 +525,21 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					input.Type = "text"
 				}
 				act := deps.Summarize.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "summarize", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "util_summarize", act, &input)
 			},
 		})
 	}
 
-	// restart_with_instruction
+	// --- AGENT Operations ---
 	if deps.Restart != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
-				Name:        "restart_with_instruction",
-				Description: "Restart the entire flow using a new, self-contained goal prompt. Use this when the current attempt is unrecoverable. The provided instruction becomes the next attempt's full prompt, so include all necessary context, constraints, and acceptance criteria. Memory facts are preserved, but the plan/task board is reset.",
+				Name:        "agent_restart",
+				Description: "Hard reset agent flow with a NEW instruction. Use when unrecoverable.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"instruction": map[string]any{"type": "string", "description": "A full replacement goal prompt for the next flow attempt. Be specific and detailed: (1) brief diagnosis of what failed and why, (2) explicit constraints/requirements, (3) concrete steps or guidance, (4) clear success criteria. Do NOT assume the next attempt has access to the prior conversation beyond preserved memory facts."},
+						"instruction": map[string]any{"type": "string", "description": "Full goal prompt for the next attempt"},
 					},
 					"required": []string{"instruction"},
 				},
@@ -497,7 +550,7 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, err
 				}
 				act := deps.Restart.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "restart_with_instruction", act, &input)
+				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "agent_restart", act, &input)
 			},
 		})
 	}

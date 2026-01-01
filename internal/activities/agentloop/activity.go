@@ -146,54 +146,66 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 						args = map[string]any{}
 					}
 
-					title := formatToolCallTitle(call.Name, args)
-					details := formatToolCallDetails(call, args, strings.Join(pendingNarration, "\n\n"))
-					pendingNarration = pendingNarration[:0]
-					iterationCtx.SendProgressWithDetails(title, details)
-					toolCtx := iterationCtx.Child(title)
+					// Display agent's narration before tool call if present
+					narration := strings.Join(pendingNarration, "\n\n")
+					if strings.TrimSpace(narration) != "" {
+						iterationCtx.SendProgress(strings.TrimSpace(narration))
+				}
+				pendingNarration = pendingNarration[:0]
 
-					_, toolAllowed := allowed[call.Name]
-					var (
-						result  any
-						toolErr error
-					)
-					if !toolAllowed {
-						toolErr = fmt.Errorf("tool not allowed in this step: %s", call.Name)
-						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
-					} else {
-						result, toolErr = input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
+				title := formatToolCallTitle(call.Name, args)
+				details := formatToolCallDetails(call, args, narration)
+				iterationCtx.SendProgressWithDetails(title, details)
+				toolCtx := iterationCtx.Child(title)
+
+				_, toolAllowed := allowed[call.Name]
+				var (
+					result  any
+					toolErr error
+				)
+				if !toolAllowed {
+					toolErr = fmt.Errorf("tool not allowed in this step: %s", call.Name)
+					result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
+				} else {
+					result, toolErr = input.ToolRegistry.ExecuteTool(ctx, toolCtx, call.Name, args)
+				}
+				if toolErr != nil {
+					// Tool errors are expected sometimes (e.g., guessed paths). Don't fail the
+					// activity/step; return the error back to the model as a normal tool result.
+					toolCtx.SendProgressWithDetails("Tool returned error", toolErr.Error())
+					result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
+				} else {
+					// Show tool result summary
+					resultSummary := formatToolResult(call.Name, result)
+					if resultSummary != "" {
+						toolCtx.SendCompletedWithDetails("Result", resultSummary)
 					}
-					if toolErr != nil {
-						// Tool errors are expected sometimes (e.g., guessed paths). Don't fail the
-						// activity/step; return the error back to the model as a normal tool result.
-						toolCtx.SendProgressWithDetails("Tool returned error", toolErr.Error())
-						result = map[string]any{"tool": call.Name, "error": toolErr.Error()}
-					}
-
-					state.toolResults = append(state.toolResults, toolResult{ID: call.ID, Name: call.Name, Args: args, Result: result})
-					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_call", ToolName: call.Name, ToolID: call.ID, ToolArgs: args})
-					state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_result", ToolName: call.Name, ToolID: call.ID, ToolResult: result})
 				}
-			}
 
-			if hadToolCalls {
-				continue
-			}
-
-			if !hadToolCalls {
-				finalMessage := strings.TrimSpace(strings.Join(pendingNarration, "\n\n"))
-				content := renderTranscriptOutput(state.transcript)
-				finalSummary := strings.TrimSpace(resp.Response.Reasoning())
-				if finalSummary == "" {
-					finalSummary = finalMessage
-				}
-				if strings.TrimSpace(finalMessage) != "" {
-					iterationCtx.SendProgressWithDetails("Agent output", finalMessage)
-				}
-				execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
-				return &Output{Summary: finalSummary, Content: content, FinalMessage: finalMessage}, nil
+				state.toolResults = append(state.toolResults, toolResult{ID: call.ID, Name: call.Name, Args: args, Result: result})
+				state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_call", ToolName: call.Name, ToolID: call.ID, ToolArgs: args})
+				state.transcript = append(state.transcript, transcriptEntry{Kind: "tool_result", ToolName: call.Name, ToolID: call.ID, ToolResult: result})
 			}
 		}
+
+				if hadToolCalls {
+					continue
+				}
+
+				if !hadToolCalls {
+					finalMessage := strings.TrimSpace(strings.Join(pendingNarration, "\n\n"))
+					content := renderTranscriptOutput(state.transcript)
+					finalSummary := strings.TrimSpace(resp.Response.Reasoning())
+					if finalSummary == "" {
+						finalSummary = finalMessage
+					}
+					if strings.TrimSpace(finalMessage) != "" {
+						iterationCtx.SendProgressWithDetails("Agent output", finalMessage)
+					}
+					execCtx.SendCompletedWithDetails(fmt.Sprintf("Step finished: %s", stepLabel), fmt.Sprintf("iterations=%d", iteration))
+					return &Output{Summary: finalSummary, Content: content, FinalMessage: finalMessage}, nil
+				}
+			}
 
 		return nil, fmt.Errorf("agent iteration exceeded max iterations (%d)", maxIterations)
 	}
@@ -448,42 +460,72 @@ func formatToolCallTitle(name string, args map[string]any) string {
 	}
 
 	switch name {
-	case "list_files":
+	case "dir_list":
 		dir, _ := args["dir"].(string)
 		dir = strings.TrimSpace(dir)
-		if dir == "" {
-			return "Listing files"
+		if dir == "" || dir == "." {
+			return "Listing (root)"
 		}
-		return fmt.Sprintf("Listing files in %s", dir)
-	case "read_file":
+		return fmt.Sprintf("Listing %s", dir)
+	case "file_read":
 		p, _ := args["path"].(string)
 		p = strings.TrimSpace(p)
 		if p == "" {
 			return "Reading a file"
 		}
 		return fmt.Sprintf("Reading %s", p)
-	case "write_file":
+	case "file_write":
 		p, _ := args["path"].(string)
 		p = strings.TrimSpace(p)
 		if p == "" {
 			return "Writing a file"
 		}
 		return fmt.Sprintf("Writing %s", p)
-	case "edit_file":
+	case "file_edit":
 		p, _ := args["path"].(string)
 		p = strings.TrimSpace(p)
 		if p == "" {
 			return "Editing a file"
 		}
 		return fmt.Sprintf("Editing %s", p)
-	case "search_code":
+	case "file_move":
+		src, _ := args["source_path"].(string)
+		dst, _ := args["dest_path"].(string)
+		src = strings.TrimSpace(src)
+		dst = strings.TrimSpace(dst)
+		if src != "" && dst != "" {
+			return fmt.Sprintf("Moving %s → %s", src, dst)
+		}
+		return "Moving a file"
+	case "file_delete":
+		p, _ := args["path"].(string)
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "Deleting a file"
+		}
+		return fmt.Sprintf("Deleting %s", p)
+	case "git_undo":
+		p, _ := args["path"].(string)
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return "Reverting uncommitted changes"
+		}
+		return fmt.Sprintf("Reverting %s", p)
+	case "search_semantic":
 		q, _ := args["query"].(string)
 		q = strings.TrimSpace(q)
 		if q == "" {
 			return "Searching the codebase"
 		}
 		return fmt.Sprintf("Searching: %s", truncateOneLine(q, 80))
-	case "run_shell":
+	case "search_text":
+		pattern, _ := args["pattern"].(string)
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" {
+			return "Searching text"
+		}
+		return fmt.Sprintf("Searching text: %s", truncateOneLine(pattern, 80))
+	case "shell_exec":
 		cmd, _ := args["command"].(string)
 		cmd = strings.TrimSpace(cmd)
 		if cmd == "" {
@@ -500,18 +542,20 @@ func formatToolCallTitle(name string, args map[string]any) string {
 			return fmt.Sprintf("Running: %s", truncateOneLine(strings.Join(parts, " "), 100))
 		}
 		return fmt.Sprintf("Running: %s", truncateOneLine(cmd, 100))
-	case "get_diff":
+	case "git_diff":
 		staged, _ := args["staged"].(bool)
 		if staged {
 			return "Getting staged diff"
 		}
 		return "Getting diff"
-	case "create_plan":
+	case "plan_init":
 		if rawTasks, ok := args["tasks"].([]any); ok {
 			return fmt.Sprintf("Creating a plan (%d tasks)", len(rawTasks))
 		}
 		return "Creating a plan"
-	case "update_task":
+	case "plan_read":
+		return "Reading plan"
+	case "plan_update_task":
 		id, _ := args["id"].(string)
 		status, _ := args["status"].(string)
 		id = strings.TrimSpace(id)
@@ -520,32 +564,221 @@ func formatToolCallTitle(name string, args map[string]any) string {
 			return fmt.Sprintf("Updating task %s → %s", id, status)
 		}
 		return "Updating a task"
-	case "memorize_fact":
+	case "mem_store":
 		fact, _ := args["fact"].(string)
 		fact = strings.TrimSpace(fact)
 		if fact == "" {
-			return "Saving a note"
+			return "Memorizing"
 		}
-		return fmt.Sprintf("Saving a note: %s", truncateOneLine(fact, 80))
-	case "summarize":
+		return fmt.Sprintf("Memorizing: %s", truncateOneLine(fact, 80))
+	case "util_summarize":
 		t, _ := args["type"].(string)
 		t = strings.TrimSpace(t)
 		if t == "" {
 			return "Summarizing"
 		}
 		return fmt.Sprintf("Summarizing (%s)", t)
-	case "restart_with_instruction":
+	case "agent_restart":
 		return "Requesting a restart"
 	default:
 		return fmt.Sprintf("Using %s", name)
 	}
 }
 
-func formatToolCallDetails(_ gateway.ToolCall, _ map[string]any, narration string) string {
+func formatToolCallDetails(call gateway.ToolCall, args map[string]any, narration string) string {
+	var parts []string
+
+	// Add agent's narration/thinking if present
 	narration = strings.TrimSpace(narration)
 	if narration != "" {
-		return narration
+		parts = append(parts, narration)
 	}
+
+	// Add tool call arguments (abbreviated for common cases)
+	if len(args) > 0 {
+		switch call.Name {
+		case "file_read":
+			if path, ok := args["path"].(string); ok && path != "" {
+				parts = append(parts, path)
+				if startLine, ok := args["start_line"].(float64); ok {
+					if endLine, ok := args["end_line"].(float64); ok {
+						parts = append(parts, fmt.Sprintf("Lines %d-%d", int(startLine), int(endLine)))
+					}
+				}
+			}
+		case "file_write", "file_edit":
+			if path, ok := args["path"].(string); ok && path != "" {
+				parts = append(parts, path)
+			}
+		case "dir_list":
+			if dir, ok := args["dir"].(string); ok && dir != "" {
+				parts = append(parts, dir)
+			}
+		case "search_semantic", "search_text":
+			if q, ok := args["query"].(string); ok && q != "" {
+				parts = append(parts, truncateOneLine(q, 120))
+			} else if pattern, ok := args["pattern"].(string); ok && pattern != "" {
+				parts = append(parts, truncateOneLine(pattern, 120))
+			}
+		case "shell_exec":
+			if cmd, ok := args["command"].(string); ok && cmd != "" {
+				if rawArgs, ok := args["args"].([]any); ok && len(rawArgs) > 0 {
+					argStrs := make([]string, 0, len(rawArgs))
+					for _, a := range rawArgs {
+						if s, ok := a.(string); ok {
+							argStrs = append(argStrs, s)
+						}
+					}
+					parts = append(parts, fmt.Sprintf("%s %s", cmd, strings.Join(argStrs, " ")))
+				} else {
+					parts = append(parts, cmd)
+				}
+			}
+		case "mem_store":
+			if fact, ok := args["fact"].(string); ok && fact != "" {
+				parts = append(parts, truncateOneLine(fact, 120))
+			}
+		case "plan_init":
+			if rawTasks, ok := args["tasks"].([]any); ok {
+				parts = append(parts, fmt.Sprintf("%d tasks", len(rawTasks)))
+			}
+		case "plan_update_task":
+			var taskInfo []string
+			if id, ok := args["id"].(string); ok && id != "" {
+				taskInfo = append(taskInfo, fmt.Sprintf("task=%s", id))
+			}
+			if status, ok := args["status"].(string); ok && status != "" {
+				taskInfo = append(taskInfo, fmt.Sprintf("status=%s", status))
+			}
+			if len(taskInfo) > 0 {
+				parts = append(parts, strings.Join(taskInfo, ", "))
+			}
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func formatToolResult(toolName string, result any) string {
+	if result == nil {
+		return ""
+	}
+
+	switch toolName {
+	case "dir_list":
+		if resultMap, ok := result.(map[string]any); ok {
+			if files, ok := resultMap["Files"].([]any); ok {
+				return fmt.Sprintf("Listed %d entries", len(files))
+			} else if files, ok := resultMap["files"].([]any); ok {
+				return fmt.Sprintf("Listed %d entries", len(files))
+			}
+		}
+	case "file_read":
+		if resultMap, ok := result.(map[string]any); ok {
+			if content, ok := resultMap["Content"].(string); ok {
+				lines := strings.Count(content, "\n") + 1
+				return fmt.Sprintf("Read %d lines (%d bytes)", lines, len(content))
+			} else if content, ok := resultMap["content"].(string); ok {
+				lines := strings.Count(content, "\n") + 1
+				return fmt.Sprintf("Read %d lines (%d bytes)", lines, len(content))
+			}
+		}
+	case "file_write":
+		if resultMap, ok := result.(map[string]any); ok {
+			if written, ok := resultMap["Written"].(bool); ok && written {
+				return "File written successfully"
+			} else if written, ok := resultMap["written"].(bool); ok && written {
+				return "File written successfully"
+			}
+		}
+	case "file_edit":
+		if resultMap, ok := result.(map[string]any); ok {
+			if applied, ok := resultMap["Applied"].(bool); ok && applied {
+				return "Edit applied successfully"
+			} else if applied, ok := resultMap["applied"].(bool); ok && applied {
+				return "Edit applied successfully"
+			}
+		}
+	case "file_move":
+		if resultMap, ok := result.(map[string]any); ok {
+			if moved, ok := resultMap["Moved"].(bool); ok && moved {
+				return "File moved successfully"
+			} else if moved, ok := resultMap["moved"].(bool); ok && moved {
+				return "File moved successfully"
+			}
+		}
+	case "file_delete":
+		if resultMap, ok := result.(map[string]any); ok {
+			if deleted, ok := resultMap["Deleted"].(bool); ok && deleted {
+				return "File deleted successfully"
+			} else if deleted, ok := resultMap["deleted"].(bool); ok && deleted {
+				return "File deleted successfully"
+			}
+		}
+	case "git_undo":
+		if resultMap, ok := result.(map[string]any); ok {
+			if restored, ok := resultMap["Restored"].(bool); ok && restored {
+				return "Changes reverted successfully"
+			} else if restored, ok := resultMap["restored"].(bool); ok && restored {
+				return "Changes reverted successfully"
+			}
+		}
+	case "search_semantic":
+		if resultMap, ok := result.(map[string]any); ok {
+			if chunks, ok := resultMap["Chunks"].([]any); ok {
+				return fmt.Sprintf("Found %d relevant code chunks", len(chunks))
+			} else if chunks, ok := resultMap["chunks"].([]any); ok {
+				return fmt.Sprintf("Found %d relevant code chunks", len(chunks))
+			}
+		}
+	case "search_text":
+		if resultMap, ok := result.(map[string]any); ok {
+			if matches, ok := resultMap["matches"].([]any); ok {
+				return fmt.Sprintf("Found %d matches", len(matches))
+			} else if output, ok := resultMap["output"].(string); ok {
+				matchCount := strings.Count(output, "\n")
+				if matchCount > 0 {
+					return fmt.Sprintf("Found matches in %d lines", matchCount)
+				}
+			}
+		}
+	case "shell_exec":
+		if resultMap, ok := result.(map[string]any); ok {
+			if exitCode, ok := resultMap["exit_code"].(float64); ok {
+				if exitCode == 0 {
+					return "Command executed successfully"
+				}
+				return fmt.Sprintf("Command exited with code %d", int(exitCode))
+			}
+		}
+	case "mem_store":
+		return "Fact memorized"
+	case "plan_init":
+		if resultMap, ok := result.(map[string]any); ok {
+			if tasks, ok := resultMap["tasks"].([]any); ok {
+				return fmt.Sprintf("Plan created with %d tasks", len(tasks))
+			}
+		}
+	case "plan_read":
+		if resultMap, ok := result.(map[string]any); ok {
+			if tasks, ok := resultMap["tasks"].([]any); ok {
+				return fmt.Sprintf("Retrieved %d tasks", len(tasks))
+			}
+		}
+	case "plan_update_task":
+		return "Task updated"
+	case "util_summarize":
+		if resultMap, ok := result.(map[string]any); ok {
+			if summary, ok := resultMap["summary"].(string); ok {
+				return fmt.Sprintf("Summary: %s", truncateOneLine(summary, 100))
+			}
+		}
+	}
+
 	return ""
 }
 

@@ -13,11 +13,14 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/agentloop"
 	"github.com/retran/meowg1k/internal/activities/control"
+	"github.com/retran/meowg1k/internal/activities/deletefile"
 	"github.com/retran/meowg1k/internal/activities/editfile"
 	"github.com/retran/meowg1k/internal/activities/getdiff"
 	"github.com/retran/meowg1k/internal/activities/getplan"
+	"github.com/retran/meowg1k/internal/activities/gitundo"
 	"github.com/retran/meowg1k/internal/activities/listfiles"
 	"github.com/retran/meowg1k/internal/activities/memorize"
+	"github.com/retran/meowg1k/internal/activities/movefile"
 	"github.com/retran/meowg1k/internal/activities/plan"
 	"github.com/retran/meowg1k/internal/activities/readfile"
 	"github.com/retran/meowg1k/internal/activities/runshell"
@@ -154,6 +157,9 @@ func (f *Factory) NewFlow() executor.Flow {
 			ReadFile:   readfile.NewFactory(f.workspaceService),
 			WriteFile:  writefile.NewFactory(f.workspaceService, dryRun),
 			EditFile:   editfile.NewFactory(f.workspaceService, dryRun),
+			MoveFile:   movefile.NewFactory(f.workspaceService, dryRun),
+			DeleteFile: deletefile.NewFactory(f.workspaceService, dryRun),
+			GitUndo:    gitundo.NewFactory(f.workspaceService, dryRun),
 			RunShell:   runshell.NewFactory(f.workspaceService),
 			ListFiles:  listfiles.NewFactory(f.projectStateService),
 			SearchCode: searchindex.MustNewFactory(f.retrievalService),

@@ -1,239 +1,217 @@
 # meowg1k Configuration File
 
-# This file defines models, profiles, and command-specific settings for the meowg1k CLI tool.
-# For a detailed guide, visit: https://github.com/retran/meowg1k/blob/main/docs/02-CONFIGURATION.md
-
-# Defines .gitignore-style patterns to exclude files and directories from all commands.
-# Essential for ignoring dependencies, build artifacts, and sensitive files to improve
-# performance, reduce cost, and enhance security.
 filter:
-  # (Required) A list of glob patterns for files/directories to ignore.
   ignore:
-    - "*.lock"
+    - "**/*.lock"
     - "*.min.js"
     - "*.min.css"
+    - "*.map"
+    - "go.sum"
     - "vendor/"
     - "node_modules/"
     - ".git/"
+    - ".idea/"
+    - ".vscode/"
     - ".meowg1k/"
+    - "dist/"
+    - "build/"
+    - "bin/"
+    - "__pycache__/"
+    - ".DS_Store"
 
-# Defines the large language models (LLMs) you want to use. Each entry specifies a provider,
-# model identifier, and optional settings like rate limits or connection details.
 models:
-  # A fast and cost-effective model, ideal for summarization and simple tasks.
   gemini-flash:
-    # (Required) The name of the AI provider (e.g., "gemini", "openai", "anthropic", "llama").
     provider: "gemini"
-    # (Required) The specific model identifier as defined by the provider.
-    model: "gemini-2.5-flash"
-    # (Optional) A configuration block to prevent excessive API usage and control costs.
+    model: "gemini-3-flash-preview"
+    maxInputTokens: 1048576
+    maxOutputTokens: 65536
     rateLimit:
-      # (Optional) The maximum number of API requests allowed per minute.
-      requestsPerMinute: 15
-      # (Optional) The maximum number of tokens (input + output) processed per minute.
-      tokensPerMinute: 300000
-      # (Optional) The maximum number of API requests allowed in a 24-hour period.
-      requestsPerDay: 300
-    # (Optional) Overrides the model's default maximum input token limit if supported by the provider.
-    maxInputTokens: 100000
+      requestsPerMinute: 1000
+      tokensPerMinute: 2000000
+      requestsPerDay: 10000
 
-
-  # A more powerful model for complex reasoning, code review, and generation.
   gemini-pro:
     provider: "gemini"
-    model: "gemini-1.5-pro-latest"
+    model: "gemini-3-pro-preview"
+    maxInputTokens: 1048576
+    maxOutputTokens: 65536
     rateLimit:
-      requestsPerMinute: 10
-      tokensPerMinute: 150000
-      requestsPerDay: 150
+      requestsPerMinute: 150
+      tokensPerMinute: 1000000
+      requestsPerDay: 10000
 
-  # A specialized model for generating text embeddings, used by the 'index' command for RAG.
   gemini-embeddings:
     provider: "gemini"
     model: "text-embedding-004"
     rateLimit:
-      requestsPerMinute: 3000
-      tokensPerMinute: 1000000
-      requestsPerDay: 1000000
+      requestsPerMinute: 300
+      tokensPerMinute: 500000
+      requestsPerDay: 10000
 
-  # # Example for a local or self-hosted model (e.g., Llama.cpp server).
-  # local-model:
-  #   provider: "llama"
-  #   # (Required for local/self-hosted) The base URL of the model server.
-  #   baseURL: "http://localhost:8080"
-  #   # (Optional) Specify a custom environment variable for the API key if needed.
-  #   apiKeyEnv: "MY_LOCAL_API_KEY"
-
-# Configures caching for LLM responses to reduce costs and latency.
-# These global settings can be overridden on a per-profile basis.
 cache:
-  # (Required) Set to 'true' to enable caching, 'false' to disable.
   enabled: true
-  # (Required) Time-to-live for cache entries (e.g., "24h", "7d", "30m").
   ttl: "24h"
 
-# Profiles are reusable sets of parameters for LLM requests. They allow you to define
-# different behaviors (e.g., "gemini-flash", "gemini-pro") and apply them to various commands.
 profiles:
-  # Profile for quick tasks where speed is prioritized.
-  gemini-flash:
-    # (Required) References a model defined in the 'models' section.
+  fast:
     model: "gemini-flash"
-    # (Optional) Controls randomness. Lower value (e.g., 0.2) = more deterministic.
-    temperature: 0.3
-    # (Optional) Request timeout duration (e.g., "5m", "30s"). Defaults to 5 minutes.
-    timeout: "10m"
-    # (Optional) Overrides global cache settings for this profile.
+    temperature: 0.2
+    topP: 0.95
+    timeout: "5m"
     cache:
       enabled: true
       ttl: "24h"
 
-  # Profile for tasks requiring deep analysis and high-quality output.
-  gemini-pro:
+  smart:
     model: "gemini-pro"
-    timeout: "10m"
+    timeout: "15m"
     temperature: 0.2
-    # (Optional) Nucleus sampling. Considers tokens comprising the top P% probability mass.
     topP: 0.95
     cache:
       enabled: true
       ttl: "72h"
 
-  # Profile dedicated to creating embeddings for the 'index' command.
-  gemini-embeddings:
+  embeddings:
     model: "gemini-embeddings"
     timeout: "10m"
-    cache:
-      enabled: true
-      ttl: "72h"
 
-# Configures pre-defined tasks for the 'meow write' command.
 write:
-  # Default settings for all write tasks unless overridden.
   default:
-    # (Required) The default profile to use.
-    profile: "gemini-flash"
-    # (Required) The default system message that instructs the AI on its role.
+    profile: "fast"
     systemPrompt: >-
-      You are an expert AI assistant for software development, specializing in code analysis and generation.
-      Your responses must be clear, concise, and production-ready.
-      Adhere strictly to the user's requirements.
+      You are a Principal Software Engineer & Polyglot Architect.
+      Your objective is to generate **Production-Grade** code ready for deployment.
 
-  # A collection of custom, reusable tasks, invokable with 'meow write -t <task_name>'.
+      ### CORE DIRECTIVES:
+      1. **Accuracy**: Be concise, correct, and production-minded.
+      2. **Idiomatic**: Follow the strict conventions of the requested language (e.g., Effective Go, Python PEP8).
+      3. **Robustness**: Implement comprehensive error handling (no silent failures).
+      4. **Output**: Return ONLY the requested code block unless explanation is explicitly asked for.
+
   tasks:
     review:
-      # (Optional) A specific profile for this task, overriding the default.
-      profile: "gemini-pro"
-      # (Required) The prompt defining what the task should accomplish.
+      profile: "smart"
       userPrompt: >-
-        Perform a thorough code review of the following code.
-        Focus on correctness, maintainability, readability, performance, and security.
-        Provide actionable suggestions with references to specific lines when possible.
+        Perform a **Principal-Level Code Review** of the input.
+
+        ### Focus Areas:
+        - **Correctness**: Nil/zero handling, race conditions, boundary errors, logic flaws.
+        - **Design**: API ergonomics, package layout, coupling/cohesion, SOLID principles.
+        - **Performance**: Unnecessary allocations, blocking I/O on hot paths, complexity O(n).
+        - **Security**: OWASP vulnerabilities, input sanitization.
+
+        ### Output Format:
+        1. **Executive Summary**: (LGTM / Request Changes) with 2-3 bullet points.
+        2. **Findings**: Numbered list of actionable issues. **Must cite line numbers.**
+        3. **Quick Wins**: Checklist of nits (naming, comments).
+        4. **Patch**: (Optional) A minimal unified diff for critical fixes.
+
+    refactor:
+      profile: "smart"
+      userPrompt: >-
+        **Refactor** the provided code to improve readability, maintainability, and performance, while strictly preserving behavior and the public API.
+
+        ### Objectives:
+        - Reduce cognitive complexity (break down large functions).
+        - Improve error handling (idiomatic wrapping/propagation).
+        - Optimize memory/CPU usage where obvious.
+        - Normalize naming conventions.
+
+        ### Output:
+        1. A single Markdown code block with the full refactored code.
+        2. A concise bullet list explaining the key architectural changes.
+
     doc:
-      profile: "gemini-pro"
+      profile: "smart"
       userPrompt: >-
-        Write a complete documentation comment for the following code element (e.g., function, class, type, module).
-        Requirements:
-          - Start with a concise summary of the element's purpose.
-          - Describe parameters, return values, side effects, and potential errors.
-          - Mention concurrency safety and usage examples if relevant.
-          - Return ONLY the documentation block, without the source code itself.
+        Write **Standard Library Quality** documentation for the input.
+
+        ### Requirements:
+        - Format: Use the native standard (Godoc, JSDoc, Docstring, Rustdoc).
+        - Content: Start with the identifier name. Explain *what* it does, *how* it handles errors, and any concurrency guarantees.
+        - Exclude: Do not output the function implementation, ONLY the comment block.
+
     test:
-      profile: "gemini-pro"
+      profile: "smart"
       userPrompt: >-
-        Write comprehensive unit tests for the following code.
-        Requirements:
-          - Use a clear, structured approach (e.g., table-driven tests or Arrange-Act-Assert).
-          - Cover the happy path, edge cases, and error scenarios.
-          - Ensure tests are deterministic and safe to run.
-          - Return only compilable test code in the detected language.
+        Write a **Comprehensive Unit Test Suite** using the language's standard library (no 3rd party assertions unless standard).
 
-# Configures the document indexing process, building a vector database for the 'ask' command.
+        ### Strategy:
+        - **Table-Driven**: Use table-driven tests for data permutations.
+        - **Coverage**: Happy path, Edge cases (nulls, boundaries), Error scenarios.
+        - **Isolation**: Mock/Stub external dependencies (I/O, Network, Time).
+        - **Concurrency**: Ensure tests are deterministic and parallel-safe.
+
+        Output valid, compilable test code.
+
 index:
-  # (Required) Profile for computing embeddings. Must reference an embedding model.
-  profile: "gemini-embeddings"
-  # (Optional) Settings for splitting files into smaller, embeddable chunks.
+  profile: "embeddings"
   chunker:
-    # (Optional, default: 1024) Max number of Unicode runes (characters) per chunk.
     maxRunes: 1024
-    # (Optional, default: 100) Number of runes to overlap between chunks to maintain context.
-    overlapRunes: 100
-  # (Optional, default: 32) Number of chunks to process in a single embedding API call.
-  batchSize: 32
+    overlapRunes: 128
+  batchSize: 64
 
-# Configures the question-answering behavior of 'meow ask'.
 answer:
-  # (Required) Profile for generating the final answer.
-  profile: "gemini-pro"
-  # (Optional, default: 5) The number of top-matching document chunks to retrieve for context.
-  topK: 5
-  # (Optional, default: 0.7) The minimum similarity score (0.0-1.0) for a chunk to be considered relevant.
-  minScore: 0.7
-  # (Required) The system prompt that guides the LLM in formulating its answer.
+  profile: "smart"
+  topK: 20
+  minScore: 0.4
   systemPrompt: >-
-    You are an expert AI assistant helping developers understand their codebase.
-    Answer questions based ONLY on the provided code context.
-    Be precise, concise, and reference specific code elements when relevant.
-    If the context doesn't contain enough information, clearly state that.
+    You are a **Principal Software Engineer** acting as an expert peer reviewer.
 
-# Configures the multi-step agent mode ("meow do").
+    ### Operating Rules:
+    1. **Strict Context Adherence**: Your answer must be based **exclusively** on the provided code chunks. Do not hallucinate files not present.
+    2. **Direct Answer**: Begin with a concise summary.
+    3. **Evidence**: Elaborate using `monospace` for variable/function names. Cite specific files and approximate line numbers.
+    4. **Honesty**: If the context is missing the answer, state clearly: "Information not found in current context."
+
 agent:
   system_prompt: >-
-    You are an autonomous coding agent working in a real codebase.
-    Be concise and action-oriented.
-    Use tools when needed; prefer minimal, safe, reversible changes.
-    If you are unsure, ask for the smallest missing piece of context.
+    You are an **Autonomous Coding Agent** working in a live codebase.
 
-    Guardrails:
-    - If ToolResults already contain what you need, answer directly; do NOT call more tools.
-    - Do NOT repeat the same tool call unless the previous ToolResults show an error or clearly missing/insufficient data.
-    - After using tools, you MUST end with a normal text answer (not another tool call).
-    - Avoid filler narration like "I will proceed"; output only the useful result.
+    ### OPERATIONAL CONTRACT:
+    1. **Action-Oriented**: Be concise. Prefer minimal, safe, reversible changes.
+    2. **Tool Protocol**:
+       - If `ToolResults` contain the answer, STOP and report. Do NOT call more tools.
+       - Do NOT repeat the same tool call with the same arguments if it failed previously.
+    3. **Finality**: The final message in a step (NO tool calls) must be a consolidated report.
+    4. **Safety**: Always verify your changes. If you break the build, use `git_undo`.
 
-    Tool use:
-    - When you need to call a tool, emit a tool call using the provided tool definitions.
-    - IMPORTANT: The final message in a step (the iteration with NO tool calls) must be a complete, consolidated report for that step.
-      Do not end with a placeholder like “done” or “continuing”. Assume this final message is what gets forwarded to later steps and printed to stdout.
   tools:
     searchDefaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]
-      topK: 8
+      topK: 10
       minScore: 0.6
-    # Optional: override tool descriptions shown to the model.
-    # toolDescriptions:
-    #   read_file: "Read a file from the repository. Use this to inspect exact implementation details."
-    #   get_plan: "Get the current task list for this flow. Use this instead of inventing tasks."
+
   safety:
-    # 0 = unlimited
-    max_steps: 0
+    max_steps: 30
     circuit_breaker:
       max_restarts: 5
     dry_run: false
+
   flows:
     default:
       instructions: >-
-        Flow contract:
-        - Steps run in order and share context through PREVIOUS STEP OUTPUTS.
-        - Read and build on prior outputs; do not ignore them.
-        - Do not repeat the entire history; reference it and add only what is new.
-        - Keep results short, concrete, and suitable for the next step.
+        **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
+        - Steps run in order. Read PREVIOUS STEP OUTPUTS.
+        - Do not ignore prior context.
       steps: ["discover", "plan", "execute", "verify", "final"]
     quick:
       instructions: >-
-        Flow contract:
-        - Steps run in order and share context through PREVIOUS STEP OUTPUTS.
-        - Read and build on prior outputs; do not ignore them.
-        - Keep results short, concrete, and suitable for the next step.
-      steps: ["discover", "execute", "verify", "final"]
+        **Lifecycle:** Discover -> Execute -> Final.
+        - Fast path for small fixes.
+      steps: ["discover", "execute", "final"]
+
   personas:
     discover:
-      role: "Code Discovery Agent"
-      profile: "gemini-flash"
-      tools: ["list_files", "grep_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      role: "Principal Software Engineer"
+      profile: "smart"
+      tools: ["dir_list", "search_text", "search_semantic", "file_read", "util_summarize", "mem_store"]
       system_persona: >-
-        You are a lead software engineer doing fast, high-signal codebase discovery.
-        You prioritize correctness and minimal context gathering.
-      user_instructions: >-
+        You are a **Principal Software Engineer** doing high-signal discovery.
+        **Goal**: Gather minimum context needed to act.
+      user_instructions: >
+        **Goal**: Gather minimum context needed to act.
+
         First: review MEMORY FACTS and avoid repeating work.
         Objective: gather the minimum context needed to act on the goal.
         Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
@@ -241,109 +219,134 @@ agent:
         Save notable findings with memorize_fact.
         Do not modify files.
     plan:
-      role: "Planning Agent"
-      profile: "gemini-pro"
-      tools: ["get_plan", "grep_files", "search_code", "read_file", "create_plan", "memorize_fact"]
+      role: "Technical Project Manager"
+      profile: "smart"
+      tools: ["plan_read", "search_text", "search_semantic", "file_read", "plan_init", "mem_store"]
       system_persona: >-
-        You are a pragmatic tech lead planning work.
-        You produce small, verifiable steps and avoid unnecessary refactors.
-      user_instructions: >-
+        You are a **Pragmatic Planner**.
+      user_instructions: >
+        **Goal**: Convert context into a deterministic task list.
+
         First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
         Objective: turn prior outputs into a minimal, ordered task list.
-        Output MUST be the task list (no filler like “I will proceed”).
+        Output MUST be the task list (no filler like "I will proceed").
         Call get_plan once at the start.
-        If ToolResults already contain tasks (from get_plan/create_plan), do NOT call tools again — render the tasks and stop.
-        If no plan exists, call create_plan once with the minimal tasks, then render the tasks from ToolResults.
+        If no plan exists, call create_plan once with the tasks, then render the tasks from ToolResults.
         Save key decisions/assumptions with memorize_fact.
-        Do not modify files.
     execute:
-      role: "Execution Agent"
-      profile: "gemini-pro"
-      tools: ["get_plan", "grep_files", "search_code", "read_file", "write_file", "edit_file", "run_shell", "update_task", "memorize_fact"]
+      role: "Principal Software Engineer"
+      profile: "smart"
+      tools: ["plan_read", "search_text", "search_semantic", "file_read", "file_write", "file_edit", "file_move", "file_delete", "git_undo", "shell_exec", "plan_update_task", "mem_store"]
       system_persona: >-
-        You are a senior software engineer implementing changes safely in an existing codebase.
-        You prefer the smallest correct diff.
-      user_instructions: >-
+        You are a **Principal Software Engineer**.
+      user_instructions: >
+        **Goal**: Implement the plan with the smallest correct diff.
+
         First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
         Objective: implement the plan with focused diffs.
+        Use file_edit for modifying existing files, file_write for creating new files.
+        Use move_file to rename or relocate files. Use delete_file to remove files.
+        Use git_undo to revert uncommitted changes if your edit broke something.
         Update task status as you go.
         Explain what changed and why, briefly.
         Save important discoveries/decisions with memorize_fact.
     verify:
-      role: "Verification Agent"
-      profile: "gemini-flash"
-      tools: ["get_plan", "grep_files", "search_code", "run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction", "memorize_fact"]
+      role: "Principal QA Engineer"
+      profile: "smart"
+      tools: ["plan_read", "search_text", "search_semantic", "shell_exec", "git_diff", "util_summarize", "plan_update_task", "agent_restart", "mem_store"]
       system_persona: >-
-        You are a meticulous reviewer and release engineer.
-        You validate changes with tests and look for integration risks.
-      user_instructions: >-
+        You are a **Meticulous QA**.
+        1. Inspect `get_diff`.
+      user_instructions: >
+        **Goal**: Validate correctness and integration.
+
         First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
         Objective: verify correctness.
         Inspect diffs and run tests/commands when useful.
         If issues remain, call restart_with_instruction with specific, actionable fix guidance.
         Save important findings with memorize_fact.
-
     final:
-      role: "Final Reporting Agent"
-      profile: "gemini-pro"
+      role: "Technical Project Manager"
+      profile: "smart"
       tools: []
       system_persona: >-
-        You are a senior engineer writing the final user-facing report.
-        You produce a clear, structured answer based only on MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-      user_instructions: >-
+        You are the **Final Reporter**.
+      user_instructions: >
+        **Goal**: Produce a structured answer based on Memory and History.
+
         Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
         Do NOT call tools.
         Output only the final report/answer.
 
-# Configures the "map" step for 'commit' and 'pr' commands (when using "summarize" strategy).
 summarize:
-  # Default settings applied when no specific rule matches.
   default:
-    # (Required) The profile to use for summarizing individual file diffs.
-    profile: "gemini-flash"
-    # (Required) The system prompt for the summarization task.
+    profile: "fast"
+    strategy:
+      type: "plain"
+      includeOriginalFile: false
+      includeChangedFile: false
     systemPrompt: >-
-      You are a code analysis assistant.
-      Analyze the provided code diff and create a concise, one-sentence summary of the changes.
-      Focus on the core intent: what was modified, added, or removed.
-  # # (Optional) A list of rules to apply different summarization strategies based on file paths.
-  # # Rules are evaluated top-down; the first match wins.
+      Analyze changes and provide a concise 1-2 sentence summary.
+      Focus on functional impact (feature, fix, refactor).
   rules:
-    # (Required) A glob pattern to match against file paths.
-    - match: "internal/core/**/*.go"
-      # (Optional) The profile to use for matching files.
-      profile: "gemini-pro"
-      # (Optional) The system prompt to use for matching files.
-      systemPrompt: "Analyze this critical Go code change, focusing on business logic and potential side effects."
-    # This rule is intentionally enabled: it will skip summarizing all Markdown documentation changes.
-    - match: "**/*.md"
-      # (Optional) If true, files matching this pattern are not summarized.
+    - match: "**/*.{lock,sum}"
       skip: true
 
-# Configures the 'meow draft commit' command for generating Git commit messages.
 commit:
-  # (Required) Profile to use for generating the final commit message.
-  profile: "gemini-pro"
-  # (Optional, default: "summarize") Determines how changes are processed.
-  # "summarize": Map-Reduce approach for large changes. Summarizes each file first.
-  # "flat": Sends the entire diff directly to the model. Faster for small changes.
+  profile: "smart"
   strategy: "summarize"
-  # (Required) The system prompt guiding the commit message generation.
-  systemPrompt: >-
-    You are an expert on Git and Conventional Commits.
-    Generate a clear, concise commit message in the Conventional Commits format.
-    Focus on the "why" and "what" of the changes, not the "how".
-    The message should be suitable for a changelog.
+  systemPrompt: |
+    You are an expert software engineer writing a **Conventional Commit**.
 
-# Configures the 'meow draft pr' command for generating PR descriptions.
+    ### Inputs:
+    - File summaries
+    - Developer Intent (if provided)
+
+    ### Format:
+    `<type>(<scope>): <description>`
+
+    `[optional body]`
+
+    `[optional footer]`
+
+    ### Rules:
+    1. **Type**: feat, fix, refactor, perf, docs, test, chore, build, ci.
+    2. **Scope**: (Optional) The specific package/module affected.
+    3. **Description**: Imperative mood, max 72 chars, no period.
+    4. **Body**: Explain *why* and *what* (context/impact).
+    5. **Footer**:
+       - `Refs: #123` if issue mentioned.
+       - `BREAKING CHANGE:` if major API break.
+
 pr:
-  # (Required) Profile to use for generating the PR description.
-  profile: "gemini-pro"
+  profile: "smart"
   strategy: "summarize"
-  # (Required) The system prompt guiding the PR description generation.
-  systemPrompt: >-
-    You are a senior technical writer specializing in pull request descriptions.
-    Generate a comprehensive PR description that clearly explains:
-    - The problem being solved (the "why").
-    - A summary of the changes made (the "what").
-    - Any potential impact, breaking changes, or required migrations.
+  systemPrompt: |
+    You are an expert engineer drafting a **Pull Request Description**.
+
+    ### Structure (Markdown):
+
+    # <Concise Title>
+
+    ## Summary
+    2-4 sentences explaining the *what* and *why*.
+
+    ## Motivation
+    - What problem does this solve?
+    - Why is this change needed?
+
+    ## Key Changes
+    - **Core**: Functional logic changes.
+    - **API**: Public interface updates.
+    - **Tests**: How coverage was ensured.
+
+    ## Technical Details
+    - Architectural decisions/trade-offs.
+    - Performance implications.
+    - Security considerations.
+
+    ## Breaking Changes
+    - Explicitly state "None" or describe migration path.
+
+    ## Refs
+    - List related issues (e.g., Fixes #123).
