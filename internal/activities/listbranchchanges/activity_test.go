@@ -13,7 +13,8 @@ import (
 
 // mockBranchFileListReader is a mock implementation of BranchFileListReader for testing.
 type mockBranchFileListReader struct {
-	GetChangedFilesInBranchFunc func(targetBranch string) ([]string, error)
+	GetChangedFilesInBranchFunc            func(targetBranch string) ([]string, error)
+	GetChangedFilesInBranchWithRenamesFunc func(targetBranch string) ([]string, map[string]string, error)
 }
 
 func (m *mockBranchFileListReader) GetChangedFilesInBranch(targetBranch string) ([]string, error) {
@@ -21,6 +22,18 @@ func (m *mockBranchFileListReader) GetChangedFilesInBranch(targetBranch string) 
 		return m.GetChangedFilesInBranchFunc(targetBranch)
 	}
 	return nil, nil
+}
+
+func (m *mockBranchFileListReader) GetChangedFilesInBranchWithRenames(targetBranch string) ([]string, map[string]string, error) {
+	if m.GetChangedFilesInBranchWithRenamesFunc != nil {
+		return m.GetChangedFilesInBranchWithRenamesFunc(targetBranch)
+	}
+	// Fallback to GetChangedFilesInBranch if the rename specific func is not set, for backward compatibility in tests
+	if m.GetChangedFilesInBranchFunc != nil {
+		files, err := m.GetChangedFilesInBranchFunc(targetBranch)
+		return files, nil, err
+	}
+	return nil, nil, nil
 }
 
 func TestNewFactory(t *testing.T) {

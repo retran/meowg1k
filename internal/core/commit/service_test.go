@@ -53,9 +53,13 @@ func TestGetCommitConfig(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Commit: &config.CommandConfig{
-				Preset:       "test",
-				SystemPrompt: "Test prompt",
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Commit: &config.CommandFlowConfig{
+						Preset:       "test",
+						SystemPrompt: "Test prompt",
+					},
+				},
 			},
 		},
 	}
@@ -90,7 +94,11 @@ func TestGetCommitConfigDefault(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Commit: nil,
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Commit: nil,
+				},
+			},
 		},
 	}
 
@@ -187,9 +195,13 @@ func TestGetWithEmptySystemPrompt(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Commit: &config.CommandConfig{
-				Preset:       "test",
-				SystemPrompt: "", // Empty system prompt
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Commit: &config.CommandFlowConfig{
+						Preset:       "test",
+						SystemPrompt: "", // Empty system prompt
+					},
+				},
 			},
 		},
 	}

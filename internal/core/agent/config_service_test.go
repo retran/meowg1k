@@ -29,7 +29,7 @@ func minimalAgentConfig() *config.AgentConfig {
 			},
 			ToolDescriptions: map[string]string{},
 		},
-		Flows: map[string]*config.AgentFlowConfig{
+		Pipelines: map[string]*config.AgentPipelineConfig{
 			"default": {Instructions: "flow", Steps: []string{"discover", "plan", "execute", "verify"}},
 		},
 		Personas: map[string]*config.PersonaConfig{
@@ -70,7 +70,7 @@ func TestService_Get_Overrides(t *testing.T) {
 					"read_file": "Custom read file description",
 				},
 			},
-			Flows:    minimalAgentConfig().Flows,
+			Pipelines: minimalAgentConfig().Pipelines,
 			Personas: minimalAgentConfig().Personas,
 			Safety:   minimalAgentConfig().Safety,
 		},

@@ -13,14 +13,22 @@ import (
 
 // mockBranchDiffReader is a mock implementation of BranchDiffReader for testing.
 type mockBranchDiffReader struct {
-	GetBranchDiffFunc           func(filePath, targetBranch string) (string, error)
-	ReadOriginalFileContentFunc func(filename string) (string, error)
-	ReadStagedFileContentFunc   func(filename string) (string, error)
+	GetBranchDiffFunc            func(filePath, targetBranch string) (string, error)
+	GetBranchDiffWithOldPathFunc func(filePath, targetBranch, oldPath string) (string, error)
+	ReadOriginalFileContentFunc  func(filename string) (string, error)
+	ReadStagedFileContentFunc    func(filename string) (string, error)
 }
 
 func (m *mockBranchDiffReader) GetBranchDiff(filePath, targetBranch string) (string, error) {
 	if m.GetBranchDiffFunc != nil {
 		return m.GetBranchDiffFunc(filePath, targetBranch)
+	}
+	return "", nil
+}
+
+func (m *mockBranchDiffReader) GetBranchDiffWithOldPath(filePath, targetBranch, oldPath string) (string, error) {
+	if m.GetBranchDiffWithOldPathFunc != nil {
+		return m.GetBranchDiffWithOldPathFunc(filePath, targetBranch, oldPath)
 	}
 	return "", nil
 }

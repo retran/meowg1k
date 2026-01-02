@@ -53,9 +53,13 @@ func TestGetPRConfig(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Pr: &config.CommandConfig{
-				Preset:       "test",
-				SystemPrompt: "Test PR prompt",
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Pr: &config.CommandFlowConfig{
+						Preset:       "test",
+						SystemPrompt: "Test PR prompt",
+					},
+				},
 			},
 		},
 	}
@@ -89,7 +93,11 @@ func TestGetPRConfigDefault(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Pr: nil,
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Pr: nil,
+				},
+			},
 		},
 	}
 	presetSvc := &mockPresetResolver{
@@ -185,9 +193,13 @@ func TestGetWithEmptySystemPrompt(t *testing.T) {
 
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Pr: &config.CommandConfig{
-				Preset:       "test",
-				SystemPrompt: "", // Empty system prompt
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{
+					Pr: &config.CommandFlowConfig{
+						Preset:       "test",
+						SystemPrompt: "", // Empty system prompt
+					},
+				},
 			},
 		},
 	}
