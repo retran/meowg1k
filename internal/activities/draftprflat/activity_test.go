@@ -13,7 +13,7 @@ import (
 	draftprflat "github.com/retran/meowg1k/internal/activities/draftprflat"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/git"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -49,7 +49,7 @@ func TestComposeFlatPR_Success(t *testing.T) {
 
 	activity := factory.NewActivity()
 
-	testProfile := &profile.ResolvedProfile{
+	testPreset := &preset.ResolvedPreset{
 		Name:            "test",
 		Provider:        provider.Gemini,
 		Model:           "test-model",
@@ -66,7 +66,7 @@ func TestComposeFlatPR_Success(t *testing.T) {
 	}
 
 	input := &draftprflat.Input{
-		Profile:      testProfile,
+		Preset:       testPreset,
 		SystemPrompt: "Generate a PR description",
 		Changes:      changes,
 		Intent:       "",
@@ -98,7 +98,7 @@ func TestComposeFlatPR_WithIntent(t *testing.T) {
 
 	activity := factory.NewActivity()
 
-	testProfile := &profile.ResolvedProfile{
+	testPreset := &preset.ResolvedPreset{
 		Name:            "test",
 		Provider:        provider.Gemini,
 		Model:           "test-model",
@@ -115,7 +115,7 @@ func TestComposeFlatPR_WithIntent(t *testing.T) {
 	}
 
 	input := &draftprflat.Input{
-		Profile:      testProfile,
+		Preset:       testPreset,
 		SystemPrompt: "Generate a PR description",
 		Changes:      changes,
 		Intent:       "Add support for flat strategy in PR descriptions",
@@ -147,7 +147,7 @@ func TestComposeFlatPR_DiffTooLarge(t *testing.T) {
 
 	activity := factory.NewActivity()
 
-	testProfile := &profile.ResolvedProfile{
+	testPreset := &preset.ResolvedPreset{
 		Name:            "test",
 		Provider:        provider.Gemini,
 		Model:           "test-model",
@@ -166,7 +166,7 @@ func TestComposeFlatPR_DiffTooLarge(t *testing.T) {
 	}
 
 	input := &draftprflat.Input{
-		Profile:      testProfile,
+		Preset:       testPreset,
 		SystemPrompt: "Generate a PR description",
 		Changes:      changes,
 		Intent:       "",
@@ -228,7 +228,7 @@ func TestComposeFlatPR_MultipleFiles(t *testing.T) {
 
 	activity := factory.NewActivity()
 
-	testProfile := &profile.ResolvedProfile{
+	testPreset := &preset.ResolvedPreset{
 		Name:            "test",
 		Provider:        provider.Gemini,
 		Model:           "test-model",
@@ -253,7 +253,7 @@ func TestComposeFlatPR_MultipleFiles(t *testing.T) {
 	}
 
 	input := &draftprflat.Input{
-		Profile:      testProfile,
+		Preset:       testPreset,
 		SystemPrompt: "Generate a PR description",
 		Changes:      changes,
 		Intent:       "",
@@ -285,7 +285,7 @@ func TestComposeFlatPR_EmptyChanges(t *testing.T) {
 
 	activity := factory.NewActivity()
 
-	testProfile := &profile.ResolvedProfile{
+	testPreset := &preset.ResolvedPreset{
 		Name:            "test",
 		Provider:        provider.Gemini,
 		Model:           "test-model",
@@ -295,7 +295,7 @@ func TestComposeFlatPR_EmptyChanges(t *testing.T) {
 	}
 
 	input := &draftprflat.Input{
-		Profile:      testProfile,
+		Preset:       testPreset,
 		SystemPrompt: "Generate a PR description",
 		Changes:      []*git.FileChange{},
 		Intent:       "",

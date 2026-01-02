@@ -7,7 +7,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -76,7 +76,7 @@ func TestAgentLoop_ContinuesAfterToolCallsEvenWithText(t *testing.T) {
 		ToolRegistry:  reg,
 		AllowedTools:  []string{"list_files"},
 		StepName:      "discover",
-		Profile:       &profile.ResolvedProfile{Model: "test", MaxOutputTokens: 32},
+		Preset:        &preset.ResolvedPreset{Model: "test", MaxOutputTokens: 32},
 		Goal:          &goal,
 		MaxIterations: &maxIt,
 	})
@@ -158,7 +158,7 @@ func TestAgentLoop_NoToolsStepRejectsToolCalls(t *testing.T) {
 		ToolRegistry:  reg,
 		AllowedTools:  nil,
 		StepName:      "final",
-		Profile:       &profile.ResolvedProfile{Model: "test", MaxOutputTokens: 32},
+		Preset:        &preset.ResolvedPreset{Model: "test", MaxOutputTokens: 32},
 		Goal:          &goal,
 		MaxIterations: &maxIt,
 	})

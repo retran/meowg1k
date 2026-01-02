@@ -11,13 +11,13 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/draftflat"
 	"github.com/retran/meowg1k/internal/domain/git"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Input defines the input structure for the ComposeFlatCommit activity.
 type Input struct {
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	SystemPrompt string
 	Intent       string
 	Changes      []*git.FileChange
@@ -62,7 +62,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		genericInput := &draftflat.Input{
-			Profile:      input.Profile,
+			Preset:       input.Preset,
 			SystemPrompt: input.SystemPrompt,
 			Changes:      input.Changes,
 			Intent:       input.Intent,

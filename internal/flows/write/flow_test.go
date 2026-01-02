@@ -11,7 +11,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -280,7 +280,7 @@ func TestFlowFactory_NewFlow(t *testing.T) {
 
 func TestFlowFactory_NewFlow_UserPromptError(t *testing.T) {
 	factory, _ := NewFlowFactory(
-		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Preset: &preset.ResolvedPreset{}}},
 		&mockUserPromptProvider{err: errors.New("user prompt error")},
 		&mockSystemPromptProvider{},
 		&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
@@ -305,7 +305,7 @@ func TestFlowFactory_NewFlow_UserPromptError(t *testing.T) {
 
 func TestFlowFactory_NewFlow_SystemPromptError(t *testing.T) {
 	factory, _ := NewFlowFactory(
-		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Preset: &preset.ResolvedPreset{}}},
 		&mockUserPromptProvider{prompt: "test prompt"},
 		&mockSystemPromptProvider{err: errors.New("system prompt error")},
 		&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
@@ -338,7 +338,7 @@ func TestFlowFactory_NewFlow_ActivityExecutionError(t *testing.T) {
 	}
 
 	factory, _ := NewFlowFactory(
-		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Preset: &preset.ResolvedPreset{}}},
 		&mockUserPromptProvider{prompt: "test prompt"},
 		&mockSystemPromptProvider{prompt: "test system prompt"},
 		mockActivityFactory,
@@ -377,7 +377,7 @@ func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
 	mockWriter := &mockOutputWriterWithError{}
 
 	factory, _ := NewFlowFactory(
-		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: &profile.ResolvedProfile{}}},
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Preset: &preset.ResolvedPreset{}}},
 		&mockUserPromptProvider{prompt: "test prompt"},
 		&mockSystemPromptProvider{prompt: "test system prompt"},
 		mockActivityFactory,
@@ -401,14 +401,14 @@ func TestFlowFactory_NewFlow_OutputWriterError(t *testing.T) {
 }
 
 func TestFlowFactory_NewFlow_Success(t *testing.T) {
-	testProfile := &profile.ResolvedProfile{Name: "test-profile"}
+	testPreset := &preset.ResolvedPreset{Name: "test-preset"}
 
 	mockActivityFactory := &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{
 		newActivityFunc: func() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
 			return func(ctx context.Context, activityCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
 				// Verify input
-				if input.Profile.Name != "test-profile" {
-					return nil, errors.New("unexpected profile")
+				if input.Preset.Name != "test-preset" {
+					return nil, errors.New("unexpected preset")
 				}
 				if input.UserPrompt != "user test prompt" {
 					return nil, errors.New("unexpected user prompt")
@@ -428,7 +428,7 @@ func TestFlowFactory_NewFlow_Success(t *testing.T) {
 	mockWriter := &mockOutputWriter{}
 
 	factory, _ := NewFlowFactory(
-		&mockTaskConfigProvider{config: &task.ResolvedConfig{Profile: testProfile}},
+		&mockTaskConfigProvider{config: &task.ResolvedConfig{Preset: testPreset}},
 		&mockUserPromptProvider{prompt: "user test prompt"},
 		&mockSystemPromptProvider{prompt: "system test prompt"},
 		mockActivityFactory,

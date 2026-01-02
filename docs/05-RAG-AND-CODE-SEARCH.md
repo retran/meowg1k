@@ -63,19 +63,19 @@ models:
     provider: "gemini"
     model: "text-embedding-004"
 
-profiles:
+presets:
   gemini-embeddings:
     model: "gemini-embeddings"
 
 index:
-  profile: "gemini-embeddings"
+  preset: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
   batchSize: 64
 
 answer:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   topK: 5
   minScore: 0.7
 ```
@@ -134,7 +134,7 @@ Get AI-powered answers based on your codebase:
 meow ask "How does authentication work in this project?"
 
 # Use a more powerful model for complex questions
-meow ask "What's the error handling strategy?" --profile gemini-pro
+meow ask "What's the error handling strategy?" --preset gemini-pro
 
 # Search more thoroughly
 meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5
@@ -341,10 +341,10 @@ When searching:
 
 ### 5. Cache Embeddings
 
-Enable caching in your embedding profile:
+Enable caching in your embedding preset:
 
 ```yaml
-profiles:
+presets:
   gemini-embeddings:
     model: "gemini-embeddings"
     cache:
@@ -362,7 +362,7 @@ This avoids recomputing embeddings for queries you've asked before.
 Example:
 
 ```yaml
-profiles:
+presets:
   gemini-embeddings:
     model: "gemini-embeddings" # Fast and free
 
@@ -377,7 +377,7 @@ profiles:
 
 ## Related Documentation
 
-- [Configuration Guide](./02-CONFIGURATION.md) — Detailed configuration reference for models, profiles, and RAG settings
+- [Configuration Guide](./02-CONFIGURATION.md) — Detailed configuration reference for models, presets, and RAG settings
 - [Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for all commands including flags and options
 - [Examples & Recipes](./06-EXAMPLES.md) — Practical examples and workflows for RAG-based development
 - [Troubleshooting Guide](./10-TROUBLESHOOTING.md) — Solutions for common issues

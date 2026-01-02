@@ -84,16 +84,17 @@ func TestInitCommandCreatesConfig(t *testing.T) {
 
 	contentStr := string(content)
 	expectedStrings := []string{
+		"schema_version:",
+		"providers:",
 		"models:",
-		"gemini-flash:",
-		"gemini-pro:",
-		"gemini-embeddings:",
-		"profiles:",
+		"presets:",
+		"base:",
+		"flows:",
 		"write:",
-		"filter:",
-		"summarize:",
-		"commit:",
-		"pr:",
+		"agent:",
+		"pipelines:",
+		"draft:",
+		"activities:",
 	}
 
 	for _, expected := range expectedStrings {

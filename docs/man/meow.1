@@ -17,7 +17,7 @@ interactive conversation. It transforms code and text into AI-enhanced
 results through a Unix-philosophy interface.
 .PP
 The tool supports multiple LLM providers through a configuration-driven
-approach using reusable profiles to simplify working with cloud models
+approach using reusable presets to simplify working with cloud models
 (Gemini, OpenAI, Anthropic, OpenRouter) and local inference (llama.cpp,
 OpenAI-compatible APIs).
 .PP
@@ -128,7 +128,7 @@ environment variable. Embeddings only.
 .B llama
 Local llama.cpp HTTP server. Optionally uses
 .B MEOW_LLAMA_API_KEY
-environment variable. Requires explicit baseURL in profile.
+environment variable. Requires explicit baseURL in preset.
 .TP
 .B openai\-compatible
 Custom OpenAI\-compatible APIs. Requires
@@ -159,7 +159,7 @@ Optional API key for the llama provider.
 API key for OpenAI\-compatible providers.
 
 .SH CONFIGURATION
-Configuration uses a hierarchical profile-based system. Files are read with
+Configuration uses a hierarchical preset-based system. Files are read with
 this precedence (each subsequent location overrides the previous):
 .IP "1." 3
 User config:
@@ -179,7 +179,7 @@ The configuration file has several top-level sections:
 .B models
 Model definitions including provider, connection details, and rate limits.
 .TP
-.B profiles
+.B presets
 Reusable LLM request parameters referencing models, with timeout, temperature,
 and sampling settings.
 .TP
@@ -210,14 +210,14 @@ Reduce-phase configuration for generating PR descriptions. Supports
 \fBsummarize\fR and \fBflat\fR strategies.
 .TP
 .B index
-Configuration for indexing workspace files, including embedding profile,
+Configuration for indexing workspace files, including embedding preset,
 .br
 chunker settings, and batch size.
 .TP
 .B ask
 Configuration for RAG-based question answering, including retrieval
 .br
-parameters (topK, minScore) and answer generation profile.
+parameters (topK, minScore) and answer generation preset.
 .PP
 See
 .BR meow\-config (5)
@@ -322,7 +322,7 @@ Search specific snapshots:
 .SS Project Configuration
 Create
 .B ./.meowg1k.yaml
-with custom profiles and tasks:
+with custom presets and tasks:
 .PP
 .nf
 models:
@@ -336,7 +336,7 @@ models:
     provider: "gemini"
     model: "text-embedding-004"
 
-profiles:
+presets:
   fast:
     model: "gemini-flash"
   smart:
@@ -346,28 +346,28 @@ profiles:
 
 write:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
   tasks:
     security:
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       userPrompt: "Perform security analysis"
 
 commit:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize"
 
 pr:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize"
 
 index:
-  profile: "embeddings"
+  preset: "embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
 
 ask:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   topK: 5
   minScore: 0.7
 .fi

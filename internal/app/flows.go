@@ -46,7 +46,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/filter"
 	"github.com/retran/meowg1k/internal/core/index"
 	"github.com/retran/meowg1k/internal/core/model"
-	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/preset"
 	"github.com/retran/meowg1k/internal/core/project"
 	"github.com/retran/meowg1k/internal/core/prompt"
 	"github.com/retran/meowg1k/internal/core/provider"
@@ -105,7 +105,7 @@ type commitServices struct {
 	gitService          *git.Service
 	filterService       *filter.Service
 	summarizeService    *summarize.Service
-	profileService      *profile.Service
+	presetService       *preset.Service
 	commitConfigService *commit.Service
 	invokeLLMFactory    executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
@@ -127,7 +127,7 @@ func (c *Container) buildCommitServices() (*commitServices, error) {
 		return nil, err
 	}
 
-	commitConfigService, err := commit.NewService(c.ConfigService, common.profileService)
+	commitConfigService, err := commit.NewService(c.ConfigService, common.presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
@@ -136,7 +136,7 @@ func (c *Container) buildCommitServices() (*commitServices, error) {
 		gitService:          common.gitService,
 		filterService:       common.filterService,
 		summarizeService:    common.summarizeService,
-		profileService:      common.profileService,
+		presetService:       common.presetService,
 		commitConfigService: commitConfigService,
 		invokeLLMFactory:    common.invokeLLMFactory,
 	}, nil
@@ -219,15 +219,15 @@ func (c *Container) CreateWriteFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
 	taskService, err := task.NewService(
 		c.CommandService,
 		c.ConfigService,
-		profileService,
+		presetService,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task service: %w", err)
@@ -299,7 +299,7 @@ type pullRequestServices struct {
 	gitService       *git.Service
 	filterService    *filter.Service
 	summarizeService *summarize.Service
-	profileService   *profile.Service
+	presetService    *preset.Service
 	prConfigService  *pullrequest.Service
 	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
@@ -319,7 +319,7 @@ func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
 		return nil, err
 	}
 
-	prConfigService, err := pullrequest.NewService(c.ConfigService, common.profileService)
+	prConfigService, err := pullrequest.NewService(c.ConfigService, common.presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
@@ -328,7 +328,7 @@ func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
 		gitService:       common.gitService,
 		filterService:    common.filterService,
 		summarizeService: common.summarizeService,
-		profileService:   common.profileService,
+		presetService:    common.presetService,
 		prConfigService:  prConfigService,
 		invokeLLMFactory: common.invokeLLMFactory,
 	}, nil
@@ -338,7 +338,7 @@ type commonFlowServices struct {
 	gitService       *git.Service
 	filterService    *filter.Service
 	summarizeService *summarize.Service
-	profileService   *profile.Service
+	presetService    *preset.Service
 	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
 
@@ -360,12 +360,12 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
+	summarizeService, err := summarize.NewService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
@@ -384,7 +384,7 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		gitService:       gitService,
 		filterService:    filterService,
 		summarizeService: summarizeService,
-		profileService:   profileService,
+		presetService:    presetService,
 		invokeLLMFactory: invokeLLMFactory,
 	}, nil
 }
@@ -489,7 +489,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 	}
 
 	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
@@ -501,7 +501,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		indexRepoImpl,
 		metaRepo,
 		embeddingsGW,
-		indexConfig.Profile.Model,
+		indexConfig.Preset.Model,
 		vectorIndexSvc,
 	)
 	if err != nil {
@@ -541,12 +541,12 @@ type indexReconcileFactories struct {
 }
 
 func (c *Container) resolveIndexConfig() (*domainindex.ResolvedConfig, error) {
-	profileService, err := c.buildProfileService()
+	presetService, err := c.buildPresetService()
 	if err != nil {
 		return nil, err
 	}
 
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	indexConfigService, err := index.NewConfigService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index config service: %w", err)
 	}
@@ -559,7 +559,7 @@ func (c *Container) resolveIndexConfig() (*domainindex.ResolvedConfig, error) {
 	return indexConfig, nil
 }
 
-func (c *Container) buildProfileService() (*profile.Service, error) {
+func (c *Container) buildPresetService() (*preset.Service, error) {
 	providerService := provider.NewService()
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
@@ -567,12 +567,12 @@ func (c *Container) buildProfileService() (*profile.Service, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	return profileService, nil
+	return presetService, nil
 }
 
 func buildIndexReconcileFactories(
@@ -703,9 +703,9 @@ func (c *Container) CreateDoFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
 	// Initialize database and repositories
@@ -734,18 +734,18 @@ func (c *Container) CreateDoFlow() (executor.Flow, error) {
 	}
 
 	// We need retrieval service for search_code tool
-	// Use default embedding profile from index config
+	// Use default embedding preset from index config
 	indexConfig, err := c.resolveIndexConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
@@ -762,7 +762,7 @@ func (c *Container) CreateDoFlow() (executor.Flow, error) {
 
 	flowFactory := doFlow.NewFactory(
 		agentConfigService,
-		profileService,
+		presetService,
 		workspaceService,
 		gitService,
 		projectStateSvc,
@@ -791,12 +791,12 @@ func (c *Container) buildSearchActivityFactory() (executor.ActivityFactory[*quer
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	indexConfigService, err := index.NewConfigService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index config service: %w", err)
 	}
@@ -823,12 +823,12 @@ func (c *Container) buildSearchActivityFactory() (executor.ActivityFactory[*quer
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
@@ -865,7 +865,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	profileService, err := c.buildProfileService()
+	presetService, err := c.buildPresetService()
 	if err != nil {
 		return nil, err
 	}
@@ -880,7 +880,7 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		retrieveContextFactory,
 		invokeLLMFactory,
 		c.CommandService,
-		profileService,
+		presetService,
 		c.OutputService,
 		c.ConfigService,
 	)
@@ -896,19 +896,15 @@ func (c *Container) loadAnswerConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
-	if cfg.Answer == nil {
+	if cfg.Flows == nil || cfg.Flows.Answer == nil {
 		return nil, fmt.Errorf("answer configuration is missing")
 	}
 	return cfg, nil
 }
 
 func (c *Container) ensureAnswerSystemPrompt(cfg *config.Config) error {
-	systemPrompt := cfg.Answer.SystemPrompt
-	if flagPrompt, err := c.CommandService.GetSystemPromptFlag(); err == nil && flagPrompt != "" {
-		systemPrompt = flagPrompt
-	}
-	if systemPrompt == "" {
-		return fmt.Errorf("system prompt is required (set in config answer.systemPrompt or via --system-prompt flag)")
+	if cfg == nil || cfg.Flows == nil || cfg.Flows.Answer == nil {
+		return fmt.Errorf("answer configuration is missing")
 	}
 	return nil
 }
@@ -939,12 +935,12 @@ func (c *Container) buildAnswerFactories(
 		return nil, nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}

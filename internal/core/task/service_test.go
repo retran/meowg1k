@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	task2 "github.com/retran/meowg1k/internal/domain/task"
 )
 
 // Mock implementations for testing
 
-var errMockProfileNotFound = errors.New("mock profile not found")
+var errMockPresetNotFound = errors.New("mock preset not found")
 
 // mockTaskParametersReader is a mock implementation of ParametersReader for testing.
 type mockTaskParametersReader struct {
@@ -50,24 +50,24 @@ func (m *mockConfigResolver) Get() (*config.Config, error) {
 	return m.Cfg, nil
 }
 
-// mockProfileResolver is a mock implementation of ProfileResolver for testing.
-type mockProfileResolver struct {
-	profiles map[profile.Profile]*profile.ResolvedProfile
+// mockPresetResolver is a mock implementation of PresetResolver for testing.
+type mockPresetResolver struct {
+	presets map[preset.Preset]*preset.ResolvedPreset
 }
 
-func (m *mockProfileResolver) Get(profileID profile.Profile) (*profile.ResolvedProfile, error) {
-	if resolved, exists := m.profiles[profileID]; exists {
+func (m *mockPresetResolver) Get(presetID preset.Preset) (*preset.ResolvedPreset, error) {
+	if resolved, exists := m.presets[presetID]; exists {
 		return resolved, nil
 	}
-	return nil, fmt.Errorf("%w: %s", errMockProfileNotFound, profileID)
+	return nil, fmt.Errorf("%w: %s", errMockPresetNotFound, presetID)
 }
 
 func TestNewServiceSuccess(t *testing.T) {
 	// Setup mocks with valid configuration
 	cfg := &config.Config{
-		Write: &config.WriteConfig{
-			Default: &config.WriteDefault{
-				Profile:      "test-profile",
+		Flows: &config.FlowsConfig{
+			Write: &config.WriteFlowConfig{
+				Preset:       "test-preset",
 				SystemPrompt: "Default system prompt",
 			},
 		},
@@ -80,20 +80,20 @@ func TestNewServiceSuccess(t *testing.T) {
 
 	configSvc := &mockConfigResolver{Cfg: cfg}
 
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedPreset := &preset.ResolvedPreset{
 		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 		Timeout:  5 * time.Minute,
 	}
 
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
-			"test-profile": resolvedProfile,
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
+			"test-preset": resolvedPreset,
 		},
 	}
 
 	// Test successful service creation
-	service, err := NewService(commandSvc, configSvc, profileSvc)
+	service, err := NewService(commandSvc, configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -112,8 +112,8 @@ func TestNewServiceSuccess(t *testing.T) {
 		t.Fatal("Task configuration should not be nil")
 	}
 
-	if taskConfig.Profile != resolvedProfile {
-		t.Error("Expected resolved profile to be set")
+	if taskConfig.Preset != resolvedPreset {
+		t.Error("Expected resolved preset to be set")
 	}
 
 	if taskConfig.SystemPrompt != "Default system prompt" {
@@ -128,16 +128,16 @@ func TestNewServiceSuccess(t *testing.T) {
 func TestNewServiceWithSpecificTask(t *testing.T) {
 	// Setup configuration with a specific task
 	cfg := &config.Config{
-		Write: &config.WriteConfig{
-			Default: &config.WriteDefault{
-				Profile:      "default-profile",
+		Flows: &config.FlowsConfig{
+			Write: &config.WriteFlowConfig{
+				Preset:       "default-preset",
 				SystemPrompt: "Default system prompt",
-			},
-			Tasks: map[string]*config.WriteTask{
-				"specific-task": {
-					Profile:      "task-profile",
-					SystemPrompt: "Task system prompt",
-					UserPrompt:   "Task user prompt",
+				Tasks: map[string]*config.WriteTask{
+					"specific-task": {
+						Preset:       "task-preset",
+						SystemPrompt: "Task system prompt",
+						UserPrompt:   "Task user prompt",
+					},
 				},
 			},
 		},
@@ -150,18 +150,18 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 
 	configSvc := &mockConfigResolver{Cfg: cfg}
 
-	taskProfile := &profile.ResolvedProfile{
+	taskPreset := &preset.ResolvedPreset{
 		Provider: provider.OpenAI,
 		Model:    "gpt-3.5-turbo",
 	}
 
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
-			"task-profile": taskProfile,
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
+			"task-preset": taskPreset,
 		},
 	}
 
-	service, err := NewService(commandSvc, configSvc, profileSvc)
+	service, err := NewService(commandSvc, configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -183,47 +183,47 @@ func TestNewServiceWithSpecificTask(t *testing.T) {
 		t.Errorf("Expected command user prompt to override task user prompt, got '%s'", taskConfig.UserPrompt)
 	}
 
-	if taskConfig.Profile != taskProfile {
-		t.Error("Expected task profile to be used")
+	if taskConfig.Preset != taskPreset {
+		t.Error("Expected task preset to be used")
 	}
 }
 
 func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
-	// Test task that uses default profile when task doesn't specify one
+	// Test task that uses default preset when task doesn't specify one
 	cfg := &config.Config{
-		Write: &config.WriteConfig{
-			Default: &config.WriteDefault{
-				Profile:      "default-profile",
+		Flows: &config.FlowsConfig{
+			Write: &config.WriteFlowConfig{
+				Preset:       "default-preset",
 				SystemPrompt: "Default system prompt",
-			},
-			Tasks: map[string]*config.WriteTask{
-				"task-no-profile": {
-					UserPrompt: "Task user prompt",
-					// No Profile or SystemPrompt - should use defaults
+				Tasks: map[string]*config.WriteTask{
+					"task-no-preset": {
+						UserPrompt: "Task user prompt",
+						// No Preset or SystemPrompt - should use defaults
+					},
 				},
 			},
 		},
 	}
 
 	commandSvc := &mockTaskParametersReader{
-		TaskName:   "task-no-profile",
+		TaskName:   "task-no-preset",
 		UserPrompt: "",
 	}
 
 	configSvc := &mockConfigResolver{Cfg: cfg}
 
-	defaultProfile := &profile.ResolvedProfile{
+	defaultPreset := &preset.ResolvedPreset{
 		Provider: provider.OpenAI,
 		Model:    "gpt-4",
 	}
 
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
-			"default-profile": defaultProfile,
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
+			"default-preset": defaultPreset,
 		},
 	}
 
-	service, err := NewService(commandSvc, configSvc, profileSvc)
+	service, err := NewService(commandSvc, configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -241,8 +241,8 @@ func TestNewServiceWithTaskFallbackToDefault(t *testing.T) {
 		t.Errorf("Expected task user prompt, got '%s'", taskConfig.UserPrompt)
 	}
 
-	if taskConfig.Profile != defaultProfile {
-		t.Error("Expected default profile to be used")
+	if taskConfig.Preset != defaultPreset {
+		t.Error("Expected default preset to be used")
 	}
 }
 
@@ -251,79 +251,81 @@ func TestNewServiceErrorCases(t *testing.T) {
 		name        string
 		config      *config.Config
 		commandSvc  *mockTaskParametersReader
-		profileSvc  *mockProfileResolver
+		presetSvc   *mockPresetResolver
 		expectedErr string
 	}{
 		{
 			name:        "nil config",
 			config:      nil,
 			commandSvc:  &mockTaskParametersReader{},
-			profileSvc:  &mockProfileResolver{},
+			presetSvc:   &mockPresetResolver{},
 			expectedErr: "no configuration available",
 		},
 		{
 			name: "task not found",
 			config: &config.Config{
-				Write: &config.WriteConfig{
-					Tasks: map[string]*config.WriteTask{},
+				Flows: &config.FlowsConfig{
+					Write: &config.WriteFlowConfig{
+						Tasks: map[string]*config.WriteTask{},
+					},
 				},
 			},
 			commandSvc:  &mockTaskParametersReader{TaskName: "non-existent-task"},
-			profileSvc:  &mockProfileResolver{},
+			presetSvc:   &mockPresetResolver{},
 			expectedErr: "task not found in configuration: non-existent-task",
 		},
 		{
 			name:        "no default configuration",
 			config:      &config.Config{},
 			commandSvc:  &mockTaskParametersReader{TaskName: "", UserPrompt: "test"},
-			profileSvc:  &mockProfileResolver{},
-			expectedErr: "no default configuration available",
+			presetSvc:   &mockPresetResolver{},
+			expectedErr: "no default write configuration available",
 		},
 		{
-			name: "no profile configured",
+			name: "no preset configured",
 			config: &config.Config{
-				Write: &config.WriteConfig{
-					Default: &config.WriteDefault{
-						Profile:      "", // Empty profile
+				Flows: &config.FlowsConfig{
+					Write: &config.WriteFlowConfig{
+						Preset:       "", // Empty preset
 						SystemPrompt: "System prompt",
 					},
 				},
 			},
 			commandSvc:  &mockTaskParametersReader{UserPrompt: "test"},
-			profileSvc:  &mockProfileResolver{},
-			expectedErr: "no profile configured",
+			presetSvc:   &mockPresetResolver{},
+			expectedErr: "no preset configured",
 		},
 		{
 			name: "user prompt required",
 			config: &config.Config{
-				Write: &config.WriteConfig{
-					Default: &config.WriteDefault{
-						Profile:      "test-profile",
+				Flows: &config.FlowsConfig{
+					Write: &config.WriteFlowConfig{
+						Preset:       "test-preset",
 						SystemPrompt: "System prompt",
 					},
 				},
 			},
 			commandSvc: &mockTaskParametersReader{TaskName: "", UserPrompt: ""}, // No task name and no user prompt
-			profileSvc: &mockProfileResolver{
-				profiles: map[profile.Profile]*profile.ResolvedProfile{
-					"test-profile": {},
+			presetSvc: &mockPresetResolver{
+				presets: map[preset.Preset]*preset.ResolvedPreset{
+					"test-preset": {},
 				},
 			},
 			expectedErr: "user prompt is required",
 		},
 		{
-			name: "profile resolution error",
+			name: "preset resolution error",
 			config: &config.Config{
-				Write: &config.WriteConfig{
-					Default: &config.WriteDefault{
-						Profile:      "non-existent-profile",
+				Flows: &config.FlowsConfig{
+					Write: &config.WriteFlowConfig{
+						Preset:       "non-existent-preset",
 						SystemPrompt: "System prompt",
 					},
 				},
 			},
 			commandSvc:  &mockTaskParametersReader{UserPrompt: "test"},
-			profileSvc:  &mockProfileResolver{profiles: map[profile.Profile]*profile.ResolvedProfile{}},
-			expectedErr: "failed to resolve profile 'non-existent-profile'",
+			presetSvc:   &mockPresetResolver{presets: map[preset.Preset]*preset.ResolvedPreset{}},
+			expectedErr: "failed to resolve preset \"non-existent-preset\"",
 		},
 	}
 
@@ -331,7 +333,7 @@ func TestNewServiceErrorCases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			configSvc := &mockConfigResolver{Cfg: tc.config}
 
-			_, err := NewService(tc.commandSvc, configSvc, tc.profileSvc)
+			_, err := NewService(tc.commandSvc, configSvc, tc.presetSvc)
 
 			if err == nil {
 				t.Errorf("Expected error for %s", tc.name)
@@ -347,13 +349,13 @@ func TestNewServiceErrorCases(t *testing.T) {
 
 func TestConfigurationFields(t *testing.T) {
 	// Test Configuration struct fields
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedPreset := &preset.ResolvedPreset{
 		Model: "gpt-4",
 	}
 
 	resolvedConfig := &task2.ResolvedConfig{
 		Name:         "test-task",
-		Profile:      resolvedProfile,
+		Preset:       resolvedPreset,
 		SystemPrompt: "Test system",
 		UserPrompt:   "Test user",
 	}
@@ -362,8 +364,8 @@ func TestConfigurationFields(t *testing.T) {
 		t.Errorf("Expected Name 'test-task', got '%s'", resolvedConfig.Name)
 	}
 
-	if resolvedConfig.Profile != resolvedProfile {
-		t.Error("Expected Profile to be set correctly")
+	if resolvedConfig.Preset != resolvedPreset {
+		t.Error("Expected Preset to be set correctly")
 	}
 
 	if resolvedConfig.SystemPrompt != "Test system" {

@@ -1,7 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package profile
+package preset
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/model"
-	profile2 "github.com/retran/meowg1k/internal/domain/profile"
+	preset2 "github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
@@ -60,17 +60,17 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestGetProfileSuccess(t *testing.T) {
+func TestGetPresetSuccess(t *testing.T) {
 	// Setup mock adapters
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"gpt4": {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
 		},
-		Profiles: map[string]*config.ProfileDefinition{
-			"test-profile": {
+		Presets: map[string]*config.PresetConfig{
+			"test-preset": {
 				Model:   "gpt4",
 				Timeout: 5 * time.Minute,
 			},
@@ -106,36 +106,36 @@ func TestGetProfileSuccess(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	// Test getting a profile
-	profile, err := service.Get(profile2.Profile("test-profile"))
+	// Test getting a preset
+	preset, err := service.Get(preset2.Preset("test-preset"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if profile == nil {
-		t.Fatal("Profile should not be nil")
+	if preset == nil {
+		t.Fatal("Preset should not be nil")
 	}
 
-	if profile.Provider != provider.OpenAI {
-		t.Errorf("Expected provider %s, got %s", provider.OpenAI, profile.Provider)
+	if preset.Provider != provider.OpenAI {
+		t.Errorf("Expected provider %s, got %s", provider.OpenAI, preset.Provider)
 	}
 
-	if profile.Model != "gpt-4" {
-		t.Errorf("Expected model 'gpt-4', got '%s'", profile.Model)
+	if preset.Model != "gpt-4" {
+		t.Errorf("Expected model 'gpt-4', got '%s'", preset.Model)
 	}
 
-	if profile.ModelID != "gpt4" {
-		t.Errorf("Expected model ID 'gpt4', got '%s'", profile.ModelID)
+	if preset.ModelID != "gpt4" {
+		t.Errorf("Expected model ID 'gpt4', got '%s'", preset.ModelID)
 	}
 
-	if profile.APIKeyEnv != "OPENAI_API_KEY" {
-		t.Errorf("Expected APIKeyEnv 'OPENAI_API_KEY', got '%s'", profile.APIKeyEnv)
+	if preset.APIKeyEnv != "OPENAI_API_KEY" {
+		t.Errorf("Expected APIKeyEnv 'OPENAI_API_KEY', got '%s'", preset.APIKeyEnv)
 	}
 }
 
-func TestGetProfileNotFound(t *testing.T) {
+func TestGetPresetNotFound(t *testing.T) {
 	cfg := &config.Config{
-		Profiles: map[string]*config.ProfileDefinition{},
+		Presets: map[string]*config.PresetConfig{},
 	}
 
 	configReader := &mockConfigResolver{config: cfg}
@@ -146,16 +146,16 @@ func TestGetProfileNotFound(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	// Test getting a non-existent profile
-	_, err = service.Get(profile2.Profile("non-existent"))
+	// Test getting a non-existent preset
+	_, err = service.Get(preset2.Preset("non-existent"))
 	if err == nil {
-		t.Error("Expected error for non-existent profile")
+		t.Error("Expected error for non-existent preset")
 	}
 }
 
-func TestGetProfileNoProfilesConfigured(t *testing.T) {
+func TestGetPresetNoPresetsConfigured(t *testing.T) {
 	cfg := &config.Config{
-		Profiles: nil,
+		Presets: nil,
 	}
 
 	configReader := &mockConfigResolver{config: cfg}
@@ -166,17 +166,17 @@ func TestGetProfileNoProfilesConfigured(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	// Test getting a profile when no profiles are configured
-	_, err = service.Get(profile2.Profile("test"))
+	// Test getting a preset when no presets are configured
+	_, err = service.Get(preset2.Preset("test"))
 	if err == nil {
-		t.Error("Expected error when no profiles are configured")
+		t.Error("Expected error when no presets are configured")
 	}
 }
 
-func TestGetProfileModelNotFound(t *testing.T) {
-	// Test profile that references non-existent model
+func TestGetPresetModelNotFound(t *testing.T) {
+	// Test preset that references non-existent model
 	cfg := &config.Config{
-		Profiles: map[string]*config.ProfileDefinition{
+		Presets: map[string]*config.PresetConfig{
 			"test": {
 				Model: "non-existent-model",
 			},
@@ -191,16 +191,16 @@ func TestGetProfileModelNotFound(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	_, err = service.Get(profile2.Profile("test"))
+	_, err = service.Get(preset2.Preset("test"))
 	if err == nil {
 		t.Error("Expected error for non-existent model")
 	}
 }
 
-func TestGetProfileEmptyModelReference(t *testing.T) {
-	// Test profile with empty model reference - should return ErrModelReferenceRequired
+func TestGetPresetEmptyModelReference(t *testing.T) {
+	// Test preset with empty model reference - should return ErrModelReferenceRequired
 	cfg := &config.Config{
-		Profiles: map[string]*config.ProfileDefinition{
+		Presets: map[string]*config.PresetConfig{
 			"test": {
 				Model: "", // Empty model reference
 			},
@@ -215,28 +215,30 @@ func TestGetProfileEmptyModelReference(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	_, err = service.Get(profile2.Profile("test"))
+	_, err = service.Get(preset2.Preset("test"))
 	if err == nil {
 		t.Error("Expected error for empty model reference")
 	}
-	if err != nil && !strings.Contains(err.Error(), "profile must reference a model") {
-		t.Errorf("Expected error to mention 'profile must reference a model', got: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "preset must reference a model") {
+		t.Errorf("Expected error to mention 'preset must reference a model', got: %v", err)
 	}
 }
 
-func TestGetProfileWithMaxTokensOverride(t *testing.T) {
+func TestGetPresetWithMaxTokensOverride(t *testing.T) {
 	maxTokens := 2000
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"gpt4": {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
 		},
-		Profiles: map[string]*config.ProfileDefinition{
+		Presets: map[string]*config.PresetConfig{
 			"test": {
-				Model:     "gpt4",
-				MaxTokens: &maxTokens,
+				Model: "gpt4",
+				Request: &config.RequestConfig{
+					MaxTokens: &maxTokens,
+				},
 			},
 		},
 	}
@@ -263,30 +265,32 @@ func TestGetProfileWithMaxTokensOverride(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	profile, err := service.Get(profile2.Profile("test"))
+	preset, err := service.Get(preset2.Preset("test"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	// Profile should override max output tokens
-	if profile.MaxOutputTokens != maxTokens {
-		t.Errorf("Expected MaxOutputTokens %d, got %d", maxTokens, profile.MaxOutputTokens)
+	// Preset should override max output tokens
+	if preset.MaxOutputTokens != maxTokens {
+		t.Errorf("Expected MaxOutputTokens %d, got %d", maxTokens, preset.MaxOutputTokens)
 	}
 }
 
-func TestGetProfileWithTemperature(t *testing.T) {
+func TestGetPresetWithTemperature(t *testing.T) {
 	temp := 0.7
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"gpt4": {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
 		},
-		Profiles: map[string]*config.ProfileDefinition{
+		Presets: map[string]*config.PresetConfig{
 			"test": {
-				Model:       "gpt4",
-				Temperature: &temp,
+				Model: "gpt4",
+				Request: &config.RequestConfig{
+					Temperature: &temp,
+				},
 			},
 		},
 	}
@@ -312,21 +316,21 @@ func TestGetProfileWithTemperature(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	profile, err := service.Get(profile2.Profile("test"))
+	preset, err := service.Get(preset2.Preset("test"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if profile.Temperature == nil {
+	if preset.Temperature == nil {
 		t.Fatal("Expected temperature to be set")
 	}
 
-	if *profile.Temperature != temp {
-		t.Errorf("Expected temperature %f, got %f", temp, *profile.Temperature)
+	if *preset.Temperature != temp {
+		t.Errorf("Expected temperature %f, got %f", temp, *preset.Temperature)
 	}
 }
 
-func TestValidateResolvedProfileSuccess(t *testing.T) {
+func TestValidateResolvedPresetSuccess(t *testing.T) {
 	configReader := &mockConfigResolver{}
 	modelService := &mockModelService{}
 	service, err := NewService(configReader, modelService)
@@ -334,7 +338,7 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	validProfile := &profile2.ResolvedProfile{
+	validPreset := &preset2.ResolvedPreset{
 		ModelID:         "gpt4",
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
@@ -343,13 +347,13 @@ func TestValidateResolvedProfileSuccess(t *testing.T) {
 		Timeout:         5 * time.Minute,
 	}
 
-	err = service.validateResolvedProfile(validProfile)
+	err = service.validateResolvedPreset(validPreset)
 	if err != nil {
-		t.Errorf("Expected no error for valid profile, got %v", err)
+		t.Errorf("Expected no error for valid preset, got %v", err)
 	}
 }
 
-func TestValidateResolvedProfileErrors(t *testing.T) {
+func TestValidateResolvedPresetErrors(t *testing.T) {
 	configReader := &mockConfigResolver{}
 	modelService := &mockModelService{}
 	service, err := NewService(configReader, modelService)
@@ -358,23 +362,23 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 	}
 
 	testCases := []struct {
-		profile *profile2.ResolvedProfile
-		name    string
+		preset *preset2.ResolvedPreset
+		name   string
 	}{
 		{
-			name:    "nil profile",
-			profile: nil,
+			name:   "nil preset",
+			preset: nil,
 		},
 		{
 			name: "too short timeout",
-			profile: &profile2.ResolvedProfile{
+			preset: &preset2.ResolvedPreset{
 				Model:   "gpt-4",
 				Timeout: 500 * time.Millisecond,
 			},
 		},
 		{
 			name: "too many output tokens",
-			profile: &profile2.ResolvedProfile{
+			preset: &preset2.ResolvedPreset{
 				Model:           "gpt-4",
 				MaxOutputTokens: 300000,
 				Timeout:         5 * time.Minute,
@@ -382,7 +386,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 		},
 		{
 			name: "too many input tokens",
-			profile: &profile2.ResolvedProfile{
+			preset: &preset2.ResolvedPreset{
 				Model:          "gpt-4",
 				MaxInputTokens: 3000000,
 				Timeout:        5 * time.Minute,
@@ -390,7 +394,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 		},
 		{
 			name: "empty model",
-			profile: &profile2.ResolvedProfile{
+			preset: &preset2.ResolvedPreset{
 				Model:   "",
 				Timeout: 5 * time.Minute,
 			},
@@ -399,7 +403,7 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := service.validateResolvedProfile(tc.profile)
+			err := service.validateResolvedPreset(tc.preset)
 			if err == nil {
 				t.Errorf("Expected error for %s", tc.name)
 			}
@@ -409,14 +413,14 @@ func TestValidateResolvedProfileErrors(t *testing.T) {
 
 func TestCaching(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"gpt4": {
 				Provider: "openai",
 				Model:    "gpt-4",
 			},
 		},
-		Profiles: map[string]*config.ProfileDefinition{
-			"cached-profile": {
+		Presets: map[string]*config.PresetConfig{
+			"cached-preset": {
 				Model:   "gpt4",
 				Timeout: 5 * time.Minute,
 			},
@@ -448,19 +452,19 @@ func TestCaching(t *testing.T) {
 	}
 
 	// First call - should resolve and cache
-	profile1, err := service.Get(profile2.Profile("cached-profile"))
+	preset1, err := service.Get(preset2.Preset("cached-preset"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Second call - should return cached result
-	cachedProfile, err := service.Get(profile2.Profile("cached-profile"))
+	cachedPreset, err := service.Get(preset2.Preset("cached-preset"))
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
 	// Should be the same instance (cached)
-	if profile1 != cachedProfile {
-		t.Error("Expected same profile instance from cache")
+	if preset1 != cachedPreset {
+		t.Error("Expected same preset instance from cache")
 	}
 }

@@ -34,7 +34,7 @@ Uses a two-phase "Map-Reduce" approach:
 \fBMap Phase:\fR Each changed file is analyzed individually using
 the configuration from the
 .B summarize
-section. Different files can use different profiles and prompts based on
+section. Different files can use different presets and prompts based on
 pattern-matching rules.
 .IP "2."
 \fBReduce Phase:\fR The individual file summaries are combined and
@@ -90,19 +90,19 @@ Essential for security (exclude secrets) and efficiency (exclude dependencies).
 .PP
 .B summarize
 (required): Configure the Map phase where individual files are analyzed.
-Supports a default profile and rule-based overrides:
+Supports a default preset and rule-based overrides:
 .PP
 .nf
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
     systemPrompt: "Summarize this change"
 
   rules:
     - match: "**/*.md"
       skip: true
     - match: "internal/critical/**/*.go"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
 .fi
 .PP
 .B commit
@@ -111,7 +111,7 @@ into the final commit message. Also controls the execution strategy:
 .PP
 .nf
 commit:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize"  # or "flat" for small commits
   systemPrompt: |
     You are an expert software engineer. Write a commit message
@@ -166,7 +166,7 @@ Generate message for all changes on feature branch:
 With intent for branch diff:
 .PP
 .nf
-.B meow draft commit \-\-diff branch \-\-base dev \-i "Implement complete user profile feature"
+.B meow draft commit \-\-diff branch \-\-base dev \-i "Implement complete user preset feature"
 .fi
 
 .SS Git Hook Integration
@@ -202,25 +202,25 @@ Use in CI/CD pipelines:
 
 .SH ENVIRONMENT
 Providers use environment variables for API keys. The specific variable
-depends on the provider configured in your profile:
+depends on the provider configured in your preset:
 .TP
 .B MEOW_GEMINI_API_KEY
-For Gemini provider profiles.
+For Gemini provider presets.
 .TP
 .B MEOW_OPENAI_API_KEY
-For OpenAI provider profiles.
+For OpenAI provider presets.
 .TP
 .B MEOW_ANTHROPIC_API_KEY
-For Anthropic provider profiles.
+For Anthropic provider presets.
 .TP
 .B MEOW_OPENROUTER_API_KEY
-For OpenRouter provider profiles.
+For OpenRouter provider presets.
 .TP
 .B MEOW_LLAMA_API_KEY
-For llama.cpp provider profiles (optional).
+For llama.cpp provider presets (optional).
 .TP
 .B MEOW_OPENAI_COMPATIBLE_API_KEY
-For OpenAI-compatible provider profiles.
+For OpenAI-compatible provider presets.
 
 .SH FILES
 .TP
@@ -239,7 +239,7 @@ No staged changes (in default mode)
 .IP \[bu]
 Base branch not found (in branch diff mode)
 .IP \[bu]
-Configuration missing required profiles
+Configuration missing required presets
 .IP \[bu]
 API authentication failure
 

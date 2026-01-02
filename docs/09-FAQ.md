@@ -13,7 +13,7 @@ This document answers common questions about `meowg1k`.
 
 ### Q: Can I use multiple AI providers at the same time?
 
-Yes. This is a core feature. You can define multiple profiles in your `config.yaml`, each pointing to a different provider or model. Then, you can use different profiles for different tasks or even for different file types. See the [Configuration Guide](./02-CONFIGURATION.md) for examples.
+Yes. This is a core feature. You can define multiple presets in your `config.yaml`, each pointing to a different provider or model. Then, you can use different presets for different tasks or even for different file types. See the [Configuration Guide](./02-CONFIGURATION.md) for examples.
 
 ### Q: How much does it cost to use?
 
@@ -22,7 +22,7 @@ The cost depends entirely on the provider and model you choose.
 - `meowg1k` itself is free and open-source.
 - Many providers like Gemini and OpenRouter have free tiers.
 - Using a local `llama.cpp` model is completely free, limited only by your hardware.
-- To control costs with paid providers, use the rate limiting and token cap features in your profiles.
+- To control costs with paid providers, use the rate limiting and token cap features in your presets.
 
 ## Configuration
 
@@ -40,11 +40,11 @@ The cost depends entirely on the provider and model you choose.
 
 Create a file at `.meowg1k.yaml` in the root of your project and commit it to your Git repository. Team members can still have their own personal defaults in `~/.config/meowg1k/config.yaml`, but the project-specific settings will take precedence.
 
-### Q: What happens if a profile isn't found in the config?
+### Q: What happens if a preset isn't found in the config?
 
-If you reference a profile that doesn't exist in your configuration file, `meowg1k` will immediately fail with a clear error message indicating that the requested profile cannot be found. This is intentional behavior to prevent unexpected fallbacks that could lead to unintended API calls or cost.
+If you reference a preset that doesn't exist in your configuration file, `meowg1k` will immediately fail with a clear error message indicating that the requested preset cannot be found. This is intentional behavior to prevent unexpected fallbacks that could lead to unintended API calls or cost.
 
-However, `meowg1k` will fall back to smart defaults for the chosen provider when a profile exists but certain optional fields are missing. For example, if you specify `provider: "gemini"` but don't provide a model, it will default to `gemini-2.5-flash`.
+However, `meowg1k` will fall back to smart defaults for the chosen provider when a preset exists but certain optional fields are missing. For example, if you specify `provider: "gemini"` but don't provide a model, it will default to `gemini-2.5-flash`.
 
 ## Usage
 
@@ -117,7 +117,7 @@ meow pr --base "$DEFAULT_BRANCH"
 
 ### Q: Can I use meowg1k completely offline?
 
-Yes. Configure a profile to use the `llama` provider and point it to a local `llama.cpp` server running on your machine. In this setup, no internet connection is required and no data ever leaves your computer.
+Yes. Configure a preset to use the `llama` provider and point it to a local `llama.cpp` server running on your machine. In this setup, no internet connection is required and no data ever leaves your computer.
 
 ### Q: Is my code sent to third parties?
 
@@ -187,12 +187,12 @@ models:
     model: "nomic-embed-text-v1.5-GGUF"
     baseURL: "http://localhost:8080"
 
-profiles:
+presets:
   embeddings:
     model: "local-embeddings"
 
 index:
-  profile: "embeddings"
+  preset: "embeddings"
   chunker:
     maxRunes: 512
     overlapRunes: 64
@@ -315,14 +315,14 @@ Yes! Each project's `.meowg1k.yaml` can specify different models:
 
 ```yaml
 index:
-  profile: "gemini-embeddings" # Free, fast
+  preset: "gemini-embeddings" # Free, fast
 ```
 
 **Project B (.meowg1k.yaml):**
 
 ```yaml
 index:
-  profile: "openai-embeddings" # Higher quality
+  preset: "openai-embeddings" # Higher quality
 ```
 
 Your `~/.config/meowg1k/config.yaml` defines the models, and each project chooses which to use.

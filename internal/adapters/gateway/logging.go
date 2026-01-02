@@ -23,7 +23,7 @@ type loggingGenerationGateway struct {
 	inner    ports.GenerationGateway
 	logger   TraceLogger
 	command  string
-	profile  string
+	preset   string
 	provider string
 }
 
@@ -32,7 +32,7 @@ func newLoggingGenerationGateway(
 	inner ports.GenerationGateway,
 	logger TraceLogger,
 	command string,
-	profile string,
+	preset string,
 	provider string,
 ) ports.GenerationGateway {
 	if logger == nil {
@@ -43,7 +43,7 @@ func newLoggingGenerationGateway(
 		inner:    inner,
 		logger:   logger,
 		command:  command,
-		profile:  profile,
+		preset:   preset,
 		provider: provider,
 	}
 }
@@ -62,7 +62,7 @@ func (g *loggingGenerationGateway) GenerateContent(
 	// Log the interaction
 	entry := &tracelog.APIInteractionEntry{
 		Command:  g.command,
-		Profile:  g.profile,
+		Preset:   g.preset,
 		Provider: g.provider,
 		Model:    request.Model(),
 		Request: tracelog.RequestData{
@@ -103,7 +103,7 @@ type loggingEmbeddingsGateway struct {
 	inner    ports.EmbeddingsGateway
 	logger   TraceLogger
 	command  string
-	profile  string
+	preset   string
 	provider string
 }
 
@@ -112,7 +112,7 @@ func newLoggingEmbeddingsGateway(
 	inner ports.EmbeddingsGateway,
 	logger TraceLogger,
 	command string,
-	profile string,
+	preset string,
 	provider string,
 ) ports.EmbeddingsGateway {
 	if logger == nil {
@@ -123,7 +123,7 @@ func newLoggingEmbeddingsGateway(
 		inner:    inner,
 		logger:   logger,
 		command:  command,
-		profile:  profile,
+		preset:   preset,
 		provider: provider,
 	}
 }
@@ -142,7 +142,7 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 	// Log the interaction
 	entry := &tracelog.APIInteractionEntry{
 		Command:  g.command,
-		Profile:  g.profile,
+		Preset:   g.preset,
 		Provider: g.provider,
 		Model:    request.Model(),
 		Request: tracelog.RequestData{

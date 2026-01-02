@@ -375,7 +375,7 @@ func (f *Factory) composeCommitMessage(
 			"ComposeFlatCommit",
 			composeFlatCommit,
 			&draftcommitflat.Input{
-				Profile:      cfg.Profile,
+				Preset:       cfg.Preset,
 				SystemPrompt: cfg.SystemPrompt,
 				Changes:      changes,
 				Intent:       intent,
@@ -410,7 +410,7 @@ func (f *Factory) composeCommitMessage(
 		"ComposeCommit",
 		composeCommit,
 		&draftcommit.Input{
-			Profile:      cfg.Profile,
+			Preset:       cfg.Preset,
 			SystemPrompt: cfg.SystemPrompt,
 			Summaries:    summarizeAllOutput.Summaries,
 			Intent:       intent,

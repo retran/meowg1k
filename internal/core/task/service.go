@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	task2 "github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -29,17 +29,17 @@ type Service struct {
 func resolveTaskConfiguration(
 	taskName, cmdUserPrompt string,
 	cfg *config.Config,
-) (profileName, systemPrompt, userPrompt string, err error) {
-	if taskName == "" || cfg.Write == nil || cfg.Write.Tasks == nil {
+) (presetName, systemPrompt, userPrompt string, err error) {
+	if taskName == "" || cfg.Flows == nil || cfg.Flows.Write == nil || cfg.Flows.Write.Tasks == nil {
 		return resolveDefaultConfiguration(cmdUserPrompt, cfg)
 	}
 
-	task, exists := cfg.Write.Tasks[taskName]
+	task, exists := cfg.Flows.Write.Tasks[taskName]
 	if !exists {
 		return "", "", "", fmt.Errorf("task not found in configuration: %s", taskName)
 	}
 
-	profileName = task.Profile
+	presetName = task.Preset
 	systemPrompt = task.SystemPrompt
 
 	if cmdUserPrompt != "" {
@@ -48,48 +48,48 @@ func resolveTaskConfiguration(
 		userPrompt = task.UserPrompt
 	}
 
-	profileName, systemPrompt = applyDefaults(profileName, systemPrompt, cfg)
+	presetName, systemPrompt = applyDefaults(presetName, systemPrompt, cfg)
 
-	return strings.TrimSpace(profileName), strings.TrimSpace(systemPrompt), strings.TrimSpace(userPrompt), nil
+	return strings.TrimSpace(presetName), strings.TrimSpace(systemPrompt), strings.TrimSpace(userPrompt), nil
 }
 
 func resolveDefaultConfiguration(
 	cmdUserPrompt string, cfg *config.Config,
-) (profileName, systemPrompt, userPrompt string, err error) {
-	if cfg == nil || cfg.Write == nil || cfg.Write.Default == nil {
-		err = fmt.Errorf("no default configuration available")
-		return profileName, systemPrompt, userPrompt, err
+) (presetName, systemPrompt, userPrompt string, err error) {
+	if cfg == nil || cfg.Flows == nil || cfg.Flows.Write == nil {
+		err = fmt.Errorf("no default write configuration available")
+		return presetName, systemPrompt, userPrompt, err
 	}
 
-	profileName = strings.TrimSpace(cfg.Write.Default.Profile)
-	systemPrompt = strings.TrimSpace(cfg.Write.Default.SystemPrompt)
+	presetName = strings.TrimSpace(cfg.Flows.Write.Preset)
+	systemPrompt = strings.TrimSpace(cfg.Flows.Write.SystemPrompt)
 	userPrompt = strings.TrimSpace(cmdUserPrompt)
 
-	return profileName, systemPrompt, userPrompt, err
+	return presetName, systemPrompt, userPrompt, err
 }
 
-// applyDefaults applies default values for profile and system prompt if they are empty.
+// applyDefaults applies default values for preset and system prompt if they are empty.
 func applyDefaults(
-	profileName, systemPrompt string, cfg *config.Config,
-) (finalProfileName, finalSystemPrompt string) {
-	finalProfileName = profileName
+	presetName, systemPrompt string, cfg *config.Config,
+) (finalPresetName, finalSystemPrompt string) {
+	finalPresetName = presetName
 	finalSystemPrompt = systemPrompt
 
-	if cfg != nil && cfg.Write != nil && finalProfileName == "" && cfg.Write.Default != nil {
-		finalProfileName = cfg.Write.Default.Profile
+	if cfg != nil && cfg.Flows != nil && cfg.Flows.Write != nil && finalPresetName == "" {
+		finalPresetName = cfg.Flows.Write.Preset
 	}
 
-	if cfg != nil && cfg.Write != nil && finalSystemPrompt == "" && cfg.Write.Default != nil {
-		finalSystemPrompt = cfg.Write.Default.SystemPrompt
+	if cfg != nil && cfg.Flows != nil && cfg.Flows.Write != nil && finalSystemPrompt == "" {
+		finalSystemPrompt = cfg.Flows.Write.SystemPrompt
 	}
 
-	return finalProfileName, finalSystemPrompt
+	return finalPresetName, finalSystemPrompt
 }
 
 // validateConfiguration validates the resolved configuration.
-func validateConfiguration(taskName, profileName, userPrompt string) error {
-	if profileName == "" {
-		return fmt.Errorf("no profile configured")
+func validateConfiguration(taskName, presetName, userPrompt string) error {
+	if presetName == "" {
+		return fmt.Errorf("no preset configured")
 	}
 
 	if taskName == "" && userPrompt == "" {
@@ -103,7 +103,7 @@ func validateConfiguration(taskName, profileName, userPrompt string) error {
 func NewService(
 	taskParametersReader ParametersReader,
 	configResolver ports.ConfigResolver,
-	profileResolver ports.ProfileResolver,
+	presetResolver ports.PresetResolver,
 ) (*Service, error) {
 	if taskParametersReader == nil {
 		return nil, fmt.Errorf("task parameters reader is nil")
@@ -113,8 +113,8 @@ func NewService(
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	service := &Service{}
@@ -139,24 +139,24 @@ func NewService(
 		return nil, fmt.Errorf("failed to get user prompt: %w", err)
 	}
 
-	profileName, systemPrompt, userPrompt, err := resolveTaskConfiguration(taskName, cmdUserPrompt, cfg)
+	presetName, systemPrompt, userPrompt, err := resolveTaskConfiguration(taskName, cmdUserPrompt, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve task configuration: %w", err)
 	}
 
-	err = validateConfiguration(taskName, profileName, userPrompt)
+	err = validateConfiguration(taskName, presetName, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate configuration: %w", err)
 	}
 
-	resolvedProfile, err := profileResolver.Get(profile.Profile(profileName))
+	resolvedPreset, err := presetResolver.Get(preset.Preset(presetName))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile '%s': %w", profileName, err)
+		return nil, fmt.Errorf("failed to resolve preset %q: %w", presetName, err)
 	}
 
 	service.resolvedConfig = &task2.ResolvedConfig{
 		Name:         taskName,
-		Profile:      resolvedProfile,
+		Preset:       resolvedPreset,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
 	}

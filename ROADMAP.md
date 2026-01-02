@@ -45,7 +45,7 @@ This document outlines the strategic product roadmap for `meowg1k`. The plan is 
 - **Developer Experience (DX) & Usability**
   - **AI-Powered Code Actions:** Building on the v0.1.0 LSP server, this will add contextual actions in the IDE (e.g., "Generate unit tests for this function"), integrating existing `write` tasks.
   - **Interactive Setup (`meow init --interactive`):** An interactive wizard to guide new users through the initial configuration process.
-  - **Configuration Health Checks:** Introduction of `meow config validate` and `meow config test <profile>` to verify configuration correctness and provider connectivity.
+  - **Configuration Health Checks:** Introduction of `meow config validate` and `meow config test <preset>` to verify configuration correctness and provider connectivity.
 
 - **Security & Maintenance**
   - **Enhanced Secrets Management:** Integration with native OS keychains (macOS Keychain, Windows Credential Manager, Linux Secret Service).

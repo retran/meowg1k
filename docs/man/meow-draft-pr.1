@@ -22,7 +22,7 @@ Uses a two-phase "Map-Reduce" approach:
 \fBMap Phase:\fR Each changed file is analyzed individually using
 the configuration from the
 .B summarize
-section. Different files can use different profiles and prompts based on
+section. Different files can use different presets and prompts based on
 pattern-matching rules. Files can also be skipped entirely (e.g., documentation,
 generated files).
 .IP "2."
@@ -91,12 +91,12 @@ filter:
 .PP
 .B summarize
 (required): Configure the Map phase where individual files are analyzed.
-Supports a default profile and rule-based overrides for specific file patterns:
+Supports a default preset and rule-based overrides for specific file patterns:
 .PP
 .nf
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
     systemPrompt: "Summarize this code change"
 
   rules:
@@ -106,7 +106,7 @@ summarize:
 
     # Use powerful model for critical services
     - match: "internal/services/**/*.go"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: "Deep analysis of business logic"
 
     # Skip test snapshots
@@ -120,7 +120,7 @@ into the final PR description. Also controls the execution strategy:
 .PP
 .nf
 pr:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize"  # or "flat" for small PRs
   systemPrompt: |
     You are an expert software engineer writing a Pull Request.
@@ -185,7 +185,7 @@ Project configuration with sophisticated rules:
 .nf
 # .meowg1k.yaml
 
-profiles:
+presets:
   fast:
     provider: "gemini"
     model: "gemini-2.5-flash"
@@ -202,7 +202,7 @@ filter:
 
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
 
   rules:
     # Skip docs and configs
@@ -213,15 +213,15 @@ summarize:
 
     # Deep analysis for critical code
     - match: "src/billing/**/*.ts"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: "Analyze payment logic carefully"
 
     - match: "src/auth/**/*.ts"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: "Security-focused code review"
 
 pr:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   systemPrompt: |
     Generate a professional PR description with:
     - Clear goal statement
@@ -296,25 +296,25 @@ Use in shell scripts without progress indicators:
 
 .SH ENVIRONMENT
 Providers use environment variables for API keys. The specific variable
-depends on the provider configured in your profile:
+depends on the provider configured in your preset:
 .TP
 .B MEOW_GEMINI_API_KEY
-For Gemini provider profiles.
+For Gemini provider presets.
 .TP
 .B MEOW_OPENAI_API_KEY
-For OpenAI provider profiles.
+For OpenAI provider presets.
 .TP
 .B MEOW_ANTHROPIC_API_KEY
-For Anthropic provider profiles.
+For Anthropic provider presets.
 .TP
 .B MEOW_OPENROUTER_API_KEY
-For OpenRouter provider profiles.
+For OpenRouter provider presets.
 .TP
 .B MEOW_LLAMA_API_KEY
-For llama.cpp provider profiles (optional).
+For llama.cpp provider presets (optional).
 .TP
 .B MEOW_OPENAI_COMPATIBLE_API_KEY
-For OpenAI-compatible provider profiles.
+For OpenAI-compatible provider presets.
 
 .SH FILES
 .TP
@@ -333,7 +333,7 @@ Base branch not found or not accessible
 .IP \[bu]
 No changes between current branch and base branch
 .IP \[bu]
-Configuration missing required profiles or sections
+Configuration missing required presets or sections
 .IP \[bu]
 API authentication failure
 

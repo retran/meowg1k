@@ -445,7 +445,7 @@ func TestFactory_NewFlow(t *testing.T) {
 
 				mockConfig := &mockConfigProvider{
 					config: &commit.ResolvedConfig{
-						Profile:      nil,
+						Preset:       nil,
 						SystemPrompt: "test prompt",
 					},
 				}
@@ -520,7 +520,7 @@ func TestFactory_NewFlow(t *testing.T) {
 
 				mockConfig := &mockConfigProvider{
 					config: &commit.ResolvedConfig{
-						Profile:      nil,
+						Preset:       nil,
 						SystemPrompt: "test prompt",
 					},
 				}

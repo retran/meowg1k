@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/task"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -100,7 +100,7 @@ func (f *FlowFactory) NewFlow() func(context.Context, *executor.Context) error {
 			fmt.Sprintf("prompt=%q", truncatePrompt(userPrompt)),
 		)
 
-		invokeOutput, err := f.runInvokeActivity(ctx, flowCtx, exec, taskConfig.Profile, userPrompt, systemPrompt)
+		invokeOutput, err := f.runInvokeActivity(ctx, flowCtx, exec, taskConfig.Preset, userPrompt, systemPrompt)
 		if err != nil {
 			return err
 		}
@@ -164,13 +164,13 @@ func (f *FlowFactory) runInvokeActivity(
 	ctx context.Context,
 	flowCtx *executor.Context,
 	exec executor.Executor,
-	resolvedProfile *profile.ResolvedProfile,
+	resolvedPreset *preset.ResolvedPreset,
 	userPrompt string,
 	systemPrompt string,
 ) (*draftcontent.Output, error) {
 	activity := f.contentGenerationActivityFactory.NewActivity()
 	input := &draftcontent.Input{
-		Profile:      resolvedProfile,
+		Preset:       resolvedPreset,
 		UserPrompt:   userPrompt,
 		SystemPrompt: systemPrompt,
 	}

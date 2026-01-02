@@ -10,14 +10,14 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Input represents the input for the InvokeLLM activity.
 type Input struct {
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	SystemPrompt string
 	UserPrompt   string
 	Messages     []gateway.Message
@@ -58,7 +58,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		executorCtx.SendRunning("")
 
-		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Profile)
+		generationGateway, err := f.gatewayFactory.NewGenerationGateway(ctx, input.Preset)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create generation gateway: %w", err)
 		}
@@ -98,35 +98,35 @@ func validateInput(factory *Factory, input *Input) error {
 
 func buildRequest(input *Input) *gateway.GenerateContentRequest {
 	return gateway.NewGenerateContentRequest(
-		input.Profile.Model,
+		input.Preset.Model,
 		input.SystemPrompt,
 		input.UserPrompt,
-		input.Profile.MaxOutputTokens,
+		input.Preset.MaxOutputTokens,
 	).WithMessages(input.Messages).
 		WithTools(input.Tools).
-		WithTemperature(input.Profile.Temperature).
-		WithTopP(input.Profile.TopP).
-		WithTopK(input.Profile.TopK).
-		WithFrequencyPenalty(input.Profile.FrequencyPenalty).
-		WithPresencePenalty(input.Profile.PresencePenalty).
-		WithSeed(input.Profile.Seed).
-		WithStop(input.Profile.Stop).
-		WithResponseFormat(input.Profile.ResponseFormat).
-		WithResponseSchema(input.Profile.ResponseSchema).
-		WithCandidateCount(input.Profile.CandidateCount).
-		WithLogProbs(input.Profile.LogProbs).
-		WithTopLogProbs(input.Profile.TopLogProbs).
-		WithLogitBias(input.Profile.LogitBias).
-		WithServiceTier(input.Profile.ServiceTier).
-		WithUser(input.Profile.User).
-		WithRepetitionPenalty(input.Profile.RepetitionPenalty).
-		WithMinP(input.Profile.MinP).
-		WithTopA(input.Profile.TopA).
-		WithTypicalP(input.Profile.TypicalP).
-		WithMirostat(input.Profile.Mirostat).
-		WithMirostatTau(input.Profile.MirostatTau).
-		WithMirostatEta(input.Profile.MirostatEta).
-		WithGrammar(input.Profile.Grammar)
+		WithTemperature(input.Preset.Temperature).
+		WithTopP(input.Preset.TopP).
+		WithTopK(input.Preset.TopK).
+		WithFrequencyPenalty(input.Preset.FrequencyPenalty).
+		WithPresencePenalty(input.Preset.PresencePenalty).
+		WithSeed(input.Preset.Seed).
+		WithStop(input.Preset.Stop).
+		WithResponseFormat(input.Preset.ResponseFormat).
+		WithResponseSchema(input.Preset.ResponseSchema).
+		WithCandidateCount(input.Preset.CandidateCount).
+		WithLogProbs(input.Preset.LogProbs).
+		WithTopLogProbs(input.Preset.TopLogProbs).
+		WithLogitBias(input.Preset.LogitBias).
+		WithServiceTier(input.Preset.ServiceTier).
+		WithUser(input.Preset.User).
+		WithRepetitionPenalty(input.Preset.RepetitionPenalty).
+		WithMinP(input.Preset.MinP).
+		WithTopA(input.Preset.TopA).
+		WithTypicalP(input.Preset.TypicalP).
+		WithMirostat(input.Preset.Mirostat).
+		WithMirostatTau(input.Preset.MirostatTau).
+		WithMirostatEta(input.Preset.MirostatEta).
+		WithGrammar(input.Preset.Grammar)
 }
 
 func write(

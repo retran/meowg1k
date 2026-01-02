@@ -13,7 +13,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -23,7 +23,7 @@ const defaultMaxIterations = 20
 type Input struct {
 	ToolRegistry             *tools.Registry
 	ToolDescriptionOverrides map[string]string
-	Profile                  *profile.ResolvedProfile
+	Preset                   *preset.ResolvedPreset
 	PriorSummaries           *[]string
 	Goal                     *string
 	SystemPrompt             *string
@@ -103,7 +103,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			resp, err := f.invokeLLM(
 				ctx,
 				iterationCtx,
-				input.Profile,
+				input.Preset,
 				strings.TrimSpace(stringValue(input.SystemPrompt)),
 				buildUserPrompt(stringValue(input.Goal), stringSliceValue(input.PriorSummaries), state),
 				messages,
@@ -288,8 +288,8 @@ func validateInput(factory *Factory, input *Input) error {
 	if input == nil {
 		return fmt.Errorf("input cannot be nil")
 	}
-	if input.Profile == nil {
-		return fmt.Errorf("profile is nil")
+	if input.Preset == nil {
+		return fmt.Errorf("preset is nil")
 	}
 	if input.ToolRegistry == nil {
 		return fmt.Errorf("tool registry is nil")
@@ -419,7 +419,7 @@ func buildMessages(goal string, summaries []string, state *loopState) []gateway.
 func (f *Factory) invokeLLM(
 	ctx context.Context,
 	execCtx *executor.Context,
-	resolvedProfile *profile.ResolvedProfile,
+	resolvedPreset *preset.ResolvedPreset,
 	systemPrompt string,
 	userPrompt string,
 	messages []gateway.Message,
@@ -427,7 +427,7 @@ func (f *Factory) invokeLLM(
 ) (*draftcontent.Output, error) {
 	activity := f.invokeLLMFactory.NewActivity()
 	out, err := activity(ctx, execCtx, &draftcontent.Input{
-		Profile:      resolvedProfile,
+		Preset:       resolvedPreset,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
 		Messages:     messages,

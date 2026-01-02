@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/retran/meowg1k/internal/adapters/command"
-	"github.com/retran/meowg1k/internal/adapters/config"
+	adapterConfig "github.com/retran/meowg1k/internal/adapters/config"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
@@ -31,6 +31,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
 	"github.com/retran/meowg1k/internal/core/shutdown"
+	domainConfig "github.com/retran/meowg1k/internal/domain/config"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -56,7 +57,7 @@ type Container struct {
 	CommandService *command.Service
 
 	// ConfigService manages application configuration.
-	ConfigService *config.Service
+	ConfigService *adapterConfig.Service
 
 	// OutputService handles application output to stdout/stderr.
 	OutputService Writer
@@ -141,7 +142,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	workspaceService := workspace.NewService(commandService)
 
-	configService, err := config.NewService(commandService, workspaceService)
+	configService, err := adapterConfig.NewService(commandService, workspaceService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
@@ -277,11 +278,14 @@ func (c *Container) initDB() error {
 
 		// Purge expired cache entries on startup if caching is configured
 		cfg, err := c.ConfigService.Get()
-		if err == nil && cfg != nil && cfg.Cache != nil && cfg.Cache.TTL > 0 {
-			ctx := c.ShutdownService.Context()
-			if err := cacheRepo.Purge(ctx, cfg.Cache.TTL); err != nil {
-				c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
-				// Don't fail initialization - just log the error
+		if err == nil && cfg != nil {
+			cacheTTL := maxPresetCacheTTL(cfg)
+			if cacheTTL > 0 {
+				ctx := c.ShutdownService.Context()
+				if err := cacheRepo.Purge(ctx, cacheTTL); err != nil {
+					c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
+					// Don't fail initialization - just log the error
+				}
 			}
 		}
 
@@ -326,6 +330,24 @@ func (c *Container) GetCacheRepo() ports.CacheRepository {
 		return nil
 	}
 	return c.cacheRepo
+}
+
+func maxPresetCacheTTL(cfg *domainConfig.Config) time.Duration {
+	if cfg == nil || cfg.Presets == nil {
+		return 0
+	}
+
+	var maxTTL time.Duration
+	for _, preset := range cfg.Presets {
+		if preset == nil || preset.Cache == nil || !preset.Cache.Enabled {
+			continue
+		}
+		if preset.Cache.TTL > maxTTL {
+			maxTTL = preset.Cache.TTL
+		}
+	}
+
+	return maxTTL
 }
 
 // GetHTTPClientService returns the HTTP client service.

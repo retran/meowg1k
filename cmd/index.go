@@ -23,7 +23,7 @@ similarity search. The indices are used by 'search' and 'ask' commands.
 The indexing process includes:
   - Scanning workspace state (workdir, stage, head)
   - Chunking files according to configuration
-  - Computing embeddings using the configured profile
+  - Computing embeddings using the configured preset
   - Building and saving vector indices
 
 Example:

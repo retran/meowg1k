@@ -11,7 +11,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/git"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -84,7 +84,7 @@ func TestComposeFlat(t *testing.T) {
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{
-			Profile: &profile.ResolvedProfile{
+			Preset: &preset.ResolvedPreset{
 				MaxInputTokens: 10000,
 			},
 			SystemPrompt: "Test system prompt",
@@ -113,7 +113,7 @@ func TestComposeFlat(t *testing.T) {
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{
-			Profile: &profile.ResolvedProfile{},
+			Preset: &preset.ResolvedPreset{},
 		}
 
 		_, err := activity(context.Background(), execCtx, input)
@@ -149,7 +149,7 @@ func TestComposeFlat(t *testing.T) {
 		}
 
 		input := &Input{
-			Profile: &profile.ResolvedProfile{
+			Preset: &preset.ResolvedPreset{
 				MaxInputTokens: 100, // Very small limit
 			},
 			SystemPrompt: "Test",
@@ -178,7 +178,7 @@ func TestComposeFlat(t *testing.T) {
 		execCtx := executor.NewContext("test", nil, exec)
 
 		input := &Input{
-			Profile: &profile.ResolvedProfile{
+			Preset: &preset.ResolvedPreset{
 				MaxInputTokens: 50000,
 			},
 			SystemPrompt: "Test",

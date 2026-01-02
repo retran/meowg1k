@@ -87,7 +87,7 @@ Your commit message should be structured like this:
 **Examples:**
 
 - `feat(provider): add support for Cohere API`
-- `fix(config): handle empty profile gracefully`
+- `fix(config): handle empty preset gracefully`
 - `docs(readme): add example for local models`
 
 > #### 💡 Pro Tip: Use `meowg1k` to write your commit messages!

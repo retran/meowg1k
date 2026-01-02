@@ -1336,50 +1336,50 @@ func TestGetQuestionFlagNilService(t *testing.T) {
 	}
 }
 
-func TestGetProfileFlag(t *testing.T) {
+func TestGetPresetFlag(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	cmd.Flags().String("profile", "", "profile name")
-	cmd.Flags().Set("profile", "production")
+	cmd.Flags().String("preset", "", "preset name")
+	cmd.Flags().Set("preset", "production")
 
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	profile, err := service.GetProfileFlag()
+	preset, err := service.GetPresetFlag()
 	if err != nil {
-		t.Fatalf("GetProfileFlag failed: %v", err)
+		t.Fatalf("GetPresetFlag failed: %v", err)
 	}
 
-	if profile != "production" {
-		t.Errorf("Expected profile 'production', got '%s'", profile)
+	if preset != "production" {
+		t.Errorf("Expected preset 'production', got '%s'", preset)
 	}
 }
 
-func TestGetProfileFlagEmpty(t *testing.T) {
+func TestGetPresetFlagEmpty(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	cmd.Flags().String("profile", "", "profile name")
+	cmd.Flags().String("preset", "", "preset name")
 
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	profile, err := service.GetProfileFlag()
+	preset, err := service.GetPresetFlag()
 	if err != nil {
-		t.Fatalf("GetProfileFlag failed: %v", err)
+		t.Fatalf("GetPresetFlag failed: %v", err)
 	}
 
-	if profile != "" {
-		t.Errorf("Expected empty profile, got '%s'", profile)
+	if preset != "" {
+		t.Errorf("Expected empty preset, got '%s'", preset)
 	}
 }
 
-func TestGetProfileFlagUndefined(t *testing.T) {
+func TestGetPresetFlagUndefined(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -1389,16 +1389,16 @@ func TestGetProfileFlagUndefined(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	_, err = service.GetProfileFlag()
+	_, err = service.GetPresetFlag()
 	if err == nil {
-		t.Error("Expected error when profile flag is not defined")
+		t.Error("Expected error when preset flag is not defined")
 	}
 }
 
-func TestGetProfileFlagNilService(t *testing.T) {
+func TestGetPresetFlagNilService(t *testing.T) {
 	var service *Service
 
-	_, err := service.GetProfileFlag()
+	_, err := service.GetPresetFlag()
 	if err == nil {
 		t.Error("Expected error for nil service")
 	}

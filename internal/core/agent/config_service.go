@@ -31,7 +31,7 @@ func NewService(configResolver ports.ConfigResolver) (*Service, error) {
 type ResolvedConfig struct {
 	Tools        Tools
 	Personas     map[string]*config.PersonaConfig
-	Flows        map[string]*config.AgentFlowConfig
+	Pipelines    map[string]*config.AgentPipelineConfig
 	Safety       *config.AgentSafetyConfig
 	SystemPrompt string
 }
@@ -63,12 +63,11 @@ func (s *Service) Get() (*ResolvedConfig, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	agentCfg := cfg.Agent
-	if agentCfg == nil {
+	if cfg.Agent == nil {
 		return nil, fmt.Errorf("agent configuration missing (no 'agent' section in config)")
 	}
 
-	resolved, err := resolveStrict(agentCfg)
+	resolved, err := resolveStrict(cfg.Agent)
 	if err != nil {
 		return nil, err
 	}
@@ -83,88 +82,88 @@ func resolveStrict(agentCfg *config.AgentConfig) (*ResolvedConfig, error) {
 
 	systemPrompt := strings.TrimSpace(agentCfg.SystemPrompt)
 	if systemPrompt == "" {
-		return nil, fmt.Errorf("agent.system_prompt is required")
+		return nil, fmt.Errorf("flows.agent.system_prompt is required")
 	}
 
 	toolsCfg := agentCfg.Tools
 	if toolsCfg == nil {
-		return nil, fmt.Errorf("agent.tools is required")
+		return nil, fmt.Errorf("flows.agent.tools is required")
 	}
 	if toolsCfg.SearchDefaults == nil {
-		return nil, fmt.Errorf("agent.tools.searchDefaults is required")
+		return nil, fmt.Errorf("flows.agent.tools.search_defaults is required")
 	}
 	if len(toolsCfg.SearchDefaults.Snapshots) == 0 {
-		return nil, fmt.Errorf("agent.tools.searchDefaults.snapshots is required")
+		return nil, fmt.Errorf("flows.agent.tools.search_defaults.snapshots is required")
 	}
 	if toolsCfg.SearchDefaults.TopK <= 0 {
-		return nil, fmt.Errorf("agent.tools.searchDefaults.topK must be > 0")
+		return nil, fmt.Errorf("flows.agent.tools.search_defaults.top_k must be > 0")
 	}
 	if toolsCfg.SearchDefaults.MinScore <= 0 {
-		return nil, fmt.Errorf("agent.tools.searchDefaults.minScore must be > 0")
+		return nil, fmt.Errorf("flows.agent.tools.search_defaults.min_score must be > 0")
 	}
 
-	flows := agentCfg.Flows
-	if len(flows) == 0 {
-		return nil, fmt.Errorf("agent.flows is required")
+	pipelines := agentCfg.Pipelines
+	if len(pipelines) == 0 {
+		return nil, fmt.Errorf("flows.agent.pipelines is required")
 	}
-	for name, flow := range flows {
+	for name, pipeline := range pipelines {
 		if strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("agent.flows contains an empty name")
+			return nil, fmt.Errorf("flows.agent.pipelines contains an empty name")
 		}
-		if flow == nil {
-			return nil, fmt.Errorf("agent.flows.%s is nil", name)
+		if pipeline == nil {
+			return nil, fmt.Errorf("flows.agent.pipelines.%s is nil", name)
 		}
-		if len(flow.Steps) == 0 {
-			return nil, fmt.Errorf("agent.flows.%s.steps is required", name)
+		if len(pipeline.Steps) == 0 {
+			return nil, fmt.Errorf("flows.agent.pipelines.%s.steps is required", name)
 		}
 	}
-	if flows["default"] == nil {
-		return nil, fmt.Errorf("agent.flows.default is required")
+	if pipelines["default"] == nil {
+		return nil, fmt.Errorf("flows.agent.pipelines.default is required")
 	}
 
 	personas := agentCfg.Personas
 	if len(personas) == 0 {
-		return nil, fmt.Errorf("agent.personas is required")
+		return nil, fmt.Errorf("flows.agent.personas is required")
 	}
 	for name, p := range personas {
 		if strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("agent.personas contains an empty name")
+			return nil, fmt.Errorf("flows.agent.personas contains an empty name")
 		}
 		if p == nil {
-			return nil, fmt.Errorf("agent.personas.%s is nil", name)
+			return nil, fmt.Errorf("flows.agent.personas.%s is nil", name)
 		}
-		if strings.TrimSpace(p.Profile) == "" {
-			return nil, fmt.Errorf("agent.personas.%s.profile is required", name)
+		if strings.TrimSpace(p.Preset) == "" {
+			return nil, fmt.Errorf("flows.agent.personas.%s.preset is required", name)
 		}
 		// Tools must be explicitly present in config (can be empty for no-tools steps).
 		if p.Tools == nil {
-			return nil, fmt.Errorf("agent.personas.%s.tools is required", name)
+			return nil, fmt.Errorf("flows.agent.personas.%s.tools is required", name)
 		}
 		if strings.TrimSpace(p.SystemPersona) == "" {
-			return nil, fmt.Errorf("agent.personas.%s.system_persona is required", name)
+			return nil, fmt.Errorf("flows.agent.personas.%s.system_persona is required", name)
 		}
 		if strings.TrimSpace(p.UserInstructions) == "" {
-			return nil, fmt.Errorf("agent.personas.%s.user_instructions is required", name)
+			return nil, fmt.Errorf("flows.agent.personas.%s.user_instructions is required", name)
 		}
 	}
 	for _, required := range []string{"discover", "plan", "execute", "verify"} {
 		if personas[required] == nil {
-			return nil, fmt.Errorf("agent.personas.%s is required", required)
+			return nil, fmt.Errorf("flows.agent.personas.%s is required", required)
 		}
 	}
 
 	safety := agentCfg.Safety
 	if safety == nil {
-		return nil, fmt.Errorf("agent.safety is required")
+		return nil, fmt.Errorf("flows.agent.safety is required")
 	}
 	if safety.CircuitBreaker == nil {
-		return nil, fmt.Errorf("agent.safety.circuit_breaker is required")
+		return nil, fmt.Errorf("flows.agent.safety.circuit_breaker is required")
 	}
 	if safety.CircuitBreaker.MaxRestarts <= 0 {
-		return nil, fmt.Errorf("agent.safety.circuit_breaker.max_restarts must be > 0")
+		return nil, fmt.Errorf("flows.agent.safety.circuit_breaker.max_restarts must be > 0")
 	}
 	if safety.MaxSteps < 0 {
-		return nil, fmt.Errorf("agent.safety.max_steps must be >= 0")
+		return nil, fmt.Errorf("flows.agent.safety.max_steps must be >= 0")
 	}
 
 	toolDescriptions := toolsCfg.ToolDescriptions
@@ -173,7 +172,7 @@ func resolveStrict(agentCfg *config.AgentConfig) (*ResolvedConfig, error) {
 	}
 
 	// Ensure maps are non-nil to simplify downstream code.
-	if agentCfg.Flows == nil || agentCfg.Personas == nil {
+	if agentCfg.Pipelines == nil || agentCfg.Personas == nil {
 		return nil, errors.New("agent configuration must provide flows and personas")
 	}
 
@@ -187,8 +186,8 @@ func resolveStrict(agentCfg *config.AgentConfig) (*ResolvedConfig, error) {
 			},
 			ToolDescriptions: toolDescriptions,
 		},
-		Personas: agentCfg.Personas,
-		Flows:    agentCfg.Flows,
-		Safety:   safety,
+		Personas:  agentCfg.Personas,
+		Pipelines: agentCfg.Pipelines,
+		Safety:    safety,
 	}, nil
 }

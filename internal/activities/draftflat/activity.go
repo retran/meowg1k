@@ -11,13 +11,13 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/domain/git"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Input defines the input structure for the ComposeFlat activity.
 type Input struct {
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	SystemPrompt string
 	Intent       string
 	Changes      []*git.FileChange
@@ -81,14 +81,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			"strategy=flat",
 		)
 
-		if err := validateTokenBudget(input.Profile, input.Changes); err != nil {
+		if err := validateTokenBudget(input.Preset, input.Changes); err != nil {
 			return nil, err
 		}
 
 		content := buildFlatPrompt(input.Changes, input.Intent)
 
 		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &draftcontent.Input{
-			Profile:      input.Profile,
+			Preset:       input.Preset,
 			SystemPrompt: input.SystemPrompt,
 			UserPrompt:   content,
 		})
@@ -111,13 +111,13 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	}
 }
 
-func validateTokenBudget(resolvedProfile *profile.ResolvedProfile, changes []*git.FileChange) error {
+func validateTokenBudget(resolvedPreset *preset.ResolvedPreset, changes []*git.FileChange) error {
 	estimatedTokens := estimateTokenCount(changes)
-	if resolvedProfile.MaxInputTokens > 0 && estimatedTokens > resolvedProfile.MaxInputTokens {
+	if resolvedPreset.MaxInputTokens > 0 && estimatedTokens > resolvedPreset.MaxInputTokens {
 		return fmt.Errorf(
 			"these changes are too large for the 'flat' strategy (estimated %d tokens, limit %d). Try the 'summarize' strategy instead",
 			estimatedTokens,
-			resolvedProfile.MaxInputTokens,
+			resolvedPreset.MaxInputTokens,
 		)
 	}
 	return nil

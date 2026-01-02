@@ -8,29 +8,29 @@ import (
 	"fmt"
 
 	commit2 "github.com/retran/meowg1k/internal/domain/commit"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Service resolves commit configuration from application config and profiles.
+// Service resolves commit configuration from application config and presets.
 type Service struct {
-	configResolver  ports.ConfigResolver
-	profileResolver ports.ProfileResolver
+	configResolver ports.ConfigResolver
+	presetResolver ports.PresetResolver
 }
 
 // NewService creates a new commit configuration service.
-func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+func NewService(configResolver ports.ConfigResolver, presetResolver ports.PresetResolver) (*Service, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	return &Service{
-		configResolver:  configResolver,
-		profileResolver: profileResolver,
+		configResolver: configResolver,
+		presetResolver: presetResolver,
 	}, nil
 }
 
@@ -44,8 +44,8 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 		return nil, fmt.Errorf("config reader is nil")
 	}
 
-	if s.profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if s.presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	cfg, err := s.configResolver.Get()
@@ -53,14 +53,14 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 		return nil, fmt.Errorf("failed to get application cfg: %w", err)
 	}
 
-	var profileName string
+	var presetName string
 	var systemPrompt string
 	var strategy string
 
-	if cfg.Commit != nil {
-		profileName = cfg.Commit.Profile
-		systemPrompt = cfg.Commit.SystemPrompt
-		strategy = cfg.Commit.Strategy
+	if cfg.Flows != nil && cfg.Flows.Draft != nil && cfg.Flows.Draft.Commit != nil {
+		presetName = cfg.Flows.Draft.Commit.Preset
+		systemPrompt = cfg.Flows.Draft.Commit.SystemPrompt
+		strategy = cfg.Flows.Draft.Commit.Strategy
 	}
 
 	// Default to "summarize" if strategy is not specified
@@ -68,9 +68,9 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 		strategy = "summarize"
 	}
 
-	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
+	resolvedPreset, err := s.presetResolver.Get(preset.Preset(presetName))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile %q: %w", profileName, err)
+		return nil, fmt.Errorf("failed to resolve preset %q: %w", presetName, err)
 	}
 
 	if systemPrompt == "" {
@@ -78,7 +78,7 @@ func (s *Service) Get() (*commit2.ResolvedConfig, error) {
 	}
 
 	return &commit2.ResolvedConfig{
-		Profile:      resolvedProfile,
+		Preset:       resolvedPreset,
 		Strategy:     strategy,
 		SystemPrompt: systemPrompt,
 	}, nil

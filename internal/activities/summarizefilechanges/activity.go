@@ -95,7 +95,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		content := buildSummaryPrompt(input, config)
 
 		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &draftcontent.Input{
-			Profile:      config.Profile,
+			Preset:       config.Preset,
 			SystemPrompt: config.SystemPrompt,
 			UserPrompt:   content,
 		})

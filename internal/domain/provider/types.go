@@ -40,4 +40,5 @@ type Definition struct {
 	MaxInputTokens  int           `json:"max_input_tokens"`
 	MaxOutputTokens int           `json:"max_output_tokens"`
 	DefaultTimeout  time.Duration `json:"default_timeout"`
+	Tokenizer       string        `json:"tokenizer"`
 }

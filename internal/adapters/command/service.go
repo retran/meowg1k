@@ -365,8 +365,8 @@ func (s *Service) GetQuestionFlag() (string, error) {
 	return "", fmt.Errorf("question is required (provide as argument or via stdin)")
 }
 
-// GetProfileFlag retrieves the profile flag from command flags.
-func (s *Service) GetProfileFlag() (string, error) {
+// GetPresetFlag retrieves the preset flag from command flags.
+func (s *Service) GetPresetFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
 	}
@@ -375,9 +375,9 @@ func (s *Service) GetProfileFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	val, err := s.cmd.Flags().GetString("profile")
+	val, err := s.cmd.Flags().GetString("preset")
 	if err != nil {
-		return "", fmt.Errorf("failed to get profile flag: %w", err)
+		return "", fmt.Errorf("failed to get preset flag: %w", err)
 	}
 	return val, nil
 }

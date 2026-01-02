@@ -1,8 +1,8 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package profile defines domain types for LLM provider profiles with rate limits and cost tracking.
-package profile
+// Package preset defines domain types for LLM provider presets with rate limits and cost tracking.
+package preset
 
 import (
 	"time"
@@ -11,11 +11,11 @@ import (
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
-// Profile defines an enumeration for configured profile names.
-type Profile string
+// Preset defines an enumeration for configured preset names.
+type Preset string
 
-// ResolvedProfile represents a profile with all values resolved from both model and profile config.
-type ResolvedProfile struct {
+// ResolvedPreset represents a preset with all values resolved from both model and preset config.
+type ResolvedPreset struct {
 	ServiceTier       *string
 	LogitBias         map[string]int
 	MirostatEta       *float64

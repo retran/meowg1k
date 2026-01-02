@@ -5,12 +5,12 @@
 package pr
 
 import (
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // ResolvedConfig represents the resolved configuration for generating a PR description.
 type ResolvedConfig struct {
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	Strategy     string // "summarize" or "flat"
 	SystemPrompt string
 }

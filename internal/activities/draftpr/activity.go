@@ -11,13 +11,13 @@ import (
 
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 // Input defines the input structure for the ComposePR activity.
 type Input struct {
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	SystemPrompt string
 	Intent       string
 	Summaries    []*summarizefilechanges.Output
@@ -67,7 +67,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		content := buildPRPrompt(input.Summaries, input.Intent)
 
 		invokeOutput, err := f.invokeLLM(ctx, executorCtx, &draftcontent.Input{
-			Profile:      input.Profile,
+			Preset:       input.Preset,
 			SystemPrompt: input.SystemPrompt,
 			UserPrompt:   content,
 		})

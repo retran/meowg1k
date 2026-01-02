@@ -10,9 +10,9 @@ meow-config \- configuration format for the \fBmeow\fR CLI
 Specified via \fB\-\-config\fR \fIFILE\fR flag
 
 .SH DESCRIPTION
-The \fBmeow\fR CLI uses a hierarchical, profile-based YAML configuration
+The \fBmeow\fR CLI uses a hierarchical, preset-based YAML configuration
 system to define all behavior. Configuration supports multiple AI providers,
-reusable profiles, rate limiting, token caps, file filtering, and sophisticated
+reusable presets, rate limiting, token caps, file filtering, and sophisticated
 rule-based processing for commit and PR generation.
 .PP
 Configuration files are read with the following precedence (each subsequent
@@ -40,8 +40,8 @@ YAML format, UTF-8 encoding.
 Top-level configuration structure:
 .PP
 .nf
-profiles:
-  <profile-name>: { ... }
+presets:
+  <preset-name>: { ... }
 
 filter:
   ignore: [ ... ]
@@ -55,21 +55,21 @@ write:
   tasks: { ... }
 
 commit:
-  profile: "..."
+  preset: "..."
   systemPrompt: "..."
 
 pr:
-  profile: "..."
+  preset: "..."
   systemPrompt: "..."
 .fi
 .SH CONFIGURATION SECTIONS
 
-.SS profiles
-Map of reusable provider configurations. Each profile is a named set of
-settings for an AI provider. Profiles can be referenced by name from other
+.SS presets
+Map of reusable provider configurations. Each preset is a named set of
+settings for an AI provider. Presets can be referenced by name from other
 configuration sections.
 .PP
-Profile fields:
+Preset fields:
 .IP \[bu] 2
 \fBprovider\fR (required): Provider type. One of: "gemini", "openai",
 "anthropic", "openrouter", "voyage", "llama", "openai-compatible"
@@ -172,7 +172,7 @@ Fields:
 \fBdefault\fR: Default settings applied when no rule matches.
 .RS
 .IP \[bu] 2
-\fBprofile\fR: Profile name to use.
+\fBpreset\fR: Preset name to use.
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt for file analysis.
 .RE
@@ -184,7 +184,7 @@ Fields:
 .IP \[bu]
 \fBskip\fR: If true, skip analysis of matching files entirely.
 .IP \[bu]
-\fBprofile\fR: Profile to use for matching files (overrides default).
+\fBpreset\fR: Preset to use for matching files (overrides default).
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt for matching files (overrides default).
 .RE
@@ -197,7 +197,7 @@ Fields:
 \fBdefault\fR: Default settings for generation.
 .RS
 .IP \[bu] 2
-\fBprofile\fR: Default profile name.
+\fBpreset\fR: Default preset name.
 .IP \[bu]
 \fBsystemPrompt\fR: Default system prompt (optional).
 .RE
@@ -205,7 +205,7 @@ Fields:
 \fBtasks\fR: Map of predefined tasks.
 .RS
 .IP \[bu] 2
-\fBprofile\fR: Profile for this task (optional, uses default if omitted).
+\fBpreset\fR: Preset for this task (optional, uses default if omitted).
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt for this task (optional).
 .IP \[bu]
@@ -218,7 +218,7 @@ summaries are combined here to generate the final commit message.
 .PP
 Fields:
 .IP \[bu] 2
-\fBprofile\fR: Profile name to use for generating commit messages.
+\fBpreset\fR: Preset name to use for generating commit messages.
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt that guides commit message generation.
 Should include format instructions (e.g., Conventional Commits format).
@@ -242,7 +242,7 @@ summaries are combined here to generate the final PR description.
 .PP
 Fields:
 .IP \[bu] 2
-\fBprofile\fR: Profile name to use for generating PR descriptions.
+\fBpreset\fR: Preset name to use for generating PR descriptions.
 .IP \[bu]
 \fBsystemPrompt\fR: System prompt that guides PR description generation.
 Should include template and format instructions.
@@ -302,24 +302,24 @@ Note: Embeddings only, not for text generation.
 .B llama
 API key: \fBMEOW_LLAMA_API_KEY\fR (optional)
 .br
-Base URL: Must be explicitly configured in profile (e.g., http://localhost:8080)
+Base URL: Must be explicitly configured in preset (e.g., http://localhost:8080)
 .br
 For local llama.cpp HTTP server.
 .TP
 .B openai-compatible
 API key: \fBMEOW_OPENAI_COMPATIBLE_API_KEY\fR
 .br
-Base URL: Must be explicitly configured in profile.
+Base URL: Must be explicitly configured in preset.
 .br
 For any OpenAI-compatible API endpoint.
 
 .SH EXAMPLES
 
 .SS Minimal Configuration
-Basic setup with two profiles:
+Basic setup with two presets:
 .PP
 .nf
-profiles:
+presets:
   fast:
     provider: "gemini"
   smart:
@@ -328,7 +328,7 @@ profiles:
 
 write:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
 .fi
 
 .SS Complete Project Configuration
@@ -337,7 +337,7 @@ Comprehensive setup for a development team:
 .nf
 # .meowg1k.yaml
 
-profiles:
+presets:
   gemini-fast:
     provider: "gemini"
     model: "gemini-2.5-flash"
@@ -368,7 +368,7 @@ filter:
 # Map phase: analyze individual files
 summarize:
   default:
-    profile: "gemini-fast"
+    preset: "gemini-fast"
     systemPrompt: "Provide a concise summary of this change."
 
   rules:
@@ -378,7 +378,7 @@ summarize:
 
     # Deep analysis for critical services
     - match: "internal/services/**/*.go"
-      profile: "claude-smart"
+      preset: "claude-smart"
       systemPrompt: |
         Analyze this business logic change carefully.
         Focus on correctness and side effects.
@@ -390,16 +390,16 @@ summarize:
 # Generate command configuration
 write:
   default:
-    profile: "gemini-fast"
+    preset: "gemini-fast"
     systemPrompt: "You are an expert software engineer."
 
   tasks:
     review:
-      profile: "claude-smart"
+      preset: "claude-smart"
       userPrompt: "Perform thorough code review."
 
     security:
-      profile: "claude-smart"
+      preset: "claude-smart"
       userPrompt: |
         Analyze for security vulnerabilities:
         SQL injection, XSS, insecure crypto, etc.
@@ -409,7 +409,7 @@ write:
 
 # Reduce phase: generate commit message
 commit:
-  profile: "claude-smart"
+  preset: "claude-smart"
   systemPrompt: |
     You are an expert software engineer reviewing changes.
     Write a commit message in Conventional Commits format.
@@ -423,7 +423,7 @@ commit:
 
 # Reduce phase: generate PR description
 pr:
-  profile: "claude-smart"
+  preset: "claude-smart"
   systemPrompt: |
     Generate a PR description in Markdown:
 
@@ -444,7 +444,7 @@ pr:
 Configuration with strict budget controls:
 .PP
 .nf
-profiles:
+presets:
   cost-controlled:
     provider: "openai"
     model: "gpt-4o"
@@ -459,7 +459,7 @@ profiles:
 Complete offline setup using llama.cpp:
 .PP
 .nf
-profiles:
+presets:
   local-only:
     provider: "llama"
     baseURL: "http://localhost:8080"
@@ -467,20 +467,20 @@ profiles:
 
 write:
   default:
-    profile: "local-only"
+    preset: "local-only"
 
 commit:
-  profile: "local-only"
+  preset: "local-only"
 
 pr:
-  profile: "local-only"
+  preset: "local-only"
 .fi
 
 .SS Multi-Provider Strategy
 Using different providers for different tasks:
 .PP
 .nf
-profiles:
+presets:
   free-tier:
     provider: "openrouter"
     model: "meta-llama/llama-3.1-8b-instruct:free"
@@ -495,17 +495,17 @@ profiles:
 
 summarize:
   default:
-    profile: "free-tier"
+    preset: "free-tier"
 
   rules:
     - match: "src/critical/**/*"
-      profile: "quality"
+      preset: "quality"
 
 commit:
-  profile: "quality"
+  preset: "quality"
 
 pr:
-  profile: "quality"
+  preset: "quality"
 .fi
 
 .SH FILES
@@ -534,7 +534,7 @@ variables:
 .TP
 .B MEOW_OPENAI_COMPATIBLE_API_KEY
 .PP
-Custom variables can be specified using the \fBapiKeyEnv\fR field in profiles.
+Custom variables can be specified using the \fBapiKeyEnv\fR field in presets.
 
 .SH FILES
 .TP

@@ -102,8 +102,8 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 	if entry.Command != "commit" {
 		t.Errorf("Expected command 'commit', got %s", entry.Command)
 	}
-	if entry.Profile != "default" {
-		t.Errorf("Expected profile 'default', got %s", entry.Profile)
+	if entry.Preset != "default" {
+		t.Errorf("Expected preset 'default', got %s", entry.Preset)
 	}
 	if entry.Provider != "openai" {
 		t.Errorf("Expected provider 'openai', got %s", entry.Provider)

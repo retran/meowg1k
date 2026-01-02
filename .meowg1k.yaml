@@ -1,4 +1,4 @@
-# meowg1k Configuration File
+schema_version: 1
 
 filter:
   ignore:
@@ -21,66 +21,78 @@ filter:
     - "coverage.out"
     - "coverage.html"
 
+providers:
+  gemini:
+    type: "gemini"
+    api_key_env: "MEOW_GEMINI_API_KEY"
+
 models:
   gemini-flash:
     provider: "gemini"
     model: "gemini-3-flash-preview"
-    maxInputTokens: 1048576
-    maxOutputTokens: 65536
-    rateLimit:
-      requestsPerMinute: 1000
-      tokensPerMinute: 2000000
-      requestsPerDay: 10000
+    limits:
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+    rate_limit:
+      requests_per_minute: 1000
+      tokens_per_minute: 2000000
+      requests_per_day: 10000
 
   gemini-pro:
     provider: "gemini"
     model: "gemini-3-pro-preview"
-    maxInputTokens: 1048576
-    maxOutputTokens: 65536
-    rateLimit:
-      requestsPerMinute: 150
-      tokensPerMinute: 1000000
-      requestsPerDay: 10000
+    limits:
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+    rate_limit:
+      requests_per_minute: 150
+      tokens_per_minute: 1000000
+      requests_per_day: 10000
 
   gemini-embeddings:
     provider: "gemini"
     model: "text-embedding-004"
-    rateLimit:
-      requestsPerMinute: 300
-      tokensPerMinute: 500000
-      requestsPerDay: 10000
+    rate_limit:
+      requests_per_minute: 300
+      tokens_per_minute: 500000
+      requests_per_day: 10000
 
-cache:
-  enabled: true
-  ttl: "24h"
-
-profiles:
-  fast:
-    model: "gemini-flash"
-    temperature: 0.2
-    topP: 0.95
-    timeout: "5m"
+presets:
+  base:
     cache:
       enabled: true
       ttl: "24h"
+    request:
+      temperature: 0.2
+      top_p: 0.95
+    timeout: "5m"
+
+  default:
+    extends: "base"
+    model: "gemini-flash"
+
+  fast:
+    extends: "default"
+    timeout: "5m"
+    cache:
+      ttl: "24h"
 
   smart:
+    extends: "default"
     model: "gemini-pro"
     timeout: "15m"
-    temperature: 0.2
-    topP: 0.95
     cache:
-      enabled: true
       ttl: "72h"
 
   embeddings:
+    extends: "default"
     model: "gemini-embeddings"
     timeout: "10m"
 
-write:
-  default:
-    profile: "fast"
-    systemPrompt: >-
+flows:
+  write:
+    preset: "fast"
+    system_prompt: >-
       You are a Principal Software Engineer & Polyglot Architect.
       Your objective is to generate **Production-Grade** Go code for the `meowg1k` project.
 
@@ -95,277 +107,278 @@ write:
          - Adapters depend on Ports.
       4. **Output**: Return ONLY the requested code block.
 
-  tasks:
-    review:
-      profile: "smart"
-      userPrompt: >-
-        Perform a **Principal-Level Code Review** of the input.
+    tasks:
+      review:
+        preset: "smart"
+        user_prompt: >-
+          Perform a **Principal-Level Code Review** of the input.
 
-        ### Focus Areas:
-        - **Architecture**: Violations of Hexagonal boundaries?
-        - **Correctness**: Nil/zero handling, race conditions, error wrapping.
-        - **Design**: API ergonomics, package layout.
-        - **Performance**: Allocations, blocking I/O.
-        - **Security**: Input sanitization, secret handling.
+          ### Focus Areas:
+          - **Architecture**: Violations of Hexagonal boundaries?
+          - **Correctness**: Nil/zero handling, race conditions, error wrapping.
+          - **Design**: API ergonomics, package layout.
+          - **Performance**: Allocations, blocking I/O.
+          - **Security**: Input sanitization, secret handling.
 
-        ### Output Format:
-        1. **Executive Summary**: (LGTM / Request Changes).
-        2. **Findings**: Numbered list with line numbers.
-        3. **Quick Wins**: Nits (naming, comments).
-        4. **Patch**: Optional minimal diff.
+          ### Output Format:
+          1. **Executive Summary**: (LGTM / Request Changes).
+          2. **Findings**: Numbered list with line numbers.
+          3. **Quick Wins**: Nits (naming, comments).
+          4. **Patch**: Optional minimal diff.
 
-    refactor:
-      profile: "smart"
-      userPrompt: >-
-        **Refactor** the provided code to improve readability and maintainability.
+      refactor:
+        preset: "smart"
+        user_prompt: >-
+          **Refactor** the provided code to improve readability and maintainability.
 
-        ### Objectives:
-        - Reduce cognitive complexity.
-        - Improve error handling (use `fmt.Errorf("%w", err)`).
-        - Optimize for Hexagonal Architecture (decouple logic from infra).
-        - Normalize naming conventions.
+          ### Objectives:
+          - Reduce cognitive complexity.
+          - Improve error handling (use `fmt.Errorf("%w", err)`).
+          - Optimize for Hexagonal Architecture (decouple logic from infra).
+          - Normalize naming conventions.
 
-        ### Output:
-        1. Markdown code block with full refactored code.
-        2. Bullet list of changes.
+          ### Output:
+          1. Markdown code block with full refactored code.
+          2. Bullet list of changes.
 
-    doc:
-      profile: "smart"
-      userPrompt: >-
-        Write **Godoc** documentation for the input.
+      doc:
+        preset: "smart"
+        user_prompt: >-
+          Write **Godoc** documentation for the input.
 
-        ### Requirements:
-        - Format: Standard Godoc (start with identifier name).
-        - Content: Explain *what* it does, *how* it handles errors/context.
-        - Exclude: Implementation details.
+          ### Requirements:
+          - Format: Standard Godoc (start with identifier name).
+          - Content: Explain *what* it does, *how* it handles errors/context.
+          - Exclude: Implementation details.
 
-    test:
-      profile: "smart"
-      userPrompt: >-
-        Write a **Comprehensive Unit Test Suite** using standard library + `testify`.
+      test:
+        preset: "smart"
+        user_prompt: >-
+          Write a **Comprehensive Unit Test Suite** using standard library + `testify`.
 
-        ### Strategy:
-        - **Table-Driven**: MANDATORY for logic tests.
-        - **Coverage**: Happy path, Edge cases, Error scenarios.
-        - **Mocks**: Use interfaces for external deps.
-        - **Concurrency**: `t.Parallel()` where appropriate.
+          ### Strategy:
+          - **Table-Driven**: MANDATORY for logic tests.
+          - **Coverage**: Happy path, Edge cases, Error scenarios.
+          - **Mocks**: Use interfaces for external deps.
+          - **Concurrency**: `t.Parallel()` where appropriate.
 
-        Output valid, compilable Go code.
+          Output valid, compilable Go code.
 
-index:
-  profile: "embeddings"
-  chunker:
-    maxRunes: 1024
-    overlapRunes: 128
-  batchSize: 64
+  index:
+    preset: "embeddings"
+    chunker:
+      max_runes: 1024
+      overlap_runes: 128
+    batch_size: 64
 
-answer:
-  profile: "smart"
-  topK: 20
-  minScore: 0.4
-  systemPrompt: >-
-    You are a **Principal Software Engineer** acting as an expert peer reviewer for `meowg1k`.
+  answer:
+    preset: "smart"
+    retrieval:
+      top_k: 20
+      min_score: 0.4
+    system_prompt: >-
+      You are a **Principal Software Engineer** acting as an expert peer reviewer for `meowg1k`.
 
-    ### Operating Rules:
-    1. **Strict Context Adherence**: Answer based ONLY on provided code.
-    2. **Direct Answer**: Concise summary first.
-    3. **Evidence**: Cite files and line numbers.
-    4. **Honesty**: State if information is missing.
+      ### Operating Rules:
+      1. **Strict Context Adherence**: Answer based ONLY on provided code.
+      2. **Direct Answer**: Concise summary first.
+      3. **Evidence**: Cite files and line numbers.
+      4. **Honesty**: State if information is missing.
 
-agent:
-  system_prompt: >-
-    You are an **Autonomous Coding Agent** working in the **meowg1k** codebase.
+  agent:
+    system_prompt: >-
+      You are an **Autonomous Coding Agent** working in the **meowg1k** codebase.
 
-    ### PROJECT CONTEXT:
-    - **Identity**: `meowg1k` (CLI: `meow`) is a Go-based AI terminal assistant.
-    - **Architecture**: Strict **Hexagonal Architecture**.
-      - `cmd/`: Entry points.
-      - `internal/domain/`: Pure logic.
-      - `internal/ports/`: Interfaces.
-      - `internal/adapters/`: Implementations.
-      - `internal/flows/`: Orchestration.
-    - **Build**: `Taskfile` driven.
-      - Verify: `task check:all` (Lint, Test, Security).
-      - Build: `task build`.
+      ### PROJECT CONTEXT:
+      - **Identity**: `meowg1k` (CLI: `meow`) is a Go-based AI terminal assistant.
+      - **Architecture**: Strict **Hexagonal Architecture**.
+        - `cmd/`: Entry points.
+        - `internal/domain/`: Pure logic.
+        - `internal/ports/`: Interfaces.
+        - `internal/adapters/`: Implementations.
+        - `internal/flows/`: Orchestration.
+      - **Build**: `Taskfile` driven.
+        - Verify: `task check:all` (Lint, Test, Security).
+        - Build: `task build`.
 
-    ### OPERATIONAL CONTRACT:
-    1. **Action-Oriented**: Be concise. Minimal, safe changes.
-    2. **Tool Protocol**: Stop if ToolResults have the answer.
-    3. **Finality**: Final message must be a report.
-    4. **Safety**: Always verify with `task check:all`.
+      ### OPERATIONAL CONTRACT:
+      1. **Action-Oriented**: Be concise. Minimal, safe changes.
+      2. **Tool Protocol**: Stop if ToolResults have the answer.
+      3. **Finality**: Final message must be a report.
+      4. **Safety**: Always verify with `task check:all`.
 
-  tools:
-    searchDefaults:
-      snapshots: ["_workdir_", "_stage_", "_head_"]
-      topK: 10
-      minScore: 0.6
+    tools:
+      search_defaults:
+        snapshots: ["_workdir_", "_stage_", "_head_"]
+        top_k: 10
+        min_score: 0.6
 
-  safety:
-    max_steps: 30
-    circuit_breaker:
-      max_restarts: 5
-    dry_run: false
+    safety:
+      max_steps: 30
+      circuit_breaker:
+        max_restarts: 5
+      dry_run: false
 
-  flows:
-    default:
-      instructions: >-
-        **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
-        - Steps run in order. Read PREVIOUS STEP OUTPUTS.
-      steps: ["discover", "plan", "execute", "verify", "final"]
-    quick:
-      instructions: >-
-        **Lifecycle:** Discover -> Execute -> Final.
-        - Fast path for small fixes.
-      steps: ["discover", "execute", "final"]
+    pipelines:
+      default:
+        instructions: >-
+          **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
+          - Steps run in order. Read PREVIOUS STEP OUTPUTS.
+          - Do not ignore prior context.
+        steps: ["discover", "plan", "execute", "verify", "final"]
+      quick:
+        instructions: >-
+          **Lifecycle:** Discover -> Execute -> Final.
+          - Fast path for small fixes.
+        steps: ["discover", "execute", "final"]
 
-  personas:
-    discover:
-      role: "Principal Software Engineer"
-      profile: "smart"
-      tools: ["dir_list", "search_text", "search_semantic", "file_read", "util_summarize", "mem_store"]
-      system_persona: >-
-        You are a **Principal Software Engineer** doing high-signal discovery.
-        **Goal**: Gather minimum context needed to act.
-      user_instructions: >
-        **Goal**: Gather minimum context needed to act.
+    personas:
+      discover:
+        role: "Principal Software Engineer"
+        preset: "smart"
+        tools: ["dir_list", "search_text", "search_semantic", "file_read", "util_summarize", "mem_store"]
+        system_persona: >-
+          You are a **Principal Software Engineer** doing high-signal discovery.
+          **Goal**: Gather minimum context needed to act.
+        user_instructions: >
+          **Goal**: Gather minimum context needed to act.
 
-        First: review MEMORY FACTS.
-        Objective: gather context.
-        Prefer list_files -> search_code.
-        Output: key findings, relevant file paths, constraints.
-        Save findings with memorize_fact.
+          First: review MEMORY FACTS and avoid repeating work.
+          Objective: gather the minimum context needed to act on the goal.
+          Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
+          Output: key findings, relevant file paths, and any important constraints.
+          Save notable findings with memorize_fact.
+          Do not modify files.
+      plan:
+        role: "Technical Project Manager"
+        preset: "smart"
+        tools: ["plan_read", "search_text", "search_semantic", "file_read", "plan_init", "mem_store"]
+        system_persona: >-
+          You are a **Pragmatic Planner**.
+        user_instructions: >
+          **Goal**: Convert context into a deterministic task list.
 
-    plan:
-      role: "Technical Project Manager"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "file_read", "plan_init", "mem_store"]
-      system_persona: >-
-        You are a **Pragmatic Planner**.
-      user_instructions: >
-        **Goal**: Convert context into a deterministic task list.
+          First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
+          Objective: turn prior outputs into a minimal, ordered task list.
+          Output MUST be the task list (no filler like "I will proceed").
+          Call get_plan once at the start.
+          If no plan exists, call create_plan once with the tasks, then render the tasks from ToolResults.
+          Save key decisions/assumptions with memorize_fact.
+      execute:
+        role: "Principal Software Engineer"
+        preset: "smart"
+        tools: ["plan_read", "search_text", "search_semantic", "file_read", "file_write", "file_edit", "file_move", "file_delete", "git_undo", "shell_exec", "plan_update_task", "mem_store"]
+        system_persona: >-
+          You are a **Principal Software Engineer**.
+        user_instructions: >
+          **Goal**: Implement the plan with the smallest correct diff.
 
-        First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-        Objective: create a minimal, ordered task list.
-        Call get_plan once. If empty, create_plan.
-        Save decisions with memorize_fact.
+          First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+          Objective: implement the plan with focused diffs.
+          Use file_edit for modifying existing files, file_write for creating new files.
+          Use move_file to rename or relocate files. Use delete_file to remove files.
+          Use git_undo to revert uncommitted changes if your edit broke something.
+          Update task status as you go.
+          Explain what changed and why, briefly.
+          Save important discoveries/decisions with memorize_fact.
+      verify:
+        role: "Principal QA Engineer"
+        preset: "smart"
+        tools: ["plan_read", "search_text", "search_semantic", "shell_exec", "git_diff", "util_summarize", "plan_update_task", "agent_restart", "mem_store"]
+        system_persona: >-
+          You are a **Meticulous QA**.
+          1. Inspect `get_diff`.
+        user_instructions: >
+          **Goal**: Validate correctness and integration.
 
-    execute:
-      role: "Principal Software Engineer"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "file_read", "file_write", "file_edit", "file_move", "file_delete", "git_undo", "shell_exec", "plan_update_task", "mem_store"]
-      system_persona: >-
-        You are a **Principal Software Engineer**.
-      user_instructions: >
-        **Goal**: Implement the plan with the smallest correct diff.
+          First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+          Objective: verify correctness.
+          Inspect diffs and run tests/commands when useful.
+          If issues remain, call restart_with_instruction with specific, actionable fix guidance.
+          Save important findings with memorize_fact.
+      final:
+        role: "Technical Project Manager"
+        preset: "smart"
+        tools: []
+        system_persona: >-
+          You are the **Final Reporter**.
+        user_instructions: >
+          **Goal**: Produce a structured answer based on Memory and History.
 
-        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
-        Objective: implement the plan.
+          Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
+          Do NOT call tools.
+          Output only the final report/answer.
 
-        **Guidelines**:
-        - **Architecture**: Enforce Hexagonal boundaries.
-        - **Style**: Go 1.25+, Table-driven tests.
-        - **Verification**: Run `task check:all` locally if unsure.
+  draft:
+    commit:
+      preset: "smart"
+      strategy: "summarize"
+      system_prompt: |
+        You are an expert software engineer writing a **Conventional Commit**.
 
-        **File Operations**:
-        - file_edit: Provide context.
-        - file_write: Full content.
-        - git_undo: Revert if broken.
+        ### Inputs:
+        - File summaries
+        - Developer Intent (if provided)
 
-        Update task status. Explain changes.
+        ### Format:
+        `<type>(<scope>): <description>`
 
-    verify:
-      role: "Principal QA Engineer"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "shell_exec", "git_diff", "util_summarize", "plan_update_task", "agent_restart", "mem_store"]
-      system_persona: >-
-        You are a **Meticulous QA**.
-      user_instructions: >
-        **Goal**: Validate correctness and integration.
+        `[optional body]`
 
-        First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-        Objective: verify correctness.
+        `[optional footer]`
 
-        **Mandatory**: Run `task check:all`.
-        Inspect diffs.
-        If issues remain, call restart_with_instruction.
+        ### Rules:
+        1. **Type**: feat, fix, refactor, perf, docs, test, chore, build, ci.
+        2. **Scope**: (Optional) The specific package/module affected.
+        3. **Description**: Imperative mood, max 72 chars, no period.
+        4. **Body**: Explain *why* and *what* (context/impact).
+        5. **Footer**:
+           - `Refs: #123` if issue mentioned.
+           - `BREAKING CHANGE:` if major API break.
 
-    final:
-      role: "Technical Project Manager"
-      profile: "smart"
-      tools: []
-      system_persona: >-
-        You are the **Final Reporter**.
-      user_instructions: >
-        **Goal**: Produce a structured answer.
+    pr:
+      preset: "smart"
+      strategy: "summarize"
+      system_prompt: |
+        You are an expert engineer drafting a **Pull Request Description**.
 
-        Use MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-        Output only the final report.
+        ### Structure (Markdown):
 
-summarize:
-  default:
-    profile: "fast"
+        # <Concise Title>
+
+        ## Summary
+        2-4 sentences explaining the *what* and *why*.
+
+        ## Motivation
+        - What problem does this solve?
+        - Why is this change needed?
+
+        ## Key Changes
+        - **Core**: Functional logic changes.
+        - **API**: Public interface updates.
+        - **Tests**: How coverage was ensured.
+
+        ## Technical Details
+        - Architectural decisions/trade-offs.
+        - Performance implications.
+        - Security considerations.
+
+        ## Breaking Changes
+        - Explicitly state "None" or describe migration path.
+
+        ## Refs
+        - List related issues (e.g., Fixes #123).
+
+activities:
+  summarize:
+    preset: "fast"
     strategy:
       type: "plain"
-      includeOriginalFile: false
-      includeChangedFile: false
-    systemPrompt: >-
+      include_original_file: false
+      include_changed_file: false
+    system_prompt: >-
       Analyze changes and provide a concise 1-2 sentence summary.
-      Focus on functional impact.
-  rules:
-    - match: "**/*.{lock,sum}"
-      skip: true
-
-commit:
-  profile: "smart"
-  strategy: "summarize"
-  systemPrompt: |
-    You are an expert software engineer writing a **Conventional Commit**.
-
-    ### Inputs:
-    - File summaries
-    - Developer Intent
-
-    ### Format:
-    `<type>(<scope>): <description>`
-
-    `[optional body]`
-
-    `[optional footer]`
-
-    ### Rules:
-    1. **Type**: feat, fix, refactor, perf, docs, test, chore, build, ci.
-    2. **Scope**: (Optional) Package/module.
-    3. **Description**: Imperative mood, max 72 chars.
-    4. **Body**: Explain *why* and *what*.
-    5. **Footer**: Refs, BREAKING CHANGE.
-
-pr:
-  profile: "smart"
-  strategy: "summarize"
-  systemPrompt: |
-    You are an expert engineer drafting a **Pull Request Description**.
-
-    ### Structure (Markdown):
-
-    # <Concise Title>
-
-    ## Summary
-    2-4 sentences explaining the *what* and *why*.
-
-    ## Motivation
-    - What problem does this solve?
-
-    ## Key Changes
-    - **Core**: Functional logic changes.
-    - **API**: Public interface updates.
-    - **Tests**: How coverage was ensured.
-
-    ## Technical Details
-    - Architectural decisions.
-    - Performance/Security.
-
-    ## Breaking Changes
-    - Explicitly state "None" or describe migration.
-
-    ## Refs
-    - List related issues.
+      Focus on functional impact (feature, fix, refactor).
+    rules:
+      - match: "**/*.{lock,sum}"
+        skip: true

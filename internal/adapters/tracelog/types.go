@@ -29,7 +29,7 @@ type APIInteractionEntry struct {
 	BaseLogEntry
 	Response   ResponseData `json:"response"`
 	Command    string       `json:"command"`
-	Profile    string       `json:"profile"`
+	Preset     string       `json:"preset"`
 	Provider   string       `json:"provider"`
 	Model      string       `json:"model"`
 	Request    RequestData  `json:"request"`

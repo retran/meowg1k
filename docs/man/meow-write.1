@@ -13,7 +13,7 @@ meow-write \- generate content based on prompts and context
 [\fIflags\fR]
 .SH DESCRIPTION
 .B meow write
-generates content using configured AI provider profiles and tasks. It is
+generates content using configured AI provider presets and tasks. It is
 designed for automation and scripting, transforming input into AI-enhanced
 output through a predictable pipeline.
 .PP
@@ -22,21 +22,21 @@ Input can be provided via stdin (for context) and/or command-line flags
 YAML files and ad-hoc prompts for one-off operations.
 .PP
 All providers (Gemini, OpenAI, Anthropic, OpenRouter, llama.cpp, and
-OpenAI-compatible APIs) are supported through the unified profile system
+OpenAI-compatible APIs) are supported through the unified preset system
 with smart defaults and minimal configuration required.
 .SH OPTIONS
 .TP
 .BR \-t ", " \-\-task " " \fINAME\fR
 Run a predefined task from configuration. Tasks are defined in the
 .B write.tasks
-section of config files. Tasks can specify a profile, system prompt,
+section of config files. Tasks can specify a preset, system prompt,
 and user prompt, allowing complex, reusable workflows to be invoked
 with a simple name.
 .TP
 .BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
 Override the system prompt. The system prompt sets the AI's role and
 behavior (e.g., "You are an expert Go developer"). If not specified,
-uses the system prompt from the task or profile configuration.
+uses the system prompt from the task or preset configuration.
 .TP
 .BR \-u ", " \-\-user\-prompt " " \fITEXT\fR
 Specify the user prompt (instruction) for generation. This tells the AI
@@ -56,9 +56,9 @@ Enable silent mode for scripting.
 Show command help and usage information.
 
 .SH CONFIGURATION
-Uses the profile system defined in
+Uses the preset system defined in
 .BR meow\-config (5).
-Profiles specify provider, model, timeout, rate limiting, and token caps
+Presets specify provider, model, timeout, rate limiting, and token caps
 with smart defaults for each provider.
 .PP
 The
@@ -68,17 +68,17 @@ section in configuration files defines default settings and tasks:
 .nf
 generate:
   default:
-    profile: "gemini-flash"              # Default profile for generate
+    preset: "gemini-flash"              # Default preset for generate
     systemPrompt: "You are..."   # Optional default system prompt
 
   tasks:
     review:
-      profile: "gemini-pro"           # Override profile for this task
+      preset: "gemini-pro"           # Override preset for this task
       systemPrompt: "Expert reviewer..."
       userPrompt: "Review this code thoroughly"
 
     security:
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       userPrompt: "Analyze for security vulnerabilities"
 .fi
 .PP
@@ -135,15 +135,15 @@ With Gemini (free tier):
 With local llama.cpp server:
 .PP
 .nf
-# Ensure profile configured in .meowg1k.yaml:
-# profiles:
+# Ensure preset configured in .meowg1k.yaml:
+# presets:
 #   local:
 #     provider: "llama"
 #     baseURL: "http://localhost:8080"
 #
 # generate:
 #   default:
-#     profile: "local"
+#     preset: "local"
 
 .B cat sensitive.go | meow g \-u "Review for issues"
 .fi

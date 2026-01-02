@@ -33,7 +33,7 @@ func TestLogger_LogAPIInteraction(t *testing.T) {
 
 	entry := &APIInteractionEntry{
 		Command:  "commit",
-		Profile:  "default",
+		Preset:   "default",
 		Provider: "openai",
 		Model:    "gpt-4",
 		Request: RequestData{
@@ -175,7 +175,7 @@ func TestLogger_MultipleEntries(t *testing.T) {
 
 	err = logger.LogAPIInteraction(&APIInteractionEntry{
 		Command:  "commit",
-		Profile:  "default",
+		Preset:   "default",
 		Provider: "openai",
 		Model:    "gpt-4",
 		Request: RequestData{

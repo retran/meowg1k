@@ -16,13 +16,22 @@ import (
 )
 
 const (
-	testProfileName = "test"
-	testUserContent = `models:
+	testPresetName  = "test"
+	testUserContent = `schema_version: 1
+providers:
+  test:
+    type: "test"
+models:
   test:
     provider: "test"
-profiles:
+    model: "test"
+presets:
   test:
     model: "test"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "test"
 `
 )
 
@@ -40,17 +49,21 @@ func TestNewServiceWithSpecificConfig(t *testing.T) {
 	// Create a temporary config file
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "test-config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
-profiles:
+presets:
   test:
     model: "gpt-35-turbo"
-write:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -92,17 +105,17 @@ write:
 		t.Fatal("Config should not be nil")
 	}
 
-	if config.Profiles == nil {
-		t.Fatal("Profiles should not be nil")
+	if config.Presets == nil {
+		t.Fatal("Presets should not be nil")
 	}
 
-	testProfile, exists := config.Profiles["test"]
+	testPreset, exists := config.Presets["test"]
 	if !exists {
-		t.Fatal("Test profile should exist")
+		t.Fatal("Test preset should exist")
 	}
 
-	if testProfile.Model != "gpt-35-turbo" {
-		t.Errorf("Expected model reference 'gpt-35-turbo', got '%s'", testProfile.Model)
+	if testPreset.Model != "gpt-35-turbo" {
+		t.Errorf("Expected model reference 'gpt-35-turbo', got '%s'", testPreset.Model)
 	}
 
 	// Check model definition
@@ -119,16 +132,12 @@ write:
 		t.Errorf("Expected model 'gpt-3.5-turbo', got '%s'", testModel.Model)
 	}
 
-	if config.Write == nil {
-		t.Fatal("Generate config should not be nil")
+	if config.Flows == nil || config.Flows.Write == nil {
+		t.Fatal("Write flow config should not be nil")
 	}
 
-	if config.Write.Default == nil {
-		t.Fatal("Generate default should not be nil")
-	}
-
-	if config.Write.Default.Profile != testProfileName {
-		t.Errorf("Expected default profile '%s', got '%s'", testProfileName, config.Write.Default.Profile)
+	if config.Flows.Write.Preset != testPresetName {
+		t.Errorf("Expected write preset '%s', got '%s'", testPresetName, config.Flows.Write.Preset)
 	}
 }
 
@@ -226,16 +235,21 @@ func TestNewServiceWithConfigHome(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt4:
     provider: "openai"
     model: "gpt-4"
-profiles:
+presets:
   default:
     model: "gpt4"
-write:
-  default:
-    profile: "default"
+flows:
+  write:
+    preset: "default"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -269,7 +283,7 @@ write:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
+	if config.Presets["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
 		t.Error("Failed to load config from XDG_CONFIG_HOME location")
 	}
 }
@@ -292,16 +306,21 @@ func TestNewServiceWithUserConfigHome(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  anthropic:
+    type: "anthropic"
+models:
   claude3:
     provider: "anthropic"
     model: "claude-3"
-profiles:
+presets:
   user:
     model: "claude3"
-write:
-  default:
-    profile: "user"
+flows:
+  write:
+    preset: "user"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -331,7 +350,7 @@ write:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["user"].Model != "claude3" || config.Models["claude3"].Provider != "anthropic" {
+	if config.Presets["user"].Model != "claude3" || config.Models["claude3"].Provider != "anthropic" {
 		t.Error("Failed to load config from XDG_CONFIG_HOME location")
 	}
 }
@@ -354,16 +373,21 @@ func TestNewServiceWithHomeConfigFallback(t *testing.T) {
 	os.MkdirAll(homeConfigDir, 0o755)
 
 	configPath := filepath.Join(homeConfigDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  google:
+    type: "google"
+models:
   gemini:
     provider: "google"
     model: "gemini-pro"
-profiles:
+presets:
   home:
     model: "gemini"
-write:
-  default:
-    profile: "home"
+flows:
+  write:
+    preset: "home"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -393,7 +417,7 @@ write:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["home"].Model != "gemini" || config.Models["gemini"].Provider != "google" {
+	if config.Presets["home"].Model != "gemini" || config.Models["gemini"].Provider != "google" {
 		t.Error("Failed to load config from HOME/.config location")
 	}
 }
@@ -404,16 +428,21 @@ func TestNewServiceWithWorkspaceConfig(t *testing.T) {
 
 	// Create workspace config file (.meowg1k.yaml in root)
 	configPath := filepath.Join(tempDir, ".meowg1k.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  local:
+    type: "local"
+models:
   llama-local:
     provider: "local"
     model: "llama-local"
-profiles:
+presets:
   local:
     model: "llama-local"
-write:
-  default:
-    profile: "local"
+flows:
+  write:
+    preset: "local"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -453,7 +482,7 @@ write:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
+	if config.Presets["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
 		t.Error("Failed to load config from workspace directory")
 	}
 }
@@ -477,18 +506,23 @@ func TestNewServiceConfigMerging(t *testing.T) {
 	userConfigDir := filepath.Join(tempDir, "user", "meowg1k")
 	os.MkdirAll(userConfigDir, 0o755)
 	userConfigPath := filepath.Join(userConfigDir, "config.yaml")
-	userConfigContent := `models:
+	userConfigContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   base-model:
     provider: "openai"
     model: "gpt-4"
-profiles:
+presets:
   user:
     model: "base-model"
   shared:
     model: "base-model"
-write:
-  default:
-    profile: "user"
+flows:
+  write:
+    preset: "user"
+    system_prompt: "test"
 `
 	os.WriteFile(userConfigPath, []byte(userConfigContent), 0o644)
 
@@ -496,11 +530,15 @@ write:
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	os.MkdirAll(workspaceDir, 0o755)
 	workspaceConfigPath := filepath.Join(workspaceDir, ".meowg1k.yaml")
-	workspaceConfigContent := `models:
+	workspaceConfigContent := `schema_version: 1
+providers:
+  anthropic:
+    type: "anthropic"
+models:
   workspace-model:
     provider: "anthropic"
     model: "claude-3"
-profiles:
+presets:
   workspace:
     model: "workspace-model"
   shared:
@@ -534,20 +572,20 @@ profiles:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	// Should have profiles from both user and workspace configs
-	if _, exists := config.Profiles["user"]; !exists {
-		t.Error("User profile should exist")
+	// Should have presets from both user and workspace configs
+	if _, exists := config.Presets["user"]; !exists {
+		t.Error("User preset should exist")
 	}
-	if _, exists := config.Profiles["workspace"]; !exists {
-		t.Error("Workspace profile should exist")
+	if _, exists := config.Presets["workspace"]; !exists {
+		t.Error("Workspace preset should exist")
 	}
-	if _, exists := config.Profiles["shared"]; !exists {
-		t.Error("Shared profile should exist")
+	if _, exists := config.Presets["shared"]; !exists {
+		t.Error("Shared preset should exist")
 	}
 
-	// Workspace config should override user config for shared profile
-	if config.Profiles["shared"].Model != "workspace-model" {
-		t.Errorf("Expected workspace override, got %s", config.Profiles["shared"].Model)
+	// Workspace config should override user config for shared preset
+	if config.Presets["shared"].Model != "workspace-model" {
+		t.Errorf("Expected workspace override, got %s", config.Presets["shared"].Model)
 	}
 
 	// Should have models from both configs
@@ -577,9 +615,9 @@ func TestNewServiceWithInvalidYAMLInUserConfig(t *testing.T) {
 	os.MkdirAll(configDir, 0o755)
 
 	configPath := filepath.Join(configDir, "config.yaml")
-	invalidContent := `profiles:
+	invalidContent := `presets:
   test:
-    provider: "openai"
+    model: "openai"
 	invalid_indent: "broken yaml"
 `
 	os.WriteFile(configPath, []byte(invalidContent), 0o644)
@@ -621,10 +659,21 @@ func TestNewServiceWithInvalidYAMLInWorkspaceConfig(t *testing.T) {
 	userDir := filepath.Join(tempDir, "user", "meowg1k")
 	os.MkdirAll(userDir, 0o755)
 	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `profiles:
-  user:
+	userContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
+  user-model:
     provider: "openai"
     model: "gpt-4"
+presets:
+  user:
+    model: "user-model"
+flows:
+  write:
+    preset: "user"
+    system_prompt: "test"
 `
 	os.WriteFile(userPath, []byte(userContent), 0o644)
 
@@ -632,9 +681,9 @@ func TestNewServiceWithInvalidYAMLInWorkspaceConfig(t *testing.T) {
 	workspaceDir := filepath.Join(tempDir, "workspace")
 	os.MkdirAll(workspaceDir, 0o755)
 	workspacePath := filepath.Join(workspaceDir, ".meowg1k.yaml")
-	invalidContent := `profiles:
+	invalidContent := `presets:
   workspace:
-    provider: "anthropic"
+    model: "anthropic"
 	bad_indentation: "broken"
 `
 	os.WriteFile(workspacePath, []byte(invalidContent), 0o644)
@@ -761,16 +810,21 @@ func TestNewServiceWithYMLExtension(t *testing.T) {
 
 	// Use .yml extension instead of .yaml
 	configPath := filepath.Join(configDir, "config.yml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   yml-test:
     provider: "openai"
     model: "gpt-3.5-turbo"
-profiles:
+presets:
   yml:
     model: "yml-test"
-write:
-  default:
-    profile: "yml"
+flows:
+  write:
+    preset: "yml"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -798,7 +852,7 @@ write:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["yml"].Model != "yml-test" {
+	if config.Presets["yml"].Model != "yml-test" {
 		t.Errorf("Failed to load config with .yml extension")
 	}
 }
@@ -821,26 +875,33 @@ func TestNewServiceConfigPrecedence(t *testing.T) {
 	userDir := filepath.Join(tempDir, "user", "meowg1k")
 	os.MkdirAll(userDir, 0o755)
 	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `models:
+	userContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   user-model:
     provider: "openai"
     model: "gpt-3.5"
-profiles:
+presets:
   default:
     model: "user-model"
-    temperature: 0.5
+    request:
+      temperature: 0.5
 `
 	os.WriteFile(userPath, []byte(userContent), 0o644)
 
 	// Create flag-specified config with override
 	flagPath := filepath.Join(tempDir, "flag-config.yaml")
-	flagContent := `profiles:
+	flagContent := `presets:
   default:
     # Override temperature from user config
-    temperature: 0.9
-  flag-profile:
+    request:
+      temperature: 0.9
+  flag-preset:
     model: "user-model"
-    temperature: 0.7
+    request:
+      temperature: 0.7
 `
 	os.WriteFile(flagPath, []byte(flagContent), 0o644)
 
@@ -867,17 +928,17 @@ profiles:
 	}
 
 	// Check that flag config overrode user config
-	if config.Profiles["default"].Temperature == nil || *config.Profiles["default"].Temperature != 0.9 {
-		t.Errorf("Expected temperature 0.9 from flag config, got %v", config.Profiles["default"].Temperature)
+	if config.Presets["default"].Request == nil || config.Presets["default"].Request.Temperature == nil || *config.Presets["default"].Request.Temperature != 0.9 {
+		t.Errorf("Expected temperature 0.9 from flag config, got %v", config.Presets["default"].Request)
 	}
 
-	// Check that flag config added new profile
-	if _, exists := config.Profiles["flag-profile"]; !exists {
-		t.Error("Flag profile should exist")
+	// Check that flag config added new preset
+	if _, exists := config.Presets["flag-preset"]; !exists {
+		t.Error("Flag preset should exist")
 	}
 
 	// Check that user config model is still there (merged, not replaced)
-	if config.Profiles["default"].Model != "user-model" {
+	if config.Presets["default"].Model != "user-model" {
 		t.Error("Model from user config should still be present")
 	}
 }
@@ -925,7 +986,7 @@ func TestNewServiceEmptyWorkspaceDir(t *testing.T) {
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if config.Profiles["test"].Model != "test" {
+	if config.Presets["test"].Model != "test" {
 		t.Error("Should load user config even with empty workspace dir")
 	}
 }
@@ -970,7 +1031,7 @@ func TestNewServiceGetCalledMultipleTimes(t *testing.T) {
 	}
 
 	// Verify config content
-	if config1.Profiles["test"].Model != "test" {
-		t.Error("Config should have test profile")
+	if config1.Presets["test"].Model != "test" {
+		t.Error("Config should have test preset")
 	}
 }

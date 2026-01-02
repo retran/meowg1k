@@ -67,19 +67,28 @@ func newMockDBHost() (ports.Host, error) {
 func TestCreateCommitMsgFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
-    maxInputTokens: 1000
-    maxOutputTokens: 500
-profiles:
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
   test:
     model: "gpt-35-turbo"
-write:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
+  draft:
+    commit:
+      preset: "test"
+      system_prompt: "Write a conventional commit"
 filter:
   ignore:
     - "*.tmp"
@@ -129,24 +138,29 @@ filter:
 func TestCreateWriteFlow(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
-    maxInputTokens: 1000
-    maxOutputTokens: 500
-profiles:
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
   test:
     model: "gpt-35-turbo"
-write:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
-  tasks:
-    test:
-      profile: "test"
-      systemPrompt: "Test system prompt"
-      userPrompt: "Test user prompt"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
+    tasks:
+      test:
+        preset: "test"
+        system_prompt: "Test system prompt"
+        user_prompt: "Test user prompt"
 filter:
   ignore:
     - "*.tmp"
@@ -193,19 +207,24 @@ filter:
 func TestCreateWriteFlowWithUserPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `models:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
-    maxInputTokens: 1000
-    maxOutputTokens: 500
-profiles:
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
   test:
     model: "gpt-35-turbo"
-write:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -246,21 +265,25 @@ write:
 	}
 }
 
-func TestCreateWriteFlowWithMissingProfile(t *testing.T) {
+func TestCreateWriteFlowWithMissingPreset(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	// Create config with missing profile reference
-	configContent := `models:
+	// Create config with missing preset reference
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   gpt-35-turbo:
     provider: "openai"
     model: "gpt-3.5-turbo"
-profiles:
+presets:
   test:
     model: "gpt-35-turbo"
-write:
-  default:
-    profile: "nonexistent"
-    systemPrompt: "You are a helpful assistant"
+flows:
+  write:
+    preset: "nonexistent"
+    system_prompt: "You are a helpful assistant"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -292,9 +315,9 @@ write:
 	}
 
 	flow, err := container.CreateWriteFlow()
-	// This should return an error because the profile doesn't exist
+	// This should return an error because the preset doesn't exist
 	if err == nil {
-		t.Error("CreateWriteFlow should return error for missing profile")
+		t.Error("CreateWriteFlow should return error for missing preset")
 	}
 	if flow != nil {
 		t.Error("CreateWriteFlow should return nil flow on error")

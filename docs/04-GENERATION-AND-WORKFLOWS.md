@@ -77,7 +77,7 @@ For recurring tasks, define them in your config to ensure consistency:
 # .meowg1k.yaml
 write:
   default:
-    profile: "gemini-pro"
+    preset: "gemini-pro"
   tasks:
     review:
       userPrompt: "Perform a code review. Check for bugs, performance issues, and best practices."
@@ -109,12 +109,12 @@ models:
     provider: "gemini"
     model: "gemini-2.0-flash-exp"
 
-profiles:
+presets:
   gemini-flash:
     model: "gemini-flash"
 
 commit:
-  profile: "gemini-flash"
+  preset: "gemini-flash"
   strategy: "flat" # Fast for small commits
   systemPrompt: |
     Write a concise commit message in Conventional Commits format.
@@ -168,7 +168,7 @@ The `summarize` section controls the Map phase:
 ```yaml
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
     systemPrompt: "Summarize this code change in one sentence."
 
   rules:
@@ -178,7 +178,7 @@ summarize:
 
     # Use powerful model for critical code
     - match: "internal/core/**/*.go"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: "Analyze this business logic change. Focus on correctness and side effects."
 
     # Skip test files
@@ -220,7 +220,7 @@ Sends the entire diff directly to the LLM without summarization.
 
 ```yaml
 commit:
-  profile: "gemini-flash"
+  preset: "gemini-flash"
   strategy: "flat"
   systemPrompt: "Write a concise commit message based on this diff."
 ```
@@ -253,7 +253,7 @@ Uses Map-Reduce to analyze files individually, then combines summaries.
 
 ```yaml
 commit:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize" # Default
   systemPrompt: |
     Based on the file summaries, write a high-quality commit message.
@@ -261,7 +261,7 @@ commit:
 
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
   rules:
     - match: "**/*.md"
       skip: true
@@ -283,7 +283,7 @@ models:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
+presets:
   gemini-flash:
     model: "gemini-flash"
   claude-sonnet:
@@ -291,10 +291,10 @@ profiles:
 
 summarize:
   default:
-    profile: "gemini-flash" # Cheap model for 50 file summaries
+    preset: "gemini-flash" # Cheap model for 50 file summaries
 
 commit:
-  profile: "claude-sonnet" # Expensive model for 1 final message
+  preset: "claude-sonnet" # Expensive model for 1 final message
   strategy: "summarize"
 ```
 
@@ -305,13 +305,13 @@ Different types of files need different analysis:
 ```yaml
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
     systemPrompt: "Summarize this code change."
 
   rules:
     # Database migrations need careful review
     - match: "db/migrations/**/*.sql"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: |
         Analyze this SQL migration.
         - What schema changes are made?
@@ -320,7 +320,7 @@ summarize:
 
     # Configuration changes need context
     - match: "**/*.yaml"
-      profile: "gemini-flash"
+      preset: "gemini-flash"
       systemPrompt: "Describe what configuration changed and why it matters."
 
     # Skip generated files entirely
@@ -357,19 +357,19 @@ Begin with minimal config:
 
 ```yaml
 commit:
-  profile: "default"
+  preset: "default"
 ```
 
 Then add complexity as needed:
 
 ```yaml
 commit:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   strategy: "summarize"
 
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
   rules:
     - match: "**/*.md"
       skip: true
@@ -496,7 +496,7 @@ Generate a single message for an entire feature branch:
 
 ```bash
 # All changes on feature branch vs main
-meow draft commit --diff branch --base main -i "Complete user profile feature implementation"
+meow draft commit --diff branch --base main -i "Complete user preset feature implementation"
 ```
 
 ### 4. PR Templates
@@ -505,7 +505,7 @@ Enforce consistent PR structure:
 
 ```yaml
 pr:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   systemPrompt: |
     Generate a PR description using this exact template:
 

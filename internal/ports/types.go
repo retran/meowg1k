@@ -13,7 +13,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
 
@@ -27,9 +27,9 @@ type ConfigResolver interface {
 	Get() (*config.Config, error)
 }
 
-// ProfileResolver resolves profile configurations.
-type ProfileResolver interface {
-	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
+// PresetResolver resolves preset configurations.
+type PresetResolver interface {
+	Get(preset preset.Preset) (*preset.ResolvedPreset, error)
 }
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
@@ -52,7 +52,7 @@ type Gateway interface {
 
 // GenerationGatewayFactory creates generation gateways for LLM providers.
 type GenerationGatewayFactory interface {
-	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (GenerationGateway, error)
+	NewGenerationGateway(ctx context.Context, preset *preset.ResolvedPreset) (GenerationGateway, error)
 }
 
 // Host provides access to database connections.

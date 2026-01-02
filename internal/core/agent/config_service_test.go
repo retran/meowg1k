@@ -33,10 +33,10 @@ func minimalAgentConfig() *config.AgentConfig {
 			"default": {Instructions: "flow", Steps: []string{"discover", "plan", "execute", "verify"}},
 		},
 		Personas: map[string]*config.PersonaConfig{
-			"discover": {Role: "r", Profile: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
-			"plan":     {Role: "r", Profile: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
-			"execute":  {Role: "r", Profile: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
-			"verify":   {Role: "r", Profile: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
+			"discover": {Role: "r", Preset: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
+			"plan":     {Role: "r", Preset: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
+			"execute":  {Role: "r", Preset: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
+			"verify":   {Role: "r", Preset: "p", Tools: []string{"t"}, SystemPersona: "sp", UserInstructions: "ui"},
 		},
 		Safety: &config.AgentSafetyConfig{
 			MaxSteps: 0,

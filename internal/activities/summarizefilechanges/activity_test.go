@@ -184,7 +184,7 @@ func TestActivity_SuccessWithAllContent(t *testing.T) {
 				Skip:                false,
 				IncludeOriginalFile: true,
 				IncludeChangedFile:  true,
-				Profile:             nil,
+				Preset:              nil,
 				SystemPrompt:        "test prompt",
 			}, nil
 		},
@@ -241,7 +241,7 @@ func TestActivity_SuccessWithoutOriginalFile(t *testing.T) {
 				Skip:                false,
 				IncludeOriginalFile: false,
 				IncludeChangedFile:  true,
-				Profile:             nil,
+				Preset:              nil,
 				SystemPrompt:        "test prompt",
 			}, nil
 		},
@@ -292,7 +292,7 @@ func TestActivity_SuccessWithoutChangedFile(t *testing.T) {
 				Skip:                false,
 				IncludeOriginalFile: true,
 				IncludeChangedFile:  false,
-				Profile:             nil,
+				Preset:              nil,
 				SystemPrompt:        "test prompt",
 			}, nil
 		},
@@ -341,7 +341,7 @@ func TestActivity_GenerationError(t *testing.T) {
 		getFunc: func(filename string) (*summarize.ResolvedConfig, error) {
 			return &summarize.ResolvedConfig{
 				Skip:         false,
-				Profile:      nil,
+				Preset:       nil,
 				SystemPrompt: "test",
 			}, nil
 		},

@@ -69,7 +69,7 @@ Built for scripting and CI/CD, not conversations. Predictable input/output model
 
 ### 💰 **Transparent Cost Control**
 
-Fine-grained rate limiting and token caps prevent unexpected bills. Configure request quotas, set spending limits per profile, and monitor usage—all in code.
+Fine-grained rate limiting and token caps prevent unexpected bills. Configure request quotas, set spending limits per preset, and monitor usage—all in code.
 
 ### 📝 **Configuration as Code**
 

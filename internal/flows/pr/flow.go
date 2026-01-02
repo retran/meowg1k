@@ -307,7 +307,7 @@ func (f *Factory) composePRDescription(
 			"ComposeFlatPR",
 			composeFlatPR,
 			&draftprflat.Input{
-				Profile:      cfg.Profile,
+				Preset:       cfg.Preset,
 				SystemPrompt: cfg.SystemPrompt,
 				Changes:      changes,
 				Intent:       intent,
@@ -342,7 +342,7 @@ func (f *Factory) composePRDescription(
 		"ComposePR",
 		composePR,
 		&draftpr.Input{
-			Profile:      cfg.Profile,
+			Preset:       cfg.Preset,
 			SystemPrompt: cfg.SystemPrompt,
 			Summaries:    summarizeAllOutput.Summaries,
 			Intent:       intent,

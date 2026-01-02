@@ -86,4 +86,4 @@ If you see a "command not found" error, ensure that the installation directory (
 
 ## Next Steps
 
-Once `meowg1k` is installed, the next step is to [configure your API keys and profiles](./02-CONFIGURATION.md).
+Once `meowg1k` is installed, the next step is to [configure your API keys and presets](./02-CONFIGURATION.md).

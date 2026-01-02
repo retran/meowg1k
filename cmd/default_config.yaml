@@ -1,4 +1,7 @@
 # meowg1k Configuration File
+# Replace provider/model values with your own, or use a preset config from the GitHub repo.
+
+schema_version: 1
 
 filter:
   ignore:
@@ -19,334 +22,119 @@ filter:
     - "__pycache__/"
     - ".DS_Store"
 
+providers:
+  primary:
+    type: "openai-compatible"
+    base_url: "https://api.your-provider.com/v1"
+    api_key_env: "MEOW_API_KEY"
+
 models:
-  gemini-flash:
-    provider: "gemini"
-    model: "gemini-3-flash-preview"
-    maxInputTokens: 1048576
-    maxOutputTokens: 65536
-    rateLimit:
-      requestsPerMinute: 1000
-      tokensPerMinute: 2000000
-      requestsPerDay: 10000
+  primary:
+    provider: "primary"
+    model: "MODEL_NAME"
 
-  gemini-pro:
-    provider: "gemini"
-    model: "gemini-3-pro-preview"
-    maxInputTokens: 1048576
-    maxOutputTokens: 65536
-    rateLimit:
-      requestsPerMinute: 150
-      tokensPerMinute: 1000000
-      requestsPerDay: 10000
-
-  gemini-embeddings:
-    provider: "gemini"
-    model: "text-embedding-004"
-    rateLimit:
-      requestsPerMinute: 300
-      tokensPerMinute: 500000
-      requestsPerDay: 10000
-
-cache:
-  enabled: true
-  ttl: "24h"
-
-profiles:
-  fast:
-    model: "gemini-flash"
-    temperature: 0.2
-    topP: 0.95
-    timeout: "5m"
+presets:
+  base:
     cache:
       enabled: true
       ttl: "24h"
+    request:
+      temperature: 0.2
+      top_p: 0.95
+    timeout: "5m"
 
-  smart:
-    model: "gemini-pro"
-    timeout: "15m"
-    temperature: 0.2
-    topP: 0.95
-    cache:
-      enabled: true
-      ttl: "72h"
-
-  embeddings:
-    model: "gemini-embeddings"
-    timeout: "10m"
-
-write:
   default:
-    profile: "fast"
-    systemPrompt: >-
-      You are a Principal Software Engineer & Polyglot Architect.
-      Your objective is to generate **Production-Grade** code ready for deployment.
+    extends: "base"
+    model: "primary"
 
-      ### CORE DIRECTIVES:
-      1. **Accuracy**: Be concise, correct, and production-minded.
-      2. **Idiomatic**: Follow the strict conventions of the requested language (e.g., Effective Go, Python PEP8).
-      3. **Robustness**: Implement comprehensive error handling (no silent failures).
-      4. **Output**: Return ONLY the requested code block unless explanation is explicitly asked for.
+flows:
+  write:
+    preset: "default"
+    system_prompt: "You are a helpful assistant."
+    tasks:
+      review:
+        preset: "default"
+        user_prompt: "Review the code for correctness, design, performance, and security."
 
-  tasks:
-    review:
-      profile: "smart"
-      userPrompt: >-
-        Perform a **Principal-Level Code Review** of the input.
+  index:
+    preset: "default"
+    chunker:
+      max_runes: 1024
+      overlap_runes: 128
+    batch_size: 64
 
-        ### Focus Areas:
-        - **Correctness**: Nil/zero handling, race conditions, boundary errors, logic flaws.
-        - **Design**: API ergonomics, package layout, coupling/cohesion, SOLID principles.
-        - **Performance**: Unnecessary allocations, blocking I/O on hot paths, complexity O(n).
-        - **Security**: OWASP vulnerabilities, input sanitization.
+  answer:
+    preset: "default"
+    retrieval:
+      top_k: 20
+      min_score: 0.4
+    system_prompt: "Answer based on the provided context only."
 
-        ### Output Format:
-        1. **Executive Summary**: (LGTM / Request Changes) with 2-3 bullet points.
-        2. **Findings**: Numbered list of actionable issues. **Must cite line numbers.**
-        3. **Quick Wins**: Checklist of nits (naming, comments).
-        4. **Patch**: (Optional) A minimal unified diff for critical fixes.
-
-    refactor:
-      profile: "smart"
-      userPrompt: >-
-        **Refactor** the provided code to improve readability, maintainability, and performance, while strictly preserving behavior and the public API.
-
-        ### Objectives:
-        - Reduce cognitive complexity (break down large functions).
-        - Improve error handling (idiomatic wrapping/propagation).
-        - Optimize memory/CPU usage where obvious.
-        - Normalize naming conventions.
-
-        ### Output:
-        1. A single Markdown code block with the full refactored code.
-        2. A concise bullet list explaining the key architectural changes.
-
-    doc:
-      profile: "smart"
-      userPrompt: >-
-        Write **Standard Library Quality** documentation for the input.
-
-        ### Requirements:
-        - Format: Use the native standard (Godoc, JSDoc, Docstring, Rustdoc).
-        - Content: Start with the identifier name. Explain *what* it does, *how* it handles errors, and any concurrency guarantees.
-        - Exclude: Do not output the function implementation, ONLY the comment block.
-
-    test:
-      profile: "smart"
-      userPrompt: >-
-        Write a **Comprehensive Unit Test Suite** using the language's standard library (no 3rd party assertions unless standard).
-
-        ### Strategy:
-        - **Table-Driven**: Use table-driven tests for data permutations.
-        - **Coverage**: Happy path, Edge cases (nulls, boundaries), Error scenarios.
-        - **Isolation**: Mock/Stub external dependencies (I/O, Network, Time).
-        - **Concurrency**: Ensure tests are deterministic and parallel-safe.
-
-        Output valid, compilable test code.
-
-index:
-  profile: "embeddings"
-  chunker:
-    maxRunes: 1024
-    overlapRunes: 128
-  batchSize: 64
-
-answer:
-  profile: "smart"
-  topK: 20
-  minScore: 0.4
-  systemPrompt: >-
-    You are a **Principal Software Engineer** acting as an expert peer reviewer.
-
-    ### Operating Rules:
-    1. **Strict Context Adherence**: Your answer must be based **exclusively** on the provided code chunks. Do not hallucinate files not present.
-    2. **Direct Answer**: Begin with a concise summary.
-    3. **Evidence**: Elaborate using `monospace` for variable/function names. Cite specific files and approximate line numbers.
-    4. **Honesty**: If the context is missing the answer, state clearly: "Information not found in current context."
+  draft:
+    commit:
+      preset: "default"
+      strategy: "summarize"
+      system_prompt: "Write a Conventional Commit message."
+    pr:
+      preset: "default"
+      strategy: "summarize"
+      system_prompt: "Write a Pull Request description."
 
 agent:
-  system_prompt: >-
-    You are an **Autonomous Coding Agent** working in a live codebase.
-
-    ### OPERATIONAL CONTRACT:
-    1. **Action-Oriented**: Be concise. Prefer minimal, safe, reversible changes.
-    2. **Tool Protocol**:
-       - If `ToolResults` contain the answer, STOP and report. Do NOT call more tools.
-       - Do NOT repeat the same tool call with the same arguments if it failed previously.
-    3. **Finality**: The final message in a step (NO tool calls) must be a consolidated report.
-    4. **Safety**: Always verify your changes. If you break the build, use `git_undo`.
-
+  system_prompt: "You are an autonomous coding agent."
   tools:
-    searchDefaults:
+    search_defaults:
       snapshots: ["_workdir_", "_stage_", "_head_"]
-      topK: 10
-      minScore: 0.6
-
+      top_k: 10
+      min_score: 0.6
   safety:
     max_steps: 30
     circuit_breaker:
       max_restarts: 5
     dry_run: false
-
-  flows:
+  pipelines:
     default:
-      instructions: >-
-        **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
-        - Steps run in order. Read PREVIOUS STEP OUTPUTS.
-        - Do not ignore prior context.
       steps: ["discover", "plan", "execute", "verify", "final"]
-    quick:
-      instructions: >-
-        **Lifecycle:** Discover -> Execute -> Final.
-        - Fast path for small fixes.
-      steps: ["discover", "execute", "final"]
-
   personas:
     discover:
       role: "Principal Software Engineer"
-      profile: "smart"
-      tools: ["dir_list", "search_text", "search_semantic", "file_read", "util_summarize", "mem_store"]
-      system_persona: >-
-        You are a **Principal Software Engineer** doing high-signal discovery.
-        **Goal**: Gather minimum context needed to act.
-      user_instructions: >
-        **Goal**: Gather minimum context needed to act.
-
-        First: review MEMORY FACTS and avoid repeating work.
-        Objective: gather the minimum context needed to act on the goal.
-        Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
-        Output: key findings, relevant file paths, and any important constraints.
-        Save notable findings with memorize_fact.
-        Do not modify files.
+      preset: "default"
+      tools: ["dir_list", "search_text", "search_semantic", "file_read"]
+      system_persona: "You gather minimum context needed to act."
+      user_instructions: "List key files and constraints; do not edit files."
     plan:
       role: "Technical Project Manager"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "file_read", "plan_init", "mem_store"]
-      system_persona: >-
-        You are a **Pragmatic Planner**.
-      user_instructions: >
-        **Goal**: Convert context into a deterministic task list.
-
-        First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-        Objective: turn prior outputs into a minimal, ordered task list.
-        Output MUST be the task list (no filler like "I will proceed").
-        Call get_plan once at the start.
-        If no plan exists, call create_plan once with the tasks, then render the tasks from ToolResults.
-        Save key decisions/assumptions with memorize_fact.
+      preset: "default"
+      tools: ["plan_read", "plan_init", "file_read", "search_text"]
+      system_persona: "You convert context into a task list."
+      user_instructions: "Create an ordered plan with clear steps."
     execute:
       role: "Principal Software Engineer"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "file_read", "file_write", "file_edit", "file_move", "file_delete", "git_undo", "shell_exec", "plan_update_task", "mem_store"]
-      system_persona: >-
-        You are a **Principal Software Engineer**.
-      user_instructions: >
-        **Goal**: Implement the plan with the smallest correct diff.
-
-        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
-        Objective: implement the plan with focused diffs.
-        Use file_edit for modifying existing files, file_write for creating new files.
-        Use move_file to rename or relocate files. Use delete_file to remove files.
-        Use git_undo to revert uncommitted changes if your edit broke something.
-        Update task status as you go.
-        Explain what changed and why, briefly.
-        Save important discoveries/decisions with memorize_fact.
+      preset: "default"
+      tools: ["file_read", "file_write", "file_edit", "shell_exec", "plan_update_task"]
+      system_persona: "You implement the plan safely."
+      user_instructions: "Make the smallest correct diff and update tasks."
     verify:
       role: "Principal QA Engineer"
-      profile: "smart"
-      tools: ["plan_read", "search_text", "search_semantic", "shell_exec", "git_diff", "util_summarize", "plan_update_task", "agent_restart", "mem_store"]
-      system_persona: >-
-        You are a **Meticulous QA**.
-        1. Inspect `get_diff`.
-      user_instructions: >
-        **Goal**: Validate correctness and integration.
-
-        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
-        Objective: verify correctness.
-        Inspect diffs and run tests/commands when useful.
-        If issues remain, call restart_with_instruction with specific, actionable fix guidance.
-        Save important findings with memorize_fact.
+      preset: "default"
+      tools: ["shell_exec", "git_diff", "plan_update_task"]
+      system_persona: "You validate correctness."
+      user_instructions: "Check diffs and run tests when useful."
     final:
       role: "Technical Project Manager"
-      profile: "smart"
+      preset: "default"
       tools: []
-      system_persona: >-
-        You are the **Final Reporter**.
-      user_instructions: >
-        **Goal**: Produce a structured answer based on Memory and History.
+      system_persona: "You report outcomes."
+      user_instructions: "Summarize what changed and why."
 
-        Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
-        Do NOT call tools.
-        Output only the final report/answer.
-
-summarize:
-  default:
-    profile: "fast"
+activities:
+  summarize:
+    preset: "default"
     strategy:
       type: "plain"
-      includeOriginalFile: false
-      includeChangedFile: false
-    systemPrompt: >-
-      Analyze changes and provide a concise 1-2 sentence summary.
-      Focus on functional impact (feature, fix, refactor).
-  rules:
-    - match: "**/*.{lock,sum}"
-      skip: true
-
-commit:
-  profile: "smart"
-  strategy: "summarize"
-  systemPrompt: |
-    You are an expert software engineer writing a **Conventional Commit**.
-
-    ### Inputs:
-    - File summaries
-    - Developer Intent (if provided)
-
-    ### Format:
-    `<type>(<scope>): <description>`
-
-    `[optional body]`
-
-    `[optional footer]`
-
-    ### Rules:
-    1. **Type**: feat, fix, refactor, perf, docs, test, chore, build, ci.
-    2. **Scope**: (Optional) The specific package/module affected.
-    3. **Description**: Imperative mood, max 72 chars, no period.
-    4. **Body**: Explain *why* and *what* (context/impact).
-    5. **Footer**:
-       - `Refs: #123` if issue mentioned.
-       - `BREAKING CHANGE:` if major API break.
-
-pr:
-  profile: "smart"
-  strategy: "summarize"
-  systemPrompt: |
-    You are an expert engineer drafting a **Pull Request Description**.
-
-    ### Structure (Markdown):
-
-    # <Concise Title>
-
-    ## Summary
-    2-4 sentences explaining the *what* and *why*.
-
-    ## Motivation
-    - What problem does this solve?
-    - Why is this change needed?
-
-    ## Key Changes
-    - **Core**: Functional logic changes.
-    - **API**: Public interface updates.
-    - **Tests**: How coverage was ensured.
-
-    ## Technical Details
-    - Architectural decisions/trade-offs.
-    - Performance implications.
-    - Security considerations.
-
-    ## Breaking Changes
-    - Explicitly state "None" or describe migration path.
-
-    ## Refs
-    - List related issues (e.g., Fixes #123).
+      include_original_file: false
+      include_changed_file: false
+    system_prompt: "Summarize changes concisely."
+    rules:
+      - match: "**/*.{lock,sum}"
+        skip: true

@@ -37,7 +37,7 @@ meow init --force
 After running `meow init`, you need to:
 
 1. Get a free API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Set the environment variable in your shell profile (`~/.bashrc`, `~/.zshrc`):
+2. Set the environment variable in your shell rc file (`~/.bashrc`, `~/.zshrc`):
    ```bash
    export MEOW_GEMINI_API_KEY="your-api-key-here"
    ```
@@ -72,7 +72,7 @@ echo "<task>" | meow do
 
 ### Flags
 
-- `--profile <name>`: Override the default agent profile.
+- `--preset <name>`: Override the default agent preset.
 - `--system-prompt <text>`: Override the default agent system prompt.
 - `-s, --snapshots <list>`: Snapshots to search for embeddings.
 - `-k, --top-k <n>`: Number of top results for embeddings search.
@@ -169,7 +169,7 @@ Use this mode when you want to generate a single commit message that summarizes 
 meow draft commit --diff branch --base main
 
 # Provide intent for the branch diff
-meow draft commit --diff branch --base dev -i "Implement the entire user profile feature"
+meow draft commit --diff branch --base dev -i "Implement the entire user preset feature"
 ```
 
 ## `meow draft pr`
@@ -233,7 +233,7 @@ The indexing process includes:
 - Scanning workspace state (workdir, stage, HEAD)
 - Deduplicating files based on content hashes to avoid reprocessing unchanged files
 - Chunking new/modified files according to the configured chunker settings
-- Computing embeddings in batches using the configured profile
+- Computing embeddings in batches using the configured preset
 - Saving document versions and chunks to SQLite
 - Building and saving vector indices for each snapshot
 
@@ -252,7 +252,7 @@ Configure indexing in your `.meowg1k.yaml`:
 
 ```yaml
 index:
-  profile: "embeddings" # Profile for computing embeddings
+  preset: "embeddings" # Preset for computing embeddings
   chunker:
     maxRunes: 1024 # Maximum chunk size in runes
     overlapRunes: 128 # Overlap between chunks
@@ -333,7 +333,7 @@ echo "<question>" | meow ask [flags]
 
 ### Flags
 
-- `--profile <name>` — Profile to use for answer generation (overrides config)
+- `--preset <name>` — Preset to use for answer generation (overrides config)
 - `-k, --top-k <n>` — Number of top results to retrieve (0 = use config default)
 - `--min-score <float>` — Minimum similarity score (0.0 = use config default)
 - `-s, --snapshots <list>` — Snapshots to search (default: `_workdir_,_stage_,_head_`)
@@ -359,7 +359,7 @@ This is more powerful than `query` because it synthesizes information from multi
 meow ask "How does authentication work in this project?"
 
 # Use a more powerful model
-meow ask "What's the error handling strategy?" --profile gemini-pro
+meow ask "What's the error handling strategy?" --preset gemini-pro
 
 # See what context the AI is using
 meow ask "Explain the database layer" --show-context
@@ -377,7 +377,7 @@ Configure the `ask` command in your `.meowg1k.yaml`:
 
 ```yaml
 answer:
-  profile: "gemini-pro" # Profile for generating answers
+  preset: "gemini-pro" # Preset for generating answers
   topK: 5 # Number of chunks to retrieve
   minScore: 0.7 # Minimum similarity score
   systemPrompt: >-

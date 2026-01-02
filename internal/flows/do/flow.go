@@ -32,14 +32,14 @@ import (
 	"github.com/retran/meowg1k/internal/core/agent/state"
 	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/core/retrieval"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
 type Factory struct {
 	configService       *agentconfig.Service
-	profileResolver     ports.ProfileResolver
+	presetResolver      ports.PresetResolver
 	workspaceService    ports.WorkspaceService
 	gitToolingService   ports.GitToolingService
 	projectStateService ports.ProjectStateService
@@ -59,7 +59,7 @@ type CommandParametersReader interface {
 
 func NewFactory(
 	configService *agentconfig.Service,
-	profileResolver ports.ProfileResolver,
+	presetResolver ports.PresetResolver,
 	workspaceService ports.WorkspaceService,
 	gitToolingService ports.GitToolingService,
 	projectStateService ports.ProjectStateService,
@@ -71,7 +71,7 @@ func NewFactory(
 ) *Factory {
 	return &Factory{
 		configService:       configService,
-		profileResolver:     profileResolver,
+		presetResolver:      presetResolver,
 		workspaceService:    workspaceService,
 		gitToolingService:   gitToolingService,
 		projectStateService: projectStateService,
@@ -121,18 +121,18 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		baseSystemPrompt := strings.TrimSpace(cfg.SystemPrompt)
-		effectiveProfile := ""
+		effectivePreset := ""
 		if p, ok := cfg.Personas["discover"]; ok {
-			effectiveProfile = strings.TrimSpace(p.Profile)
+			effectivePreset = strings.TrimSpace(p.Preset)
 		}
-		if effectiveProfile == "" {
+		if effectivePreset == "" {
 			for _, p := range cfg.Personas {
 				if p == nil {
 					continue
 				}
-				candidate := strings.TrimSpace(p.Profile)
+				candidate := strings.TrimSpace(p.Preset)
 				if candidate != "" {
-					effectiveProfile = candidate
+					effectivePreset = candidate
 					break
 				}
 			}
@@ -168,7 +168,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			Plan:       plan.NewFactory(),
 			GetPlan:    getplan.NewFactory(),
 			TrackTask:  tracktask.NewFactory(),
-			Summarize:  summarize.NewFactory(f.gatewayFactory, f.profileResolver, effectiveProfile),
+			Summarize:  summarize.NewFactory(f.gatewayFactory, f.presetResolver, effectivePreset),
 			Restart:    control.NewRestartFactory(),
 
 			SearchSnapshots: searchSnapshots,
@@ -177,21 +177,21 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 		tools.RegisterStandardTools(registry, deps)
 
-		// 6. Determine Flow Steps
-		flowName := "default" // TODO: allow config override
-		flowCfg, ok := cfg.Flows[flowName]
+		// 6. Determine Pipeline Steps
+		pipelineName := "default" // TODO: allow config override
+		pipelineCfg, ok := cfg.Pipelines[pipelineName]
 		if !ok {
-			return fmt.Errorf("flow %s not found", flowName)
+			return fmt.Errorf("pipeline %s not found", pipelineName)
 		}
-		if flowCfg == nil {
-			return fmt.Errorf("flow %s is nil", flowName)
+		if pipelineCfg == nil {
+			return fmt.Errorf("pipeline %s is nil", pipelineName)
 		}
-		flowSteps := flowCfg.Steps
-		if len(flowSteps) == 0 {
-			return fmt.Errorf("flow %s has no steps", flowName)
+		pipelineSteps := pipelineCfg.Steps
+		if len(pipelineSteps) == 0 {
+			return fmt.Errorf("pipeline %s has no steps", pipelineName)
 		}
 
-		// 7. Execute Flow Loop (with Circuit Breaker)
+		// 7. Execute Pipeline Loop (with Circuit Breaker)
 		maxRestarts := 5
 		if cfg.Safety != nil && cfg.Safety.CircuitBreaker != nil {
 			maxRestarts = cfg.Safety.CircuitBreaker.MaxRestarts
@@ -200,13 +200,13 @@ func (f *Factory) NewFlow() executor.Flow {
 		currentGoal := goal
 
 		for {
-			restartReq, err := f.executeSteps(ctx, flowCtx, flowSteps, cfg, registry, currentGoal, baseSystemPrompt, strings.TrimSpace(flowCfg.Instructions))
+			restartReq, err := f.executeSteps(ctx, flowCtx, pipelineSteps, cfg, registry, currentGoal, baseSystemPrompt, strings.TrimSpace(pipelineCfg.Instructions))
 			if err != nil {
 				return err
 			}
 
 			if restartReq == "" {
-				break // Flow completed successfully
+				break // Pipeline completed successfully
 			}
 
 			// Restart requested
@@ -256,10 +256,10 @@ func (f *Factory) executeSteps(
 		stepCtx := flowCtx.Child(caser.String(personaName))
 		stepCtx.SendRunning(fmt.Sprintf("Starting %s step", caser.String(personaName)))
 
-		personaProfile := strings.TrimSpace(personaCfg.Profile)
-		prof, err := f.profileResolver.Get(profile.Profile(personaProfile))
+		personaPreset := strings.TrimSpace(personaCfg.Preset)
+		prof, err := f.presetResolver.Get(preset.Preset(personaPreset))
 		if err != nil {
-			return "", fmt.Errorf("failed to resolve profile %s: %w", personaProfile, err)
+			return "", fmt.Errorf("failed to resolve preset %s: %w", personaPreset, err)
 		}
 
 		// Check if we need to restart BEFORE running the step?
@@ -305,7 +305,7 @@ func (f *Factory) executeSteps(
 			AllowedTools:             personaCfg.Tools,
 			ToolDescriptionOverrides: cfg.Tools.ToolDescriptions,
 			StepName:                 personaName,
-			Profile:                  prof,
+			Preset:                   prof,
 			Goal:                     &stepGoal,
 			SystemPrompt:             &systemPrompt,
 		}

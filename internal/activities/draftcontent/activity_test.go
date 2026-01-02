@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -35,7 +35,7 @@ type mockGenerationGatewayFactory struct {
 	Err     error
 }
 
-func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
+func (m *mockGenerationGatewayFactory) NewGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -74,7 +74,7 @@ func TestGenerateContentActivity_Success(t *testing.T) {
 	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
-		Profile: &profile.ResolvedProfile{
+		Preset: &preset.ResolvedPreset{
 			Provider: "test",
 			Model:    "test-model",
 		},
@@ -128,7 +128,7 @@ func TestGenerateContentActivity_GatewayError(t *testing.T) {
 	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
-		Profile: &profile.ResolvedProfile{
+		Preset: &preset.ResolvedPreset{
 			Provider: "test",
 			Model:    "test-model",
 		},
@@ -160,7 +160,7 @@ func TestGenerateContentActivity_GenerationError(t *testing.T) {
 	executorCtx := executor.NewContext("test", nil, nil)
 
 	input := &Input{
-		Profile: &profile.ResolvedProfile{
+		Preset: &preset.ResolvedPreset{
 			Provider: "test",
 			Model:    "test-model",
 		},
@@ -192,7 +192,7 @@ func TestNewActivity_NilFactory(t *testing.T) {
 	ctx := context.Background()
 	executorCtx := executor.NewContext("test", nil, nil)
 	input := &Input{
-		Profile:      &profile.ResolvedProfile{Provider: "test", Model: "test-model"},
+		Preset:       &preset.ResolvedPreset{Provider: "test", Model: "test-model"},
 		SystemPrompt: "system",
 		UserPrompt:   "user",
 	}

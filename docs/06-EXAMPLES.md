@@ -35,13 +35,13 @@ models:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
+presets:
   claude-secure:
     model: "claude-sonnet"
 
 write:
   default:
-    profile: "claude-secure"
+    preset: "claude-secure"
   tasks:
     security-review:
       systemPrompt: "You are a security expert specializing in Go. Analyze the following code for common vulnerabilities."
@@ -76,7 +76,7 @@ models:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
+presets:
   gemini-flash:
     model: "gemini-flash"
   claude-sonnet:
@@ -85,12 +85,12 @@ profiles:
 summarize:
   # Use the fast, cheap model to summarize each file change
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
     systemPrompt: "Provide a one-sentence summary of this code change."
 
 commit:
   # Use the more capable model to write the final commit message
-  profile: "claude-sonnet"
+  preset: "claude-sonnet"
   systemPrompt: |
     You are an expert software engineer. Based on the file summaries, write a commit message in the Conventional Commits format.
     Deduce the type and scope, write a concise subject, and add a body explaining the 'why' if the change is non-trivial.
@@ -105,8 +105,8 @@ meow draft commit -i "Fix the user login bug and refactor token handling"
 
 **Explanation:**
 
-- `meowg1k` first uses the `gemini-flash` profile to analyze each staged file change individually (the "Map" step).
-- Then, it collects all these individual summaries and sends them to the `claude-sonnet` profile, guided by the powerful `commit` system prompt, to generate the final, high-quality commit message (the "Reduce" step).
+- `meowg1k` first uses the `gemini-flash` preset to analyze each staged file change individually (the "Map" step).
+- Then, it collects all these individual summaries and sends them to the `claude-sonnet` preset, guided by the powerful `commit` system prompt, to generate the final, high-quality commit message (the "Reduce" step).
 
 ## 4. Fast Commit Messages for Small Changes
 
@@ -122,12 +122,12 @@ models:
     provider: "gemini"
     model: "gemini-2.5-flash"
 
-profiles:
+presets:
   gemini-flash:
     model: "gemini-flash"
 
 commit:
-  profile: "gemini-flash"
+  preset: "gemini-flash"
   strategy: "flat" # Skip the summarize step, send diff directly
   systemPrompt: |
     You are an expert software engineer. Write a concise commit message in Conventional Commits format based on this git diff.
@@ -171,25 +171,25 @@ This recipe demonstrates how to use advanced `summarize` rules to generate a hig
 **Configuration (`.meowg1k.yaml`):**
 
 ```yaml
-# ... (models and profiles defined as above) ...
+# ... (models and presets defined as above) ...
 filter:
   ignore:
     - "dist/**"
 
 summarize:
   default:
-    profile: "gemini-flash"
+    preset: "gemini-flash"
   rules:
     # Rule 1: Skip all documentation changes from the analysis
     - match: "**/*.md"
       skip: true
     # Rule 2: Use the best model for critical service logic
     - match: "internal/adapters/**/*.go"
-      profile: "claude-sonnet"
+      preset: "claude-sonnet"
       systemPrompt: "Deeply analyze this business logic change. Focus on correctness, performance, and potential side effects."
 
 pr:
-  profile: "claude-sonnet"
+  preset: "claude-sonnet"
   systemPrompt: |
     You are an expert engineer. Write a PR description with a title and a body using this Markdown template:
     ## Goal
@@ -212,8 +212,8 @@ meow draft pr --base main
 
 - When you run `meow draft pr`, it first ignores any files in `dist/`.
 - Then, it skips summarizing any changes to `.md` files.
-- For changes in `internal/services/`, it uses the powerful `claude-sonnet` profile and a specialized prompt.
-- All other files are summarized using the default `gemini-flash` profile.
+- For changes in `internal/services/`, it uses the powerful `claude-sonnet` preset and a specialized prompt.
+- All other files are summarized using the default `gemini-flash` preset.
 - Finally, the collected summaries are used by the `pr` configuration to generate a well-structured Markdown description.
 
 ## 5. Using Local Models for Privacy
@@ -231,14 +231,14 @@ models:
     baseURL: "http://localhost:8080"
     model: "llama3-8b-instruct" # The model name your server is using
 
-profiles:
+presets:
   local-secure:
     model: "local"
 
 write:
   tasks:
     local-analysis:
-      profile: "local-secure"
+      preset: "local-secure"
       userPrompt: "Analyze this code for logical errors and suggest improvements."
 ```
 
@@ -252,7 +252,7 @@ cat ./internal/billing/core.go | meow g -t local-analysis
 
 **Explanation:**
 
-- The `local-secure` profile directs all API traffic to your local server instead of a cloud provider.
+- The `local-secure` preset directs all API traffic to your local server instead of a cloud provider.
 - This allows you to leverage the power of LLMs in air-gapped or high-security environments.
 
 ## 7. RAG-Based Code Understanding
@@ -273,21 +273,21 @@ models:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
+presets:
   gemini-embeddings:
     model: "gemini-embeddings"
   claude-sonnet:
     model: "claude-sonnet"
 
 index:
-  profile: "gemini-embeddings"
+  preset: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
   batchSize: 64
 
 answer:
-  profile: "claude-sonnet"
+  preset: "claude-sonnet"
   topK: 5
   minScore: 0.7
 ```
@@ -431,7 +431,7 @@ Use RAG to perform more thorough code reviews.
 ```yaml
 write:
   default:
-    profile: "gemini-pro"
+    preset: "gemini-pro"
   tasks:
     review-with-context:
       systemPrompt: |

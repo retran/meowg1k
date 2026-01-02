@@ -10,7 +10,7 @@ import (
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
 	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
@@ -94,7 +94,7 @@ func TestActivitySuccess(t *testing.T) {
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
-		Profile:      &profile.ResolvedProfile{},
+		Preset:       &preset.ResolvedPreset{},
 		SystemPrompt: "test prompt",
 		Summaries: []*summarizefilechanges.Output{
 			{
@@ -123,7 +123,7 @@ func TestNewActivity_NilFactory(t *testing.T) {
 	ctx := context.Background()
 	execCtx := executor.NewContext("test", nil, nil)
 	input := &Input{
-		Profile:      &profile.ResolvedProfile{},
+		Preset:       &preset.ResolvedPreset{},
 		SystemPrompt: "test",
 		Summaries:    []*summarizefilechanges.Output{},
 	}
@@ -156,7 +156,7 @@ func TestActivity_SkippedSummaries(t *testing.T) {
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
-		Profile:      &profile.ResolvedProfile{},
+		Preset:       &preset.ResolvedPreset{},
 		SystemPrompt: "test",
 		Summaries: []*summarizefilechanges.Output{
 			{Filename: "file1.go", Summary: "summary", Skipped: false},
@@ -191,7 +191,7 @@ func TestActivity_EmptySummaries(t *testing.T) {
 	execCtx := executor.NewContext("test", nil, mockExec)
 
 	input := &Input{
-		Profile:      &profile.ResolvedProfile{},
+		Preset:       &preset.ResolvedPreset{},
 		SystemPrompt: "test",
 		Summaries:    []*summarizefilechanges.Output{},
 		Intent:       "",

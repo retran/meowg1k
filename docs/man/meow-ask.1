@@ -39,8 +39,8 @@ explanations, not just code locations.
 
 .SH OPTIONS
 .TP
-.BR \-\-profile " " \fINAME\fR
-Profile to use for answer generation. Overrides the profile configured in
+.BR \-\-preset " " \fINAME\fR
+Preset to use for answer generation. Overrides the preset configured in
 the \fBanswer\fR section. Use to select a more powerful model for complex
 questions.
 .TP
@@ -82,13 +82,13 @@ Show command help and usage information.
 The command uses two configuration sections:
 .PP
 .B index
-(required): Specifies the embedding profile used for semantic search.
-Must match the profile used with
+(required): Specifies the embedding preset used for semantic search.
+Must match the preset used with
 .BR meow-index (1):
 .PP
 .nf
 index:
-  profile: "embeddings"
+  preset: "embeddings"
 .fi
 .PP
 .B answer
@@ -96,7 +96,7 @@ index:
 .PP
 .nf
 answer:
-  profile: "gemini-pro"      # LLM profile for generating answers
+  preset: "gemini-pro"      # LLM preset for generating answers
   topK: 5               # Number of chunks to retrieve
   minScore: 0.7         # Minimum similarity score
   systemPrompt: >-
@@ -119,17 +119,17 @@ models:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
+presets:
   embeddings:
     model: "gemini-embeddings"
   smart:
     model: "claude-sonnet"
 
 index:
-  profile: "embeddings"
+  preset: "embeddings"
 
 answer:
-  profile: "gemini-pro"
+  preset: "gemini-pro"
   topK: 5
   minScore: 0.7
 .fi
@@ -176,7 +176,7 @@ Find where specific functionality is implemented:
 Use a more powerful model for complex questions:
 .PP
 .nf
-.B meow ask "Explain the overall architecture" \-\-profile smart
+.B meow ask "Explain the overall architecture" \-\-preset smart
 .fi
 
 .SS See Retrieved Context
@@ -278,7 +278,7 @@ Higher \fB\-\-top-k\fR (10-20) — retrieve more context
 .IP \[bu]
 Lower \fB\-\-min-score\fR (0.5-0.6) — cast wider net
 .IP \[bu]
-Use powerful model (\fB\-\-profile smart\fR)
+Use powerful model (\fB\-\-preset smart\fR)
 .PP
 Examples: "How does the system work?", "Explain the architecture",
 "What are the main components?"
@@ -371,7 +371,7 @@ SQLite database containing vector indices. Must exist (created by
 \fBmeow index\fR).
 .TP
 .B ./.meowg1k.yaml
-Configuration file specifying embedding profile, answer generation profile,
+Configuration file specifying embedding preset, answer generation preset,
 and retrieval parameters.
 
 .SH EXIT STATUS

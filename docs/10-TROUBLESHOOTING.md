@@ -35,7 +35,7 @@ This guide provides solutions to common problems organized by topic. Use the tab
    go env GOPATH
    ```
 
-2. Add to your shell profile (`~/.bashrc`, `~/.zshrc`, etc.):
+2. Add to your shell rc file (`~/.bashrc`, `~/.zshrc`, etc.):
 
    ```bash
    export PATH="$PATH:$(go env GOPATH)/bin"
@@ -105,7 +105,7 @@ sudo dnf install ./meow-<version>-1.x86_64.rpm
    export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
    ```
 
-2. Add to your shell profile to persist across sessions:
+2. Add to your shell rc file to persist across sessions:
 
    ```bash
    echo 'export MEOW_GEMINI_API_KEY="your-key"' >> ~/.bashrc
@@ -287,10 +287,10 @@ This analyzes all changes on your branch vs the target.
 
 **Cause:** Model taking too long to respond.
 
-**Solution:** Increase timeout in profile:
+**Solution:** Increase timeout in preset:
 
 ```yaml
-profiles:
+presets:
   slow-model:
     model: "claude-sonnet"
     timeout: "15m" # Default is 5m
@@ -309,7 +309,7 @@ profiles:
 ```yaml
 commit:
   strategy: "summarize" # Instead of "flat"
-  profile: "gemini-pro"
+  preset: "gemini-pro"
 ```
 
 **When to use each strategy:**
@@ -334,7 +334,7 @@ commit:
    ```yaml
 commit:
   strategy: "summarize"
-  profile: "gemini-pro"
+  preset: "gemini-pro"
    ```
 
 3. **Improve system prompt:**
@@ -352,7 +352,7 @@ commit:
 4. **Use a more capable model:**
    ```yaml
 commit:
-  profile: "gemini-pro" # Instead of "gemini-flash"
+  preset: "gemini-pro" # Instead of "gemini-flash"
    ```
 
 ### Summaries being skipped unexpectedly
@@ -373,12 +373,12 @@ summarize:
       skip: true
 
     - match: "internal/core/**/*.go"
-      profile: "gemini-pro"
+      preset: "gemini-pro"
       systemPrompt: "Analyze business logic changes carefully"
 
     # General rule last
     - match: "**/*.go"
-      profile: "gemini-flash"
+      preset: "gemini-flash"
 ```
 
 ---
@@ -614,10 +614,10 @@ Run this command:
    ```yaml
   summarize:
     default:
-      profile: "gemini-flash" # Use fast model for Map phase
+      preset: "gemini-flash" # Use fast model for Map phase
 
   commit:
-    profile: "gemini-pro" # Use good model for Reduce phase
+    preset: "gemini-pro" # Use good model for Reduce phase
    ```
 
 4. **Enable caching:**
@@ -645,7 +645,7 @@ Run this command:
       provider: "anthropic"
       model: "claude-sonnet-4-5-20250929"
 
-  profiles:
+  presets:
     gemini-flash:
       model: "gemini-flash"
     claude-sonnet:
@@ -653,10 +653,10 @@ Run this command:
 
   summarize:
     default:
-      profile: "gemini-flash" # Cheap model for many files
+      preset: "gemini-flash" # Cheap model for many files
 
   commit:
-    profile: "claude-sonnet" # Expensive model for final message
+    preset: "claude-sonnet" # Expensive model for final message
    ```
 
 2. **Use flat strategy when possible:**
@@ -920,7 +920,7 @@ If your problem is new, open a detailed bug report:
 | `Diff too large`    | Using flat strategy | Switch to `strategy: summarize` |
 | `No index found`    | Not indexed         | Run `meow index`                |
 | `Config not found`  | Missing config      | Run `meow init`                 |
-| Timeout             | Slow model          | Increase `timeout` in profile   |
+| Timeout             | Slow model          | Increase `timeout` in preset   |
 | Rate limited        | Too many requests   | Configure `rateLimit`           |
 
 ### Diagnostic Commands
