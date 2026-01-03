@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package summarize implements an activity for summarizing content using an LLM.
 package summarize
 
 import (
@@ -14,15 +15,18 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the input for summarization.
 type Input struct {
 	Content string
 	Type    string // "text", "diff", "file"
 }
 
+// Output defines the output of the summarization operation.
 type Output struct {
 	Summary string
 }
 
+// Factory builds summarize activities.
 type Factory struct {
 	gatewayFactory ports.GenerationGatewayFactory
 	presetResolver ports.PresetResolver
@@ -31,6 +35,7 @@ type Factory struct {
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a new summarize activity factory.
 func NewFactory(
 	gatewayFactory ports.GenerationGatewayFactory,
 	presetResolver ports.PresetResolver,
@@ -43,6 +48,7 @@ func NewFactory(
 	}
 }
 
+// NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		if strings.TrimSpace(f.presetName) == "" {

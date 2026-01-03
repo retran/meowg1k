@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package deletefile implements an activity for permanently deleting files.
 package deletefile
 
 import (
@@ -43,7 +44,7 @@ func NewFactory(workspaceService ports.WorkspaceService, dryRun bool) *Factory {
 
 // NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(_ context.Context, _ *executor.Context, input *Input) (*Output, error) {
 		workspaceRoot, err := f.workspaceService.Get()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)

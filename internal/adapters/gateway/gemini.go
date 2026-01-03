@@ -7,10 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"math"
-	"os"
 	"strings"
 
 	"google.golang.org/genai"
@@ -83,7 +80,10 @@ func (g *geminiGateway) GenerateContent(
 				b.WriteString(strings.ToUpper(role))
 				b.WriteString(" TOOL_CALLS:\n")
 				for _, c := range m.ToolCalls {
-					args, _ := json.Marshal(c.Arguments)
+					args, err := json.Marshal(c.Arguments)
+					if err != nil {
+						args = []byte("{}")
+					}
 					b.WriteString("- ")
 					b.WriteString(c.Name)
 					if c.ID != "" {
@@ -197,25 +197,6 @@ func buildGeminiTools(tools []gateway.ToolDefinition) []*genai.Tool {
 			FunctionDeclarations: functions,
 		},
 	}
-}
-
-func mapGeminiToolCalls(calls []*genai.FunctionCall) []gateway.ToolCall {
-	if len(calls) == 0 {
-		return nil
-	}
-
-	result := make([]gateway.ToolCall, 0, len(calls))
-	for _, call := range calls {
-		if call == nil {
-			continue
-		}
-		result = append(result, gateway.ToolCall{
-			ID:        call.ID,
-			Name:      call.Name,
-			Arguments: call.Args,
-		})
-	}
-	return result
 }
 
 func applyGeminiSystemPrompt(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
@@ -340,30 +321,6 @@ func validateGeminiResponse(result *genai.GenerateContentResponse, model string)
 	}
 
 	return nil
-}
-
-// extractTextFromGeminiResponse extracts text content from a Gemini response,
-// properly handling responses that contain FunctionCall parts without triggering SDK warnings.
-// The SDK's .Text() method writes warnings to stderr when FunctionCall parts are present.
-// We suppress those warnings since we handle FunctionCalls separately via result.FunctionCalls().
-func extractTextFromGeminiResponse(resp *genai.GenerateContentResponse) string {
-	if resp == nil || len(resp.Candidates) == 0 {
-		return ""
-	}
-
-	// Temporarily suppress SDK warnings about non-text parts (like FunctionCall).
-	// We handle those separately, so the warning is just noise in our output.
-	originalLogger := log.Writer()
-	originalStderr := os.Stderr
-	log.SetOutput(io.Discard)
-	defer func() {
-		log.SetOutput(originalLogger)
-		os.Stderr = originalStderr
-	}()
-
-	// The SDK's Text() method automatically filters out non-text parts and
-	// concatenates text parts, which is exactly what we need.
-	return resp.Text()
 }
 
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.

@@ -15,9 +15,9 @@ import (
 
 // Input defines the input structure for the FetchAllBranchDiffs activity.
 type Input struct {
+	Renames      map[string]string
 	TargetBranch string
 	Files        []string
-	Renames      map[string]string // Maps new filename -> old filename
 }
 
 // Output defines the output structure for the FetchAllBranchDiffs activity.

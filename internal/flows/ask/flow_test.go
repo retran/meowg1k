@@ -92,11 +92,11 @@ func (m *mockConfigReader) Get() (*config.Config, error) {
 	return m.config, m.err
 }
 
-func answerConfig(preset string, topK int, minScore float32) *config.Config {
+func answerConfig(presetName string, topK int, minScore float32) *config.Config {
 	return &config.Config{
 		Flows: &config.FlowsConfig{
 			Answer: &config.AnswerFlowConfig{
-				Preset: preset,
+				Preset: presetName,
 				Retrieval: &config.RetrievalConfig{
 					TopK:     topK,
 					MinScore: minScore,

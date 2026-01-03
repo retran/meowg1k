@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package runshell implements an activity for executing shell commands.
 package runshell
 
 import (
@@ -56,7 +57,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 		flowCtx.SendRunning(fmt.Sprintf("Running: %s", cmdLine))
 
-		cmd := exec.CommandContext(ctx, input.Command, input.Args...)
+		cmd := exec.CommandContext(ctx, input.Command, input.Args...) // #nosec G204
 		cmd.Dir = workspaceRoot
 
 		var stdout, stderr bytes.Buffer

@@ -18,8 +18,8 @@ type Input struct {
 
 // Output defines the output structure for the ListBranchFiles activity.
 type Output struct {
+	Renames map[string]string
 	Files   []string
-	Renames map[string]string // Maps new filename -> old filename
 }
 
 // BranchFileListReader reads list of changed files in a branch.

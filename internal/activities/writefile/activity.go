@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package writefile implements an activity for creating or overwriting files.
 package writefile
 
 import (
@@ -79,7 +80,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		details := fmt.Sprintf("path=%s size=%d", cleanPath, len(input.Content))
 		if f.dryRun {
-			details = details + " (DRY RUN)"
+			details += " (DRY RUN)"
 		}
 		_ = details // Used for potential future logging
 		if f.dryRun {
@@ -98,11 +99,11 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(fullPath)
-		if err := os.MkdirAll(dir, 0750); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("failed to create directory: %w", err)
 		}
 
-		if err := os.WriteFile(fullPath, []byte(input.Content), 0600); err != nil {
+		if err := os.WriteFile(fullPath, []byte(input.Content), 0o600); err != nil {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 

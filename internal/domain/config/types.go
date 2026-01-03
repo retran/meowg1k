@@ -8,17 +8,14 @@ import "time"
 
 // Config represents the complete meowg1k configuration.
 type Config struct {
-	SchemaVersion int `yaml:"schema_version" mapstructure:"schema_version"`
-
-	Filter *FilterConfig `yaml:"filter" mapstructure:"filter"`
-
-	Providers map[string]*ProviderConfig `yaml:"providers" mapstructure:"providers"`
-	Models    map[string]*ModelConfig    `yaml:"models" mapstructure:"models"`
-	Presets   map[string]*PresetConfig   `yaml:"presets" mapstructure:"presets"`
-
-	Activities *ActivitiesConfig `yaml:"activities" mapstructure:"activities"`
-	Agent      *AgentConfig      `yaml:"agent" mapstructure:"agent"`
-	Flows      *FlowsConfig      `yaml:"flows" mapstructure:"flows"`
+	Filter        *FilterConfig              `yaml:"filter" mapstructure:"filter"`
+	Providers     map[string]*ProviderConfig `yaml:"providers" mapstructure:"providers"`
+	Models        map[string]*ModelConfig    `yaml:"models" mapstructure:"models"`
+	Presets       map[string]*PresetConfig   `yaml:"presets" mapstructure:"presets"`
+	Activities    *ActivitiesConfig          `yaml:"activities" mapstructure:"activities"`
+	Agent         *AgentConfig               `yaml:"agent" mapstructure:"agent"`
+	Flows         *FlowsConfig               `yaml:"flows" mapstructure:"flows"`
+	SchemaVersion int                        `yaml:"schema_version" mapstructure:"schema_version"`
 }
 
 // CacheConfig defines configuration for LLM response caching.
@@ -34,25 +31,25 @@ type FilterConfig struct {
 
 // ProviderConfig defines shared provider settings used by models.
 type ProviderConfig struct {
+	Limits     *ModelLimits     `yaml:"limits" mapstructure:"limits"`
+	RateLimit  *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Type       string           `yaml:"type" mapstructure:"type"`
 	BaseURL    string           `yaml:"base_url" mapstructure:"base_url"`
 	APIKeyEnv  string           `yaml:"api_key_env" mapstructure:"api_key_env"`
 	Tokenizer  string           `yaml:"tokenizer" mapstructure:"tokenizer"`
-	Limits     *ModelLimits     `yaml:"limits" mapstructure:"limits"`
-	RateLimit  *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
 	RetryCount int              `yaml:"retry_count" mapstructure:"retry_count"`
 }
 
 // ModelConfig defines an LLM API instance with connection parameters.
 type ModelConfig struct {
+	Limits    *ModelLimits     `yaml:"limits" mapstructure:"limits"`
+	RateLimit *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Metadata  map[string]any   `yaml:"metadata" mapstructure:"metadata"`
 	Provider  string           `yaml:"provider" mapstructure:"provider"`
 	Model     string           `yaml:"model" mapstructure:"model"`
 	BaseURL   string           `yaml:"base_url" mapstructure:"base_url"`
 	APIKeyEnv string           `yaml:"api_key_env" mapstructure:"api_key_env"`
 	Tokenizer string           `yaml:"tokenizer" mapstructure:"tokenizer"`
-	Limits    *ModelLimits     `yaml:"limits" mapstructure:"limits"`
-	RateLimit *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Metadata  map[string]any   `yaml:"metadata" mapstructure:"metadata"`
 }
 
 // ModelLimits defines model token limits.
@@ -70,12 +67,12 @@ type RateLimitConfig struct {
 
 // PresetConfig defines a reusable runtime configuration.
 type PresetConfig struct {
-	Extends string         `yaml:"extends" mapstructure:"extends"`
-	Model   string         `yaml:"model" mapstructure:"model"`
-	Timeout time.Duration  `yaml:"timeout" mapstructure:"timeout"`
 	Cache   *CacheConfig   `yaml:"cache" mapstructure:"cache"`
 	Request *RequestConfig `yaml:"request" mapstructure:"request"`
 	Labels  map[string]any `yaml:"labels" mapstructure:"labels"`
+	Extends string         `yaml:"extends" mapstructure:"extends"`
+	Model   string         `yaml:"model" mapstructure:"model"`
+	Timeout time.Duration  `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // RequestConfig defines request-level generation parameters.
@@ -122,10 +119,10 @@ type ActivitiesConfig struct {
 
 // WriteFlowConfig holds configuration for the write command.
 type WriteFlowConfig struct {
-	Preset       string                `yaml:"preset" mapstructure:"preset"`
-	SystemPrompt string                `yaml:"system_prompt" mapstructure:"system_prompt"`
 	Tasks        map[string]*WriteTask `yaml:"tasks" mapstructure:"tasks"`
 	Metadata     map[string]any        `yaml:"metadata" mapstructure:"metadata"`
+	Preset       string                `yaml:"preset" mapstructure:"preset"`
+	SystemPrompt string                `yaml:"system_prompt" mapstructure:"system_prompt"`
 }
 
 // WriteTask defines a specific generation task.
@@ -150,9 +147,9 @@ type ChunkerConfig struct {
 
 // AnswerFlowConfig defines configuration for RAG-based question answering.
 type AnswerFlowConfig struct {
+	Retrieval    *RetrievalConfig `yaml:"retrieval" mapstructure:"retrieval"`
 	Preset       string           `yaml:"preset" mapstructure:"preset"`
 	SystemPrompt string           `yaml:"system_prompt" mapstructure:"system_prompt"`
-	Retrieval    *RetrievalConfig `yaml:"retrieval" mapstructure:"retrieval"`
 }
 
 // RetrievalConfig defines retrieval settings for RAG.

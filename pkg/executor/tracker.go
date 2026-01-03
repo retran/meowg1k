@@ -142,7 +142,10 @@ func (t *BubbleTeaTracker) FeedbackHandler() FeedbackHandler {
 			return
 		}
 		defer func() {
-			_ = recover()
+			if r := recover(); r != nil {
+				// Silently ignore panic from closed channel
+				_ = r
+			}
 		}()
 		select {
 		case t.feedbackCh <- feedback:
@@ -349,7 +352,7 @@ func renderLogEntry(entry logEntry, width int) string {
 			if i > 0 {
 				sb.WriteString("\n")
 			}
-			renderedLine := line
+			var renderedLine string
 			if i == 0 {
 				renderedLine = bullet + line
 			} else {
@@ -439,7 +442,7 @@ func terminalWidth() int {
 			return value
 		}
 	}
-	width, _, err := term.GetSize(uintptr(os.Stderr.Fd()))
+	width, _, err := term.GetSize(os.Stderr.Fd())
 	if err != nil || width <= 0 {
 		cachedTerminalWidth.Store(72)
 		cachedWidthAt.Store(now.UnixNano())
@@ -574,7 +577,6 @@ func wrapTextPreserveSpaces(text string, width int) []string {
 				if currentWidth > 0 {
 					lines = append(lines, current.String())
 					current.Reset()
-					currentWidth = 0
 				}
 				parts := splitLongWord(token, width)
 				for i, part := range parts {
@@ -594,7 +596,6 @@ func wrapTextPreserveSpaces(text string, width int) []string {
 			if currentWidth > 0 {
 				lines = append(lines, current.String())
 				current.Reset()
-				currentWidth = 0
 			}
 			current.WriteString(token)
 			currentWidth = tokenWidth

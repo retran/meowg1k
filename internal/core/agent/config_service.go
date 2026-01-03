@@ -29,11 +29,11 @@ func NewService(configResolver ports.ConfigResolver) (*Service, error) {
 
 // ResolvedConfig contains the agent configuration with defaults applied.
 type ResolvedConfig struct {
-	Tools        Tools
 	Personas     map[string]*config.PersonaConfig
 	Pipelines    map[string]*config.AgentPipelineConfig
 	Safety       *config.AgentSafetyConfig
 	SystemPrompt string
+	Tools        Tools
 }
 
 // Tools are default tool settings for agent mode.

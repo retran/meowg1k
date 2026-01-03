@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package do implements the 'do' flow which orchestrates agent execution.
 package do
 
 import (
@@ -37,6 +38,7 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Factory builds 'do' flows.
 type Factory struct {
 	configService       *agentconfig.Service
 	presetResolver      ports.PresetResolver
@@ -57,6 +59,7 @@ type CommandParametersReader interface {
 	GetDryRunFlag() (bool, error)
 }
 
+// NewFactory creates a new do flow factory.
 func NewFactory(
 	configService *agentconfig.Service,
 	presetResolver ports.PresetResolver,
@@ -83,6 +86,7 @@ func NewFactory(
 	}
 }
 
+// NewFlow creates a new do flow.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
 		// 1. Load Config
@@ -175,7 +179,7 @@ func (f *Factory) NewFlow() executor.Flow {
 			SearchTopK:      searchTopK,
 			SearchMinScore:  searchMinScore,
 		}
-		tools.RegisterStandardTools(registry, deps)
+		tools.RegisterStandardTools(registry, &deps)
 
 		// 6. Determine Pipeline Steps
 		pipelineName := "default" // TODO: allow config override

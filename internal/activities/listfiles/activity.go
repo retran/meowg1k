@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package listfiles implements an activity for listing files in a directory.
 package listfiles
 
 import (
@@ -13,24 +14,29 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the input for listing files.
 type Input struct {
 	Dir string `json:"dir" mapstructure:"dir"`
 }
 
+// Output defines the output of the file listing operation.
 type Output struct {
 	Files []string
 }
 
+// Factory builds listfiles activities.
 type Factory struct {
 	projectStateSvc ports.ProjectStateService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a new listfiles activity factory.
 func NewFactory(projectStateSvc ports.ProjectStateService) *Factory {
 	return &Factory{projectStateSvc: projectStateSvc}
 }
 
+// NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(ctx context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		if input == nil {

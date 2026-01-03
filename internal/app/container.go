@@ -357,7 +357,11 @@ func (c *Container) GetHTTPClientService() ports.HTTPClientService {
 
 // GetSilentFlag returns the silent flag from the command service.
 func (c *Container) GetSilentFlag() (bool, error) {
-	return c.CommandService.GetSilentFlag()
+	flag, err := c.CommandService.GetSilentFlag()
+	if err != nil {
+		return false, fmt.Errorf("failed to get silent flag: %w", err)
+	}
+	return flag, nil
 }
 
 // GetExecutor returns a new executor with the default configuration.

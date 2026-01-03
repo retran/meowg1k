@@ -71,8 +71,8 @@ func TestService_Get_Overrides(t *testing.T) {
 				},
 			},
 			Pipelines: minimalAgentConfig().Pipelines,
-			Personas: minimalAgentConfig().Personas,
-			Safety:   minimalAgentConfig().Safety,
+			Personas:  minimalAgentConfig().Personas,
+			Safety:    minimalAgentConfig().Safety,
 		},
 	}
 

@@ -159,10 +159,10 @@ func parseNameStatus(output string) []string {
 
 // parseNameStatusWithRenames parses the output of git diff --name-status.
 // Returns both the list of files and a map of rename pairs (old -> new).
-func parseNameStatusWithRenames(output string) ([]string, map[string]string) {
+func parseNameStatusWithRenames(output string) (files []string, renames map[string]string) {
 	lines := strings.Split(output, "\n")
-	files := make([]string, 0, len(lines))
-	renames := make(map[string]string)
+	files = make([]string, 0, len(lines))
+	renames = make(map[string]string)
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -205,7 +205,7 @@ func (g *Service) GetChangedFilesInBranch(targetBranch string) ([]string, error)
 
 // GetChangedFilesInBranchWithRenames returns the list of files that differ between the current branch and the target branch.
 // Also returns a map of renames (new filename -> old filename).
-func (g *Service) GetChangedFilesInBranchWithRenames(targetBranch string) ([]string, map[string]string, error) {
+func (g *Service) GetChangedFilesInBranchWithRenames(targetBranch string) (files []string, renames map[string]string, err error) {
 	if g == nil {
 		return nil, nil, fmt.Errorf("git service is nil")
 	}
@@ -226,7 +226,7 @@ func (g *Service) GetChangedFilesInBranchWithRenames(targetBranch string) ([]str
 		return []string{}, make(map[string]string), nil
 	}
 
-	files, renames := parseNameStatusWithRenames(strings.TrimSpace(output))
+	files, renames = parseNameStatusWithRenames(strings.TrimSpace(output))
 
 	return files, renames, nil
 }

@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package tracktask implements an activity for updating task status in a plan.
 package tracktask
 
 import (
@@ -59,7 +60,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		flowCtx.SendRunningWithDetails("Updating task", fmt.Sprintf("id=%s status=%s", input.ID, status))
 
 		if err := s.UpdateTaskStatus(input.ID, status); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to update task status: %w", err)
 		}
 
 		flowCtx.SendCompleted("Task updated")

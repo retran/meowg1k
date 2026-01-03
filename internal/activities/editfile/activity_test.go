@@ -31,7 +31,7 @@ func TestEditFileActivity(t *testing.T) {
 
 	filePath := filepath.Join(tmpDir, "test.txt")
 	initialContent := "line1\ntarget\nline3"
-	err = os.WriteFile(filePath, []byte(initialContent), 0644)
+	err = os.WriteFile(filePath, []byte(initialContent), 0o644)
 	assert.NoError(t, err)
 
 	mockWS := new(MockWorkspaceService)
@@ -73,7 +73,7 @@ func TestEditFileActivity(t *testing.T) {
 
 	t.Run("Ambiguous", func(t *testing.T) {
 		ambiguousFile := filepath.Join(tmpDir, "ambiguous.txt")
-		err = os.WriteFile(ambiguousFile, []byte("target\ntarget"), 0644)
+		err = os.WriteFile(ambiguousFile, []byte("target\ntarget"), 0o644)
 		assert.NoError(t, err)
 
 		factory := NewFactory(mockWS, false)
@@ -103,7 +103,7 @@ func TestEditFileActivity(t *testing.T) {
 
 	t.Run("DryRun", func(t *testing.T) {
 		// Reset file
-		err = os.WriteFile(filePath, []byte(initialContent), 0644)
+		err = os.WriteFile(filePath, []byte(initialContent), 0o644)
 		assert.NoError(t, err)
 
 		factory := NewFactory(mockWS, true)

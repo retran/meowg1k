@@ -83,7 +83,10 @@ func (g *cachingGenerationGateway) GenerateContent(
 // createCacheKey generates a deterministic cache key from the request parameters.
 // Uses SHA256 to create a fixed-length key from all parameters.
 func (g *cachingGenerationGateway) createCacheKey(request *gateway.GenerateContentRequest) string {
-	toolsJSON, _ := request.ToolsJSON()
+	toolsJSON, err := request.ToolsJSON()
+	if err != nil {
+		toolsJSON = ""
+	}
 	data := fmt.Sprintf(
 		"gen:%s:%s:%s:%s:%d",
 		request.Model(),

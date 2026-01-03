@@ -44,7 +44,8 @@ func newAnthropicGateway(apiKey string, httpClient *http.Client) (ports.Generati
 
 	return &anthropicGateway{
 		client: client,
-	}, nil
+	},
+	nil
 }
 
 // GenerateContent generates content using Anthropic's API.
@@ -69,51 +70,7 @@ func (g *anthropicGateway) GenerateContent(
 		return nil, fmt.Errorf("model is required for anthropic content generation")
 	}
 
-	messages := []anthropic.MessageParam{}
-	if msgs := request.Messages(); len(msgs) > 0 {
-		for _, m := range msgs {
-			switch m.Role {
-			case gateway.MessageRoleAssistant:
-				text := strings.TrimSpace(m.Content)
-				if len(m.ToolCalls) > 0 {
-					for _, c := range m.ToolCalls {
-						args, _ := json.Marshal(c.Arguments)
-						if text != "" {
-							text += "\n\n"
-						}
-						text += fmt.Sprintf("Tool call: %s (id=%s) args=%s", c.Name, c.ID, string(args))
-					}
-				}
-				if text != "" {
-					messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)))
-				}
-			case gateway.MessageRoleTool:
-				text := strings.TrimSpace(m.Content)
-				if m.ToolName != "" {
-					header := "Tool result: " + m.ToolName
-					if m.ToolCallID != "" {
-						header += " (tool_call_id=" + m.ToolCallID + ")"
-					}
-					text = header + "\n" + text
-				}
-				if text != "" {
-					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
-				}
-			case gateway.MessageRoleSystem:
-				// handled via params.System below
-			case gateway.MessageRoleUser:
-				text := strings.TrimSpace(m.Content)
-				if text != "" {
-					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
-				}
-			default:
-				text := strings.TrimSpace(m.Content)
-				if text != "" {
-					messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
-				}
-			}
-		}
-	}
+	messages := g.mapMessages(request)
 	if len(messages) == 0 {
 		messages = []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
@@ -174,11 +131,75 @@ func (g *anthropicGateway) GenerateContent(
 		return nil, fmt.Errorf("no content in response from Anthropic for model %q", model)
 	}
 
-	blocks, err := parseAnthropicBlocksOrdered(response.Content)
-	if err != nil {
-		return nil, err
-	}
+	blocks := parseAnthropicBlocksOrdered(response.Content)
 	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+}
+
+func (g *anthropicGateway) mapMessages(request *gateway.GenerateContentRequest) []anthropic.MessageParam {
+	msgs := request.Messages()
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	mapped := make([]anthropic.MessageParam, 0, len(msgs))
+	for _, m := range msgs {
+		switch m.Role {
+		case gateway.MessageRoleAssistant:
+			if msg, ok := g.mapAssistantMessage(m); ok {
+				mapped = append(mapped, msg)
+			}
+		case gateway.MessageRoleTool:
+			if msg, ok := g.mapToolMessage(m); ok {
+				mapped = append(mapped, msg)
+			}
+		case gateway.MessageRoleSystem:
+			// handled via params.System in GenerateContent
+		case gateway.MessageRoleUser:
+			if text := strings.TrimSpace(m.Content); text != "" {
+				mapped = append(mapped, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+			}
+		default:
+			if text := strings.TrimSpace(m.Content); text != "" {
+				mapped = append(mapped, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+			}
+		}
+	}
+	return mapped
+}
+
+func (g *anthropicGateway) mapAssistantMessage(m gateway.Message) (anthropic.MessageParam, bool) {
+	text := strings.TrimSpace(m.Content)
+	if len(m.ToolCalls) > 0 {
+		for _, c := range m.ToolCalls {
+			args, err := json.Marshal(c.Arguments)
+			if err != nil {
+				args = []byte("{}")
+			}
+			if text != "" {
+				text += "\n\n"
+			}
+			text += fmt.Sprintf("Tool call: %s (id=%s) args=%s", c.Name, c.ID, string(args))
+		}
+	}
+	if text == "" {
+		return anthropic.MessageParam{}, false
+	}
+	return anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)), true
+}
+
+func (g *anthropicGateway) mapToolMessage(m gateway.Message) (anthropic.MessageParam, bool) {
+	text := strings.TrimSpace(m.Content)
+	if m.ToolName != "" {
+		header := "Tool result: " + m.ToolName
+		if m.ToolCallID != "" {
+			header += " (tool_call_id=" + m.ToolCallID + ")"
+		}
+		text = header + "\n" + text
+	}
+	if text == "" {
+		return anthropic.MessageParam{}, false
+	}
+	return anthropic.NewUserMessage(anthropic.NewTextBlock(text)), true
 }
 
 func buildAnthropicTools(tools []gateway.ToolDefinition) []anthropic.ToolUnionParam {
@@ -193,7 +214,8 @@ func buildAnthropicTools(tools []gateway.ToolDefinition) []anthropic.ToolUnionPa
 				inputSchema.Properties = props
 			}
 			if req, ok := tool.Parameters["required"]; ok {
-				if list, ok := req.([]any); ok {
+				switch list := req.(type) {
+				case []any:
 					required := make([]string, 0, len(list))
 					for _, item := range list {
 						if s, ok := item.(string); ok {
@@ -201,7 +223,7 @@ func buildAnthropicTools(tools []gateway.ToolDefinition) []anthropic.ToolUnionPa
 						}
 					}
 					inputSchema.Required = required
-				} else if list, ok := req.([]string); ok {
+				case []string:
 					inputSchema.Required = list
 				}
 			}
@@ -218,21 +240,22 @@ func buildAnthropicTools(tools []gateway.ToolDefinition) []anthropic.ToolUnionPa
 			}
 		}
 
-		toolParam := &anthropic.ToolParam{
+		oolParam := &anthropic.ToolParam{
 			Name:        tool.Name,
 			InputSchema: inputSchema,
 		}
 		if tool.Description != "" {
-			toolParam.Description = anthropic.String(tool.Description)
+			oolParam.Description = anthropic.String(tool.Description)
 		}
 		result = append(result, anthropic.ToolUnionParam{OfTool: toolParam})
 	}
 	return result
 }
 
-func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) ([]gateway.ContentBlock, error) {
+func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) []gateway.ContentBlock {
 	result := make([]gateway.ContentBlock, 0, len(blocks))
-	for _, block := range blocks {
+	for i := range blocks {
+		block := blocks[i]
 		switch block.Type {
 		case "text":
 			text := block.AsText().Text
@@ -252,5 +275,5 @@ func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) ([]gatewa
 			result = append(result, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
 		}
 	}
-	return result, nil
+	return result
 }

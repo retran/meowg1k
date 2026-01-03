@@ -24,7 +24,7 @@ func (m *mockBranchFileListReader) GetChangedFilesInBranch(targetBranch string) 
 	return nil, nil
 }
 
-func (m *mockBranchFileListReader) GetChangedFilesInBranchWithRenames(targetBranch string) ([]string, map[string]string, error) {
+func (m *mockBranchFileListReader) GetChangedFilesInBranchWithRenames(targetBranch string) (files []string, renames map[string]string, err error) {
 	if m.GetChangedFilesInBranchWithRenamesFunc != nil {
 		return m.GetChangedFilesInBranchWithRenamesFunc(targetBranch)
 	}

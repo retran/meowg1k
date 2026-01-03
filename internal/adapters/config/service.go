@@ -76,7 +76,7 @@ func NewService(filePathResolver FilePathResolver, workspaceDirResolver Workspac
 
 	var cfg config.Config
 	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse configuration (this may be due to a schema mismatch or old config format): %w\nSuggestion: Run 'meow init' to generate a fresh valid configuration or check the documentation for migration.", err)
+		return nil, fmt.Errorf("failed to parse configuration (this may be due to a schema mismatch or old config format): %w (suggestion: run 'meow init' to generate a fresh valid configuration or check the documentation for migration)", err)
 	}
 
 	service.config = &cfg

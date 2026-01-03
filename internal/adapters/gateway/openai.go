@@ -81,10 +81,7 @@ func (g *openaiGateway) GenerateContent(
 	}
 
 	msg := response.Choices[0].Message
-	toolCalls, err := mapOpenAIToolCalls(msg.ToolCalls)
-	if err != nil {
-		return nil, err
-	}
+	toolCalls := mapOpenAIToolCalls(msg.ToolCalls)
 
 	blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
 	if msg.Content != "" {
@@ -139,12 +136,13 @@ func buildOpenAITools(tools []gateway.ToolDefinition) []openai.ChatCompletionToo
 	return result
 }
 
-func mapOpenAIToolCalls(calls []openai.ChatCompletionMessageToolCallUnion) ([]gateway.ToolCall, error) {
+func mapOpenAIToolCalls(calls []openai.ChatCompletionMessageToolCallUnion) []gateway.ToolCall {
 	if len(calls) == 0 {
-		return nil, nil
+		return nil
 	}
 	result := make([]gateway.ToolCall, 0, len(calls))
-	for _, call := range calls {
+	for i := range calls {
+		call := calls[i]
 		// Only map function tool calls.
 		if call.Type != "function" {
 			continue
@@ -162,7 +160,7 @@ func mapOpenAIToolCalls(calls []openai.ChatCompletionMessageToolCallUnion) ([]ga
 			Arguments: args,
 		})
 	}
-	return result, nil
+	return result
 }
 
 func applyOpenAISamplingParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {

@@ -23,6 +23,12 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+const (
+	projectName    = "meowg1k"
+	diffModeStaged = "staged"
+	diffModeBranch = "branch"
+)
+
 // ConfigProvider provides commit message configuration.
 type ConfigProvider interface {
 	Get() (*commit.ResolvedConfig, error)
@@ -148,16 +154,16 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 
 	diffMode = strings.ToLower(strings.TrimSpace(diffMode))
 	if diffMode == "" {
-		diffMode = "staged"
+		diffMode = diffModeStaged
 	}
 
 	switch diffMode {
-	case "staged":
+	case diffModeStaged:
 		if baseBranch != "" {
 			return fmt.Errorf("base branch is only valid with --diff branch")
 		}
 		flowCtx.SendRunningWithDetails("I'm drafting a commit message", "diff=staged")
-	case "branch":
+	case diffModeBranch:
 		if baseBranch == "" {
 			return fmt.Errorf("base branch is required when --diff branch")
 		}
@@ -195,7 +201,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return fmt.Errorf("failed to print commit message: %w", err)
 	}
 
-	if diffMode == "branch" {
+	if diffMode == diffModeBranch {
 		flowCtx.SendCompletedWithDetails("I've drafted the commit message", fmt.Sprintf("diff=branch base=%s", baseBranch))
 		return nil
 	}
@@ -206,7 +212,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 }
 
 func baseBranchForDiff(diffMode, baseBranch string) string {
-	if diffMode == "branch" {
+	if diffMode == diffModeBranch {
 		return baseBranch
 	}
 	return ""
@@ -234,7 +240,7 @@ func (f *Factory) listFiles(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	targetBranch string,
-) ([]string, map[string]string, error) {
+) (files []string, renames map[string]string, err error) {
 	if targetBranch != "" {
 		listBranchFiles := f.listBranchFilesFactory.NewActivity()
 		branchFiles, err := executor.ExecuteActivity(

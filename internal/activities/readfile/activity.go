@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package readfile implements an activity for reading file contents.
 package readfile
 
 import (
@@ -93,7 +94,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 		flowCtx.SendRunning(readTitle)
 
-		file, err := os.Open(fullPath)
+		file, err := os.Open(fullPath) // #nosec G304
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, executor.Expected(fmt.Errorf("file not found: %s", cleanPath))
@@ -144,11 +145,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		isTruncated := start > 1 || end < totalLines
 
 		readLines := endIdx - startIdx
-		if isTruncated {
-			flowCtx.SendCompleted(fmt.Sprintf("Read %s (%d lines)", cleanPath, readLines))
-		} else {
-			flowCtx.SendCompleted(fmt.Sprintf("Read %s (%d lines)", cleanPath, readLines))
-		}
+		flowCtx.SendCompleted(fmt.Sprintf("Read %s (%d lines)", cleanPath, readLines))
 
 		return &Output{
 				Content:     content,

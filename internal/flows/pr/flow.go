@@ -200,7 +200,7 @@ func (f *Factory) listBranchFiles(
 	flowCtx *executor.Context,
 	exec executor.Executor,
 	baseBranch string,
-) ([]string, map[string]string, error) {
+) (files []string, renames map[string]string, err error) {
 	listBranchFiles := f.listBranchFilesFactory.NewActivity()
 	branchFiles, err := executor.ExecuteActivity(
 		ctx,

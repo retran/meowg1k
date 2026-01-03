@@ -222,21 +222,6 @@ type Execution struct {
 	Level      int
 }
 
-func (e *Execution) getDurationString() string {
-	if e.EndTime == nil {
-		return ""
-	}
-	duration := e.EndTime.Sub(e.StartTime)
-	switch {
-	case duration < time.Second:
-		return fmt.Sprintf("%dms", duration.Milliseconds())
-	case duration < time.Minute:
-		return fmt.Sprintf("%.1fs", duration.Seconds())
-	default:
-		return fmt.Sprintf("%.1fm", duration.Minutes())
-	}
-}
-
 // RetryPolicy defines the retry behavior for an operation.
 type RetryPolicy struct {
 	// MaxAttempts is the maximum number of retry attempts.

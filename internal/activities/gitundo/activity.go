@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package gitundo implements an activity for discarding uncommitted changes.
 package gitundo
 
 import (
@@ -44,7 +45,7 @@ func NewFactory(workspaceService ports.WorkspaceService, dryRun bool) *Factory {
 
 // NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
-	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
+	return func(ctx context.Context, _ *executor.Context, input *Input) (*Output, error) {
 		workspaceRoot, err := f.workspaceService.Get()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
@@ -92,7 +93,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Execute git checkout HEAD -- <file>
-		cmd := exec.Command("git", "checkout", "HEAD", "--", absFull)
+		cmd := exec.CommandContext(ctx, "git", "checkout", "HEAD", "--", absFull) // #nosec G204
 		cmd.Dir = absRoot
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return nil, fmt.Errorf("git checkout failed: %w\nOutput: %s", err, string(output))

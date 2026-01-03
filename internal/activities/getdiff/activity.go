@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package getdiff implements an activity for retrieving git diffs.
 package getdiff
 
 import (
@@ -11,24 +12,29 @@ import (
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
+// Input defines the input for getting a git diff.
 type Input struct {
 	Staged bool
 }
 
+// Output defines the output of the git diff operation.
 type Output struct {
 	Diff string
 }
 
+// Factory builds getdiff activities.
 type Factory struct {
 	gitTooling ports.GitToolingService
 }
 
 var _ executor.ActivityFactory[*Input, *Output] = (*Factory)(nil)
 
+// NewFactory creates a new getdiff activity factory.
 func NewFactory(gitTooling ports.GitToolingService) *Factory {
 	return &Factory{gitTooling: gitTooling}
 }
 
+// NewActivity creates the activity.
 func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 	return func(_ context.Context, flowCtx *executor.Context, input *Input) (*Output, error) {
 		ref := ""

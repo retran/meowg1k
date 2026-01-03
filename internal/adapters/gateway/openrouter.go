@@ -181,7 +181,10 @@ func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrout
 			if len(m.ToolCalls) > 0 {
 				calls := make([]openrouterToolCall, 0, len(m.ToolCalls))
 				for _, c := range m.ToolCalls {
-					args, _ := json.Marshal(c.Arguments)
+					args, err := json.Marshal(c.Arguments)
+					if err != nil {
+						args = []byte("{}")
+					}
 					calls = append(calls, openrouterToolCall{
 						ID:   c.ID,
 						Type: "function",

@@ -81,7 +81,7 @@ func TestWriteFileActivity(t *testing.T) {
 	t.Run("PathTraversalPrefixBypass", func(t *testing.T) {
 		rootBase := filepath.Base(tmpDir)
 		outsideDir := filepath.Join(filepath.Dir(tmpDir), rootBase+"_evil")
-		err := os.MkdirAll(outsideDir, 0755)
+		err := os.MkdirAll(outsideDir, 0o755)
 		assert.NoError(t, err)
 
 		factory := NewFactory(mockWS, false)

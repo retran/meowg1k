@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package tools defines the standard tools available to the agent.
 package tools
 
 import (
@@ -54,183 +55,120 @@ type ToolDependencies struct {
 	SearchMinScore  float32
 }
 
-func RegisterStandardTools(r *Registry, deps ToolDependencies) {
+func registerTool[I any, O any](
+	r *Registry,
+	factory executor.ActivityFactory[I, O],
+	name string,
+	description string,
+	parameters map[string]any,
+	required []string,
+) {
+	if factory == nil {
+		return
+	}
+
+	r.Register(Tool{
+		Definition: gateway.ToolDefinition{
+			Name:        name,
+			Description: description,
+			Parameters: map[string]any{
+				"type":       "object",
+				"properties": parameters,
+				"required":   required,
+			},
+		},
+		Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+			var input I
+			if err := BindArgs(args, &input); err != nil {
+				return nil, err
+			}
+			act := factory.NewActivity()
+			return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, name, act, input)
+		},
+	})
+}
+
+// RegisterStandardTools registers all standard tools to the registry.
+func RegisterStandardTools(r *Registry, deps *ToolDependencies) {
+	registerFileTools(r, deps)
+	registerDirectoryTools(r, deps)
+	registerSystemTools(r, deps)
+	registerSearchTools(r, deps)
+	registerGitTools(r, deps)
+	registerPlanTools(r, deps)
+	registerMemoryTools(r, deps)
+	registerAgentTools(r, deps)
+}
+
+func registerFileTools(r *Registry, deps *ToolDependencies) {
 	// --- FILE Operations ---
-	if deps.ReadFile != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "file_read",
-				Description: "Read file content. Use `start_line` and `end_line` for large files. Path must be relative to workspace root.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"path":       map[string]any{"type": "string", "description": "Path relative to workspace root (e.g. 'cmd/main.go')"},
-						"start_line": map[string]any{"type": "integer", "description": "1-based start line (inclusive)"},
-						"end_line":   map[string]any{"type": "integer", "description": "1-based end line (inclusive)"},
-					},
-					"required": []string{"path"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input readfile.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.ReadFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_read", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.ReadFile, "file_read",
+		"Read file content. Use `start_line` and `end_line` for large files. Path must be relative to workspace root.",
+		map[string]any{
+			"path":       map[string]any{"type": "string", "description": "Path relative to workspace root (e.g. 'cmd/main.go')"},
+			"start_line": map[string]any{"type": "integer", "description": "1-based start line (inclusive)"},
+			"end_line":   map[string]any{"type": "integer", "description": "1-based end line (inclusive)"},
+		},
+		[]string{"path"},
+	)
 
-	if deps.WriteFile != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "file_write",
-				Description: "Create or overwrite a file. Content MUST be the complete file source code. Do not use placeholders.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"path":    map[string]any{"type": "string", "description": "Path relative to workspace root"},
-						"content": map[string]any{"type": "string", "description": "Full content of the file"},
-					},
-					"required": []string{"path", "content"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input writefile.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.WriteFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_write", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.WriteFile, "file_write",
+		"Create or overwrite a file. Content MUST be the complete file source code. Do not use placeholders.",
+		map[string]any{
+			"path":    map[string]any{"type": "string", "description": "Path relative to workspace root"},
+			"content": map[string]any{"type": "string", "description": "Full content of the file"},
+		},
+		[]string{"path", "content"},
+	)
 
-	if deps.EditFile != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "file_edit",
-				Description: "Modify an existing file by replacing a specific text block. `old_string` must match exactly one continuous block in the file. Include surrounding lines in `old_string` to ensure uniqueness. Use this for refactoring or bug fixes in large files.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"path":       map[string]any{"type": "string", "description": "Path relative to workspace root"},
-						"old_string": map[string]any{"type": "string", "description": "The exact block of text to be replaced. Must be unique in the file."},
-						"new_string": map[string]any{"type": "string", "description": "The new block of text to insert in place of old_string."},
-					},
-					"required": []string{"path", "old_string", "new_string"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input editfile.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.EditFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_edit", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.EditFile, "file_edit",
+		"Modify an existing file by replacing a specific text block. `old_string` must match exactly one continuous block in the file. Include surrounding lines in `old_string` to ensure uniqueness. Use this for refactoring or bug fixes in large files.",
+		map[string]any{
+			"path":       map[string]any{"type": "string", "description": "Path relative to workspace root"},
+			"old_string": map[string]any{"type": "string", "description": "The exact block of text to be replaced. Must be unique in the file."},
+			"new_string": map[string]any{"type": "string", "description": "The new block of text to insert in place of old_string."},
+		},
+		[]string{"path", "old_string", "new_string"},
+	)
 
-	if deps.MoveFile != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "file_move",
-				Description: "Move or rename a file or directory. Creates destination directories as needed. Uses git mv when in a git repository.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"source_path": map[string]any{"type": "string", "description": "Current path relative to workspace root"},
-						"dest_path":   map[string]any{"type": "string", "description": "New path relative to workspace root"},
-					},
-					"required": []string{"source_path", "dest_path"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input movefile.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.MoveFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_move", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.MoveFile, "file_move",
+		"Move or rename a file or directory. Creates destination directories as needed. Uses git mv when in a git repository.",
+		map[string]any{
+			"source_path": map[string]any{"type": "string", "description": "Current path relative to workspace root"},
+			"dest_path":   map[string]any{"type": "string", "description": "New path relative to workspace root"},
+		},
+		[]string{"source_path", "dest_path"},
+	)
 
-	if deps.DeleteFile != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "file_delete",
-				Description: "Permanently delete a file. Use with caution.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"path": map[string]any{"type": "string", "description": "Path relative to workspace root"},
-					},
-					"required": []string{"path"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input deletefile.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.DeleteFile.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "file_delete", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.DeleteFile, "file_delete",
+		"Permanently delete a file. Use with caution.",
+		map[string]any{
+			"path": map[string]any{"type": "string", "description": "Path relative to workspace root"},
+		},
+		[]string{"path"},
+	)
 
-	if deps.GitUndo != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "git_undo",
-				Description: "Discard uncommitted changes to a file (git checkout HEAD). Use this if a previous file_edit broke the code and you want to revert to the last clean state.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"path": map[string]any{"type": "string", "description": "Path to the file to revert (relative to workspace root)"},
-					},
-					"required": []string{"path"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input gitundo.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.GitUndo.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "git_undo", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.GitUndo, "git_undo",
+		"Discard uncommitted changes to a file (git checkout HEAD). Use this if a previous file_edit broke the code and you want to revert to the last clean state.",
+		map[string]any{
+			"path": map[string]any{"type": "string", "description": "Path to the file to revert (relative to workspace root)"},
+		},
+		[]string{"path"},
+	)
+}
 
+func registerDirectoryTools(r *Registry, deps *ToolDependencies) {
 	// --- DIRECTORY Operations ---
-	if deps.ListFiles != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "dir_list",
-				Description: "List direct children of a directory (non-recursive).",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"dir": map[string]any{"type": "string", "description": "Directory relative to root"},
-					},
-					"required": []string{"dir"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input listfiles.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.ListFiles.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "dir_list", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.ListFiles, "dir_list",
+		"List direct children of a directory (non-recursive).",
+		map[string]any{
+			"dir": map[string]any{"type": "string", "description": "Directory relative to root"},
+		},
+		[]string{"dir"},
+	)
+}
 
+func registerSystemTools(r *Registry, deps *ToolDependencies) {
 	// --- SYSTEM/SHELL Operations ---
 	if deps.RunShell != nil {
 		handler := func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
@@ -257,8 +195,12 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 			},
 			Handler: handler,
 		})
+	}
+}
 
-		// --- SEARCH Operations ---
+func registerSearchTools(r *Registry, deps *ToolDependencies) {
+	// --- SEARCH Operations ---
+	if deps.RunShell != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
 				Name:        "search_text",
@@ -281,18 +223,25 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 					return nil, fmt.Errorf("pattern is required")
 				}
 
-				path, _ := args["path"].(string)
-				if strings.TrimSpace(path) == "" {
+				path, ok := args["path"].(string)
+				if !ok || strings.TrimSpace(path) == "" {
 					path = "."
 				}
 
-				fixed, _ := args["fixed"].(bool)
-				glob, _ := args["glob"].(string)
+				fixed, ok := args["fixed"].(bool)
+				if !ok {
+					fixed = false
+				}
+				glob, ok := args["glob"].(string)
+				if !ok {
+					glob = ""
+				}
 
 				maxResults := 0
-				if v, ok := args["max"].(float64); ok {
+				switch v := args["max"].(type) {
+				case float64:
 					maxResults = int(v)
-				} else if v, ok := args["max"].(int); ok {
+				case int:
 					maxResults = v
 				}
 
@@ -374,65 +323,38 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 			},
 		})
 	}
+}
 
+func registerGitTools(r *Registry, deps *ToolDependencies) {
 	// --- GIT Operations ---
-	if deps.GetDiff != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "git_diff",
-				Description: "Get git diff of changes in working directory.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"staged": map[string]any{"type": "boolean"},
-					},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input getdiff.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.GetDiff.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "git_diff", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.GetDiff, "git_diff",
+		"Get git diff of changes in working directory.",
+		map[string]any{
+			"staged": map[string]any{"type": "boolean"},
+		},
+		nil,
+	)
+}
 
+func registerPlanTools(r *Registry, deps *ToolDependencies) {
 	// --- PLAN Operations ---
-	if deps.Plan != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "plan_init",
-				Description: "Initialize a new task plan.",
-				Parameters: map[string]any{
+	registerTool(r, deps.Plan, "plan_init",
+		"Initialize a new task plan.",
+		map[string]any{
+			"tasks": map[string]any{
+				"type": "array",
+				"items": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"tasks": map[string]any{
-							"type": "array",
-							"items": map[string]any{
-								"type": "object",
-								"properties": map[string]any{
-									"id":          map[string]any{"type": "string"},
-									"description": map[string]any{"type": "string"},
-								},
-								"required": []string{"id", "description"},
-							},
-						},
+						"id":          map[string]any{"type": "string"},
+						"description": map[string]any{"type": "string"},
 					},
-					"required": []string{"tasks"},
+					"required": []string{"id", "description"},
 				},
 			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input plan.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.Plan.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "plan_init", act, &input)
-			},
-		})
-	}
+		},
+		[]string{"tasks"},
+	)
 
 	if deps.GetPlan != nil {
 		r.Register(Tool{
@@ -452,56 +374,28 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 		})
 	}
 
-	if deps.TrackTask != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "plan_update_task",
-				Description: "Update the status of a specific task.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"id":     map[string]any{"type": "string"},
-						"status": map[string]any{"type": "string", "enum": []string{"pending", "done", "failed", "skipped"}},
-					},
-					"required": []string{"id", "status"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input tracktask.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.TrackTask.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "plan_update_task", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.TrackTask, "plan_update_task",
+		"Update the status of a specific task.",
+		map[string]any{
+			"id":     map[string]any{"type": "string"},
+			"status": map[string]any{"type": "string", "enum": []string{"pending", "done", "failed", "skipped"}},
+		},
+		[]string{"id", "status"},
+	)
+}
 
+func registerMemoryTools(r *Registry, deps *ToolDependencies) {
 	// --- MEMORY/UTIL Operations ---
-	if deps.Memorize != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "mem_store",
-				Description: "Save a critical fact to long-term memory.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"fact": map[string]any{"type": "string"},
-					},
-					"required": []string{"fact"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input memorize.Input
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.Memorize.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "mem_store", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.Memorize, "mem_store",
+		"Save a critical fact to long-term memory.",
+		map[string]any{
+			"fact": map[string]any{"type": "string"},
+		},
+		[]string{"fact"},
+	)
+}
 
+func registerAgentTools(r *Registry, deps *ToolDependencies) {
 	if deps.Summarize != nil {
 		r.Register(Tool{
 			Definition: gateway.ToolDefinition{
@@ -531,27 +425,11 @@ func RegisterStandardTools(r *Registry, deps ToolDependencies) {
 	}
 
 	// --- AGENT Operations ---
-	if deps.Restart != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "agent_restart",
-				Description: "Hard reset agent flow with a NEW instruction. Use when unrecoverable.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"instruction": map[string]any{"type": "string", "description": "Full goal prompt for the next attempt"},
-					},
-					"required": []string{"instruction"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				var input control.RestartInput
-				if err := BindArgs(args, &input); err != nil {
-					return nil, err
-				}
-				act := deps.Restart.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "agent_restart", act, &input)
-			},
-		})
-	}
+	registerTool(r, deps.Restart, "agent_restart",
+		"Hard reset agent flow with a NEW instruction. Use when unrecoverable.",
+		map[string]any{
+			"instruction": map[string]any{"type": "string", "description": "Full goal prompt for the next attempt"},
+		},
+		[]string{"instruction"},
+	)
 }

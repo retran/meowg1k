@@ -1,6 +1,7 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package editfile implements an activity for editing files by string replacement.
 package editfile
 
 import (
@@ -88,7 +89,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			flowCtx.SendRunning(fmt.Sprintf("Editing %s", cleanPath))
 		}
 
-		contentBytes, err := os.ReadFile(fullPath)
+		contentBytes, err := os.ReadFile(fullPath) // #nosec G304
 		if err != nil {
 			if os.IsNotExist(err) {
 				return nil, executor.Expected(fmt.Errorf("file not found: %s", cleanPath))
@@ -122,7 +123,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}, nil
 		}
 
-		if err := os.WriteFile(fullPath, []byte(newContent), 0600); err != nil {
+		if err := os.WriteFile(fullPath, []byte(newContent), 0o600); err != nil {
 			return nil, fmt.Errorf("failed to write file: %w", err)
 		}
 

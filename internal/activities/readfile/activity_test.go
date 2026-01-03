@@ -31,7 +31,7 @@ func TestReadfileActivity(t *testing.T) {
 
 	filePath := filepath.Join(tmpDir, "test.txt")
 	content := "line1\nline2\nline3\nline4\nline5"
-	err = os.WriteFile(filePath, []byte(content), 0644)
+	err = os.WriteFile(filePath, []byte(content), 0o644)
 	assert.NoError(t, err)
 
 	mockWS := new(MockWorkspaceService)
@@ -93,10 +93,10 @@ func TestReadfileActivity(t *testing.T) {
 		// escapes to a sibling directory whose name shares the same prefix.
 		rootBase := filepath.Base(tmpDir)
 		outsideDir := filepath.Join(filepath.Dir(tmpDir), rootBase+"_evil")
-		err := os.MkdirAll(outsideDir, 0755)
+		err := os.MkdirAll(outsideDir, 0o755)
 		assert.NoError(t, err)
 		outsideFile := filepath.Join(outsideDir, "outside.txt")
-		err = os.WriteFile(outsideFile, []byte("nope"), 0644)
+		err = os.WriteFile(outsideFile, []byte("nope"), 0o644)
 		assert.NoError(t, err)
 
 		input := &Input{Path: "../" + rootBase + "_evil/outside.txt"}
