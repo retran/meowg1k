@@ -68,57 +68,7 @@ func (g *geminiGateway) GenerateContent(
 		}
 	}
 
-	userPromptText := request.UserPrompt()
-	if msgs := request.Messages(); len(msgs) > 0 {
-		var b strings.Builder
-		for _, m := range msgs {
-			role := string(m.Role)
-			if role == "" {
-				role = "unknown"
-			}
-			if len(m.ToolCalls) > 0 {
-				b.WriteString(strings.ToUpper(role))
-				b.WriteString(" TOOL_CALLS:\n")
-				for _, c := range m.ToolCalls {
-					args, err := json.Marshal(c.Arguments)
-					if err != nil {
-						args = []byte("{}")
-					}
-					b.WriteString("- ")
-					b.WriteString(c.Name)
-					if c.ID != "" {
-						b.WriteString(" (id=")
-						b.WriteString(c.ID)
-						b.WriteString(")")
-					}
-					b.WriteString(" args=")
-					b.Write(args)
-					b.WriteString("\n")
-				}
-				b.WriteString("\n")
-				continue
-			}
-			if m.Role == gateway.MessageRoleTool {
-				b.WriteString("TOOL ")
-				b.WriteString(m.ToolName)
-				if m.ToolCallID != "" {
-					b.WriteString(" (tool_call_id=")
-					b.WriteString(m.ToolCallID)
-					b.WriteString(")")
-				}
-				b.WriteString(":\n")
-				b.WriteString(strings.TrimSpace(m.Content))
-				b.WriteString("\n\n")
-				continue
-			}
-			b.WriteString(strings.ToUpper(role))
-			b.WriteString(":\n")
-			b.WriteString(strings.TrimSpace(m.Content))
-			b.WriteString("\n\n")
-		}
-		userPromptText = strings.TrimSpace(b.String())
-	}
-
+	userPromptText := g.mapMessagesToPrompt(request)
 	userPrompt := genai.Text(userPromptText)
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
@@ -132,6 +82,73 @@ func (g *geminiGateway) GenerateContent(
 
 	blocks := parseGeminiBlocksOrdered(result)
 	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+}
+
+func (g *geminiGateway) mapMessagesToPrompt(request *gateway.GenerateContentRequest) string {
+	msgs := request.Messages()
+	if len(msgs) == 0 {
+		return request.UserPrompt()
+	}
+
+	var b strings.Builder
+	for i := range msgs {
+		g.writeGeminiMessage(&b, &msgs[i])
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (g *geminiGateway) writeGeminiMessage(b *strings.Builder, m *gateway.Message) {
+	role := string(m.Role)
+	if role == "" {
+		role = "unknown"
+	}
+	if len(m.ToolCalls) > 0 {
+		g.writeGeminiToolCalls(b, role, m.ToolCalls)
+		return
+	}
+	if m.Role == gateway.MessageRoleTool {
+		g.writeGeminiToolResult(b, m)
+		return
+	}
+	b.WriteString(strings.ToUpper(role))
+	b.WriteString(":\n")
+	b.WriteString(strings.TrimSpace(m.Content))
+	b.WriteString("\n\n")
+}
+
+func (g *geminiGateway) writeGeminiToolCalls(b *strings.Builder, role string, toolCalls []gateway.ToolCall) {
+	b.WriteString(strings.ToUpper(role))
+	b.WriteString(" TOOL_CALLS:\n")
+	for _, c := range toolCalls {
+		args, err := json.Marshal(c.Arguments)
+		if err != nil {
+			args = []byte("{}")
+		}
+		b.WriteString("- ")
+		b.WriteString(c.Name)
+		if c.ID != "" {
+			b.WriteString(" (id=")
+			b.WriteString(c.ID)
+			b.WriteString(")")
+		}
+		b.WriteString(" args=")
+		b.Write(args)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+func (g *geminiGateway) writeGeminiToolResult(b *strings.Builder, m *gateway.Message) {
+	b.WriteString("TOOL ")
+	b.WriteString(m.ToolName)
+	if m.ToolCallID != "" {
+		b.WriteString(" (tool_call_id=")
+		b.WriteString(m.ToolCallID)
+		b.WriteString(")")
+	}
+	b.WriteString(":\n")
+	b.WriteString(strings.TrimSpace(m.Content))
+	b.WriteString("\n\n")
 }
 
 func parseGeminiBlocksOrdered(resp *genai.GenerateContentResponse) []gateway.ContentBlock {

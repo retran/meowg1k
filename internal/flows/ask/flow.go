@@ -187,55 +187,29 @@ func (f *Factory) loadAnswerConfig() (*config.Config, error) {
 }
 
 func (f *Factory) resolveAnswerParams(cfg *config.Config) (*answerParams, error) {
-	question, err := f.parametersReader.GetQuestionFlag()
+	question, err := f.resolveQuestion()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get question: %w", err)
-	}
-	if question == "" {
-		return nil, fmt.Errorf("question is required")
+		return nil, err
 	}
 
-	snapshots, err := f.parametersReader.GetSnapshotsFlag()
+	snapshots, err := f.resolveSnapshots()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get snapshots: %w", err)
-	}
-	if len(snapshots) == 0 {
-		snapshots = []string{"_workdir_", "_stage_", "_head_"}
+		return nil, err
 	}
 
-	topK, err := f.parametersReader.GetTopKFlag()
+	topK, err := f.resolveTopK(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get topK: %w", err)
-	}
-	if topK <= 0 {
-		if cfg.Flows.Answer.Retrieval != nil {
-			topK = defaultTopK(cfg.Flows.Answer.Retrieval.TopK)
-		} else {
-			topK = defaultTopK(0)
-		}
+		return nil, err
 	}
 
-	minScore, err := f.parametersReader.GetMinScoreFlag()
+	minScore, err := f.resolveMinScore(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get min score: %w", err)
-	}
-	if minScore <= 0 {
-		if cfg.Flows.Answer.Retrieval != nil {
-			minScore = defaultMinScore(cfg.Flows.Answer.Retrieval.MinScore)
-		} else {
-			minScore = defaultMinScore(0)
-		}
+		return nil, err
 	}
 
-	presetName, err := f.parametersReader.GetPresetFlag()
+	presetName, err := f.resolvePresetName(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get preset: %w", err)
-	}
-	if presetName == "" {
-		presetName = cfg.Flows.Answer.Preset
-		if presetName == "" {
-			return nil, fmt.Errorf("preset is required (set in config flows.answer.preset or via --preset flag)")
-		}
+		return nil, err
 	}
 
 	return &answerParams{
@@ -245,6 +219,72 @@ func (f *Factory) resolveAnswerParams(cfg *config.Config) (*answerParams, error)
 		topK:       topK,
 		minScore:   minScore,
 	}, nil
+}
+
+func (f *Factory) resolveQuestion() (string, error) {
+	question, err := f.parametersReader.GetQuestionFlag()
+	if err != nil {
+		return "", fmt.Errorf("failed to get question: %w", err)
+	}
+	if question == "" {
+		return "", fmt.Errorf("question is required")
+	}
+	return question, nil
+}
+
+func (f *Factory) resolveSnapshots() ([]string, error) {
+	snapshots, err := f.parametersReader.GetSnapshotsFlag()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get snapshots: %w", err)
+	}
+	if len(snapshots) == 0 {
+		snapshots = []string{"_workdir_", "_stage_", "_head_"}
+	}
+	return snapshots, nil
+}
+
+func (f *Factory) resolveTopK(cfg *config.Config) (int, error) {
+	topK, err := f.parametersReader.GetTopKFlag()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get topK: %w", err)
+	}
+	if topK <= 0 {
+		if cfg.Flows.Answer.Retrieval != nil {
+			topK = defaultTopK(cfg.Flows.Answer.Retrieval.TopK)
+		} else {
+			topK = defaultTopK(0)
+		}
+	}
+	return topK, nil
+}
+
+func (f *Factory) resolveMinScore(cfg *config.Config) (float32, error) {
+	minScore, err := f.parametersReader.GetMinScoreFlag()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get min score: %w", err)
+	}
+	if minScore <= 0 {
+		if cfg.Flows.Answer.Retrieval != nil {
+			minScore = defaultMinScore(cfg.Flows.Answer.Retrieval.MinScore)
+		} else {
+			minScore = defaultMinScore(0)
+		}
+	}
+	return minScore, nil
+}
+
+func (f *Factory) resolvePresetName(cfg *config.Config) (string, error) {
+	presetName, err := f.parametersReader.GetPresetFlag()
+	if err != nil {
+		return "", fmt.Errorf("failed to get preset: %w", err)
+	}
+	if presetName == "" {
+		presetName = cfg.Flows.Answer.Preset
+		if presetName == "" {
+			return "", fmt.Errorf("preset is required (set in config flows.answer.preset or via --preset flag)")
+		}
+	}
+	return presetName, nil
 }
 
 func defaultTopK(configValue int) int {

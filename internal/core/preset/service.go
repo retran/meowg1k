@@ -298,6 +298,16 @@ func mergeRequest(dst *config.RequestConfig, src *config.RequestConfig) *config.
 		return dst
 	}
 
+	mergeSamplingParams(dst, src)
+	mergePenaltyParams(dst, src)
+	mergeResponseParams(dst, src)
+	mergeAdvancedParams(dst, src)
+	mergeOtherParams(dst, src)
+
+	return dst
+}
+
+func mergeSamplingParams(dst, src *config.RequestConfig) {
 	if src.CandidateCount != nil {
 		dst.CandidateCount = src.CandidateCount
 	}
@@ -313,42 +323,36 @@ func mergeRequest(dst *config.RequestConfig, src *config.RequestConfig) *config.
 	if src.MaxTokens != nil {
 		dst.MaxTokens = src.MaxTokens
 	}
+}
+
+func mergePenaltyParams(dst, src *config.RequestConfig) {
 	if src.FrequencyPenalty != nil {
 		dst.FrequencyPenalty = src.FrequencyPenalty
 	}
 	if src.PresencePenalty != nil {
 		dst.PresencePenalty = src.PresencePenalty
 	}
-	if src.Seed != nil {
-		dst.Seed = src.Seed
+	if src.RepetitionPenalty != nil {
+		dst.RepetitionPenalty = src.RepetitionPenalty
 	}
+}
+
+func mergeResponseParams(dst, src *config.RequestConfig) {
 	if src.ResponseFormat != nil {
 		dst.ResponseFormat = src.ResponseFormat
-	}
-	if src.TopLogProbs != nil {
-		dst.TopLogProbs = src.TopLogProbs
-	}
-	if src.Grammar != nil {
-		dst.Grammar = src.Grammar
-	}
-	if src.LogProbs != nil {
-		dst.LogProbs = src.LogProbs
 	}
 	if src.ResponseSchema != nil {
 		dst.ResponseSchema = src.ResponseSchema
 	}
-	if src.LogitBias != nil {
-		dst.LogitBias = src.LogitBias
+	if src.LogProbs != nil {
+		dst.LogProbs = src.LogProbs
 	}
-	if src.ServiceTier != nil {
-		dst.ServiceTier = src.ServiceTier
+	if src.TopLogProbs != nil {
+		dst.TopLogProbs = src.TopLogProbs
 	}
-	if src.User != nil {
-		dst.User = src.User
-	}
-	if src.RepetitionPenalty != nil {
-		dst.RepetitionPenalty = src.RepetitionPenalty
-	}
+}
+
+func mergeAdvancedParams(dst, src *config.RequestConfig) {
 	if src.MinP != nil {
 		dst.MinP = src.MinP
 	}
@@ -367,11 +371,27 @@ func mergeRequest(dst *config.RequestConfig, src *config.RequestConfig) *config.
 	if src.MirostatEta != nil {
 		dst.MirostatEta = src.MirostatEta
 	}
+}
+
+func mergeOtherParams(dst, src *config.RequestConfig) {
+	if src.Seed != nil {
+		dst.Seed = src.Seed
+	}
+	if src.Grammar != nil {
+		dst.Grammar = src.Grammar
+	}
+	if src.LogitBias != nil {
+		dst.LogitBias = src.LogitBias
+	}
+	if src.ServiceTier != nil {
+		dst.ServiceTier = src.ServiceTier
+	}
+	if src.User != nil {
+		dst.User = src.User
+	}
 	if src.Stop != nil {
 		dst.Stop = src.Stop
 	}
-
-	return dst
 }
 
 // validateResolvedPreset validates a resolved preset configuration.

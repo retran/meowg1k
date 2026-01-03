@@ -200,129 +200,159 @@ func registerSystemTools(r *Registry, deps *ToolDependencies) {
 
 func registerSearchTools(r *Registry, deps *ToolDependencies) {
 	// --- SEARCH Operations ---
-	if deps.RunShell != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "search_text",
-				Description: "Search text/regex using rg (ripgrep) or grep. Use this for exact string matches. Prefer `search_semantic` for concepts.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"pattern": map[string]any{"type": "string", "description": "Pattern to search"},
-						"path":    map[string]any{"type": "string", "description": "Search path (default '.')"},
-						"fixed":   map[string]any{"type": "boolean", "description": "Treat pattern as literal string"},
-						"glob":    map[string]any{"type": "string", "description": "File glob (e.g. '*.go')"},
-						"max":     map[string]any{"type": "integer", "description": "Max matches"},
-					},
-					"required": []string{"pattern"},
-				},
-			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				pattern, ok := args["pattern"].(string)
-				if !ok || strings.TrimSpace(pattern) == "" {
-					return nil, fmt.Errorf("pattern is required")
-				}
+	registerSearchTextTool(r, deps)
+	registerSearchSemanticTool(r, deps)
+}
 
-				path, ok := args["path"].(string)
-				if !ok || strings.TrimSpace(path) == "" {
-					path = "."
-				}
-
-				fixed, ok := args["fixed"].(bool)
-				if !ok {
-					fixed = false
-				}
-				glob, ok := args["glob"].(string)
-				if !ok {
-					glob = ""
-				}
-
-				maxResults := 0
-				switch v := args["max"].(type) {
-				case float64:
-					maxResults = int(v)
-				case int:
-					maxResults = v
-				}
-
-				bin := "grep"
-				if _, err := exec.LookPath("rg"); err == nil {
-					bin = "rg"
-				}
-
-				var cmdArgs []string
-				if bin == "rg" {
-					cmdArgs = append(cmdArgs, "--no-heading", "--line-number", "--color=never")
-					if fixed {
-						cmdArgs = append(cmdArgs, "-F")
-					}
-					if glob != "" {
-						cmdArgs = append(cmdArgs, "-g", glob)
-					}
-					if maxResults > 0 {
-						cmdArgs = append(cmdArgs, "--max-count", fmt.Sprintf("%d", maxResults))
-					}
-					cmdArgs = append(cmdArgs, pattern, path)
-				} else {
-					cmdArgs = append(cmdArgs, "-n")
-					if fixed {
-						cmdArgs = append(cmdArgs, "-F")
-					}
-					if glob != "" {
-						cmdArgs = append(cmdArgs, "--include", glob, "-R")
-					} else {
-						cmdArgs = append(cmdArgs, "-r")
-					}
-					if maxResults > 0 {
-						cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", maxResults))
-					}
-					cmdArgs = append(cmdArgs, pattern, path)
-				}
-
-				input := &runshell.Input{Command: bin, Args: cmdArgs}
-				act := deps.RunShell.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_text", act, input)
-			},
-		})
+func registerSearchTextTool(r *Registry, deps *ToolDependencies) {
+	if deps.RunShell == nil {
+		return
 	}
 
-	if deps.SearchCode != nil {
-		r.Register(Tool{
-			Definition: gateway.ToolDefinition{
-				Name:        "search_semantic",
-				Description: "Semantic code search. Use for discovery/concepts. Fallback to `search_text` if no results.",
-				Parameters: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"query": map[string]any{"type": "string", "description": "Natural language query"},
-					},
-					"required": []string{"query"},
+	r.Register(Tool{
+		Definition: gateway.ToolDefinition{
+			Name:        "search_text",
+			Description: "Search text/regex using rg (ripgrep) or grep. Use this for exact string matches. Prefer `search_semantic` for concepts.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"pattern": map[string]any{"type": "string", "description": "Pattern to search"},
+					"path":    map[string]any{"type": "string", "description": "Search path (default '.')"},
+					"fixed":   map[string]any{"type": "boolean", "description": "Treat pattern as literal string"},
+					"glob":    map[string]any{"type": "string", "description": "File glob (e.g. '*.go')"},
+					"max":     map[string]any{"type": "integer", "description": "Max matches"},
 				},
+				"required": []string{"pattern"},
 			},
-			Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
-				query, ok := args["query"].(string)
-				if !ok {
-					return nil, fmt.Errorf("query is required")
-				}
+		},
+		Handler: searchTextHandler(deps),
+	})
+}
 
-				input := &searchindex.Input{
-					QueryText:        query,
-					SnapshotPriority: deps.SearchSnapshots,
-					TopK:             deps.SearchTopK,
-					MinScore:         deps.SearchMinScore,
-				}
-				if len(input.SnapshotPriority) == 0 {
-					input.SnapshotPriority = []string{"_workdir_"}
-				}
-				if input.TopK == 0 {
-					input.TopK = 10
-				}
+func searchTextHandler(deps *ToolDependencies) func(context.Context, *executor.Context, map[string]any) (any, error) {
+	return func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+		pattern, ok := args["pattern"].(string)
+		if !ok || strings.TrimSpace(pattern) == "" {
+			return nil, fmt.Errorf("pattern is required")
+		}
 
-				act := deps.SearchCode.NewActivity()
-				return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_semantic", act, input)
-			},
-		})
+		path, ok := args["path"].(string)
+		if !ok || strings.TrimSpace(path) == "" {
+			path = "."
+		}
+
+		fixed, ok := args["fixed"].(bool)
+		if !ok {
+			fixed = false
+		}
+		glob, ok := args["glob"].(string)
+		if !ok {
+			glob = ""
+		}
+
+		maxResults := resolveMaxResults(args["max"])
+
+		bin := "grep"
+		if _, err := exec.LookPath("rg"); err == nil {
+			bin = "rg"
+		}
+
+		var cmdArgs []string
+		if bin == "rg" {
+			cmdArgs = buildRgArgs(pattern, path, glob, fixed, maxResults)
+		} else {
+			cmdArgs = buildGrepArgs(pattern, path, glob, fixed, maxResults)
+		}
+
+		input := &runshell.Input{Command: bin, Args: cmdArgs}
+		act := deps.RunShell.NewActivity()
+		return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_text", act, input)
 	}
+}
+
+func resolveMaxResults(maxVal any) int {
+	switch v := maxVal.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	default:
+		return 0
+	}
+}
+
+func buildRgArgs(pattern, path, glob string, fixed bool, maxResults int) []string {
+	cmdArgs := []string{"--no-heading", "--line-number", "--color=never"}
+	if fixed {
+		cmdArgs = append(cmdArgs, "-F")
+	}
+	if glob != "" {
+		cmdArgs = append(cmdArgs, "-g", glob)
+	}
+	if maxResults > 0 {
+		cmdArgs = append(cmdArgs, "--max-count", fmt.Sprintf("%d", maxResults))
+	}
+	cmdArgs = append(cmdArgs, pattern, path)
+	return cmdArgs
+}
+
+func buildGrepArgs(pattern, path, glob string, fixed bool, maxResults int) []string {
+	cmdArgs := []string{"-n"}
+	if fixed {
+		cmdArgs = append(cmdArgs, "-F")
+	}
+	if glob != "" {
+		cmdArgs = append(cmdArgs, "--include", glob, "-R")
+	} else {
+		cmdArgs = append(cmdArgs, "-r")
+	}
+	if maxResults > 0 {
+		cmdArgs = append(cmdArgs, "-m", fmt.Sprintf("%d", maxResults))
+	}
+	cmdArgs = append(cmdArgs, pattern, path)
+	return cmdArgs
+}
+
+func registerSearchSemanticTool(r *Registry, deps *ToolDependencies) {
+	if deps.SearchCode == nil {
+		return
+	}
+
+	r.Register(Tool{
+		Definition: gateway.ToolDefinition{
+			Name:        "search_semantic",
+			Description: "Semantic code search. Use for discovery/concepts. Fallback to `search_text` if no results.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{"type": "string", "description": "Natural language query"},
+				},
+				"required": []string{"query"},
+			},
+		},
+		Handler: func(ctx context.Context, execCtx *executor.Context, args map[string]any) (any, error) {
+			query, ok := args["query"].(string)
+			if !ok {
+				return nil, fmt.Errorf("query is required")
+			}
+
+			input := &searchindex.Input{
+				QueryText:        query,
+				SnapshotPriority: deps.SearchSnapshots,
+				TopK:             deps.SearchTopK,
+				MinScore:         deps.SearchMinScore,
+			}
+			if len(input.SnapshotPriority) == 0 {
+				input.SnapshotPriority = []string{"_workdir_"}
+			}
+			if input.TopK == 0 {
+				input.TopK = 10
+			}
+
+			act := deps.SearchCode.NewActivity()
+			return executor.ExecuteActivity(ctx, execCtx.GetExecutor(), execCtx, "search_semantic", act, input)
+		},
+	})
 }
 
 func registerGitTools(r *Registry, deps *ToolDependencies) {

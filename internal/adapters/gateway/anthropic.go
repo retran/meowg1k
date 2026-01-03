@@ -44,8 +44,7 @@ func newAnthropicGateway(apiKey string, httpClient *http.Client) (ports.Generati
 
 	return &anthropicGateway{
 		client: client,
-	},
-	nil
+	}, nil
 }
 
 // GenerateContent generates content using Anthropic's API.
@@ -142,32 +141,35 @@ func (g *anthropicGateway) mapMessages(request *gateway.GenerateContentRequest) 
 	}
 
 	mapped := make([]anthropic.MessageParam, 0, len(msgs))
-	for _, m := range msgs {
-		switch m.Role {
-		case gateway.MessageRoleAssistant:
-			if msg, ok := g.mapAssistantMessage(m); ok {
-				mapped = append(mapped, msg)
-			}
-		case gateway.MessageRoleTool:
-			if msg, ok := g.mapToolMessage(m); ok {
-				mapped = append(mapped, msg)
-			}
-		case gateway.MessageRoleSystem:
-			// handled via params.System in GenerateContent
-		case gateway.MessageRoleUser:
-			if text := strings.TrimSpace(m.Content); text != "" {
-				mapped = append(mapped, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
-			}
-		default:
-			if text := strings.TrimSpace(m.Content); text != "" {
-				mapped = append(mapped, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
-			}
+	for i := range msgs {
+		if msg, ok := g.mapMessage(&msgs[i]); ok {
+			mapped = append(mapped, msg)
 		}
 	}
 	return mapped
 }
 
-func (g *anthropicGateway) mapAssistantMessage(m gateway.Message) (anthropic.MessageParam, bool) {
+func (g *anthropicGateway) mapMessage(m *gateway.Message) (anthropic.MessageParam, bool) {
+	switch m.Role {
+	case gateway.MessageRoleAssistant:
+		return g.mapAssistantMessage(m)
+	case gateway.MessageRoleTool:
+		return g.mapToolMessage(m)
+	case gateway.MessageRoleSystem:
+		return anthropic.MessageParam{}, false
+	case gateway.MessageRoleUser:
+		if text := strings.TrimSpace(m.Content); text != "" {
+			return anthropic.NewUserMessage(anthropic.NewTextBlock(text)), true
+		}
+	default:
+		if text := strings.TrimSpace(m.Content); text != "" {
+			return anthropic.NewUserMessage(anthropic.NewTextBlock(text)), true
+		}
+	}
+	return anthropic.MessageParam{}, false
+}
+
+func (g *anthropicGateway) mapAssistantMessage(m *gateway.Message) (anthropic.MessageParam, bool) {
 	text := strings.TrimSpace(m.Content)
 	if len(m.ToolCalls) > 0 {
 		for _, c := range m.ToolCalls {
@@ -187,7 +189,7 @@ func (g *anthropicGateway) mapAssistantMessage(m gateway.Message) (anthropic.Mes
 	return anthropic.NewAssistantMessage(anthropic.NewTextBlock(text)), true
 }
 
-func (g *anthropicGateway) mapToolMessage(m gateway.Message) (anthropic.MessageParam, bool) {
+func (g *anthropicGateway) mapToolMessage(m *gateway.Message) (anthropic.MessageParam, bool) {
 	text := strings.TrimSpace(m.Content)
 	if m.ToolName != "" {
 		header := "Tool result: " + m.ToolName
@@ -208,48 +210,63 @@ func buildAnthropicTools(tools []gateway.ToolDefinition) []anthropic.ToolUnionPa
 	}
 	result := make([]anthropic.ToolUnionParam, 0, len(tools))
 	for _, tool := range tools {
-		inputSchema := anthropic.ToolInputSchemaParam{Type: "object"}
-		if tool.Parameters != nil {
-			if props, ok := tool.Parameters["properties"]; ok {
-				inputSchema.Properties = props
-			}
-			if req, ok := tool.Parameters["required"]; ok {
-				switch list := req.(type) {
-				case []any:
-					required := make([]string, 0, len(list))
-					for _, item := range list {
-						if s, ok := item.(string); ok {
-							required = append(required, s)
-						}
-					}
-					inputSchema.Required = required
-				case []string:
-					inputSchema.Required = list
-				}
-			}
-			// Preserve any remaining schema fields.
-			extras := make(map[string]any)
-			for k, v := range tool.Parameters {
-				if k == "type" || k == "properties" || k == "required" {
-					continue
-				}
-				extras[k] = v
-			}
-			if len(extras) > 0 {
-				inputSchema.ExtraFields = extras
-			}
-		}
-
-		oolParam := &anthropic.ToolParam{
+		inputSchema := buildToolInputSchema(tool.Parameters)
+		toolParam := &anthropic.ToolParam{
 			Name:        tool.Name,
 			InputSchema: inputSchema,
 		}
 		if tool.Description != "" {
-			oolParam.Description = anthropic.String(tool.Description)
+			toolParam.Description = anthropic.String(tool.Description)
 		}
 		result = append(result, anthropic.ToolUnionParam{OfTool: toolParam})
 	}
 	return result
+}
+
+func buildToolInputSchema(params map[string]any) anthropic.ToolInputSchemaParam {
+	inputSchema := anthropic.ToolInputSchemaParam{Type: "object"}
+	if params == nil {
+		return inputSchema
+	}
+
+	if props, ok := params["properties"]; ok {
+		inputSchema.Properties = props
+	}
+
+	if req, ok := params["required"]; ok {
+		inputSchema.Required = mapRequiredFields(req)
+	}
+
+	// Preserve any remaining schema fields.
+	extras := make(map[string]any)
+	for k, v := range params {
+		if k == "type" || k == "properties" || k == "required" {
+			continue
+		}
+		extras[k] = v
+	}
+	if len(extras) > 0 {
+		inputSchema.ExtraFields = extras
+	}
+
+	return inputSchema
+}
+
+func mapRequiredFields(req any) []string {
+	switch list := req.(type) {
+	case []any:
+		required := make([]string, 0, len(list))
+		for _, item := range list {
+			if s, ok := item.(string); ok {
+				required = append(required, s)
+			}
+		}
+		return required
+	case []string:
+		return list
+	default:
+		return nil
+	}
 }
 
 func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) []gateway.ContentBlock {

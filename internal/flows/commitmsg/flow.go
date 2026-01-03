@@ -143,36 +143,13 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	diffMode, err := f.commandParametersReader.GetDiffFlag()
+	diffMode, baseBranch, err := f.resolveDiffMode(flowCtx)
 	if err != nil {
-		return fmt.Errorf("failed to get diff flag: %w", err)
-	}
-	baseBranch, err := f.commandParametersReader.GetBaseBranchFlag()
-	if err != nil {
-		return fmt.Errorf("failed to get base flag: %w", err)
+		return err
 	}
 
-	diffMode = strings.ToLower(strings.TrimSpace(diffMode))
-	if diffMode == "" {
-		diffMode = diffModeStaged
-	}
-
-	switch diffMode {
-	case diffModeStaged:
-		if baseBranch != "" {
-			return fmt.Errorf("base branch is only valid with --diff branch")
-		}
-		flowCtx.SendRunningWithDetails("I'm drafting a commit message", "diff=staged")
-	case diffModeBranch:
-		if baseBranch == "" {
-			return fmt.Errorf("base branch is required when --diff branch")
-		}
-		flowCtx.SendRunningWithDetails("I'm drafting a commit message", fmt.Sprintf("diff=branch base=%s", baseBranch))
-	default:
-		return fmt.Errorf("diff must be one of: staged, branch")
-	}
-
-	files, renames, err := f.listFiles(ctx, flowCtx, exec, baseBranchForDiff(diffMode, baseBranch))
+	targetBranch := baseBranchForDiff(diffMode, baseBranch)
+	files, renames, err := f.listFiles(ctx, flowCtx, exec, targetBranch)
 	if err != nil {
 		return err
 	}
@@ -182,7 +159,7 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 		return err
 	}
 
-	changes, err := f.fetchChanges(ctx, flowCtx, exec, filteredFiles, renames, baseBranchForDiff(diffMode, baseBranch))
+	changes, err := f.fetchChanges(ctx, flowCtx, exec, filteredFiles, renames, targetBranch)
 	if err != nil {
 		return err
 	}
@@ -209,6 +186,39 @@ func (f *Factory) runCommitFlow(ctx context.Context, flowCtx *executor.Context) 
 	flowCtx.SendCompletedWithDetails("I've drafted the commit message", "diff=staged")
 
 	return nil
+}
+
+func (f *Factory) resolveDiffMode(flowCtx *executor.Context) (diffMode string, baseBranch string, err error) {
+	diffMode, err = f.commandParametersReader.GetDiffFlag()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get diff flag: %w", err)
+	}
+	baseBranch, err = f.commandParametersReader.GetBaseBranchFlag()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get base flag: %w", err)
+	}
+
+	diffMode = strings.ToLower(strings.TrimSpace(diffMode))
+	if diffMode == "" {
+		diffMode = diffModeStaged
+	}
+
+	switch diffMode {
+	case diffModeStaged:
+		if baseBranch != "" {
+			return "", "", fmt.Errorf("base branch is only valid with --diff branch")
+		}
+		flowCtx.SendRunningWithDetails("I'm drafting a commit message", "diff=staged")
+	case diffModeBranch:
+		if baseBranch == "" {
+			return "", "", fmt.Errorf("base branch is required when --diff branch")
+		}
+		flowCtx.SendRunningWithDetails("I'm drafting a commit message", fmt.Sprintf("diff=branch base=%s", baseBranch))
+	default:
+		return "", "", fmt.Errorf("diff must be one of: staged, branch")
+	}
+
+	return diffMode, baseBranch, nil
 }
 
 func baseBranchForDiff(diffMode, baseBranch string) string {

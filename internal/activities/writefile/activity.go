@@ -51,51 +51,21 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
 		}
 
-		// Sanitize and resolve path
-		cleanPath := filepath.Clean(input.Path)
-		if cleanPath == "." || cleanPath == "" {
-			return nil, fmt.Errorf("path is required")
-		}
-		if filepath.IsAbs(cleanPath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.Path)
+		fullPath, cleanPath, err := resolveAndValidatePath(workspaceRoot, input.Path)
+		if err != nil {
+			return nil, err
 		}
 
-		absRoot, err := filepath.Abs(workspaceRoot)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve workspace root: %w", err)
-		}
-		fullPath := filepath.Join(absRoot, cleanPath)
-		absFull, err := filepath.Abs(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path: %w", err)
-		}
-		rel, err := filepath.Rel(absRoot, absFull)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		rel = filepath.Clean(rel)
-		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.Path)
-		}
-
-		details := fmt.Sprintf("path=%s size=%d", cleanPath, len(input.Content))
-		if f.dryRun {
-			details += " (DRY RUN)"
-		}
-		_ = details // Used for potential future logging
 		if f.dryRun {
 			flowCtx.SendRunning(fmt.Sprintf("Writing %s (dry run)", cleanPath))
-		} else {
-			flowCtx.SendRunning(fmt.Sprintf("Writing %s", cleanPath))
-		}
-
-		if f.dryRun {
 			flowCtx.SendCompleted(fmt.Sprintf("Skipped writing %s (dry run)", cleanPath))
 			return &Output{
 				Written: false,
 				Message: fmt.Sprintf("Dry run: would have written %d bytes to %s", len(input.Content), cleanPath),
 			}, nil
 		}
+
+		flowCtx.SendRunning(fmt.Sprintf("Writing %s", cleanPath))
 
 		// Create directory if it doesn't exist
 		dir := filepath.Dir(fullPath)
@@ -114,4 +84,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Message: fmt.Sprintf("Successfully wrote %d bytes to %s", len(input.Content), cleanPath),
 		}, nil
 	}
+}
+
+func resolveAndValidatePath(workspaceRoot, inputPath string) (fullPath, cleanPath string, err error) {
+	cleanPath = filepath.Clean(inputPath)
+	if cleanPath == "." || cleanPath == "" {
+		return "", "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(cleanPath) {
+		return "", "", fmt.Errorf("absolute paths are not allowed: %s", inputPath)
+	}
+
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	fullPath = filepath.Join(absRoot, cleanPath)
+	absFull, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absFull)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	rel = filepath.Clean(rel)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path traversal attempt: %s", inputPath)
+	}
+	return fullPath, cleanPath, nil
 }

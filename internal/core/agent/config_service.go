@@ -5,7 +5,6 @@
 package agent
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -85,109 +84,135 @@ func resolveStrict(agentCfg *config.AgentConfig) (*ResolvedConfig, error) {
 		return nil, fmt.Errorf("flows.agent.system_prompt is required")
 	}
 
-	toolsCfg := agentCfg.Tools
-	if toolsCfg == nil {
-		return nil, fmt.Errorf("flows.agent.tools is required")
-	}
-	if toolsCfg.SearchDefaults == nil {
-		return nil, fmt.Errorf("flows.agent.tools.search_defaults is required")
-	}
-	if len(toolsCfg.SearchDefaults.Snapshots) == 0 {
-		return nil, fmt.Errorf("flows.agent.tools.search_defaults.snapshots is required")
-	}
-	if toolsCfg.SearchDefaults.TopK <= 0 {
-		return nil, fmt.Errorf("flows.agent.tools.search_defaults.top_k must be > 0")
-	}
-	if toolsCfg.SearchDefaults.MinScore <= 0 {
-		return nil, fmt.Errorf("flows.agent.tools.search_defaults.min_score must be > 0")
+	if err := validateToolsConfig(agentCfg.Tools); err != nil {
+		return nil, err
 	}
 
-	pipelines := agentCfg.Pipelines
-	if len(pipelines) == 0 {
-		return nil, fmt.Errorf("flows.agent.pipelines is required")
-	}
-	for name, pipeline := range pipelines {
-		if strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("flows.agent.pipelines contains an empty name")
-		}
-		if pipeline == nil {
-			return nil, fmt.Errorf("flows.agent.pipelines.%s is nil", name)
-		}
-		if len(pipeline.Steps) == 0 {
-			return nil, fmt.Errorf("flows.agent.pipelines.%s.steps is required", name)
-		}
-	}
-	if pipelines["default"] == nil {
-		return nil, fmt.Errorf("flows.agent.pipelines.default is required")
+	if err := validatePipelinesConfig(agentCfg.Pipelines); err != nil {
+		return nil, err
 	}
 
-	personas := agentCfg.Personas
-	if len(personas) == 0 {
-		return nil, fmt.Errorf("flows.agent.personas is required")
-	}
-	for name, p := range personas {
-		if strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("flows.agent.personas contains an empty name")
-		}
-		if p == nil {
-			return nil, fmt.Errorf("flows.agent.personas.%s is nil", name)
-		}
-		if strings.TrimSpace(p.Preset) == "" {
-			return nil, fmt.Errorf("flows.agent.personas.%s.preset is required", name)
-		}
-		// Tools must be explicitly present in config (can be empty for no-tools steps).
-		if p.Tools == nil {
-			return nil, fmt.Errorf("flows.agent.personas.%s.tools is required", name)
-		}
-		if strings.TrimSpace(p.SystemPersona) == "" {
-			return nil, fmt.Errorf("flows.agent.personas.%s.system_persona is required", name)
-		}
-		if strings.TrimSpace(p.UserInstructions) == "" {
-			return nil, fmt.Errorf("flows.agent.personas.%s.user_instructions is required", name)
-		}
-	}
-	for _, required := range []string{"discover", "plan", "execute", "verify"} {
-		if personas[required] == nil {
-			return nil, fmt.Errorf("flows.agent.personas.%s is required", required)
-		}
+	if err := validatePersonasConfig(agentCfg.Personas); err != nil {
+		return nil, err
 	}
 
-	safety := agentCfg.Safety
-	if safety == nil {
-		return nil, fmt.Errorf("flows.agent.safety is required")
-	}
-	if safety.CircuitBreaker == nil {
-		return nil, fmt.Errorf("flows.agent.safety.circuit_breaker is required")
-	}
-	if safety.CircuitBreaker.MaxRestarts <= 0 {
-		return nil, fmt.Errorf("flows.agent.safety.circuit_breaker.max_restarts must be > 0")
-	}
-	if safety.MaxSteps < 0 {
-		return nil, fmt.Errorf("flows.agent.safety.max_steps must be >= 0")
+	if err := validateSafetyConfig(agentCfg.Safety); err != nil {
+		return nil, err
 	}
 
-	toolDescriptions := toolsCfg.ToolDescriptions
+	toolDescriptions := agentCfg.Tools.ToolDescriptions
 	if toolDescriptions == nil {
 		toolDescriptions = map[string]string{}
-	}
-
-	// Ensure maps are non-nil to simplify downstream code.
-	if agentCfg.Pipelines == nil || agentCfg.Personas == nil {
-		return nil, errors.New("agent configuration must provide flows and personas")
 	}
 
 	return &ResolvedConfig{
 		SystemPrompt: systemPrompt,
 		Tools: Tools{
 			SearchDefaults: SearchDefaults{
-				Snapshots: toolsCfg.SearchDefaults.Snapshots,
-				TopK:      toolsCfg.SearchDefaults.TopK,
-				MinScore:  toolsCfg.SearchDefaults.MinScore,
+				Snapshots: agentCfg.Tools.SearchDefaults.Snapshots,
+				TopK:      agentCfg.Tools.SearchDefaults.TopK,
+				MinScore:  agentCfg.Tools.SearchDefaults.MinScore,
 			},
 			ToolDescriptions: toolDescriptions,
 		},
 		Personas:  agentCfg.Personas,
 		Pipelines: agentCfg.Pipelines,
-		Safety:    safety,
+		Safety:    agentCfg.Safety,
 	}, nil
+}
+
+func validateToolsConfig(toolsCfg *config.AgentToolsConfig) error {
+	if toolsCfg == nil {
+		return fmt.Errorf("flows.agent.tools is required")
+	}
+	if toolsCfg.SearchDefaults == nil {
+		return fmt.Errorf("flows.agent.tools.search_defaults is required")
+	}
+	if len(toolsCfg.SearchDefaults.Snapshots) == 0 {
+		return fmt.Errorf("flows.agent.tools.search_defaults.snapshots is required")
+	}
+	if toolsCfg.SearchDefaults.TopK <= 0 {
+		return fmt.Errorf("flows.agent.tools.search_defaults.top_k must be > 0")
+	}
+	if toolsCfg.SearchDefaults.MinScore <= 0 {
+		return fmt.Errorf("flows.agent.tools.search_defaults.min_score must be > 0")
+	}
+	return nil
+}
+
+func validatePipelinesConfig(pipelines map[string]*config.AgentPipelineConfig) error {
+	if len(pipelines) == 0 {
+		return fmt.Errorf("flows.agent.pipelines is required")
+	}
+	for name, pipeline := range pipelines {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("flows.agent.pipelines contains an empty name")
+		}
+		if pipeline == nil {
+			return fmt.Errorf("flows.agent.pipelines.%s is nil", name)
+		}
+		if len(pipeline.Steps) == 0 {
+			return fmt.Errorf("flows.agent.pipelines.%s.steps is required", name)
+		}
+	}
+	if pipelines["default"] == nil {
+		return fmt.Errorf("flows.agent.pipelines.default is required")
+	}
+	return nil
+}
+
+func validatePersonasConfig(personas map[string]*config.PersonaConfig) error {
+	if len(personas) == 0 {
+		return fmt.Errorf("flows.agent.personas is required")
+	}
+	for name, p := range personas {
+		if err := validatePersona(name, p); err != nil {
+			return err
+		}
+	}
+	for _, required := range []string{"discover", "plan", "execute", "verify"} {
+		if personas[required] == nil {
+			return fmt.Errorf("flows.agent.personas.%s is required", required)
+		}
+	}
+	return nil
+}
+
+func validatePersona(name string, p *config.PersonaConfig) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("flows.agent.personas contains an empty name")
+	}
+	if p == nil {
+		return fmt.Errorf("flows.agent.personas.%s is nil", name)
+	}
+	if strings.TrimSpace(p.Preset) == "" {
+		return fmt.Errorf("flows.agent.personas.%s.preset is required", name)
+	}
+	// Tools must be explicitly present in config (can be empty for no-tools steps).
+	if p.Tools == nil {
+		return fmt.Errorf("flows.agent.personas.%s.tools is required", name)
+	}
+	if strings.TrimSpace(p.SystemPersona) == "" {
+		return fmt.Errorf("flows.agent.personas.%s.system_persona is required", name)
+	}
+	if strings.TrimSpace(p.UserInstructions) == "" {
+		return fmt.Errorf("flows.agent.personas.%s.user_instructions is required", name)
+	}
+	return nil
+}
+
+func validateSafetyConfig(safety *config.AgentSafetyConfig) error {
+	if safety == nil {
+		return fmt.Errorf("flows.agent.safety is required")
+	}
+	if safety.CircuitBreaker == nil {
+		return fmt.Errorf("flows.agent.safety.circuit_breaker is required")
+	}
+	if safety.CircuitBreaker.MaxRestarts <= 0 {
+		return fmt.Errorf("flows.agent.safety.circuit_breaker.max_restarts must be > 0")
+	}
+	if safety.MaxSteps < 0 {
+		return fmt.Errorf("flows.agent.safety.max_steps must be >= 0")
+	}
+	return nil
 }

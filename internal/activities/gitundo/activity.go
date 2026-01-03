@@ -51,31 +51,14 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
 		}
 
-		// Sanitize and resolve path
-		cleanPath := filepath.Clean(input.Path)
-		if cleanPath == "." || cleanPath == "" {
-			return nil, fmt.Errorf("path is required")
-		}
-		if filepath.IsAbs(cleanPath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.Path)
+		fullPath, cleanPath, err := resolveAndValidatePath(workspaceRoot, input.Path)
+		if err != nil {
+			return nil, err
 		}
 
 		absRoot, err := filepath.Abs(workspaceRoot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve workspace root: %w", err)
-		}
-		fullPath := filepath.Join(absRoot, cleanPath)
-		absFull, err := filepath.Abs(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path: %w", err)
-		}
-		rel, err := filepath.Rel(absRoot, absFull)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		rel = filepath.Clean(rel)
-		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.Path)
 		}
 
 		// Check if .git exists
@@ -93,7 +76,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Execute git checkout HEAD -- <file>
-		cmd := exec.CommandContext(ctx, "git", "checkout", "HEAD", "--", absFull) // #nosec G204
+		cmd := exec.CommandContext(ctx, "git", "checkout", "HEAD", "--", fullPath) // #nosec G204
 		cmd.Dir = absRoot
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return nil, fmt.Errorf("git checkout failed: %w\nOutput: %s", err, string(output))
@@ -104,4 +87,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Restored: true,
 		}, nil
 	}
+}
+
+func resolveAndValidatePath(workspaceRoot, inputPath string) (fullPath, cleanPath string, err error) {
+	cleanPath = filepath.Clean(inputPath)
+	if cleanPath == "." || cleanPath == "" {
+		return "", "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(cleanPath) {
+		return "", "", fmt.Errorf("absolute paths are not allowed: %s", inputPath)
+	}
+
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	fullPath = filepath.Join(absRoot, cleanPath)
+	absFull, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absFull)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	rel = filepath.Clean(rel)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path traversal attempt: %s", inputPath)
+	}
+	return fullPath, cleanPath, nil
 }

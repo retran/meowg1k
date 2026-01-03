@@ -67,30 +67,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 
 		changes := make([]*git.FileChange, 0, len(input.Files))
 		for _, file := range input.Files {
-			fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
-
-			// Check if this file was renamed
-			oldPath := ""
-			if input.Renames != nil {
-				if old, isRenamed := input.Renames[file]; isRenamed {
-					oldPath = old
-				}
-			}
-
-			change, err := executor.ExecuteActivity[*fetchbranchdiff.Input, *git.FileChange](
-				ctx,
-				exec,
-				executorCtx,
-				file,
-				fetchBranchFileDiff,
-				&fetchbranchdiff.Input{
-					Filename:     file,
-					TargetBranch: input.TargetBranch,
-					OldPath:      oldPath,
-				},
-			)
+			change, err := f.fetchFileDiff(ctx, executorCtx, exec, file, input.TargetBranch, input.Renames)
 			if err != nil {
-				return nil, fmt.Errorf("failed to read branch diffs: %w", err)
+				return nil, err
 			}
 			changes = append(changes, change)
 		}
@@ -104,4 +83,40 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Changes: changes,
 		}, nil
 	}
+}
+
+func (f *Factory) fetchFileDiff(
+	ctx context.Context,
+	executorCtx *executor.Context,
+	exec executor.Executor,
+	file string,
+	targetBranch string,
+	renames map[string]string,
+) (*git.FileChange, error) {
+	fetchBranchFileDiff := f.branchFileDiffActivityFactory.NewActivity()
+
+	// Check if this file was renamed
+	oldPath := ""
+	if renames != nil {
+		if old, isRenamed := renames[file]; isRenamed {
+			oldPath = old
+		}
+	}
+
+	change, err := executor.ExecuteActivity[*fetchbranchdiff.Input, *git.FileChange](
+		ctx,
+		exec,
+		executorCtx,
+		file,
+		fetchBranchFileDiff,
+		&fetchbranchdiff.Input{
+			Filename:     file,
+			TargetBranch: targetBranch,
+			OldPath:      oldPath,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read branch diffs: %w", err)
+	}
+	return change, nil
 }

@@ -174,33 +174,11 @@ func (g *openrouterGateway) GenerateContent(
 }
 
 func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
-	if msgs := request.Messages(); len(msgs) > 0 {
+	msgs := request.Messages()
+	if len(msgs) > 0 {
 		mapped := make([]openrouterMessage, 0, len(msgs))
-		for _, m := range msgs {
-			om := openrouterMessage{Role: string(m.Role), Content: m.Content}
-			if len(m.ToolCalls) > 0 {
-				calls := make([]openrouterToolCall, 0, len(m.ToolCalls))
-				for _, c := range m.ToolCalls {
-					args, err := json.Marshal(c.Arguments)
-					if err != nil {
-						args = []byte("{}")
-					}
-					calls = append(calls, openrouterToolCall{
-						ID:   c.ID,
-						Type: "function",
-						Function: openrouterToolCallEntry{
-							Name:      c.Name,
-							Arguments: string(args),
-						},
-					})
-				}
-				om.ToolCalls = calls
-			}
-			if m.Role == gateway.MessageRoleTool {
-				om.Role = "tool"
-				om.ToolCallID = m.ToolCallID
-			}
-			mapped = append(mapped, om)
+		for i := range msgs {
+			mapped = append(mapped, mapToOpenRouterMessage(&msgs[i]))
 		}
 		return mapped
 	}
@@ -217,6 +195,37 @@ func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrout
 		Content: request.UserPrompt(),
 	})
 	return messages
+}
+
+func mapToOpenRouterMessage(m *gateway.Message) openrouterMessage {
+	om := openrouterMessage{Role: string(m.Role), Content: m.Content}
+	if len(m.ToolCalls) > 0 {
+		om.ToolCalls = mapOpenRouterToolCalls(m.ToolCalls)
+	}
+	if m.Role == gateway.MessageRoleTool {
+		om.Role = "tool"
+		om.ToolCallID = m.ToolCallID
+	}
+	return om
+}
+
+func mapOpenRouterToolCalls(toolCalls []gateway.ToolCall) []openrouterToolCall {
+	calls := make([]openrouterToolCall, 0, len(toolCalls))
+	for _, c := range toolCalls {
+		args, err := json.Marshal(c.Arguments)
+		if err != nil {
+			args = []byte("{}")
+		}
+		calls = append(calls, openrouterToolCall{
+			ID:   c.ID,
+			Type: "function",
+			Function: openrouterToolCallEntry{
+				Name:      c.Name,
+				Arguments: string(args),
+			},
+		})
+	}
+	return calls
 }
 
 func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []openrouterMessage) openrouterRequest {

@@ -33,6 +33,7 @@ import (
 	"github.com/retran/meowg1k/internal/core/agent/state"
 	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/core/retrieval"
+	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -89,150 +90,165 @@ func NewFactory(
 // NewFlow creates a new do flow.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		// 1. Load Config
 		cfg, err := f.configService.Get()
 		if err != nil {
 			return fmt.Errorf("failed to get config: %w", err)
 		}
 
-		// 2. Read Input (Goal + Stdin)
-		goal, err := f.parametersReader.GetTaskInput()
+		goal, err := f.readGoal()
 		if err != nil {
-			return fmt.Errorf("failed to get task input: %w", err)
-		}
-		// GetTaskInput already includes stdin if it was piped.
-		// But if we want to be explicit about concatenation:
-		stdin, err := f.parametersReader.GetStdIn()
-		if err == nil && stdin != "" && !strings.Contains(goal, stdin) {
-			goal = goal + "\n\n" + stdin
-		}
-
-		goal = strings.TrimSpace(goal)
-		if goal == "" {
-			return fmt.Errorf("no goal provided")
+			return err
 		}
 
 		flowCtx.SendRunningWithDetails("Starting agent flow", fmt.Sprintf("goal_len=%d", len(goal)))
 
-		// 3. Initialize State
 		flowState := state.NewFlowState()
 		ctx = state.WithFlowState(ctx, flowState)
 
-		// 4. Read CLI Overrides
 		dryRunOverride, err := f.parametersReader.GetDryRunFlag()
 		if err != nil {
 			return fmt.Errorf("failed to read dry-run flag: %w", err)
 		}
 
 		baseSystemPrompt := strings.TrimSpace(cfg.SystemPrompt)
-		effectivePreset := ""
-		if p, ok := cfg.Personas["discover"]; ok {
-			effectivePreset = strings.TrimSpace(p.Preset)
-		}
-		if effectivePreset == "" {
-			for _, p := range cfg.Personas {
-				if p == nil {
-					continue
-				}
-				candidate := strings.TrimSpace(p.Preset)
-				if candidate != "" {
-					effectivePreset = candidate
-					break
-				}
-			}
+		effectivePreset := f.resolveEffectivePreset(cfg)
+		registry := f.initTools(cfg, dryRunOverride, effectivePreset)
+
+		pipelineCfg, err := f.resolvePipeline(cfg)
+		if err != nil {
+			return err
 		}
 
-		// 5. Initialize Tools Registry
-		registry := tools.NewRegistry()
-
-		dryRun := false
-		if cfg.Safety != nil {
-			dryRun = cfg.Safety.DryRun
-		}
-		if dryRunOverride {
-			dryRun = true
-		}
-
-		searchSnapshots := cfg.Tools.SearchDefaults.Snapshots
-		searchTopK := cfg.Tools.SearchDefaults.TopK
-		searchMinScore := cfg.Tools.SearchDefaults.MinScore
-
-		deps := tools.ToolDependencies{
-			ReadFile:   readfile.NewFactory(f.workspaceService),
-			WriteFile:  writefile.NewFactory(f.workspaceService, dryRun),
-			EditFile:   editfile.NewFactory(f.workspaceService, dryRun),
-			MoveFile:   movefile.NewFactory(f.workspaceService, dryRun),
-			DeleteFile: deletefile.NewFactory(f.workspaceService, dryRun),
-			GitUndo:    gitundo.NewFactory(f.workspaceService, dryRun),
-			RunShell:   runshell.NewFactory(f.workspaceService),
-			ListFiles:  listfiles.NewFactory(f.projectStateService),
-			SearchCode: searchindex.MustNewFactory(f.retrievalService),
-			GetDiff:    getdiff.NewFactory(f.gitToolingService),
-			Memorize:   memorize.NewFactory(),
-			Plan:       plan.NewFactory(),
-			GetPlan:    getplan.NewFactory(),
-			TrackTask:  tracktask.NewFactory(),
-			Summarize:  summarize.NewFactory(f.gatewayFactory, f.presetResolver, effectivePreset),
-			Restart:    control.NewRestartFactory(),
-
-			SearchSnapshots: searchSnapshots,
-			SearchTopK:      searchTopK,
-			SearchMinScore:  searchMinScore,
-		}
-		tools.RegisterStandardTools(registry, &deps)
-
-		// 6. Determine Pipeline Steps
-		pipelineName := "default" // TODO: allow config override
-		pipelineCfg, ok := cfg.Pipelines[pipelineName]
-		if !ok {
-			return fmt.Errorf("pipeline %s not found", pipelineName)
-		}
-		if pipelineCfg == nil {
-			return fmt.Errorf("pipeline %s is nil", pipelineName)
-		}
-		pipelineSteps := pipelineCfg.Steps
-		if len(pipelineSteps) == 0 {
-			return fmt.Errorf("pipeline %s has no steps", pipelineName)
-		}
-
-		// 7. Execute Pipeline Loop (with Circuit Breaker)
-		maxRestarts := 5
-		if cfg.Safety != nil && cfg.Safety.CircuitBreaker != nil {
-			maxRestarts = cfg.Safety.CircuitBreaker.MaxRestarts
-		}
-
-		currentGoal := goal
-
-		for {
-			restartReq, err := f.executeSteps(ctx, flowCtx, pipelineSteps, cfg, registry, currentGoal, baseSystemPrompt, strings.TrimSpace(pipelineCfg.Instructions))
-			if err != nil {
-				return err
-			}
-
-			if restartReq == "" {
-				break // Pipeline completed successfully
-			}
-
-			// Restart requested
-			count := flowState.IncrementRestartCount()
-			if count > maxRestarts {
-				return fmt.Errorf("circuit breaker tripped: exceeded max restarts (%d)", maxRestarts)
-			}
-
-			flowCtx.SendRunningWithDetails("Restarting flow", fmt.Sprintf("attempt=%d instruction=%s", count+1, restartReq))
-
-			// Restart provides a new goal prompt for the flow.
-			currentGoal = buildRestartGoal(goal, restartReq)
-
-			// Restart semantics:
-			// - Keep Memory (facts): what we learned should persist.
-			// - Reset Plan (tasks): so the planner can rebuild from scratch.
-			flowState.ResetPlan()
-		}
-
-		flowCtx.SendCompleted("Agent flow completed successfully")
-		return nil
+		return f.runPipelineLoop(ctx, flowCtx, flowState, pipelineCfg, registry, goal, baseSystemPrompt, cfg)
 	}
+}
+
+func (f *Factory) readGoal() (string, error) {
+	goal, err := f.parametersReader.GetTaskInput()
+	if err != nil {
+		return "", fmt.Errorf("failed to get task input: %w", err)
+	}
+	stdin, err := f.parametersReader.GetStdIn()
+	if err == nil && stdin != "" && !strings.Contains(goal, stdin) {
+		goal = goal + "\n\n" + stdin
+	}
+
+	goal = strings.TrimSpace(goal)
+	if goal == "" {
+		return "", fmt.Errorf("no goal provided")
+	}
+	return goal, nil
+}
+
+func (f *Factory) resolvePipeline(cfg *agentconfig.ResolvedConfig) (*config.AgentPipelineConfig, error) {
+	pipelineName := "default" // TODO: allow config override
+	pipelineCfg, ok := cfg.Pipelines[pipelineName]
+	if !ok {
+		return nil, fmt.Errorf("pipeline %s not found", pipelineName)
+	}
+	if pipelineCfg == nil {
+		return nil, fmt.Errorf("pipeline %s is nil", pipelineName)
+	}
+	if len(pipelineCfg.Steps) == 0 {
+		return nil, fmt.Errorf("pipeline %s has no steps", pipelineName)
+	}
+	return pipelineCfg, nil
+}
+
+func (f *Factory) runPipelineLoop(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	flowState *state.FlowState,
+	pipelineCfg *config.AgentPipelineConfig,
+	registry *tools.Registry,
+	goal string,
+	baseSystemPrompt string,
+	cfg *agentconfig.ResolvedConfig,
+) error {
+	maxRestarts := 5
+	if cfg.Safety != nil && cfg.Safety.CircuitBreaker != nil {
+		maxRestarts = cfg.Safety.CircuitBreaker.MaxRestarts
+	}
+
+	currentGoal := goal
+	for {
+		restartReq, err := f.executeSteps(ctx, flowCtx, pipelineCfg.Steps, cfg, registry, currentGoal, baseSystemPrompt, strings.TrimSpace(pipelineCfg.Instructions))
+		if err != nil {
+			return err
+		}
+
+		if restartReq == "" {
+			break
+		}
+
+		count := flowState.IncrementRestartCount()
+		if count > maxRestarts {
+			return fmt.Errorf("circuit breaker tripped: exceeded max restarts (%d)", maxRestarts)
+		}
+
+		flowCtx.SendRunningWithDetails("Restarting flow", fmt.Sprintf("attempt=%d instruction=%s", count+1, restartReq))
+		currentGoal = buildRestartGoal(goal, restartReq)
+		flowState.ResetPlan()
+	}
+
+	flowCtx.SendCompleted("Agent flow completed successfully")
+	return nil
+}
+
+func (f *Factory) resolveEffectivePreset(cfg *agentconfig.ResolvedConfig) string {
+	if p, ok := cfg.Personas["discover"]; ok {
+		effectivePreset := strings.TrimSpace(p.Preset)
+		if effectivePreset != "" {
+			return effectivePreset
+		}
+	}
+	for _, p := range cfg.Personas {
+		if p == nil {
+			continue
+		}
+		candidate := strings.TrimSpace(p.Preset)
+		if candidate != "" {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func (f *Factory) initTools(cfg *agentconfig.ResolvedConfig, dryRunOverride bool, effectivePreset string) *tools.Registry {
+	registry := tools.NewRegistry()
+
+	dryRun := false
+	if cfg.Safety != nil {
+		dryRun = cfg.Safety.DryRun
+	}
+	if dryRunOverride {
+		dryRun = true
+	}
+
+	deps := tools.ToolDependencies{
+		ReadFile:   readfile.NewFactory(f.workspaceService),
+		WriteFile:  writefile.NewFactory(f.workspaceService, dryRun),
+		EditFile:   editfile.NewFactory(f.workspaceService, dryRun),
+		MoveFile:   movefile.NewFactory(f.workspaceService, dryRun),
+		DeleteFile: deletefile.NewFactory(f.workspaceService, dryRun),
+		GitUndo:    gitundo.NewFactory(f.workspaceService, dryRun),
+		RunShell:   runshell.NewFactory(f.workspaceService),
+		ListFiles:  listfiles.NewFactory(f.projectStateService),
+		SearchCode: searchindex.MustNewFactory(f.retrievalService),
+		GetDiff:    getdiff.NewFactory(f.gitToolingService),
+		Memorize:   memorize.NewFactory(),
+		Plan:       plan.NewFactory(),
+		GetPlan:    getplan.NewFactory(),
+		TrackTask:  tracktask.NewFactory(),
+		Summarize:  summarize.NewFactory(f.gatewayFactory, f.presetResolver, effectivePreset),
+		Restart:    control.NewRestartFactory(),
+
+		SearchSnapshots: cfg.Tools.SearchDefaults.Snapshots,
+		SearchTopK:      cfg.Tools.SearchDefaults.TopK,
+		SearchMinScore:  cfg.Tools.SearchDefaults.MinScore,
+	}
+	tools.RegisterStandardTools(registry, &deps)
+	return registry
 }
 
 func (f *Factory) executeSteps(
@@ -245,80 +261,14 @@ func (f *Factory) executeSteps(
 	baseSystemPrompt string,
 	flowInstructions string,
 ) (string, error) {
-	exec := flowCtx.GetExecutor()
-
 	priorStepOutputs := make([]string, 0, len(steps))
 	finalStepContent := ""
 
 	for idx, personaName := range steps {
-		personaCfg, ok := cfg.Personas[personaName]
-		if !ok {
-			return "", fmt.Errorf("persona %s not found", personaName)
-		}
-
-		caser := cases.Title(language.English)
-		stepCtx := flowCtx.Child(caser.String(personaName))
-		stepCtx.SendRunning(fmt.Sprintf("Starting %s step", caser.String(personaName)))
-
-		personaPreset := strings.TrimSpace(personaCfg.Preset)
-		prof, err := f.presetResolver.Get(preset.Preset(personaPreset))
+		out, err := f.executeSingleStep(ctx, flowCtx, idx, personaName, steps, cfg, registry, goal, baseSystemPrompt, flowInstructions, priorStepOutputs)
 		if err != nil {
-			return "", fmt.Errorf("failed to resolve preset %s: %w", personaPreset, err)
+			return "", err
 		}
-
-		// Check if we need to restart BEFORE running the step?
-		// No, usually restart comes from tool execution within the step.
-
-		// Run Agent Loop for this Persona
-		agentAct := f.agentLoopFactory.NewActivity()
-		personaDescription := strings.TrimSpace(personaCfg.SystemPersona)
-		sharedFlowPrompt := strings.TrimSpace(flowInstructions)
-		roleLine := buildFlowRoleLine(steps, idx, personaName)
-
-		// Required order:
-		// 1) shared flow system prompt
-		// 2) (user prompt contains prior step outputs)
-		// 3) system prompt of current step
-		systemPromptParts := make([]string, 0, 4)
-		if strings.TrimSpace(baseSystemPrompt) != "" {
-			systemPromptParts = append(systemPromptParts, strings.TrimSpace(baseSystemPrompt))
-		}
-		if sharedFlowPrompt != "" {
-			systemPromptParts = append(systemPromptParts, sharedFlowPrompt)
-		}
-		if roleLine != "" {
-			systemPromptParts = append(systemPromptParts, roleLine)
-		}
-		if personaDescription != "" {
-			systemPromptParts = append(systemPromptParts, personaDescription)
-		}
-		systemPrompt := strings.Join(systemPromptParts, "\n\n")
-
-		stepGoal := goal
-		if mem := buildMemoryFactsSection(ctx); mem != "" {
-			stepGoal = stepGoal + "\n\n" + mem
-		}
-		if len(priorStepOutputs) > 0 {
-			stepGoal = stepGoal + "\n\nPREVIOUS STEP OUTPUTS (in order):\n\n" + strings.Join(priorStepOutputs, "\n\n")
-		}
-		if instructions := strings.TrimSpace(personaCfg.UserInstructions); instructions != "" {
-			stepGoal = stepGoal + "\n\nINSTRUCTIONS:\n\n" + instructions
-		}
-		input := &agentloop.Input{
-			ToolRegistry:             registry,
-			AllowedTools:             personaCfg.Tools,
-			ToolDescriptionOverrides: cfg.Tools.ToolDescriptions,
-			StepName:                 personaName,
-			Preset:                   prof,
-			Goal:                     &stepGoal,
-			SystemPrompt:             &systemPrompt,
-		}
-
-		out, err := executor.ExecuteActivity(ctx, exec, stepCtx, "AgentLoop", agentAct, input)
-		if err != nil {
-			return "", fmt.Errorf("agent loop failed for %s: %w", personaName, err)
-		}
-		stepCtx.SendCompleted(fmt.Sprintf("Finished %s step", caser.String(personaName)))
 
 		if out != nil {
 			priorStepOutputs = append(priorStepOutputs, formatStepOutputForNextStep(personaName, out))
@@ -342,6 +292,88 @@ func (f *Factory) executeSteps(
 	}
 
 	return "", nil
+}
+
+func (f *Factory) executeSingleStep(
+	ctx context.Context,
+	flowCtx *executor.Context,
+	idx int,
+	personaName string,
+	steps []string,
+	cfg *agentconfig.ResolvedConfig,
+	registry *tools.Registry,
+	goal string,
+	baseSystemPrompt string,
+	flowInstructions string,
+	priorStepOutputs []string,
+) (*agentloop.Output, error) {
+	personaCfg, ok := cfg.Personas[personaName]
+	if !ok {
+		return nil, fmt.Errorf("persona %s not found", personaName)
+	}
+
+	caser := cases.Title(language.English)
+	stepCtx := flowCtx.Child(caser.String(personaName))
+	stepCtx.SendRunning(fmt.Sprintf("Starting %s step", caser.String(personaName)))
+
+	personaPreset := strings.TrimSpace(personaCfg.Preset)
+	prof, err := f.presetResolver.Get(preset.Preset(personaPreset))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve preset %s: %w", personaPreset, err)
+	}
+
+	systemPrompt := f.buildStepSystemPrompt(baseSystemPrompt, flowInstructions, steps, idx, personaName, personaCfg.SystemPersona)
+	stepGoal := f.buildStepGoal(ctx, goal, priorStepOutputs, personaCfg.UserInstructions)
+
+	input := &agentloop.Input{
+		ToolRegistry:             registry,
+		AllowedTools:             personaCfg.Tools,
+		ToolDescriptionOverrides: cfg.Tools.ToolDescriptions,
+		StepName:                 personaName,
+		Preset:                   prof,
+		Goal:                     &stepGoal,
+		SystemPrompt:             &systemPrompt,
+	}
+
+	out, err := executor.ExecuteActivity(ctx, flowCtx.GetExecutor(), stepCtx, "AgentLoop", f.agentLoopFactory.NewActivity(), input)
+	if err != nil {
+		return nil, fmt.Errorf("agent loop failed for %s: %w", personaName, err)
+	}
+
+	stepCtx.SendCompleted(fmt.Sprintf("Finished %s step", caser.String(personaName)))
+	return out, nil
+}
+
+func (f *Factory) buildStepSystemPrompt(base, flow string, steps []string, idx int, name, personaDesc string) string {
+	roleLine := buildFlowRoleLine(steps, idx, name)
+	parts := make([]string, 0, 4)
+	if strings.TrimSpace(base) != "" {
+		parts = append(parts, strings.TrimSpace(base))
+	}
+	if strings.TrimSpace(flow) != "" {
+		parts = append(parts, strings.TrimSpace(flow))
+	}
+	if roleLine != "" {
+		parts = append(parts, roleLine)
+	}
+	if strings.TrimSpace(personaDesc) != "" {
+		parts = append(parts, strings.TrimSpace(personaDesc))
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func (f *Factory) buildStepGoal(ctx context.Context, goal string, priorOutputs []string, userInstructions string) string {
+	stepGoal := goal
+	if mem := buildMemoryFactsSection(ctx); mem != "" {
+		stepGoal = stepGoal + "\n\n" + mem
+	}
+	if len(priorOutputs) > 0 {
+		stepGoal = stepGoal + "\n\nPREVIOUS STEP OUTPUTS (in order):\n\n" + strings.Join(priorOutputs, "\n\n")
+	}
+	if instructions := strings.TrimSpace(userInstructions); instructions != "" {
+		stepGoal = stepGoal + "\n\nINSTRUCTIONS:\n\n" + instructions
+	}
+	return stepGoal
 }
 
 func buildMemoryFactsSection(ctx context.Context) string {

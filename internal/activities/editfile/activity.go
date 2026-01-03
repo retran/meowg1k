@@ -52,31 +52,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
 		}
 
-		// Sanitize and resolve path
-		cleanPath := filepath.Clean(input.Path)
-		if cleanPath == "." || cleanPath == "" {
-			return nil, fmt.Errorf("path is required")
-		}
-		if filepath.IsAbs(cleanPath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.Path)
-		}
-
-		absRoot, err := filepath.Abs(workspaceRoot)
+		fullPath, cleanPath, err := resolveAndValidatePath(workspaceRoot, input.Path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve workspace root: %w", err)
-		}
-		fullPath := filepath.Join(absRoot, cleanPath)
-		absFull, err := filepath.Abs(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path: %w", err)
-		}
-		rel, err := filepath.Rel(absRoot, absFull)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		rel = filepath.Clean(rel)
-		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.Path)
+			return nil, err
 		}
 
 		if input.OldString == "" {
@@ -89,31 +67,10 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			flowCtx.SendRunning(fmt.Sprintf("Editing %s", cleanPath))
 		}
 
-		contentBytes, err := os.ReadFile(fullPath) // #nosec G304
+		newContent, err := f.performEdit(fullPath, cleanPath, input.OldString, input.NewString)
 		if err != nil {
-			if os.IsNotExist(err) {
-				return nil, executor.Expected(fmt.Errorf("file not found: %s", cleanPath))
-			}
-			return nil, fmt.Errorf("failed to read file: %w", err)
+			return nil, err
 		}
-		content := string(contentBytes)
-
-		count := strings.Count(content, input.OldString)
-		if count == 0 {
-			return nil, executor.Expected(fmt.Errorf(
-				"edit failed for %s: old_string not found (it must match the file content exactly, including spaces/newlines)",
-				cleanPath,
-			))
-		}
-		if count > 1 {
-			return nil, executor.Expected(fmt.Errorf(
-				"edit failed for %s: old_string matched %d times (make old_string longer/more specific)",
-				cleanPath,
-				count,
-			))
-		}
-
-		newContent := strings.Replace(content, input.OldString, input.NewString, 1)
 
 		if f.dryRun {
 			flowCtx.SendCompleted(fmt.Sprintf("Skipped editing %s (dry run)", cleanPath))
@@ -134,4 +91,61 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Message: fmt.Sprintf("Successfully edited %s", cleanPath),
 		}, nil
 	}
+}
+
+func (f *Factory) performEdit(fullPath, cleanPath, oldString, newString string) (string, error) {
+	contentBytes, err := os.ReadFile(fullPath) // #nosec G304
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("edit error: %w", executor.Expected(fmt.Errorf("file not found: %s", cleanPath)))
+		}
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
+	content := string(contentBytes)
+
+	count := strings.Count(content, oldString)
+	if count == 0 {
+		return "", fmt.Errorf("edit error: %w", executor.Expected(fmt.Errorf(
+			"edit failed for %s: old_string not found (it must match the file content exactly, including spaces/newlines)",
+			cleanPath,
+		)))
+	}
+	if count > 1 {
+		return "", fmt.Errorf("edit error: %w", executor.Expected(fmt.Errorf(
+			"edit failed for %s: old_string matched %d times (make old_string longer/more specific)",
+			cleanPath,
+			count,
+		)))
+	}
+
+	return strings.Replace(content, oldString, newString, 1), nil
+}
+
+func resolveAndValidatePath(workspaceRoot, inputPath string) (fullPath, cleanPath string, err error) {
+	cleanPath = filepath.Clean(inputPath)
+	if cleanPath == "." || cleanPath == "" {
+		return "", "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(cleanPath) {
+		return "", "", fmt.Errorf("absolute paths are not allowed: %s", inputPath)
+	}
+
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	fullPath = filepath.Join(absRoot, cleanPath)
+	absFull, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absFull)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	rel = filepath.Clean(rel)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path traversal attempt: %s", inputPath)
+	}
+	return fullPath, cleanPath, nil
 }

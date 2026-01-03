@@ -63,27 +63,36 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to create generation gateway: %w", err)
 		}
 
-		request := buildRequest(input)
-
-		response, err := write(ctx, generationGateway, request)
+		response, err := f.executeWithRetry(ctx, generationGateway, input)
 		if err != nil {
-			// If tools were requested but the gateway doesn't support native tool calling,
-			// retry without tools so JSON fallback logic can still work upstream.
-			if len(input.Tools) > 0 && errors.Is(err, gateway.ErrToolCallingNotSupported) {
-				request = request.WithTools(nil)
-				response, err = write(ctx, generationGateway, request)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, err
-			}
+			return nil, err
 		}
 
 		executorCtx.SendCompleted("")
 
 		return &Output{Response: response}, nil
 	}
+}
+
+func (f *Factory) executeWithRetry(
+	ctx context.Context,
+	generationGateway ports.GenerationGateway,
+	input *Input,
+) (*gateway.GenerateContentResponse, error) {
+	request := buildRequest(input)
+
+	response, err := write(ctx, generationGateway, request)
+	if err != nil {
+		// If tools were requested but the gateway doesn't support native tool calling,
+		// retry without tools so JSON fallback logic can still work upstream.
+		if len(input.Tools) > 0 && errors.Is(err, gateway.ErrToolCallingNotSupported) {
+			request = request.WithTools(nil)
+			return write(ctx, generationGateway, request)
+		}
+		return nil, err
+	}
+
+	return response, nil
 }
 
 func validateInput(factory *Factory, input *Input) error {

@@ -333,37 +333,10 @@ func renderLogEntry(entry logEntry, width int) string {
 	}
 
 	var sb strings.Builder
-
 	sb.WriteString("\n")
 
 	if message != "" {
-		bullet := "• "
-		bulletWidth := runewidth.StringWidth(bullet)
-		available := width - bulletWidth
-		if available < 0 {
-			available = 0
-		}
-		lines := wrapText(message, available)
-		if len(lines) == 0 {
-			lines = []string{message}
-		}
-
-		for i, line := range lines {
-			if i > 0 {
-				sb.WriteString("\n")
-			}
-			var renderedLine string
-			if i == 0 {
-				renderedLine = bullet + line
-			} else {
-				renderedLine = strings.Repeat(" ", bulletWidth) + line
-			}
-			rendered := styleTitle.Render(renderedLine)
-			if entry.isError {
-				rendered = styleFailed.Render(renderedLine)
-			}
-			sb.WriteString(rendered)
-		}
+		renderMessageBlock(&sb, entry, width)
 	}
 
 	if details != "" {
@@ -374,6 +347,34 @@ func renderLogEntry(entry logEntry, width int) string {
 	}
 
 	return sb.String()
+}
+
+func renderMessageBlock(sb *strings.Builder, entry logEntry, width int) {
+	bullet := "• "
+	bulletWidth := runewidth.StringWidth(bullet)
+	available := max(width-bulletWidth, 0)
+
+	lines := wrapText(entry.message, available)
+	if len(lines) == 0 {
+		lines = []string{entry.message}
+	}
+
+	for i, line := range lines {
+		if i > 0 {
+			sb.WriteString("\n")
+		}
+		var renderedLine string
+		if i == 0 {
+			renderedLine = bullet + line
+		} else {
+			renderedLine = strings.Repeat(" ", bulletWidth) + line
+		}
+		rendered := styleTitle.Render(renderedLine)
+		if entry.isError {
+			rendered = styleFailed.Render(renderedLine)
+		}
+		sb.WriteString(rendered)
+	}
 }
 
 func renderRunningLine(run runningActivity, spinnerIndex int, width int) string {
@@ -465,34 +466,40 @@ func wrapText(text string, width int) []string {
 			lines = append(lines, "")
 			continue
 		}
-		words := strings.Fields(rawLine)
-		if len(words) == 0 {
-			lines = append(lines, "")
-			continue
-		}
-		var current string
-		currentWidth := 0
-		for _, word := range words {
-			parts := splitLongWord(word, width)
-			for _, part := range parts {
-				partWidth := runewidth.StringWidth(part)
-				if current == "" {
-					current = part
-					currentWidth = partWidth
-					continue
-				}
-				if currentWidth+1+partWidth <= width {
-					current += " " + part
-					currentWidth += 1 + partWidth
-					continue
-				}
-				lines = append(lines, current)
+		lines = append(lines, wrapLine(rawLine, width)...)
+	}
+	return lines
+}
+
+func wrapLine(line string, width int) []string {
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return []string{""}
+	}
+
+	var lines []string
+	var current string
+	currentWidth := 0
+	for _, word := range words {
+		parts := splitLongWord(word, width)
+		for _, part := range parts {
+			partWidth := runewidth.StringWidth(part)
+			if current == "" {
 				current = part
 				currentWidth = partWidth
+				continue
 			}
+			if currentWidth+1+partWidth <= width {
+				current += " " + part
+				currentWidth += 1 + partWidth
+				continue
+			}
+			lines = append(lines, current)
+			current = part
+			currentWidth = partWidth
 		}
-		lines = append(lines, current)
 	}
+	lines = append(lines, current)
 	return lines
 }
 
@@ -525,10 +532,7 @@ func formatDetailsBlock(details string, width int) string {
 	lines := strings.Split(clean, "\n")
 	prefix := "  │ "
 	prefixWidth := runewidth.StringWidth(prefix)
-	available := width - prefixWidth
-	if available < 0 {
-		available = 0
-	}
+	available := max(width-prefixWidth, 0)
 
 	var sb strings.Builder
 	for i, line := range lines {
@@ -559,52 +563,65 @@ func wrapTextPreserveSpaces(text string, width int) []string {
 			lines = append(lines, "")
 			continue
 		}
-		tokens := splitTokensPreserveSpaces(rawLine)
-		var current strings.Builder
-		currentWidth := 0
-		for _, token := range tokens {
-			tokenWidth := runewidth.StringWidth(token)
-			if tokenWidth == 0 {
-				continue
-			}
-			if currentWidth+tokenWidth <= width {
-				current.WriteString(token)
-				currentWidth += tokenWidth
-				continue
-			}
-
-			if tokenWidth > width {
-				if currentWidth > 0 {
-					lines = append(lines, current.String())
-					current.Reset()
-				}
-				parts := splitLongWord(token, width)
-				for i, part := range parts {
-					if runewidth.StringWidth(part) == 0 {
-						continue
-					}
-					if i < len(parts)-1 {
-						lines = append(lines, part)
-					} else {
-						current.WriteString(part)
-						currentWidth = runewidth.StringWidth(part)
-					}
-				}
-				continue
-			}
-
-			if currentWidth > 0 {
-				lines = append(lines, current.String())
-				current.Reset()
-			}
-			current.WriteString(token)
-			currentWidth = tokenWidth
-		}
-		if currentWidth > 0 || current.Len() > 0 {
-			lines = append(lines, current.String())
-		}
+		lines = append(lines, wrapLinePreserveSpaces(rawLine, width)...)
 	}
 	return lines
+}
+
+func wrapLinePreserveSpaces(line string, width int) []string {
+	tokens := splitTokensPreserveSpaces(line)
+	var lines []string
+	var current strings.Builder
+	currentWidth := 0
+	for _, token := range tokens {
+		tokenWidth := runewidth.StringWidth(token)
+		if tokenWidth == 0 {
+			continue
+		}
+
+		if currentWidth+tokenWidth <= width {
+			current.WriteString(token)
+			currentWidth += tokenWidth
+			continue
+		}
+
+		if tokenWidth > width {
+			lines, currentWidth = handleLongToken(token, width, currentWidth, &current, &lines)
+			continue
+		}
+
+		if currentWidth > 0 {
+			lines = append(lines, current.String())
+			current.Reset()
+		}
+		current.WriteString(token)
+		currentWidth = tokenWidth
+	}
+	if currentWidth > 0 || current.Len() > 0 {
+		lines = append(lines, current.String())
+	}
+	return lines
+}
+
+func handleLongToken(token string, width, currentWidth int, current *strings.Builder, lines *[]string) (resultLines []string, newWidth int) {
+	if currentWidth > 0 {
+		*lines = append(*lines, current.String())
+		current.Reset()
+	}
+	parts := splitLongWord(token, width)
+	newWidth = 0
+	for i, part := range parts {
+		if runewidth.StringWidth(part) == 0 {
+			continue
+		}
+		if i < len(parts)-1 {
+			*lines = append(*lines, part)
+		} else {
+			current.WriteString(part)
+			newWidth = runewidth.StringWidth(part)
+		}
+	}
+	return *lines, newWidth
 }
 
 func splitTokensPreserveSpaces(line string) []string {

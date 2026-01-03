@@ -89,66 +89,10 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	var promptBuilder strings.Builder
 
-	if msgs := request.Messages(); len(msgs) > 0 {
-		// Best-effort conversion to ChatML-style prompt.
-		for _, m := range msgs {
-			switch m.Role {
-			case gateway.MessageRoleSystem:
-				if strings.TrimSpace(m.Content) == "" {
-					continue
-				}
-				promptBuilder.WriteString(systemPromptStart)
-				promptBuilder.WriteString(strings.TrimSpace(m.Content))
-				promptBuilder.WriteString(systemPromptEnd)
-			case gateway.MessageRoleUser:
-				if strings.TrimSpace(m.Content) == "" {
-					continue
-				}
-				promptBuilder.WriteString(userPromptStart)
-				promptBuilder.WriteString(strings.TrimSpace(m.Content))
-				promptBuilder.WriteString(userPromptEnd)
-			case gateway.MessageRoleAssistant:
-				if strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0 {
-					continue
-				}
-				promptBuilder.WriteString(assistantStart)
-				if strings.TrimSpace(m.Content) != "" {
-					promptBuilder.WriteString(strings.TrimSpace(m.Content))
-					promptBuilder.WriteString("\n")
-				}
-				if len(m.ToolCalls) > 0 {
-					promptBuilder.WriteString("ToolCalls:\n")
-					for _, c := range m.ToolCalls {
-						promptBuilder.WriteString("- ")
-						promptBuilder.WriteString(c.Name)
-						if c.ID != "" {
-							promptBuilder.WriteString(" (id=")
-							promptBuilder.WriteString(c.ID)
-							promptBuilder.WriteString(")")
-						}
-						promptBuilder.WriteString("\n")
-					}
-				}
-				promptBuilder.WriteString(systemPromptEnd)
-			case gateway.MessageRoleTool:
-				if strings.TrimSpace(m.Content) == "" {
-					continue
-				}
-				promptBuilder.WriteString(userPromptStart)
-				promptBuilder.WriteString("ToolResult")
-				if m.ToolName != "" {
-					promptBuilder.WriteString(" ")
-					promptBuilder.WriteString(m.ToolName)
-				}
-				if m.ToolCallID != "" {
-					promptBuilder.WriteString(" (tool_call_id=")
-					promptBuilder.WriteString(m.ToolCallID)
-					promptBuilder.WriteString(")")
-				}
-				promptBuilder.WriteString(":\n")
-				promptBuilder.WriteString(strings.TrimSpace(m.Content))
-				promptBuilder.WriteString(userPromptEnd)
-			}
+	msgs := request.Messages()
+	if len(msgs) > 0 {
+		for i := range msgs {
+			writeLlamaMessage(&promptBuilder, &msgs[i])
 		}
 		promptBuilder.WriteString(assistantStart)
 		return promptBuilder.String()
@@ -166,6 +110,72 @@ func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	promptBuilder.WriteString(assistantStart)
 
 	return promptBuilder.String()
+}
+
+func writeLlamaMessage(sb *strings.Builder, m *gateway.Message) {
+	switch m.Role {
+	case gateway.MessageRoleSystem:
+		if strings.TrimSpace(m.Content) != "" {
+			sb.WriteString(systemPromptStart)
+			sb.WriteString(strings.TrimSpace(m.Content))
+			sb.WriteString(systemPromptEnd)
+		}
+	case gateway.MessageRoleUser:
+		if strings.TrimSpace(m.Content) != "" {
+			sb.WriteString(userPromptStart)
+			sb.WriteString(strings.TrimSpace(m.Content))
+			sb.WriteString(userPromptEnd)
+		}
+	case gateway.MessageRoleAssistant:
+		writeLlamaAssistantMessage(sb, m)
+	case gateway.MessageRoleTool:
+		writeLlamaToolMessage(sb, m)
+	}
+}
+
+func writeLlamaAssistantMessage(sb *strings.Builder, m *gateway.Message) {
+	if strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0 {
+		return
+	}
+	sb.WriteString(assistantStart)
+	if strings.TrimSpace(m.Content) != "" {
+		sb.WriteString(strings.TrimSpace(m.Content))
+		sb.WriteString("\n")
+	}
+	if len(m.ToolCalls) > 0 {
+		sb.WriteString("ToolCalls:\n")
+		for _, c := range m.ToolCalls {
+			sb.WriteString("- ")
+			sb.WriteString(c.Name)
+			if c.ID != "" {
+				sb.WriteString(" (id=")
+				sb.WriteString(c.ID)
+				sb.WriteString(")")
+			}
+			sb.WriteString("\n")
+		}
+	}
+	sb.WriteString(systemPromptEnd)
+}
+
+func writeLlamaToolMessage(sb *strings.Builder, m *gateway.Message) {
+	if strings.TrimSpace(m.Content) == "" {
+		return
+	}
+	sb.WriteString(userPromptStart)
+	sb.WriteString("ToolResult")
+	if m.ToolName != "" {
+		sb.WriteString(" ")
+		sb.WriteString(m.ToolName)
+	}
+	if m.ToolCallID != "" {
+		sb.WriteString(" (tool_call_id=")
+		sb.WriteString(m.ToolCallID)
+		sb.WriteString(")")
+	}
+	sb.WriteString(":\n")
+	sb.WriteString(strings.TrimSpace(m.Content))
+	sb.WriteString(userPromptEnd)
 }
 
 func newLlamaCompletionRequest(prompt string, request *gateway.GenerateContentRequest) *llama.CompletionRequest {

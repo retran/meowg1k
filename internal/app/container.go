@@ -276,18 +276,7 @@ func (c *Container) initDB() error {
 		rateLimitRepo := ratelimit.NewRepository(dbHost)
 		cacheRepo := cache.NewRepository(dbHost)
 
-		// Purge expired cache entries on startup if caching is configured
-		cfg, err := c.ConfigService.Get()
-		if err == nil && cfg != nil {
-			cacheTTL := maxPresetCacheTTL(cfg)
-			if cacheTTL > 0 {
-				ctx := c.ShutdownService.Context()
-				if err := cacheRepo.Purge(ctx, cacheTTL); err != nil {
-					c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
-					// Don't fail initialization - just log the error
-				}
-			}
-		}
+		c.purgeCacheOnStartup(cacheRepo)
 
 		if err := c.ShutdownService.Register(func(_ context.Context) error {
 			if err := dbHost.Close(); err != nil {
@@ -304,6 +293,23 @@ func (c *Container) initDB() error {
 		c.cacheRepo = cacheRepo
 	})
 	return initErr
+}
+
+func (c *Container) purgeCacheOnStartup(cacheRepo ports.CacheRepository) {
+	cfg, err := c.ConfigService.Get()
+	if err != nil || cfg == nil {
+		return
+	}
+
+	cacheTTL := maxPresetCacheTTL(cfg)
+	if cacheTTL <= 0 {
+		return
+	}
+
+	ctx := c.ShutdownService.Context()
+	if err := cacheRepo.Purge(ctx, cacheTTL); err != nil {
+		c.Logger.Error("failed to purge expired cache entries on startup", "error", err)
+	}
 }
 
 // GetRateLimitRepo returns the rate limit repository, initializing the database if needed.

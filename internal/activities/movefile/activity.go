@@ -58,49 +58,15 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Validate source path
-		cleanSourcePath := filepath.Clean(input.SourcePath)
-		if cleanSourcePath == "." || cleanSourcePath == "" {
-			return nil, fmt.Errorf("source path is required")
-		}
-		if filepath.IsAbs(cleanSourcePath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.SourcePath)
-		}
-
-		fullSourcePath := filepath.Join(absRoot, cleanSourcePath)
-		absSourcePath, err := filepath.Abs(fullSourcePath)
+		fullSourcePath, cleanSourcePath, err := resolveAndValidatePath(workspaceRoot, input.SourcePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve source path: %w", err)
-		}
-		relSource, err := filepath.Rel(absRoot, absSourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative source path: %w", err)
-		}
-		relSource = filepath.Clean(relSource)
-		if relSource == ".." || strings.HasPrefix(relSource, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.SourcePath)
+			return nil, fmt.Errorf("source path error: %w", err)
 		}
 
 		// Validate destination path
-		cleanDestPath := filepath.Clean(input.DestPath)
-		if cleanDestPath == "." || cleanDestPath == "" {
-			return nil, fmt.Errorf("destination path is required")
-		}
-		if filepath.IsAbs(cleanDestPath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.DestPath)
-		}
-
-		fullDestPath := filepath.Join(absRoot, cleanDestPath)
-		absDestPath, err := filepath.Abs(fullDestPath)
+		fullDestPath, cleanDestPath, err := resolveAndValidatePath(workspaceRoot, input.DestPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve destination path: %w", err)
-		}
-		relDest, err := filepath.Rel(absRoot, absDestPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative destination path: %w", err)
-		}
-		relDest = filepath.Clean(relDest)
-		if relDest == ".." || strings.HasPrefix(relDest, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.DestPath)
+			return nil, fmt.Errorf("destination path error: %w", err)
 		}
 
 		details := fmt.Sprintf("source=%s dest=%s", cleanSourcePath, cleanDestPath)
@@ -111,43 +77,78 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			}, nil
 		}
 
-		// Check if source exists
-		if _, err := os.Stat(absSourcePath); err != nil {
-			if os.IsNotExist(err) {
-				return nil, fmt.Errorf("source file not found: %s", cleanSourcePath)
-			}
-			return nil, fmt.Errorf("failed to stat source file: %w", err)
-		}
-
-		// Ensure destination directory exists
-		destDir := filepath.Dir(absDestPath)
-		if err := os.MkdirAll(destDir, 0o750); err != nil {
-			return nil, fmt.Errorf("failed to create destination directory: %w", err)
-		}
-
-		// Check if .git exists to decide whether to use git mv
-		gitDir := filepath.Join(absRoot, ".git")
-		if _, err := os.Stat(gitDir); err == nil {
-			// Use git mv
-			cmd := exec.CommandContext(ctx, "git", "mv", absSourcePath, absDestPath) // #nosec G204
-			cmd.Dir = absRoot
-			if output, err := cmd.CombinedOutput(); err != nil {
-				return nil, fmt.Errorf("git mv failed: %w\nOutput: %s", err, string(output))
-			}
-			return &Output{
-				Message: fmt.Sprintf("Moved with git: %s", details),
-				Moved:   true,
-			}, nil
-		}
-
-		// Use os.Rename
-		if err := os.Rename(absSourcePath, absDestPath); err != nil {
-			return nil, fmt.Errorf("failed to move file: %w", err)
+		message, err := f.performMove(ctx, absRoot, fullSourcePath, fullDestPath, cleanSourcePath, details)
+		if err != nil {
+			return nil, err
 		}
 
 		return &Output{
-			Message: fmt.Sprintf("Moved: %s", details),
+			Message: message,
 			Moved:   true,
 		}, nil
 	}
+}
+
+func (f *Factory) performMove(ctx context.Context, absRoot, fullSourcePath, fullDestPath, cleanSourcePath, details string) (string, error) {
+	// Check if source exists
+	if _, err := os.Stat(fullSourcePath); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("source file not found: %s", cleanSourcePath)
+		}
+		return "", fmt.Errorf("failed to stat source file: %w", err)
+	}
+
+	// Ensure destination directory exists
+	destDir := filepath.Dir(fullDestPath)
+	if err := os.MkdirAll(destDir, 0o750); err != nil {
+		return "", fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// Check if .git exists to decide whether to use git mv
+	gitDir := filepath.Join(absRoot, ".git")
+	if _, err := os.Stat(gitDir); err == nil {
+		// Use git mv
+		cmd := exec.CommandContext(ctx, "git", "mv", fullSourcePath, fullDestPath) // #nosec G204
+		cmd.Dir = absRoot
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git mv failed: %w\nOutput: %s", err, string(output))
+		}
+		return fmt.Sprintf("Moved with git: %s", details), nil
+	}
+
+	// Use os.Rename
+	if err := os.Rename(fullSourcePath, fullDestPath); err != nil {
+		return "", fmt.Errorf("failed to move file: %w", err)
+	}
+
+	return fmt.Sprintf("Moved: %s", details), nil
+}
+
+func resolveAndValidatePath(workspaceRoot, inputPath string) (fullPath, cleanPath string, err error) {
+	cleanPath = filepath.Clean(inputPath)
+	if cleanPath == "." || cleanPath == "" {
+		return "", "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(cleanPath) {
+		return "", "", fmt.Errorf("absolute paths are not allowed: %s", inputPath)
+	}
+
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	fullPath = filepath.Join(absRoot, cleanPath)
+	absFull, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absFull)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	rel = filepath.Clean(rel)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path traversal attempt: %s", inputPath)
+	}
+	return fullPath, cleanPath, nil
 }

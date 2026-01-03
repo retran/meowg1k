@@ -50,31 +50,9 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workspace root: %w", err)
 		}
 
-		// Sanitize and resolve path
-		cleanPath := filepath.Clean(input.Path)
-		if cleanPath == "." || cleanPath == "" {
-			return nil, fmt.Errorf("path is required")
-		}
-		if filepath.IsAbs(cleanPath) {
-			return nil, fmt.Errorf("absolute paths are not allowed: %s", input.Path)
-		}
-
-		absRoot, err := filepath.Abs(workspaceRoot)
+		fullPath, cleanPath, err := resolveAndValidatePath(workspaceRoot, input.Path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve workspace root: %w", err)
-		}
-		fullPath := filepath.Join(absRoot, cleanPath)
-		absFull, err := filepath.Abs(fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path: %w", err)
-		}
-		rel, err := filepath.Rel(absRoot, absFull)
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute relative path: %w", err)
-		}
-		rel = filepath.Clean(rel)
-		if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("path traversal attempt: %s", input.Path)
+			return nil, err
 		}
 
 		details := fmt.Sprintf("path=%s", cleanPath)
@@ -86,7 +64,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Check if file exists
-		if _, err := os.Stat(absFull); err != nil {
+		if _, err := os.Stat(fullPath); err != nil {
 			if os.IsNotExist(err) {
 				return nil, fmt.Errorf("file not found: %s", cleanPath)
 			}
@@ -94,7 +72,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 		}
 
 		// Delete the file
-		if err := os.Remove(absFull); err != nil {
+		if err := os.Remove(fullPath); err != nil {
 			return nil, fmt.Errorf("failed to delete file: %w", err)
 		}
 
@@ -103,4 +81,33 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			Deleted: true,
 		}, nil
 	}
+}
+
+func resolveAndValidatePath(workspaceRoot, inputPath string) (fullPath, cleanPath string, err error) {
+	cleanPath = filepath.Clean(inputPath)
+	if cleanPath == "." || cleanPath == "" {
+		return "", "", fmt.Errorf("path is required")
+	}
+	if filepath.IsAbs(cleanPath) {
+		return "", "", fmt.Errorf("absolute paths are not allowed: %s", inputPath)
+	}
+
+	absRoot, err := filepath.Abs(workspaceRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve workspace root: %w", err)
+	}
+	fullPath = filepath.Join(absRoot, cleanPath)
+	absFull, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+	rel, err := filepath.Rel(absRoot, absFull)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	rel = filepath.Clean(rel)
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("path traversal attempt: %s", inputPath)
+	}
+	return fullPath, cleanPath, nil
 }

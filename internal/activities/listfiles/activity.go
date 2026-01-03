@@ -43,22 +43,8 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("input cannot be nil")
 		}
 
-		dir := strings.TrimSpace(input.Dir)
-		if dir == "" {
-			dir = "."
-		}
-		for strings.HasPrefix(dir, "./") {
-			dir = strings.TrimPrefix(dir, "./")
-		}
-		dir = strings.TrimSuffix(dir, "/")
-		if dir == "" {
-			dir = "."
-		}
-
-		label := dir
-		if label == "." {
-			label = "(root)"
-		}
+		dir := normalizeDir(input.Dir)
+		label := getDirLabel(dir)
 
 		flowCtx.SendRunning(fmt.Sprintf("Listing files in %s", label))
 
@@ -67,50 +53,80 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			return nil, fmt.Errorf("failed to get workdir state: %w", err)
 		}
 
-		entriesSet := make(map[string]struct{})
-		for path := range state {
-			if dir == "." {
-				// Direct children of the workspace root: files and directories.
-				if strings.Contains(path, "/") {
-					first := strings.SplitN(path, "/", 2)[0]
-					if first == "" {
-						continue
-					}
-					entriesSet[first+"/"] = struct{}{}
-					continue
-				}
-				entriesSet[path] = struct{}{}
-				continue
-			}
-
-			prefix := dir + "/"
-			if !strings.HasPrefix(path, prefix) {
-				continue
-			}
-			rel := strings.TrimPrefix(path, prefix)
-			if rel == "" {
-				continue
-			}
-			// Non-recursive: include direct files and direct child directories.
-			if strings.Contains(rel, "/") {
-				first := strings.SplitN(rel, "/", 2)[0]
-				if first == "" {
-					continue
-				}
-				entriesSet[prefix+first+"/"] = struct{}{}
-				continue
-			}
-			entriesSet[path] = struct{}{}
-		}
-
-		entries := make([]string, 0, len(entriesSet))
-		for e := range entriesSet {
-			entries = append(entries, e)
-		}
-		sort.Strings(entries)
+		entries := listEntries(state, dir)
 
 		flowCtx.SendCompleted(fmt.Sprintf("Listed %d entries in %s", len(entries), label))
 
 		return &Output{Files: entries}, nil
+	}
+}
+
+func normalizeDir(dir string) string {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		dir = "."
+	}
+	for strings.HasPrefix(dir, "./") {
+		dir = strings.TrimPrefix(dir, "./")
+	}
+	dir = strings.TrimSuffix(dir, "/")
+	if dir == "" {
+		dir = "."
+	}
+	return dir
+}
+
+func getDirLabel(dir string) string {
+	if dir == "." {
+		return "(root)"
+	}
+	return dir
+}
+
+func listEntries[K any](state map[string]K, dir string) []string {
+	entriesSet := make(map[string]struct{})
+	for path := range state {
+		if dir == "." {
+			collectRootEntry(entriesSet, path)
+		} else {
+			collectSubDirEntry(entriesSet, path, dir)
+		}
+	}
+
+	entries := make([]string, 0, len(entriesSet))
+	for e := range entriesSet {
+		entries = append(entries, e)
+	}
+	sort.Strings(entries)
+	return entries
+}
+
+func collectRootEntry(entriesSet map[string]struct{}, path string) {
+	if strings.Contains(path, "/") {
+		first := strings.SplitN(path, "/", 2)[0]
+		if first != "" {
+			entriesSet[first+"/"] = struct{}{}
+		}
+	} else {
+		entriesSet[path] = struct{}{}
+	}
+}
+
+func collectSubDirEntry(entriesSet map[string]struct{}, path, dir string) {
+	prefix := dir + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return
+	}
+	rel := strings.TrimPrefix(path, prefix)
+	if rel == "" {
+		return
+	}
+	if strings.Contains(rel, "/") {
+		first := strings.SplitN(rel, "/", 2)[0]
+		if first != "" {
+			entriesSet[prefix+first+"/"] = struct{}{}
+		}
+	} else {
+		entriesSet[path] = struct{}{}
 	}
 }
