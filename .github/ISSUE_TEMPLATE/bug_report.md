@@ -1,36 +1,38 @@
-name: Bug Report
-about: Something isn't working as expected? Report the issue here.
-title: "[BUG] <A brief, descriptive title>"
-labels: bug
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: ''
 assignees: ''
 
-### Describe the bug
+---
 
+**Describe the bug**
 A clear and concise description of what the bug is.
 
-### To Reproduce
-
+**To Reproduce**
 Steps to reproduce the behavior:
-
 1. Go to '...'
-2. Run command `meow ...` with these flags '...'
-3. See error
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
 
-### Expected behavior
-
+**Expected behavior**
 A clear and concise description of what you expected to happen.
 
-### Screenshots or Logs
+**Screenshots**
+If applicable, add screenshots to help explain your problem.
 
-If applicable, add screenshots, logs, or GIF animations to help explain your problem.
-Please paste any relevant log output here, wrapped in a code block.
+**Desktop (please complete the following information):**
+ - OS: [e.g. iOS]
+ - Browser [e.g. chrome, safari]
+ - Version [e.g. 22]
 
-### System Information
+**Smartphone (please complete the following information):**
+ - Device: [e.g. iPhone6]
+ - OS: [e.g. iOS8.1]
+ - Browser [e.g. stock browser, safari]
+ - Version [e.g. 22]
 
-- **OS:** [e.g., macOS Sonoma, Windows 11, Ubuntu 22.04]
-- **`meowg1k` Version:** [Run `meow version` and paste the output here]
-- **Shell:** [e.g., zsh, bash, PowerShell]
-
-### Additional context
-
+**Additional context**
 Add any other context about the problem here.
