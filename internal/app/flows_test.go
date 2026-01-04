@@ -15,7 +15,9 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/path"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
+	"github.com/retran/meowg1k/internal/adapters/workspace"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
@@ -321,5 +323,129 @@ flows:
 	}
 	if flow != nil {
 		t.Error("CreateWriteFlow should return nil flow on error")
+	}
+}
+
+func TestCreatePrFlow(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
+  gpt-35-turbo:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
+  test:
+    model: "gpt-35-turbo"
+flows:
+  draft:
+    pr:
+      preset: "test"
+      system_prompt: "Write a pull request"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	cmd.Flags().Set("config", configPath)
+
+	dbHost, err := newMockDBHost()
+	if err != nil {
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
+	}
+
+	flow, err := container.CreatePrFlow()
+	if err != nil {
+		t.Fatalf("CreatePrFlow returned error: %v", err)
+	}
+	if flow == nil {
+		t.Error("CreatePrFlow returned nil")
+	}
+}
+
+func TestCreateSearchFlow(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.yaml")
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+    api_key_env: "TEST_OPENAI_API_KEY"
+models:
+  gpt-35-turbo:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
+  test:
+    model: "gpt-35-turbo"
+flows:
+  index:
+    preset: "test"
+    chunker:
+      max_runes: 100
+      overlap_runes: 10
+    batch_size: 1
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create temp config file: %v", err)
+	}
+
+	t.Setenv("TEST_OPENAI_API_KEY", "dummy")
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("config", "", "config file path")
+	cmd.Flags().String("workspace", "", "workspace root path")
+	cmd.Flags().String("task", "", "task name")
+	cmd.Flags().String("user-prompt", "", "user prompt")
+	cmd.Flags().Bool("silent", false, "silent mode")
+	cmd.Flags().Set("config", configPath)
+
+	dbHost, err := newMockDBHost()
+	if err != nil {
+		t.Fatalf("Failed to create mock DB host: %v", err)
+	}
+	defer dbHost.Close()
+
+	container, err := NewTestAppContainer(cmd, dbHost)
+	if err != nil {
+		t.Fatalf("NewTestAppContainer returned error: %v", err)
+	}
+
+	workspaceService := workspace.NewService(container.CommandService)
+	dbPathService, err := path.NewService(workspaceService)
+	if err != nil {
+		t.Fatalf("failed to create db path service: %v", err)
+	}
+	container.dbPathService = dbPathService
+
+	flow, err := container.CreateSearchFlow()
+	if err != nil {
+		t.Fatalf("CreateSearchFlow returned error: %v", err)
+	}
+	if flow == nil {
+		t.Error("CreateSearchFlow returned nil")
 	}
 }

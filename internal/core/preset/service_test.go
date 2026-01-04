@@ -4,6 +4,7 @@
 package preset
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,9 +22,13 @@ var errModelNotFound = fmt.Errorf("model not found")
 
 type mockConfigResolver struct {
 	config *config.Config
+	err    error
 }
 
 func (m *mockConfigResolver) Get() (*config.Config, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return m.config, nil
 }
 
@@ -466,5 +471,141 @@ func TestCaching(t *testing.T) {
 	// Should be the same instance (cached)
 	if preset1 != cachedPreset {
 		t.Error("Expected same preset instance from cache")
+	}
+}
+
+func TestGetPresetConfigError(t *testing.T) {
+	configReader := &mockConfigResolver{err: errors.New("config read failed")}
+	modelService := &mockModelService{}
+
+	service, err := NewService(configReader, modelService)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+
+	_, err = service.Get(preset2.Preset("any"))
+	if err == nil {
+		t.Fatal("expected error from config resolver")
+	}
+}
+
+func TestResolvePresetInheritance(t *testing.T) {
+	temperature := 0.5
+	topK := 10
+	cfg := &config.Config{
+		Presets: map[string]*config.PresetConfig{
+			"base": {
+				Model:   "gpt4",
+				Timeout: 2 * time.Minute,
+				Cache: &config.CacheConfig{
+					Enabled: true,
+					TTL:     10 * time.Minute,
+				},
+				Request: &config.RequestConfig{
+					Temperature: &temperature,
+				},
+			},
+			"child": {
+				Extends: "base",
+				Model:   "gpt4-turbo",
+				Cache: &config.CacheConfig{
+					Enabled: false,
+				},
+				Request: &config.RequestConfig{
+					TopK: &topK,
+				},
+			},
+		},
+	}
+
+	resolved, err := resolvePreset("child", cfg)
+	if err != nil {
+		t.Fatalf("resolvePreset error: %v", err)
+	}
+
+	if resolved.Model != "gpt4-turbo" {
+		t.Errorf("expected model override, got %s", resolved.Model)
+	}
+	if resolved.Cache == nil || resolved.Cache.Enabled {
+		t.Fatal("expected child cache to override parent and be disabled")
+	}
+	if resolved.Request == nil || resolved.Request.Temperature == nil || resolved.Request.TopK == nil {
+		t.Fatal("expected merged request fields from parent and child")
+	}
+	if *resolved.Request.Temperature != temperature {
+		t.Errorf("expected temperature %f, got %f", temperature, *resolved.Request.Temperature)
+	}
+	if *resolved.Request.TopK != topK {
+		t.Errorf("expected TopK %d, got %d", topK, *resolved.Request.TopK)
+	}
+}
+
+func TestResolvePresetCycle(t *testing.T) {
+	cfg := &config.Config{
+		Presets: map[string]*config.PresetConfig{
+			"a": {Extends: "b"},
+			"b": {Extends: "a"},
+		},
+	}
+
+	_, err := resolvePreset("a", cfg)
+	if err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("expected cycle error, got %v", err)
+	}
+}
+
+func TestResolvePresetNilConfig(t *testing.T) {
+	_, err := resolvePreset("any", nil)
+	if err == nil {
+		t.Fatal("expected error for nil config")
+	}
+}
+
+func TestResolvePresetRequestInitialization(t *testing.T) {
+	cfg := &config.Config{
+		Presets: map[string]*config.PresetConfig{
+			"plain": {
+				Model: "gpt4",
+			},
+		},
+	}
+
+	resolved, err := resolvePreset("plain", cfg)
+	if err != nil {
+		t.Fatalf("resolvePreset error: %v", err)
+	}
+	if resolved.Request == nil {
+		t.Fatal("expected request to be initialized")
+	}
+}
+
+func TestMergeRequestNilHandling(t *testing.T) {
+	t.Run("nil dst and src returns empty request", func(t *testing.T) {
+		merged := mergeRequest(nil, nil)
+		if merged == nil {
+			t.Fatal("expected non-nil request")
+		}
+	})
+
+	t.Run("nil dst merges from src", func(t *testing.T) {
+		count := 2
+		merged := mergeRequest(nil, &config.RequestConfig{CandidateCount: &count})
+		if merged == nil || merged.CandidateCount == nil || *merged.CandidateCount != count {
+			t.Fatal("expected candidate count to be merged")
+		}
+	})
+}
+
+func TestServiceNilReceiver(t *testing.T) {
+	var service *Service
+	if _, err := service.Get("preset"); err == nil {
+		t.Fatal("expected error when service is nil")
+	}
+}
+
+func TestResolvePresetInternalNilService(t *testing.T) {
+	var service *Service
+	if _, err := service.resolvePresetInternal("preset", &config.Config{}); err == nil {
+		t.Fatal("expected error when service is nil")
 	}
 }
