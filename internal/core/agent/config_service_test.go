@@ -4,9 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/retran/meowg1k/internal/domain/config"
 )
 
 type mockConfigResolver struct {
@@ -52,7 +53,7 @@ func TestService_Get_Errors(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "agent configuration missing")
-	
+
 	// 4. Service is nil
 	var nilService *Service
 	cfg, err = nilService.Get()
@@ -67,121 +68,121 @@ func TestService_Get_ValidationErrors(t *testing.T) {
 		errMatch string
 	}{
 		{
-			name: "missing system prompt",
-			mod: func(c *config.AgentConfig) { c.SystemPrompt = "" },
+			name:     "missing system prompt",
+			mod:      func(c *config.AgentConfig) { c.SystemPrompt = "" },
 			errMatch: "system_prompt is required",
 		},
 		{
-			name: "missing tools config",
-			mod: func(c *config.AgentConfig) { c.Tools = nil },
+			name:     "missing tools config",
+			mod:      func(c *config.AgentConfig) { c.Tools = nil },
 			errMatch: "tools is required",
 		},
 		{
-			name: "missing search defaults",
-			mod: func(c *config.AgentConfig) { c.Tools.SearchDefaults = nil },
+			name:     "missing search defaults",
+			mod:      func(c *config.AgentConfig) { c.Tools.SearchDefaults = nil },
 			errMatch: "search_defaults is required",
 		},
 		{
-			name: "missing search snapshots",
-			mod: func(c *config.AgentConfig) { c.Tools.SearchDefaults.Snapshots = nil },
+			name:     "missing search snapshots",
+			mod:      func(c *config.AgentConfig) { c.Tools.SearchDefaults.Snapshots = nil },
 			errMatch: "snapshots is required",
 		},
 		{
-			name: "invalid top k",
-			mod: func(c *config.AgentConfig) { c.Tools.SearchDefaults.TopK = 0 },
+			name:     "invalid top k",
+			mod:      func(c *config.AgentConfig) { c.Tools.SearchDefaults.TopK = 0 },
 			errMatch: "top_k must be > 0",
 		},
 		{
-			name: "invalid min score",
-			mod: func(c *config.AgentConfig) { c.Tools.SearchDefaults.MinScore = 0 },
+			name:     "invalid min score",
+			mod:      func(c *config.AgentConfig) { c.Tools.SearchDefaults.MinScore = 0 },
 			errMatch: "min_score must be > 0",
 		},
 		{
-			name: "empty pipelines",
-			mod: func(c *config.AgentConfig) { c.Pipelines = nil },
+			name:     "empty pipelines",
+			mod:      func(c *config.AgentConfig) { c.Pipelines = nil },
 			errMatch: "pipelines is required",
 		},
 		{
 			name: "missing default pipeline",
-			mod: func(c *config.AgentConfig) { 
+			mod: func(c *config.AgentConfig) {
 				delete(c.Pipelines, "default")
 				c.Pipelines["other"] = &config.AgentPipelineConfig{Steps: []string{"s"}}
 			},
 			errMatch: "default is required",
 		},
 		{
-			name: "pipeline nil",
-			mod: func(c *config.AgentConfig) { c.Pipelines["default"] = nil },
+			name:     "pipeline nil",
+			mod:      func(c *config.AgentConfig) { c.Pipelines["default"] = nil },
 			errMatch: "is nil",
 		},
 		{
-			name: "pipeline empty steps",
-			mod: func(c *config.AgentConfig) { c.Pipelines["default"].Steps = nil },
+			name:     "pipeline empty steps",
+			mod:      func(c *config.AgentConfig) { c.Pipelines["default"].Steps = nil },
 			errMatch: "steps is required",
 		},
 		{
-			name: "pipeline empty name",
-			mod: func(c *config.AgentConfig) { c.Pipelines[""] = &config.AgentPipelineConfig{Steps: []string{"s"}} },
+			name:     "pipeline empty name",
+			mod:      func(c *config.AgentConfig) { c.Pipelines[""] = &config.AgentPipelineConfig{Steps: []string{"s"}} },
 			errMatch: "empty name",
 		},
 		{
-			name: "missing personas",
-			mod: func(c *config.AgentConfig) { c.Personas = nil },
+			name:     "missing personas",
+			mod:      func(c *config.AgentConfig) { c.Personas = nil },
 			errMatch: "personas is required",
 		},
 		{
-			name: "persona nil",
-			mod: func(c *config.AgentConfig) { c.Personas["discover"] = nil },
+			name:     "persona nil",
+			mod:      func(c *config.AgentConfig) { c.Personas["discover"] = nil },
 			errMatch: "is nil",
 		},
 		{
-			name: "persona empty name",
-			mod: func(c *config.AgentConfig) { c.Personas[""] = &config.PersonaConfig{} },
+			name:     "persona empty name",
+			mod:      func(c *config.AgentConfig) { c.Personas[""] = &config.PersonaConfig{} },
 			errMatch: "empty name",
 		},
 		{
-			name: "persona missing preset",
-			mod: func(c *config.AgentConfig) { c.Personas["discover"].Preset = "" },
+			name:     "persona missing preset",
+			mod:      func(c *config.AgentConfig) { c.Personas["discover"].Preset = "" },
 			errMatch: "preset is required",
 		},
 		{
-			name: "persona missing tools",
-			mod: func(c *config.AgentConfig) { c.Personas["discover"].Tools = nil },
+			name:     "persona missing tools",
+			mod:      func(c *config.AgentConfig) { c.Personas["discover"].Tools = nil },
 			errMatch: "tools is required",
 		},
 		{
-			name: "persona missing system persona",
-			mod: func(c *config.AgentConfig) { c.Personas["discover"].SystemPersona = "" },
+			name:     "persona missing system persona",
+			mod:      func(c *config.AgentConfig) { c.Personas["discover"].SystemPersona = "" },
 			errMatch: "system_persona is required",
 		},
 		{
-			name: "persona missing instructions",
-			mod: func(c *config.AgentConfig) { c.Personas["discover"].UserInstructions = "" },
+			name:     "persona missing instructions",
+			mod:      func(c *config.AgentConfig) { c.Personas["discover"].UserInstructions = "" },
 			errMatch: "user_instructions is required",
 		},
 		{
-			name: "missing required persona",
-			mod: func(c *config.AgentConfig) { delete(c.Personas, "discover") },
+			name:     "missing required persona",
+			mod:      func(c *config.AgentConfig) { delete(c.Personas, "discover") },
 			errMatch: "discover is required",
 		},
 		{
-			name: "missing safety",
-			mod: func(c *config.AgentConfig) { c.Safety = nil },
+			name:     "missing safety",
+			mod:      func(c *config.AgentConfig) { c.Safety = nil },
 			errMatch: "safety is required",
 		},
 		{
-			name: "missing circuit breaker",
-			mod: func(c *config.AgentConfig) { c.Safety.CircuitBreaker = nil },
+			name:     "missing circuit breaker",
+			mod:      func(c *config.AgentConfig) { c.Safety.CircuitBreaker = nil },
 			errMatch: "circuit_breaker is required",
 		},
 		{
-			name: "invalid circuit breaker",
-			mod: func(c *config.AgentConfig) { c.Safety.CircuitBreaker.MaxRestarts = 0 },
+			name:     "invalid circuit breaker",
+			mod:      func(c *config.AgentConfig) { c.Safety.CircuitBreaker.MaxRestarts = 0 },
 			errMatch: "max_restarts must be > 0",
 		},
 		{
-			name: "invalid max steps",
-			mod: func(c *config.AgentConfig) { c.Safety.MaxSteps = -1 },
+			name:     "invalid max steps",
+			mod:      func(c *config.AgentConfig) { c.Safety.MaxSteps = -1 },
 			errMatch: "max_steps must be >= 0",
 		},
 	}
@@ -214,9 +215,9 @@ func TestService_Get_ValidationErrors(t *testing.T) {
 					},
 				},
 			}
-			
+
 			tt.mod(currentCfg.Agent)
-			
+
 			resolver := &mockConfigResolver{cfg: currentCfg}
 			s, _ := NewService(resolver)
 			_, err := s.Get()
@@ -249,17 +250,17 @@ func TestService_Get_Success(t *testing.T) {
 			},
 			Safety: &config.AgentSafetyConfig{
 				CircuitBreaker: &config.CircuitBreakerConfig{MaxRestarts: 1},
-				MaxSteps: 10,
+				MaxSteps:       10,
 			},
 		},
 	}
-	
+
 	resolver := &mockConfigResolver{cfg: validCfg}
 	s, _ := NewService(resolver)
 	resolved, err := s.Get()
 	require.NoError(t, err)
 	assert.NotNil(t, resolved)
-	
+
 	assert.Equal(t, "sys", resolved.SystemPrompt)
 	assert.Equal(t, "d", resolved.Tools.ToolDescriptions["t"])
 	assert.Equal(t, []string{"main"}, resolved.Tools.SearchDefaults.Snapshots)

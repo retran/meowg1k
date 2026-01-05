@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	"github.com/retran/meowg1k/internal/core/agent/tools"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/pkg/executor"
@@ -115,8 +115,8 @@ func TestApplyToolDescriptionOverrides(t *testing.T) {
 		{Name: "search_code", Description: "old"},
 	}
 	applyToolDescriptionOverrides(defs, map[string]string{
-		"READ_FILE":  "new",
-		"  ":         "skip",
+		"READ_FILE":   "new",
+		"  ":          "skip",
 		"search_code": "newer",
 	})
 	assert.Equal(t, "new", defs[0].Description)
@@ -407,12 +407,12 @@ func TestActivityMaxIterationsExceeded(t *testing.T) {
 
 	exec := executor.NewExecutor(0)
 	execCtx := executor.NewContext("test", executor.NoOpFeedbackHandler, exec)
-	max := 1
+	maxIterations := 1
 	activity := factory.NewActivity()
 	_, err = activity(context.Background(), execCtx, &Input{
 		ToolRegistry:  tools.NewRegistry(),
 		Preset:        &preset.ResolvedPreset{Model: "model"},
-		MaxIterations: &max,
+		MaxIterations: &maxIterations,
 		StepName:      "step",
 	})
 	assert.Error(t, err)

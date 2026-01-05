@@ -16,8 +16,8 @@ import (
 )
 
 type stubWorkspaceService struct {
-	root string
 	err  error
+	root string
 }
 
 func (s *stubWorkspaceService) Get() (string, error) {

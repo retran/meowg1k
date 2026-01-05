@@ -17,8 +17,8 @@ import (
 )
 
 type fakeSummarizeFactory struct {
-	calls []*summarizefilechanges.Input
 	err   error
+	calls []*summarizefilechanges.Input
 }
 
 func (f *fakeSummarizeFactory) NewActivity() executor.Activity[*summarizefilechanges.Input, *summarizefilechanges.Output] {

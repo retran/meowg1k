@@ -25,12 +25,12 @@ import (
 )
 
 type stubParamsReader struct {
-	taskInput string
-	stdin     string
 	taskErr   error
 	stdinErr  error
-	dryRun    bool
 	dryRunErr error
+	taskInput string
+	stdin     string
+	dryRun    bool
 }
 
 func (s *stubParamsReader) GetTaskInput() (string, error) { return s.taskInput, s.taskErr }
@@ -51,8 +51,8 @@ func (s *stubPresetResolver) Get(p preset.Preset) (*preset.ResolvedPreset, error
 }
 
 type stubOutputWriter struct {
-	lines []string
 	err   error
+	lines []string
 }
 
 func (s *stubOutputWriter) PrintLine(line string) error {
@@ -389,7 +389,7 @@ func TestExecuteStepsOutputError(t *testing.T) {
 
 func TestFactoryInitTools(t *testing.T) {
 	factory := &Factory{
-		presetResolver:  &stubPresetResolver{preset: &preset.ResolvedPreset{Model: "model"}},
+		presetResolver:   &stubPresetResolver{preset: &preset.ResolvedPreset{Model: "model"}},
 		retrievalService: &stubRetriever{},
 	}
 	cfg := &agentconfig.ResolvedConfig{

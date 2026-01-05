@@ -15,21 +15,24 @@ import (
 )
 
 type mockGitToolingService struct {
+	err      error
 	lastRef  string
 	lastPath string
 	diff     string
-	err      error
 }
 
-func (m *mockGitToolingService) Status() (string, error)                   { return "", nil }
-func (m *mockGitToolingService) Diff(ref, path string) (string, error)     { m.lastRef, m.lastPath = ref, path; return m.diff, m.err }
-func (m *mockGitToolingService) Show(ref string) (string, error)           { return "", nil }
+func (m *mockGitToolingService) Status() (string, error) { return "", nil }
+func (m *mockGitToolingService) Diff(ref, path string) (string, error) {
+	m.lastRef, m.lastPath = ref, path
+	return m.diff, m.err
+}
+func (m *mockGitToolingService) Show(ref string) (string, error)            { return "", nil }
 func (m *mockGitToolingService) Log(limit int, path string) (string, error) { return "", nil }
-func (m *mockGitToolingService) Branches() ([]string, error)               { return nil, nil }
-func (m *mockGitToolingService) CurrentBranch() (string, error)            { return "", nil }
-func (m *mockGitToolingService) Stage(paths []string) (string, error)      { return "", nil }
-func (m *mockGitToolingService) Commit(message string) (string, error)     { return "", nil }
-func (m *mockGitToolingService) HeadHash() (string, error)                 { return "", nil }
+func (m *mockGitToolingService) Branches() ([]string, error)                { return nil, nil }
+func (m *mockGitToolingService) CurrentBranch() (string, error)             { return "", nil }
+func (m *mockGitToolingService) Stage(paths []string) (string, error)       { return "", nil }
+func (m *mockGitToolingService) Commit(message string) (string, error)      { return "", nil }
+func (m *mockGitToolingService) HeadHash() (string, error)                  { return "", nil }
 
 func TestGetDiffActivity_Workdir(t *testing.T) {
 	mockGit := &mockGitToolingService{diff: "diff content"}

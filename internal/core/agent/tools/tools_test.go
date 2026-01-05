@@ -4,6 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/retran/meowg1k/internal/activities/control"
 	"github.com/retran/meowg1k/internal/activities/deletefile"
 	"github.com/retran/meowg1k/internal/activities/editfile"
@@ -22,12 +26,9 @@ import (
 	"github.com/retran/meowg1k/internal/activities/writefile"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/pkg/executor"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
-// MockExecutor matches the Executor interface
+// MockExecutor matches the Executor interface.
 type MockExecutor struct {
 	mock.Mock
 }
@@ -58,7 +59,7 @@ func (m *MockExecutor) WithFeedbackHandler(handler executor.FeedbackHandler) exe
 	return m
 }
 
-// simpleMockFactory is a helper to create an ActivityFactory that returns a specific activity
+// simpleMockFactory is a helper to create an ActivityFactory that returns a specific activity.
 type simpleMockFactory[I any, O any] struct {
 	activity executor.Activity[I, O]
 }
@@ -115,7 +116,7 @@ func TestRegistry(t *testing.T) {
 
 func TestSuggestToolName(t *testing.T) {
 	r := NewRegistry()
-	
+
 	// Register run_shell
 	r.Register(Tool{Definition: gateway.ToolDefinition{Name: "run_shell"}})
 
@@ -127,7 +128,7 @@ func TestSuggestToolName(t *testing.T) {
 
 	suggestion = r.suggestToolName("unknown")
 	assert.Equal(t, "", suggestion)
-	
+
 	// ExecuteTool with suggestion error message
 	execCtx := executor.NewContext("test", nil, &MockExecutor{})
 	_, err := r.ExecuteTool(context.Background(), execCtx, "execute_shell", nil)
@@ -181,7 +182,7 @@ func TestRegisterStandardTools(t *testing.T) {
 		TrackTask:  newMockFactory[*tracktask.Input, *tracktask.Output](nil),
 		Summarize:  newMockFactory[*summarize.Input, *summarize.Output](nil),
 		Restart:    newMockFactory[*control.RestartInput, *control.Output](nil),
-		
+
 		SearchSnapshots: []string{"master"},
 		SearchTopK:      5,
 		SearchMinScore:  0.7,
@@ -203,7 +204,7 @@ func TestRegisterStandardTools(t *testing.T) {
 
 func TestSearchTextHandler(t *testing.T) {
 	r := NewRegistry()
-	
+
 	mockShellActivity := func(ctx context.Context, activityCtx *executor.Context, input *runshell.Input) (*runshell.Output, error) {
 		return &runshell.Output{Stdout: "found"}, nil
 	}
@@ -211,7 +212,7 @@ func TestSearchTextHandler(t *testing.T) {
 	deps := &ToolDependencies{
 		RunShell: newMockFactory[*runshell.Input, *runshell.Output](mockShellActivity),
 	}
-	
+
 	// Manually register since search_text is private-ish/helper registration
 	registerSearchTextTool(r, deps)
 
@@ -222,29 +223,29 @@ func TestSearchTextHandler(t *testing.T) {
 	mockExecutor := &MockExecutor{}
 	mockExecutor.On("ExecuteActivity", mock.Anything, mock.Anything, "search_text", mock.Anything, mock.Anything).
 		Return(&runshell.Output{Stdout: "found"}, nil)
-	
+
 	execCtx := executor.NewContext("test", nil, mockExecutor)
-	
+
 	// Test basic execution
 	args := map[string]any{
 		"pattern": "foo",
 		"path":    "src",
 	}
-	
+
 	_, err := tool.Handler(context.Background(), execCtx, args)
 	require.NoError(t, err)
 
 	// Verify input
-	// Since we are mocking ExecuteActivity, the mockShellActivity won't actually be called via ExecuteActivity 
+	// Since we are mocking ExecuteActivity, the mockShellActivity won't actually be called via ExecuteActivity
 	// because MockExecutor intercepts it. But we can verify what was passed to ExecuteActivity.
-	
+
 	// Argument capture from mock
 	call := mockExecutor.Calls[0]
 	passedInput, ok := call.Arguments[4].(*runshell.Input)
 	require.True(t, ok)
-	
-	// We expect grep or rg depending on system. 
-	// NOTE: This test might be flaky if `rg` is installed or not. 
+
+	// We expect grep or rg depending on system.
+	// NOTE: This test might be flaky if `rg` is installed or not.
 	// We can check if Args contains "foo" and "src".
 	assert.Contains(t, passedInput.Args, "foo")
 	assert.Contains(t, passedInput.Args, "src")
@@ -252,18 +253,18 @@ func TestSearchTextHandler(t *testing.T) {
 
 func TestSearchSemanticTool(t *testing.T) {
 	r := NewRegistry()
-	
+
 	mockSearchActivity := func(ctx context.Context, activityCtx *executor.Context, input *searchindex.Input) (*searchindex.Output, error) {
 		return &searchindex.Output{}, nil
 	}
 
 	deps := &ToolDependencies{
-		SearchCode: newMockFactory[*searchindex.Input, *searchindex.Output](mockSearchActivity),
+		SearchCode:      newMockFactory[*searchindex.Input, *searchindex.Output](mockSearchActivity),
 		SearchSnapshots: []string{"main"},
-		SearchTopK: 10,
-		SearchMinScore: 0.5,
+		SearchTopK:      10,
+		SearchMinScore:  0.5,
 	}
-	
+
 	registerSearchSemanticTool(r, deps)
 	tool, ok := r.Get("search_semantic")
 	require.True(t, ok)
@@ -273,14 +274,14 @@ func TestSearchSemanticTool(t *testing.T) {
 		Return(&searchindex.Output{}, nil)
 
 	execCtx := executor.NewContext("test", nil, mockExecutor)
-	
+
 	args := map[string]any{
 		"query": "how to test",
 	}
-	
+
 	_, err := tool.Handler(context.Background(), execCtx, args)
 	require.NoError(t, err)
-	
+
 	call := mockExecutor.Calls[0]
 	passedInput, ok := call.Arguments[4].(*searchindex.Input)
 	require.True(t, ok)
@@ -289,7 +290,7 @@ func TestSearchSemanticTool(t *testing.T) {
 }
 
 func TestResolveMaxResults(t *testing.T) {
-	// Since resolveMaxResults is unexported, we can test it via searchTextHandler arguments 
+	// Since resolveMaxResults is unexported, we can test it via searchTextHandler arguments
 	// or rely on unit testing internal functions if we are in the same package (which we are).
 	assert.Equal(t, 10, resolveMaxResults(10))
 	assert.Equal(t, 5, resolveMaxResults(5.0))
@@ -299,7 +300,7 @@ func TestResolveMaxResults(t *testing.T) {
 
 func TestGenericToolHandler(t *testing.T) {
 	r := NewRegistry()
-	
+
 	mockReadActivity := func(ctx context.Context, activityCtx *executor.Context, input *readfile.Input) (*readfile.Output, error) {
 		return &readfile.Output{Content: "content"}, nil
 	}
@@ -307,24 +308,24 @@ func TestGenericToolHandler(t *testing.T) {
 	deps := &ToolDependencies{
 		ReadFile: newMockFactory[*readfile.Input, *readfile.Output](mockReadActivity),
 	}
-	
+
 	registerFileTools(r, deps)
 	tool, ok := r.Get("file_read")
 	require.True(t, ok)
-	
+
 	mockExecutor := &MockExecutor{}
 	mockExecutor.On("ExecuteActivity", mock.Anything, mock.Anything, "file_read", mock.Anything, mock.Anything).
 		Return(&readfile.Output{Content: "content"}, nil)
-	
+
 	execCtx := executor.NewContext("test", nil, mockExecutor)
-	
+
 	args := map[string]any{
 		"path": "test.go",
 	}
-	
+
 	_, err := tool.Handler(context.Background(), execCtx, args)
 	require.NoError(t, err)
-	
+
 	// Test BindArgs failure path in handler
 	_, err = tool.Handler(context.Background(), execCtx, map[string]any{"path": 123}) // Invalid type
 	assert.Error(t, err)
@@ -335,15 +336,15 @@ func TestPlanReadTool(t *testing.T) {
 	deps := &ToolDependencies{
 		GetPlan: newMockFactory[*getplan.Input, *getplan.Output](nil),
 	}
-	
+
 	registerPlanTools(r, deps)
 	tool, ok := r.Get("plan_read")
 	require.True(t, ok)
-	
+
 	mockExecutor := &MockExecutor{}
 	mockExecutor.On("ExecuteActivity", mock.Anything, mock.Anything, "plan_read", mock.Anything, mock.Anything).
 		Return(&getplan.Output{}, nil)
-		
+
 	execCtx := executor.NewContext("test", nil, mockExecutor)
 	_, err := tool.Handler(context.Background(), execCtx, map[string]any{})
 	require.NoError(t, err)
@@ -354,23 +355,23 @@ func TestSummarizeTool(t *testing.T) {
 	deps := &ToolDependencies{
 		Summarize: newMockFactory[*summarize.Input, *summarize.Output](nil),
 	}
-	
+
 	registerAgentTools(r, deps)
 	tool, ok := r.Get("util_summarize")
 	require.True(t, ok)
-	
+
 	mockExecutor := &MockExecutor{}
 	mockExecutor.On("ExecuteActivity", mock.Anything, mock.Anything, "util_summarize", mock.Anything, mock.Anything).
 		Return(&summarize.Output{}, nil)
-		
+
 	execCtx := executor.NewContext("test", nil, mockExecutor)
-	
+
 	args := map[string]any{
 		"content": "some content",
 	}
 	_, err := tool.Handler(context.Background(), execCtx, args)
 	require.NoError(t, err)
-	
+
 	// Verify input defaults
 	call := mockExecutor.Calls[0]
 	passedInput, ok := call.Arguments[4].(*summarize.Input)
@@ -383,20 +384,20 @@ func TestRunShellTool(t *testing.T) {
 	deps := &ToolDependencies{
 		RunShell: newMockFactory[*runshell.Input, *runshell.Output](nil),
 	}
-	
+
 	registerSystemTools(r, deps)
 	tool, ok := r.Get("shell_exec")
 	require.True(t, ok)
-	
+
 	mockExecutor := &MockExecutor{}
 	mockExecutor.On("ExecuteActivity", mock.Anything, mock.Anything, "shell_exec", mock.Anything, mock.Anything).
 		Return(&runshell.Output{}, nil)
-		
+
 	execCtx := executor.NewContext("test", nil, mockExecutor)
-	
+
 	args := map[string]any{
 		"command": "echo",
-		"args": []string{"hello"},
+		"args":    []string{"hello"},
 	}
 	_, err := tool.Handler(context.Background(), execCtx, args)
 	require.NoError(t, err)

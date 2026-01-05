@@ -21,8 +21,8 @@ import (
 )
 
 type stubHTTPClientService struct {
-	closed bool
 	err    error
+	closed bool
 }
 
 func (s *stubHTTPClientService) Get() *http.Client {
