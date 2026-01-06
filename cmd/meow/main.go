@@ -5,7 +5,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/retran/meowg1k/cmd"
@@ -13,7 +12,7 @@ import (
 
 func main() {
 	if err := cmd.Execute(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		// Cobra already printed the error, just exit with error code
 		os.Exit(1)
 	}
 }

@@ -7,7 +7,7 @@ This page provides a complete index of the `meowg1k` documentation.
 ## Getting Started
 
 - [01 - Installation Guide](./01-INSTALLATION.md) — Install meowg1k on your system
-- [02 - Configuration Guide](./02-CONFIGURATION.md) — Configure models, profiles, and features
+- [02 - Configuration Guide](./02-CONFIGURATION.md) — Configure models, presets, and features
 - [03 - Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for all commands
 
 ## Core Features

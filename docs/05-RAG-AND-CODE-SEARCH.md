@@ -36,7 +36,7 @@ The RAG system in `meowg1k` consists of three core components:
 - Builds HNSW (Hierarchical Navigable Small World) vector indices for fast similarity search
 - Stores everything locally in SQLite with smart deduplication
 
-### 2. Querying (`meow query`)
+### 2. Querying (`meow search`)
 
 - Computes an embedding for your search query
 - Searches across HNSW indices for the most similar code chunks
@@ -63,19 +63,19 @@ models:
     provider: "gemini"
     model: "text-embedding-004"
 
-profiles:
-  embeddings:
+presets:
+  gemini-embeddings:
     model: "gemini-embeddings"
 
 index:
-  profile: "embeddings"
+  preset: "gemini-embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
   batchSize: 64
 
-ask:
-  profile: "smart"
+answer:
+  preset: "gemini-pro"
   topK: 5
   minScore: 0.7
 ```
@@ -113,16 +113,16 @@ Find relevant code chunks using natural language:
 
 ```bash
 # Search for authentication-related code
-meow query "authentication logic"
+meow search "authentication logic"
 
 # Search with higher precision (more results, lower threshold)
-meow query "error handling" --top-k 20 --min-score 0.5
+meow search "error handling" --top-k 20 --min-score 0.5
 
 # Output results as JSON
-meow query "database connection" --json
+meow search "database connection" --json
 
 # Search only in uncommitted changes
-meow query "new feature" --snapshots _workdir_
+meow search "new feature" --snapshots _workdir_
 ```
 
 #### Question Answering with `ask`
@@ -134,7 +134,7 @@ Get AI-powered answers based on your codebase:
 meow ask "How does authentication work in this project?"
 
 # Use a more powerful model for complex questions
-meow ask "What's the error handling strategy?" --profile smart
+meow ask "What's the error handling strategy?" --preset gemini-pro
 
 # Search more thoroughly
 meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5
@@ -168,7 +168,7 @@ The main authentication flow is implemented in the `Authenticate` method at
 The RAG system uses three main commands:
 
 - **[`meow index`](./03-COMMAND-REFERENCE.md#meow-index)** — Index your codebase by computing embeddings and building vector indices
-- **[`meow query`](./03-COMMAND-REFERENCE.md#meow-query-text)** — Search for code using semantic similarity
+- **[`meow search`](./03-COMMAND-REFERENCE.md#meow-search-text)** — Search for code using semantic similarity
 - **[`meow ask`](./03-COMMAND-REFERENCE.md#meow-ask-question)** — Ask questions about your codebase with AI-powered answers
 
 For complete command details including all flags and options, see the [Command Reference](./03-COMMAND-REFERENCE.md).
@@ -244,7 +244,7 @@ To search only specific snapshots:
 
 ```bash
 # Only search uncommitted changes
-meow query "new feature" --snapshots _workdir_
+meow search "new feature" --snapshots _workdir_
 
 # Search staged and committed code
 meow ask "How does auth work?" --snapshots _stage_,_head_
@@ -341,11 +341,11 @@ When searching:
 
 ### 5. Cache Embeddings
 
-Enable caching in your embedding profile:
+Enable caching in your embedding preset:
 
 ```yaml
-profiles:
-  embeddings:
+presets:
+  gemini-embeddings:
     model: "gemini-embeddings"
     cache:
       enabled: true
@@ -362,11 +362,11 @@ This avoids recomputing embeddings for queries you've asked before.
 Example:
 
 ```yaml
-profiles:
-  embeddings:
+presets:
+  gemini-embeddings:
     model: "gemini-embeddings" # Fast and free
 
-  smart:
+  claude-sonnet:
     model: "claude-sonnet" # Powerful for reasoning
 ```
 
@@ -377,7 +377,7 @@ profiles:
 
 ## Related Documentation
 
-- [Configuration Guide](./02-CONFIGURATION.md) — Detailed configuration reference for models, profiles, and RAG settings
+- [Configuration Guide](./02-CONFIGURATION.md) — Detailed configuration reference for models, presets, and RAG settings
 - [Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for all commands including flags and options
 - [Examples & Recipes](./06-EXAMPLES.md) — Practical examples and workflows for RAG-based development
 - [Troubleshooting Guide](./10-TROUBLESHOOTING.md) — Solutions for common issues

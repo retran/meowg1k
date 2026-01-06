@@ -23,7 +23,7 @@ type loggingGenerationGateway struct {
 	inner    ports.GenerationGateway
 	logger   TraceLogger
 	command  string
-	profile  string
+	preset   string
 	provider string
 }
 
@@ -32,7 +32,7 @@ func newLoggingGenerationGateway(
 	inner ports.GenerationGateway,
 	logger TraceLogger,
 	command string,
-	profile string,
+	preset string,
 	provider string,
 ) ports.GenerationGateway {
 	if logger == nil {
@@ -43,7 +43,7 @@ func newLoggingGenerationGateway(
 		inner:    inner,
 		logger:   logger,
 		command:  command,
-		profile:  profile,
+		preset:   preset,
 		provider: provider,
 	}
 }
@@ -52,17 +52,17 @@ func newLoggingGenerationGateway(
 func (g *loggingGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	startTime := time.Now()
 
-	content, err := g.inner.GenerateContent(ctx, request)
+	response, err := g.inner.GenerateContent(ctx, request)
 
 	duration := time.Since(startTime)
 
 	// Log the interaction
 	entry := &tracelog.APIInteractionEntry{
 		Command:  g.command,
-		Profile:  g.profile,
+		Preset:   g.preset,
 		Provider: g.provider,
 		Model:    request.Model(),
 		Request: tracelog.RequestData{
@@ -71,7 +71,7 @@ func (g *loggingGenerationGateway) GenerateContent(
 			MaxOutputTokens: request.MaxOutputTokens(),
 		},
 		Response: tracelog.ResponseData{
-			Content: content,
+			Content: responseTextOrEmpty(response),
 		},
 		DurationMs: duration.Milliseconds(),
 	}
@@ -80,15 +80,22 @@ func (g *loggingGenerationGateway) GenerateContent(
 		entry.Response.Error = err.Error()
 	}
 
-	// Log asynchronously to avoid blocking (ignore errors)
+	// Log in the background to avoid blocking (ignore errors).
 	go func() {
 		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
 	}()
 
 	if err != nil {
-		return content, fmt.Errorf("content generation failed: %w", err)
+		return response, fmt.Errorf("content generation failed: %w", err)
 	}
-	return content, nil
+	return response, nil
+}
+
+func responseTextOrEmpty(response *gateway.GenerateContentResponse) string {
+	if response == nil {
+		return ""
+	}
+	return response.Text()
 }
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.
@@ -96,7 +103,7 @@ type loggingEmbeddingsGateway struct {
 	inner    ports.EmbeddingsGateway
 	logger   TraceLogger
 	command  string
-	profile  string
+	preset   string
 	provider string
 }
 
@@ -105,7 +112,7 @@ func newLoggingEmbeddingsGateway(
 	inner ports.EmbeddingsGateway,
 	logger TraceLogger,
 	command string,
-	profile string,
+	preset string,
 	provider string,
 ) ports.EmbeddingsGateway {
 	if logger == nil {
@@ -116,7 +123,7 @@ func newLoggingEmbeddingsGateway(
 		inner:    inner,
 		logger:   logger,
 		command:  command,
-		profile:  profile,
+		preset:   preset,
 		provider: provider,
 	}
 }
@@ -135,7 +142,7 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 	// Log the interaction
 	entry := &tracelog.APIInteractionEntry{
 		Command:  g.command,
-		Profile:  g.profile,
+		Preset:   g.preset,
 		Provider: g.provider,
 		Model:    request.Model(),
 		Request: tracelog.RequestData{
@@ -153,7 +160,7 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 		entry.Response.Error = err.Error()
 	}
 
-	// Log asynchronously to avoid blocking (ignore errors)
+	// Log in the background to avoid blocking (ignore errors).
 	go func() {
 		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
 	}()

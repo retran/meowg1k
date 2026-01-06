@@ -19,7 +19,7 @@ type Service struct {
 }
 
 // New creates a new HTTP client service with sensible defaults for LLM API calls.
-// The returned client is safe for concurrent use and should be shared across
+// The returned client is safe for shared use and should be shared across
 // all gateways that need HTTP connectivity.
 func New() (*Service, error) {
 	// Create HTTP client with configuration optimized for LLM API calls
@@ -66,7 +66,7 @@ func New() (*Service, error) {
 }
 
 // Get returns the underlying http.Client.
-// The returned client is safe for concurrent use.
+// The returned client is safe for shared use.
 func (s *Service) Get() *http.Client {
 	if s == nil {
 		// Defensive programming: return a default client if service is nil

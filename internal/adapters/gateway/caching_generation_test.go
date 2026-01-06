@@ -59,12 +59,14 @@ type mockGenGatewayForCaching struct {
 	callCount int
 }
 
-func (m *mockGenGatewayForCaching) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {
+func (m *mockGenGatewayForCaching) GenerateContent(ctx context.Context, request *domainGateway.GenerateContentRequest) (*domainGateway.GenerateContentResponse, error) {
 	m.callCount++
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
-	return m.response, nil
+	return &domainGateway.GenerateContentResponse{
+		Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: m.response}},
+	}, nil
 }
 
 func TestCachingGenerationGateway_CacheHit(t *testing.T) {
@@ -78,14 +80,14 @@ func TestCachingGenerationGateway_CacheHit(t *testing.T) {
 	// First call - should call gateway and cache result
 	result1, err := gateway.GenerateContent(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, "fresh", result1)
+	assert.Equal(t, "fresh", result1.Text())
 	assert.Equal(t, 1, mockGateway.callCount)
 	assert.Equal(t, 1, mockCache.setCalls)
 
 	// Second call - should hit cache
 	result2, err := gateway.GenerateContent(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, "fresh", result2)
+	assert.Equal(t, "fresh", result2.Text())
 	assert.Equal(t, 1, mockGateway.callCount, "Should not call gateway again")
 	assert.Equal(t, 2, mockCache.getCalls)
 }
@@ -94,18 +96,14 @@ func TestCachingGenerationGateway_UpdateCache(t *testing.T) {
 	mockGateway := &mockGenGatewayForCaching{response: "fresh"}
 	mockCache := newMockCacheForCaching()
 
-	// Pre-populate cache
-	ctx := context.Background()
-	mockCache.data["test-key"] = "old"
-
 	gateway := newCachingGenerationGateway(mockGateway, mockCache, true)
 
 	request := domainGateway.NewGenerateContentRequest("model", "sys", "user", 100)
 
 	// Should skip cache and call gateway
-	result, err := gateway.GenerateContent(ctx, request)
+	result, err := gateway.GenerateContent(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, "fresh", result)
+	assert.Equal(t, "fresh", result.Text())
 	assert.Equal(t, 1, mockGateway.callCount)
 	assert.Equal(t, 0, mockCache.getCalls, "Should not check cache when updateCache=true")
 	assert.Equal(t, 1, mockCache.setCalls)
@@ -123,7 +121,7 @@ func TestCachingGenerationGateway_GatewayError(t *testing.T) {
 	result, err := gateway.GenerateContent(context.Background(), request)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, expectedErr)
-	assert.Empty(t, result)
+	assert.Empty(t, result.Text())
 	assert.Equal(t, 0, mockCache.setCalls, "Should not cache errors")
 }
 
@@ -139,7 +137,7 @@ func TestCachingGenerationGateway_CacheGetError(t *testing.T) {
 	// Should fallback to gateway on cache error
 	result, err := gateway.GenerateContent(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, "fresh", result)
+	assert.Equal(t, "fresh", result.Text())
 	assert.Equal(t, 1, mockGateway.callCount)
 }
 
@@ -155,7 +153,7 @@ func TestCachingGenerationGateway_CacheSetError(t *testing.T) {
 	// Should still return result even if cache set fails
 	result, err := gateway.GenerateContent(context.Background(), request)
 	require.NoError(t, err)
-	assert.Equal(t, "fresh", result)
+	assert.Equal(t, "fresh", result.Text())
 	assert.Equal(t, 1, mockCache.setCalls)
 }
 
@@ -168,7 +166,7 @@ func TestCachingGenerationGateway_NilRequest(t *testing.T) {
 	result, err := gateway.GenerateContent(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "request cannot be nil")
-	assert.Empty(t, result)
+	assert.Empty(t, result.Text())
 }
 
 func TestCachingGenerationGateway_CreateCacheKey(t *testing.T) {

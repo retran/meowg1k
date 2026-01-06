@@ -7,29 +7,29 @@ import (
 	"fmt"
 
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// ConfigService resolves index configuration from application config and profiles.
+// ConfigService resolves index configuration from application config and presets.
 type ConfigService struct {
-	configResolver  ports.ConfigResolver
-	profileResolver ports.ProfileResolver
+	configResolver ports.ConfigResolver
+	presetResolver ports.PresetResolver
 }
 
 // NewConfigService creates a new index configuration service.
-func NewConfigService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*ConfigService, error) {
+func NewConfigService(configResolver ports.ConfigResolver, presetResolver ports.PresetResolver) (*ConfigService, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	return &ConfigService{
-		configResolver:  configResolver,
-		profileResolver: profileResolver,
+		configResolver: configResolver,
+		presetResolver: presetResolver,
 	}, nil
 }
 
@@ -43,8 +43,8 @@ func (s *ConfigService) Get() (*domainindex.ResolvedConfig, error) {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if s.profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if s.presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	cfg, err := s.configResolver.Get()
@@ -53,32 +53,32 @@ func (s *ConfigService) Get() (*domainindex.ResolvedConfig, error) {
 	}
 
 	// Validate index configuration
-	if cfg.Index == nil {
+	if cfg.Flows == nil || cfg.Flows.Index == nil {
 		return nil, fmt.Errorf("index configuration is missing")
 	}
-	if cfg.Index.Profile == "" {
-		return nil, fmt.Errorf("index.profile is required in configuration")
+	if cfg.Flows.Index.Preset == "" {
+		return nil, fmt.Errorf("index.preset is required in configuration")
 	}
-	if cfg.Index.Chunker == nil {
+	if cfg.Flows.Index.Chunker == nil {
 		return nil, fmt.Errorf("index.chunker configuration is missing")
 	}
 
-	// Resolve profile
-	resolvedProfile, err := s.profileResolver.Get(profile.Profile(cfg.Index.Profile))
+	// Resolve preset
+	resolvedPreset, err := s.presetResolver.Get(preset.Preset(cfg.Flows.Index.Preset))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile %q: %w", cfg.Index.Profile, err)
+		return nil, fmt.Errorf("failed to resolve preset %q: %w", cfg.Flows.Index.Preset, err)
 	}
 
 	// Set default batch size if not specified
-	batchSize := cfg.Index.BatchSize
+	batchSize := cfg.Flows.Index.BatchSize
 	if batchSize <= 0 {
 		batchSize = 32 // Default batch size
 	}
 
 	return &domainindex.ResolvedConfig{
-		Profile:             resolvedProfile,
-		ChunkerMaxRunes:     cfg.Index.Chunker.MaxRunes,
-		ChunkerOverlapRunes: cfg.Index.Chunker.OverlapRunes,
+		Preset:              resolvedPreset,
+		ChunkerMaxRunes:     cfg.Flows.Index.Chunker.MaxRunes,
+		ChunkerOverlapRunes: cfg.Flows.Index.Chunker.OverlapRunes,
 		BatchSize:           batchSize,
 	}, nil
 }

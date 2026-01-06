@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // ResolvedConfig represents the resolved configuration for indexing.
 type ResolvedConfig struct {
-	Profile             *profile.ResolvedProfile
+	Preset              *preset.ResolvedPreset
 	ChunkerMaxRunes     int
 	ChunkerOverlapRunes int
 	BatchSize           int

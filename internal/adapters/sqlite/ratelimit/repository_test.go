@@ -118,7 +118,7 @@ func TestInitializeBuckets(t *testing.T) {
 	var count int
 	err = db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM rate_limit_buckets").Scan(&count)
 	if err != nil {
-		t.Fatalf("failed to query buckets: %v", err)
+		t.Fatalf("failed to searchindex buckets: %v", err)
 	}
 	if count != 2 {
 		t.Errorf("expected 2 buckets, got %d", count)
@@ -161,7 +161,7 @@ func TestAcquireTokens_Success(t *testing.T) {
 	var tokens int
 	err = db.QueryRowContext(context.Background(), "SELECT tokens FROM rate_limit_buckets WHERE id = ?", "test-bucket").Scan(&tokens)
 	if err != nil {
-		t.Fatalf("failed to query tokens: %v", err)
+		t.Fatalf("failed to searchindex tokens: %v", err)
 	}
 	if tokens != 90 {
 		t.Errorf("expected 90 tokens, got %d", tokens)

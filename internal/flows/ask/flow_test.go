@@ -10,10 +10,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/activities/retrievecontext"
+	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	"github.com/retran/meowg1k/internal/activities/fetchcontext"
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -39,9 +40,9 @@ type mockCommandParametersReader struct {
 	snapshotsErr error
 	topKErr      error
 	minScoreErr  error
-	profileErr   error
+	presetErr    error
 	question     string
-	profile      string
+	preset       string
 	snapshots    []string
 	topK         int
 	mu           sync.Mutex
@@ -72,10 +73,10 @@ func (m *mockCommandParametersReader) GetMinScoreFlag() (float32, error) {
 	return m.minScore, m.minScoreErr
 }
 
-func (m *mockCommandParametersReader) GetProfileFlag() (string, error) {
+func (m *mockCommandParametersReader) GetPresetFlag() (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.profile, m.profileErr
+	return m.preset, m.presetErr
 }
 
 // Mock config reader.
@@ -91,17 +92,31 @@ func (m *mockConfigReader) Get() (*config.Config, error) {
 	return m.config, m.err
 }
 
-// Mock profile resolver.
-type mockProfileResolver struct {
-	err     error
-	profile *profile.ResolvedProfile
-	mu      sync.Mutex
+func answerConfig(presetName string, topK int, minScore float32) *config.Config {
+	return &config.Config{
+		Flows: &config.FlowsConfig{
+			Answer: &config.AnswerFlowConfig{
+				Preset: presetName,
+				Retrieval: &config.RetrievalConfig{
+					TopK:     topK,
+					MinScore: minScore,
+				},
+			},
+		},
+	}
 }
 
-func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+// Mock preset resolver.
+type mockPresetResolver struct {
+	err    error
+	preset *preset.ResolvedPreset
+	mu     sync.Mutex
+}
+
+func (m *mockPresetResolver) Get(p preset.Preset) (*preset.ResolvedPreset, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.profile, m.err
+	return m.preset, m.err
 }
 
 // Mock output writer.
@@ -119,10 +134,10 @@ func (m *mockOutputWriter) PrintLine(line string) error {
 
 func TestNewFactory(t *testing.T) {
 	tests := []struct {
-		retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output]
-		invokeLLMFactory       executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+		retrieveContextFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output]
+		invokeLLMFactory       executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 		parametersReader       CommandParametersReader
-		profileResolver        ports.ProfileResolver
+		presetResolver         ports.PresetResolver
 		outputWriter           ports.OutputWriter
 		configReader           ConfigReader
 		name                   string
@@ -132,9 +147,9 @@ func TestNewFactory(t *testing.T) {
 		{
 			name:                   "nil retrieveContextFactory",
 			retrieveContextFactory: nil,
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           &mockOutputWriter{},
 			configReader:           &mockConfigReader{},
 			wantErr:                true,
@@ -142,10 +157,10 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:                   "nil invokeLLMFactory",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
 			invokeLLMFactory:       nil,
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           &mockOutputWriter{},
 			configReader:           &mockConfigReader{},
 			wantErr:                true,
@@ -153,32 +168,32 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:                   "nil parametersReader",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       nil,
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           &mockOutputWriter{},
 			configReader:           &mockConfigReader{},
 			wantErr:                true,
 			expectedErrMsg:         "parametersReader cannot be nil",
 		},
 		{
-			name:                   "nil profileResolver",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			name:                   "nil presetResolver",
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        nil,
+			presetResolver:         nil,
 			outputWriter:           &mockOutputWriter{},
 			configReader:           &mockConfigReader{},
 			wantErr:                true,
-			expectedErrMsg:         "profileResolver cannot be nil",
+			expectedErrMsg:         "presetResolver cannot be nil",
 		},
 		{
 			name:                   "nil outputWriter",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           nil,
 			configReader:           &mockConfigReader{},
 			wantErr:                true,
@@ -186,10 +201,10 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:                   "nil configReader",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           &mockOutputWriter{},
 			configReader:           nil,
 			wantErr:                true,
@@ -197,10 +212,10 @@ func TestNewFactory(t *testing.T) {
 		},
 		{
 			name:                   "successful factory creation",
-			retrieveContextFactory: &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-			invokeLLMFactory:       &mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+			retrieveContextFactory: &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+			invokeLLMFactory:       &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 			parametersReader:       &mockCommandParametersReader{},
-			profileResolver:        &mockProfileResolver{},
+			presetResolver:         &mockPresetResolver{},
 			outputWriter:           &mockOutputWriter{},
 			configReader:           &mockConfigReader{},
 			wantErr:                false,
@@ -213,7 +228,7 @@ func TestNewFactory(t *testing.T) {
 				tt.retrieveContextFactory,
 				tt.invokeLLMFactory,
 				tt.parametersReader,
-				tt.profileResolver,
+				tt.presetResolver,
 				tt.outputWriter,
 				tt.configReader,
 			)
@@ -257,10 +272,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					err: errors.New("config error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					&mockCommandParametersReader{},
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -275,18 +290,20 @@ func TestFactory_NewFlow(t *testing.T) {
 			expectedErrMsg: "failed to get config",
 		},
 		{
-			name: "missing ask configuration",
+			name: "missing answer configuration",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
 					config: &config.Config{
-						Ask: nil,
+						Flows: &config.FlowsConfig{
+							Answer: nil,
+						},
 					},
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					&mockCommandParametersReader{},
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -298,28 +315,22 @@ func TestFactory_NewFlow(t *testing.T) {
 				return ctx, flowCtx
 			},
 			wantErr:        true,
-			expectedErrMsg: "ask configuration is missing",
+			expectedErrMsg: "answer configuration is missing",
 		},
 		{
 			name: "error getting question",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					questionErr: errors.New("question error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -337,22 +348,16 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "empty question",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question: "",
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -370,23 +375,17 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "error getting snapshots",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:     "test question",
 					snapshotsErr: errors.New("snapshots error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -404,13 +403,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "error getting topK",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
@@ -418,10 +411,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					topKErr:   errors.New("topK error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -439,13 +432,7 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "error getting min score",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:    "test question",
@@ -454,10 +441,10 @@ func TestFactory_NewFlow(t *testing.T) {
 					minScoreErr: errors.New("min score error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -472,29 +459,23 @@ func TestFactory_NewFlow(t *testing.T) {
 			expectedErrMsg: "failed to get min score",
 		},
 		{
-			name: "error getting profile",
+			name: "error getting preset",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
-					question:   "test question",
-					snapshots:  []string{"_head_"},
-					topK:       5,
-					minScore:   0.7,
-					profileErr: errors.New("profile error"),
+					question:  "test question",
+					snapshots: []string{"_head_"},
+					topK:      5,
+					minScore:  0.7,
+					presetErr: errors.New("preset error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -506,32 +487,26 @@ func TestFactory_NewFlow(t *testing.T) {
 				return ctx, flowCtx
 			},
 			wantErr:        true,
-			expectedErrMsg: "failed to get profile",
+			expectedErrMsg: "failed to get preset",
 		},
 		{
-			name: "empty profile in config and flag",
+			name: "empty preset in config and flag",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      5,
 					minScore:  0.7,
-					profile:   "",
+					preset:    "",
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
-					&mockProfileResolver{},
+					&mockPresetResolver{},
 					&mockOutputWriter{},
 					mockConfigReader,
 				)
@@ -543,33 +518,27 @@ func TestFactory_NewFlow(t *testing.T) {
 				return ctx, flowCtx
 			},
 			wantErr:        true,
-			expectedErrMsg: "profile is required",
+			expectedErrMsg: "preset is required",
 		},
 		{
-			name: "error resolving profile",
+			name: "error resolving preset",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      5,
 					minScore:  0.7,
-					profile:   "test-profile",
+					preset:    "test-preset",
 				}
-				mockResolver := &mockProfileResolver{
-					err: errors.New("profile resolve error"),
+				mockResolver := &mockPresetResolver{
+					err: errors.New("preset resolve error"),
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -583,33 +552,27 @@ func TestFactory_NewFlow(t *testing.T) {
 				return ctx, flowCtx
 			},
 			wantErr:        true,
-			expectedErrMsg: "failed to resolve profile",
+			expectedErrMsg: "failed to resolve preset",
 		},
 		{
 			name: "executor not available",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      5,
 					minScore:  0.7,
-					profile:   "test-profile",
+					preset:    "test-preset",
 				}
-				mockResolver := &mockProfileResolver{
-					profile: &profile.ResolvedProfile{},
+				mockResolver := &mockPresetResolver{
+					preset: &preset.ResolvedPreset{},
 				}
 				factory, _ := NewFactory(
-					&mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{},
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -629,38 +592,34 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "successful flow - with context found",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{},
 					topK:      0,
 					minScore:  0,
-					profile:   "",
+					preset:    "",
 				}
-				mockResolver := &mockProfileResolver{
-					profile: &profile.ResolvedProfile{},
+				mockResolver := &mockPresetResolver{
+					preset: &preset.ResolvedPreset{},
 				}
-				mockRetrieveFactory := &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{
-					newActivityFunc: func() executor.Activity[*retrievecontext.Input, *retrievecontext.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *retrievecontext.Input) (*retrievecontext.Output, error) {
-							return &retrievecontext.Output{
+				mockRetrieveFactory := &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{
+					newActivityFunc: func() executor.Activity[*fetchcontext.Input, *fetchcontext.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *fetchcontext.Input) (*fetchcontext.Output, error) {
+							return &fetchcontext.Output{
 								Context: "Retrieved context for the question",
 							}, nil
 						}
 					},
 				}
-				mockLLMFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-					newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
-							return &invokellm.Output{
-								Content: "Generated answer",
+				mockLLMFactory := &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{
+					newActivityFunc: func() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
+							return &draftcontent.Output{
+								Response: &domainGateway.GenerateContentResponse{
+									Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "Generated answer"}},
+								},
 							}, nil
 						}
 					},
@@ -687,28 +646,22 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "successful flow - no context found",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      10,
 					minScore:  0.5,
-					profile:   "default",
+					preset:    "default",
 				}
-				mockResolver := &mockProfileResolver{
-					profile: &profile.ResolvedProfile{},
+				mockResolver := &mockPresetResolver{
+					preset: &preset.ResolvedPreset{},
 				}
-				mockRetrieveFactory := &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{
-					newActivityFunc: func() executor.Activity[*retrievecontext.Input, *retrievecontext.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *retrievecontext.Input) (*retrievecontext.Output, error) {
-							return &retrievecontext.Output{
+				mockRetrieveFactory := &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{
+					newActivityFunc: func() executor.Activity[*fetchcontext.Input, *fetchcontext.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *fetchcontext.Input) (*fetchcontext.Output, error) {
+							return &fetchcontext.Output{
 								Context: "",
 							}, nil
 						}
@@ -716,7 +669,7 @@ func TestFactory_NewFlow(t *testing.T) {
 				}
 				factory, _ := NewFactory(
 					mockRetrieveFactory,
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -736,34 +689,28 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "retrieve context activity error",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      10,
 					minScore:  0.5,
-					profile:   "default",
+					preset:    "default",
 				}
-				mockResolver := &mockProfileResolver{
-					profile: &profile.ResolvedProfile{},
+				mockResolver := &mockPresetResolver{
+					preset: &preset.ResolvedPreset{},
 				}
-				mockRetrieveFactory := &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{
-					newActivityFunc: func() executor.Activity[*retrievecontext.Input, *retrievecontext.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *retrievecontext.Input) (*retrievecontext.Output, error) {
+				mockRetrieveFactory := &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{
+					newActivityFunc: func() executor.Activity[*fetchcontext.Input, *fetchcontext.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *fetchcontext.Input) (*fetchcontext.Output, error) {
 							return nil, errors.New("retrieve error")
 						}
 					},
 				}
 				factory, _ := NewFactory(
 					mockRetrieveFactory,
-					&mockActivityFactory[*invokellm.Input, *invokellm.Output]{},
+					&mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{},
 					mockReader,
 					mockResolver,
 					&mockOutputWriter{},
@@ -784,36 +731,30 @@ func TestFactory_NewFlow(t *testing.T) {
 			name: "LLM invocation error",
 			setupFactory: func() *Factory {
 				mockConfigReader := &mockConfigReader{
-					config: &config.Config{
-						Ask: &config.AskConfig{
-							Profile:  "default",
-							TopK:     10,
-							MinScore: 0.5,
-						},
-					},
+					config: answerConfig("default", 10, 0.5),
 				}
 				mockReader := &mockCommandParametersReader{
 					question:  "test question",
 					snapshots: []string{"_head_"},
 					topK:      10,
 					minScore:  0.5,
-					profile:   "default",
+					preset:    "default",
 				}
-				mockResolver := &mockProfileResolver{
-					profile: &profile.ResolvedProfile{},
+				mockResolver := &mockPresetResolver{
+					preset: &preset.ResolvedPreset{},
 				}
-				mockRetrieveFactory := &mockActivityFactory[*retrievecontext.Input, *retrievecontext.Output]{
-					newActivityFunc: func() executor.Activity[*retrievecontext.Input, *retrievecontext.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *retrievecontext.Input) (*retrievecontext.Output, error) {
-							return &retrievecontext.Output{
+				mockRetrieveFactory := &mockActivityFactory[*fetchcontext.Input, *fetchcontext.Output]{
+					newActivityFunc: func() executor.Activity[*fetchcontext.Input, *fetchcontext.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *fetchcontext.Input) (*fetchcontext.Output, error) {
+							return &fetchcontext.Output{
 								Context: "Retrieved context",
 							}, nil
 						}
 					},
 				}
-				mockLLMFactory := &mockActivityFactory[*invokellm.Input, *invokellm.Output]{
-					newActivityFunc: func() executor.Activity[*invokellm.Input, *invokellm.Output] {
-						return func(ctx context.Context, activityCtx *executor.Context, input *invokellm.Input) (*invokellm.Output, error) {
+				mockLLMFactory := &mockActivityFactory[*draftcontent.Input, *draftcontent.Output]{
+					newActivityFunc: func() executor.Activity[*draftcontent.Input, *draftcontent.Output] {
+						return func(ctx context.Context, activityCtx *executor.Context, input *draftcontent.Input) (*draftcontent.Output, error) {
 							return nil, errors.New("LLM error")
 						}
 					},

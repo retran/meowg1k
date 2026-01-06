@@ -13,7 +13,7 @@ import (
 	"time"
 
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // Mock HTTP server responses for OpenAI API.
@@ -108,14 +108,14 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	// Create profile with mock server URL
-	resolvedProfile := &profile.ResolvedProfile{
+	// Create preset with mock server URL
+	resolvedPreset := &preset.ResolvedPreset{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
 
 	// Create gateway
-	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, nil)
 
 	// Create test request
 	request := domainGateway.NewGenerateContentRequest(
@@ -132,13 +132,13 @@ func TestOpenAIGatewayGenerateContent(t *testing.T) {
 		t.Fatalf("GenerateContent failed: %v", err)
 	}
 
-	if content == "" {
+	if content.Text() == "" {
 		t.Error("Expected non-empty content")
 	}
 
 	expectedContent := "This is a test response from the mocked OpenAI API."
-	if content != expectedContent {
-		t.Errorf("Expected content '%s', got '%s'", expectedContent, content)
+	if content.Text() != expectedContent {
+		t.Errorf("Expected content '%s', got '%s'", expectedContent, content.Text())
 	}
 }
 
@@ -149,12 +149,12 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 	}))
 	defer errorServer.Close()
 
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedPreset := &preset.ResolvedPreset{
 		BaseURL: errorServer.URL,
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, nil)
 
 	request := domainGateway.NewGenerateContentRequest(
 		"gpt-4",
@@ -170,8 +170,8 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 		t.Error("Expected error from failing server")
 	}
 
-	if !strings.Contains(err.Error(), "failed to generate content") {
-		t.Errorf("Expected 'failed to generate content' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to write content") {
+		t.Errorf("Expected 'failed to write content' in error, got: %v", err)
 	}
 }
 
@@ -180,12 +180,12 @@ func TestOpenAIGatewayComputeEmbeddings(t *testing.T) {
 	mockServer := createOpenAIMockServer()
 	defer mockServer.Close()
 
-	resolvedProfile := &profile.ResolvedProfile{
+	resolvedPreset := &preset.ResolvedPreset{
 		BaseURL: mockServer.URL,
 		APIKey:  "test-api-key",
 	}
 
-	gateway := newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, nil)
+	gateway := newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, nil)
 
 	// Create embeddings request
 	request := domainGateway.NewComputeEmbeddingsRequest(

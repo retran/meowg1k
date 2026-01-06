@@ -14,7 +14,7 @@ var askCmd = &cobra.Command{
 	Use:     "ask <question>",
 	Aliases: []string{"a"},
 	Short:   "Ask a question about your codebase using RAG",
-	Long: `Ask a question about your codebase and get an AI-generated answer.
+	Long: `Ask a question about your codebase and get an AI-generated response.
 
 Uses Retrieval-Augmented Generation (RAG) to search for relevant code chunks
 using vector similarity, then generates an answer with an LLM.
@@ -26,13 +26,14 @@ Examples:
   # Ask a question from stdin
   echo "What's the error handling strategy?" | meow ask
 
-  # Use a different profile and show retrieved context
-  meow ask "Explain the database layer" --profile smart --show-context
+  # Use a different preset and show retrieved context
+  meow ask "Explain the database layer" --preset smart --show-context
 
   # Search more thoroughly with higher k and lower threshold
   meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5`,
-	Args: cobra.MaximumNArgs(1),
+	Args: validateInputOrStdin,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "AskFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateAskFlow()
 		})
@@ -41,7 +42,7 @@ Examples:
 
 func init() {
 	rootCmd.AddCommand(askCmd)
-	askCmd.Flags().String("profile", "", "Profile to use for answer generation (overrides config)")
+	askCmd.Flags().String("preset", "", "Preset to use for answer generation (overrides config)")
 	askCmd.Flags().IntP("top-k", "k", 0, "Number of top results to retrieve (0 = use config default)")
 	askCmd.Flags().Float32("min-score", 0.0, "Minimum similarity score (0.0 = use config default)")
 	askCmd.Flags().Bool("show-context", false, "Show retrieved code context before the answer")

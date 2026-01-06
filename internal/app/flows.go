@@ -6,45 +6,47 @@ package app
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/applyfilters"
-	"github.com/retran/meowg1k/internal/activities/buildvectorindices"
-	"github.com/retran/meowg1k/internal/activities/chunkallfiles"
-	"github.com/retran/meowg1k/internal/activities/chunkfile"
-	"github.com/retran/meowg1k/internal/activities/cleanupstaledata"
-	"github.com/retran/meowg1k/internal/activities/composecommit"
-	"github.com/retran/meowg1k/internal/activities/composeflatcommit"
-	"github.com/retran/meowg1k/internal/activities/composeflatpr"
-	"github.com/retran/meowg1k/internal/activities/composepr"
-	"github.com/retran/meowg1k/internal/activities/computeallembeddings"
-	"github.com/retran/meowg1k/internal/activities/computeembeddingsbatch"
-	"github.com/retran/meowg1k/internal/activities/deduplicateandprepare"
-	"github.com/retran/meowg1k/internal/activities/distributeandsave"
-	"github.com/retran/meowg1k/internal/activities/fetchallbranchdiffs"
-	"github.com/retran/meowg1k/internal/activities/fetchalldiffs"
-	"github.com/retran/meowg1k/internal/activities/fetchbranchfilediff"
-	"github.com/retran/meowg1k/internal/activities/fetchfilediff"
-	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
-	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/activities/listbranchfiles"
-	"github.com/retran/meowg1k/internal/activities/liststaged"
-	"github.com/retran/meowg1k/internal/activities/preparebatches"
-	queryactivity "github.com/retran/meowg1k/internal/activities/query"
-	"github.com/retran/meowg1k/internal/activities/retrievecontext"
-	"github.com/retran/meowg1k/internal/activities/savedocumentversion"
-	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
-	"github.com/retran/meowg1k/internal/activities/summarizeall"
-	"github.com/retran/meowg1k/internal/activities/summarizefile"
+	"github.com/retran/meowg1k/internal/activities/agentloop"
+	"github.com/retran/meowg1k/internal/activities/buildbatches"
+	"github.com/retran/meowg1k/internal/activities/buildindexes"
+	"github.com/retran/meowg1k/internal/activities/draftcommit"
+	"github.com/retran/meowg1k/internal/activities/draftcommitflat"
+	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	"github.com/retran/meowg1k/internal/activities/draftpr"
+	"github.com/retran/meowg1k/internal/activities/draftprflat"
+	"github.com/retran/meowg1k/internal/activities/embedall"
+	"github.com/retran/meowg1k/internal/activities/embedbatch"
+	"github.com/retran/meowg1k/internal/activities/fetchbranchdiff"
+	"github.com/retran/meowg1k/internal/activities/fetchbranchdiffs"
+	"github.com/retran/meowg1k/internal/activities/fetchcontext"
+	"github.com/retran/meowg1k/internal/activities/fetchstageddiff"
+	"github.com/retran/meowg1k/internal/activities/fetchstageddiffs"
+	"github.com/retran/meowg1k/internal/activities/filterfiles"
+	"github.com/retran/meowg1k/internal/activities/finalizeindex"
+	"github.com/retran/meowg1k/internal/activities/listbranchchanges"
+	"github.com/retran/meowg1k/internal/activities/liststagedfiles"
+	"github.com/retran/meowg1k/internal/activities/prepareindex"
+	"github.com/retran/meowg1k/internal/activities/pruneindex"
+	"github.com/retran/meowg1k/internal/activities/savechunks"
+	"github.com/retran/meowg1k/internal/activities/savefileversion"
+	"github.com/retran/meowg1k/internal/activities/scanworktree"
+	queryactivity "github.com/retran/meowg1k/internal/activities/searchindex"
+	"github.com/retran/meowg1k/internal/activities/splitfile"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
+	"github.com/retran/meowg1k/internal/activities/summarizechanges"
+	"github.com/retran/meowg1k/internal/activities/summarizefilechanges"
 	"github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/adapters/git"
 	indexRepo "github.com/retran/meowg1k/internal/adapters/sqlite/index"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/meta"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
+	agentcore "github.com/retran/meowg1k/internal/core/agent"
 	"github.com/retran/meowg1k/internal/core/chunker"
 	"github.com/retran/meowg1k/internal/core/commit"
 	"github.com/retran/meowg1k/internal/core/filter"
 	"github.com/retran/meowg1k/internal/core/index"
 	"github.com/retran/meowg1k/internal/core/model"
-	"github.com/retran/meowg1k/internal/core/profile"
+	"github.com/retran/meowg1k/internal/core/preset"
 	"github.com/retran/meowg1k/internal/core/project"
 	"github.com/retran/meowg1k/internal/core/prompt"
 	"github.com/retran/meowg1k/internal/core/provider"
@@ -57,17 +59,18 @@ import (
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	askFlow "github.com/retran/meowg1k/internal/flows/ask"
-	commitFlow "github.com/retran/meowg1k/internal/flows/commit"
-	"github.com/retran/meowg1k/internal/flows/generate"
+	commitFlow "github.com/retran/meowg1k/internal/flows/commitmsg"
+	doFlow "github.com/retran/meowg1k/internal/flows/do"
 	indexFlow "github.com/retran/meowg1k/internal/flows/index"
-	pr "github.com/retran/meowg1k/internal/flows/pullrequest"
-	queryFlow "github.com/retran/meowg1k/internal/flows/query"
+	prflow "github.com/retran/meowg1k/internal/flows/pr"
+	searchFlow "github.com/retran/meowg1k/internal/flows/search"
+	"github.com/retran/meowg1k/internal/flows/write"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
 
-// CreateCommitFlow creates a complete commit flow with all dependencies.
-func (c *Container) CreateCommitFlow() (executor.Flow, error) {
+// CreateCommitMsgFlow creates a complete commit message flow with all dependencies.
+func (c *Container) CreateCommitMsgFlow() (executor.Flow, error) {
 	services, err := c.buildCommitServices()
 	if err != nil {
 		return nil, err
@@ -92,7 +95,7 @@ func (c *Container) CreateCommitFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create commit flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create commit message flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil
@@ -102,20 +105,20 @@ type commitServices struct {
 	gitService          *git.Service
 	filterService       *filter.Service
 	summarizeService    *summarize.Service
-	profileService      *profile.Service
+	presetService       *preset.Service
 	commitConfigService *commit.Service
-	invokeLLMFactory    executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory    executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
 
 type commitActivityFactories struct {
-	listStagedActivityFactory      executor.ActivityFactory[*liststaged.Input, *liststaged.Output]
-	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
-	fetchAllDiffsFactory           executor.ActivityFactory[*fetchalldiffs.Input, *fetchalldiffs.Output]
-	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
-	applyFiltersActivityFactory    executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
-	summarizeAllFactory            executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
-	composeCommitFactory           executor.ActivityFactory[*composecommit.Input, *composecommit.Output]
-	composeFlatCommitFactory       executor.ActivityFactory[*composeflatcommit.Input, *composeflatcommit.Output]
+	listStagedActivityFactory      executor.ActivityFactory[*liststagedfiles.Input, *liststagedfiles.Output]
+	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchchanges.Input, *listbranchchanges.Output]
+	fetchAllDiffsFactory           executor.ActivityFactory[*fetchstageddiffs.Input, *fetchstageddiffs.Output]
+	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchbranchdiffs.Input, *fetchbranchdiffs.Output]
+	applyFiltersActivityFactory    executor.ActivityFactory[*filterfiles.Input, *filterfiles.Output]
+	summarizeAllFactory            executor.ActivityFactory[*summarizechanges.Input, *summarizechanges.Output]
+	composeCommitFactory           executor.ActivityFactory[*draftcommit.Input, *draftcommit.Output]
+	composeFlatCommitFactory       executor.ActivityFactory[*draftcommitflat.Input, *draftcommitflat.Output]
 }
 
 func (c *Container) buildCommitServices() (*commitServices, error) {
@@ -124,7 +127,7 @@ func (c *Container) buildCommitServices() (*commitServices, error) {
 		return nil, err
 	}
 
-	commitConfigService, err := commit.NewService(c.ConfigService, common.profileService)
+	commitConfigService, err := commit.NewService(c.ConfigService, common.presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create commit config service: %w", err)
 	}
@@ -133,64 +136,64 @@ func (c *Container) buildCommitServices() (*commitServices, error) {
 		gitService:          common.gitService,
 		filterService:       common.filterService,
 		summarizeService:    common.summarizeService,
-		profileService:      common.profileService,
+		presetService:       common.presetService,
 		commitConfigService: commitConfigService,
 		invokeLLMFactory:    common.invokeLLMFactory,
 	}, nil
 }
 
 func buildCommitActivityFactories(services *commitServices) (*commitActivityFactories, error) {
-	listStagedActivityFactory, err := liststaged.NewFactory(services.gitService)
+	listStagedActivityFactory, err := liststagedfiles.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list staged activity factory: %w", err)
 	}
 
-	fetchFileDiffActivityFactory, err := fetchfilediff.NewFactory(services.gitService)
+	fetchFileDiffActivityFactory, err := fetchstageddiff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch file diff activity factory: %w", err)
 	}
 
-	fetchAllDiffsFactory, err := fetchalldiffs.NewFactory(fetchFileDiffActivityFactory)
+	fetchAllDiffsFactory, err := fetchstageddiffs.NewFactory(fetchFileDiffActivityFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch all diffs factory: %w", err)
 	}
 
-	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(services.gitService)
+	listBranchFilesActivityFactory, err := listbranchchanges.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
-	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(services.gitService)
+	fetchBranchFileDiffActivityFactory, err := fetchbranchdiff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
 
-	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	fetchAllBranchDiffsFactory, err := fetchbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
-	applyFiltersActivityFactory, err := applyfilters.NewFactory(services.filterService)
+	applyFiltersActivityFactory, err := filterfiles.NewFactory(services.filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
-	summarizeFileFactory, err := summarizefile.NewFactory(services.invokeLLMFactory, services.summarizeService)
+	summarizeFileFactory, err := summarizefilechanges.NewFactory(services.invokeLLMFactory, services.summarizeService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
 
-	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
+	summarizeAllFactory, err := summarizechanges.NewFactory(summarizeFileFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
-	composeCommitFactory, err := composecommit.NewFactory(services.invokeLLMFactory)
+	composeCommitFactory, err := draftcommit.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose commit factory: %w", err)
 	}
 
-	composeFlatCommitFactory, err := composeflatcommit.NewFactory(services.invokeLLMFactory)
+	composeFlatCommitFactory, err := draftcommitflat.NewFactory(services.invokeLLMFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compose flat commit factory: %w", err)
 	}
@@ -207,8 +210,8 @@ func buildCommitActivityFactories(services *commitServices) (*commitActivityFact
 	}, nil
 }
 
-// CreateGenerateFlow creates a complete generate flow with all dependencies.
-func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
+// CreateWriteFlow creates a complete write flow with all dependencies.
+func (c *Container) CreateWriteFlow() (executor.Flow, error) {
 	providerService := provider.NewService()
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
@@ -216,15 +219,15 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
 	taskService, err := task.NewService(
 		c.CommandService,
 		c.ConfigService,
-		profileService,
+		presetService,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task service: %w", err)
@@ -235,7 +238,7 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		taskService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create generate prompt service: %w", err)
+		return nil, fmt.Errorf("failed to create write prompt service: %w", err)
 	}
 
 	gatewayFactory, err := gateway.NewFactory(c.GetRateLimitRepo(), c.GetCacheRepo(), c.CommandService, c.TraceLogger, c.CommandService, c.GetHTTPClientService())
@@ -243,12 +246,12 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := draftcontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
 
-	flowFactory, err := generate.NewFlowFactory(
+	flowFactory, err := write.NewFlowFactory(
 		taskService,
 		generatePromptService,
 		generatePromptService,
@@ -256,14 +259,14 @@ func (c *Container) CreateGenerateFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create generate flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create write flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil
 }
 
-// CreatePullRequestFlow creates a complete pull request flow with all dependencies.
-func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
+// CreatePrFlow creates a complete pull request flow with all dependencies.
+func (c *Container) CreatePrFlow() (executor.Flow, error) {
 	services, err := c.buildPullRequestServices()
 	if err != nil {
 		return nil, err
@@ -274,7 +277,7 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	flowFactory, err := pr.NewFactory(
+	flowFactory, err := prflow.NewFactory(
 		factories.listBranchFilesActivityFactory,
 		factories.applyFiltersActivityFactory,
 		factories.fetchAllBranchDiffsFactory,
@@ -286,7 +289,7 @@ func (c *Container) CreatePullRequestFlow() (executor.Flow, error) {
 		c.OutputService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pullrequest flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create pr flow factory: %w", err)
 	}
 
 	return flowFactory.NewFlow(), nil
@@ -296,18 +299,18 @@ type pullRequestServices struct {
 	gitService       *git.Service
 	filterService    *filter.Service
 	summarizeService *summarize.Service
-	profileService   *profile.Service
+	presetService    *preset.Service
 	prConfigService  *pullrequest.Service
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
 
 type pullRequestActivityFactories struct {
-	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchfiles.Input, *listbranchfiles.Output]
-	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchallbranchdiffs.Input, *fetchallbranchdiffs.Output]
-	applyFiltersActivityFactory    executor.ActivityFactory[*applyfilters.Input, *applyfilters.Output]
-	summarizeAllFactory            executor.ActivityFactory[*summarizeall.Input, *summarizeall.Output]
-	composePRFactory               executor.ActivityFactory[*composepr.Input, *composepr.Output]
-	composeFlatPRFactory           executor.ActivityFactory[*composeflatpr.Input, *composeflatpr.Output]
+	listBranchFilesActivityFactory executor.ActivityFactory[*listbranchchanges.Input, *listbranchchanges.Output]
+	fetchAllBranchDiffsFactory     executor.ActivityFactory[*fetchbranchdiffs.Input, *fetchbranchdiffs.Output]
+	applyFiltersActivityFactory    executor.ActivityFactory[*filterfiles.Input, *filterfiles.Output]
+	summarizeAllFactory            executor.ActivityFactory[*summarizechanges.Input, *summarizechanges.Output]
+	composePRFactory               executor.ActivityFactory[*draftpr.Input, *draftpr.Output]
+	composeFlatPRFactory           executor.ActivityFactory[*draftprflat.Input, *draftprflat.Output]
 }
 
 func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
@@ -316,7 +319,7 @@ func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
 		return nil, err
 	}
 
-	prConfigService, err := pullrequest.NewService(c.ConfigService, common.profileService)
+	prConfigService, err := pullrequest.NewService(c.ConfigService, common.presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PR config service: %w", err)
 	}
@@ -325,7 +328,7 @@ func (c *Container) buildPullRequestServices() (*pullRequestServices, error) {
 		gitService:       common.gitService,
 		filterService:    common.filterService,
 		summarizeService: common.summarizeService,
-		profileService:   common.profileService,
+		presetService:    common.presetService,
 		prConfigService:  prConfigService,
 		invokeLLMFactory: common.invokeLLMFactory,
 	}, nil
@@ -335,8 +338,8 @@ type commonFlowServices struct {
 	gitService       *git.Service
 	filterService    *filter.Service
 	summarizeService *summarize.Service
-	profileService   *profile.Service
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	presetService    *preset.Service
+	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 }
 
 func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
@@ -357,12 +360,12 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	summarizeService, err := summarize.NewService(c.ConfigService, profileService)
+	summarizeService, err := summarize.NewService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize service: %w", err)
 	}
@@ -372,7 +375,7 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := draftcontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
 	}
@@ -381,50 +384,50 @@ func (c *Container) buildCommonFlowServices() (*commonFlowServices, error) {
 		gitService:       gitService,
 		filterService:    filterService,
 		summarizeService: summarizeService,
-		profileService:   profileService,
+		presetService:    presetService,
 		invokeLLMFactory: invokeLLMFactory,
 	}, nil
 }
 
 func buildPullRequestActivityFactories(services *pullRequestServices) (*pullRequestActivityFactories, error) {
-	listBranchFilesActivityFactory, err := listbranchfiles.NewFactory(services.gitService)
+	listBranchFilesActivityFactory, err := listbranchchanges.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create list branch files activity factory: %w", err)
 	}
 
-	fetchBranchFileDiffActivityFactory, err := fetchbranchfilediff.NewFactory(services.gitService)
+	fetchBranchFileDiffActivityFactory, err := fetchbranchdiff.NewFactory(services.gitService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch branch file diff activity factory: %w", err)
 	}
 
-	fetchAllBranchDiffsFactory, err := fetchallbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
+	fetchAllBranchDiffsFactory, err := fetchbranchdiffs.NewFactory(fetchBranchFileDiffActivityFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fetch all branch diffs factory: %w", err)
 	}
 
-	applyFiltersActivityFactory, err := applyfilters.NewFactory(services.filterService)
+	applyFiltersActivityFactory, err := filterfiles.NewFactory(services.filterService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create apply filters activity factory: %w", err)
 	}
 
-	summarizeFileFactory, err := summarizefile.NewFactory(services.invokeLLMFactory, services.summarizeService)
+	summarizeFileFactory, err := summarizefilechanges.NewFactory(services.invokeLLMFactory, services.summarizeService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize file factory: %w", err)
 	}
 
-	summarizeAllFactory, err := summarizeall.NewFactory(summarizeFileFactory)
+	summarizeAllFactory, err := summarizechanges.NewFactory(summarizeFileFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create summarize all factory: %w", err)
 	}
 
-	composePRFactory, err := composepr.NewFactory(services.invokeLLMFactory)
+	composePRFactory, err := draftpr.NewFactory(services.invokeLLMFactory)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compose pullrequest factory: %w", err)
+		return nil, fmt.Errorf("failed to create compose pr factory: %w", err)
 	}
 
-	composeFlatPRFactory, err := composeflatpr.NewFactory(services.invokeLLMFactory)
+	composeFlatPRFactory, err := draftprflat.NewFactory(services.invokeLLMFactory)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create compose flat pullrequest factory: %w", err)
+		return nil, fmt.Errorf("failed to create compose flat pr factory: %w", err)
 	}
 
 	return &pullRequestActivityFactories{
@@ -486,7 +489,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 	}
 
 	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
@@ -498,7 +501,7 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 		indexRepoImpl,
 		metaRepo,
 		embeddingsGW,
-		indexConfig.Profile.Model,
+		indexConfig.Preset.Model,
 		vectorIndexSvc,
 	)
 	if err != nil {
@@ -527,23 +530,23 @@ func (c *Container) CreateIndexReconcileFlow() (executor.Flow, error) {
 
 type indexReconcileFactories struct {
 	cleanupFactory            executor.ActivityFactory[struct{}, struct{}]
-	scanStateFactory          executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
-	deduplicateFactory        executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
-	chunkAllFactory           executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
-	prepareBatchesFactory     executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
-	computeAllFactory         executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
-	distributeAndSaveFactory  executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
-	finalizeSnapshotsFactory  executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
+	scanStateFactory          executor.ActivityFactory[struct{}, *scanworktree.Output]
+	deduplicateFactory        executor.ActivityFactory[*prepareindex.Input, *prepareindex.Output]
+	chunkAllFactory           executor.ActivityFactory[*splitfiles.Input, *splitfiles.Output]
+	prepareBatchesFactory     executor.ActivityFactory[*buildbatches.Input, *buildbatches.Output]
+	computeAllFactory         executor.ActivityFactory[*embedall.Input, *embedall.Output]
+	distributeAndSaveFactory  executor.ActivityFactory[*savechunks.Input, *savechunks.Output]
+	finalizeSnapshotsFactory  executor.ActivityFactory[*finalizeindex.Input, struct{}]
 	buildVectorIndicesFactory executor.ActivityFactory[struct{}, struct{}]
 }
 
 func (c *Container) resolveIndexConfig() (*domainindex.ResolvedConfig, error) {
-	profileService, err := c.buildProfileService()
+	presetService, err := c.buildPresetService()
 	if err != nil {
 		return nil, err
 	}
 
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	indexConfigService, err := index.NewConfigService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index config service: %w", err)
 	}
@@ -556,7 +559,7 @@ func (c *Container) resolveIndexConfig() (*domainindex.ResolvedConfig, error) {
 	return indexConfig, nil
 }
 
-func (c *Container) buildProfileService() (*profile.Service, error) {
+func (c *Container) buildPresetService() (*preset.Service, error) {
 	providerService := provider.NewService()
 
 	modelService, err := model.NewService(c.ConfigService, providerService)
@@ -564,12 +567,12 @@ func (c *Container) buildProfileService() (*profile.Service, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	return profileService, nil
+	return presetService, nil
 }
 
 func buildIndexReconcileFactories(
@@ -582,62 +585,62 @@ func buildIndexReconcileFactories(
 	embeddingModel string,
 	vectorIndexSvc *vector.Service,
 ) (*indexReconcileFactories, error) {
-	cleanupFactory, err := cleanupstaledata.NewFactory(indexRepoImpl, metaRepo)
+	cleanupFactory, err := pruneindex.NewFactory(indexRepoImpl, metaRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cleanup factory: %w", err)
 	}
 
-	scanStateFactory, err := scanworkspacestate.NewFactory(projectStateSvc)
+	scanStateFactory, err := scanworktree.NewFactory(projectStateSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create scan state factory: %w", err)
 	}
 
-	deduplicateFactory, err := deduplicateandprepare.NewFactory(indexSvc)
+	deduplicateFactory, err := prepareindex.NewFactory(indexSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create deduplicate factory: %w", err)
 	}
 
-	chunkFileFactory, err := chunkfile.NewFactory(chunkerSvc)
+	chunkFileFactory, err := splitfile.NewFactory(chunkerSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chunk file factory: %w", err)
 	}
 
-	chunkAllFactory, err := chunkallfiles.NewFactory(chunkFileFactory)
+	chunkAllFactory, err := splitfiles.NewFactory(chunkFileFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chunk all factory: %w", err)
 	}
 
-	prepareBatchesFactory, err := preparebatches.NewFactory()
+	prepareBatchesFactory, err := buildbatches.NewFactory()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create prepare batches factory: %w", err)
 	}
 
-	computeBatchFactory, err := computeembeddingsbatch.NewFactory(embeddingsGW, embeddingModel)
+	computeBatchFactory, err := embedbatch.NewFactory(embeddingsGW, embeddingModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute batch factory: %w", err)
 	}
 
-	computeAllFactory, err := computeallembeddings.NewFactory(computeBatchFactory)
+	computeAllFactory, err := embedall.NewFactory(computeBatchFactory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute all factory: %w", err)
 	}
 
-	saveDocVersionFactory, err := savedocumentversion.NewFactory(indexSvc)
+	saveDocVersionFactory, err := savefileversion.NewFactory(indexSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create save document version factory: %w", err)
 	}
 
-	distributeAndSaveFactory, err := distributeandsave.NewFactory(saveDocVersionFactory, indexRepoImpl)
+	distributeAndSaveFactory, err := savechunks.NewFactory(saveDocVersionFactory, indexRepoImpl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create distribute and save factory: %w", err)
 	}
 
-	finalizeSnapshotsFactory, err := finalizesnapshots.NewFactory(indexSvc)
+	finalizeSnapshotsFactory, err := finalizeindex.NewFactory(indexSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create finalize snapshots factory: %w", err)
 	}
 
-	buildVectorIndicesFactory, err := buildvectorindices.NewFactory(vectorIndexSvc)
+	buildVectorIndicesFactory, err := buildindexes.NewFactory(vectorIndexSvc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create build vector indices factory: %w", err)
 	}
@@ -655,8 +658,125 @@ func buildIndexReconcileFactories(
 	}, nil
 }
 
-// CreateQueryFlow creates a complete query flow with all dependencies.
-func (c *Container) CreateQueryFlow() (executor.Flow, error) {
+// CreateSearchFlow creates a complete search flow with all dependencies.
+func (c *Container) CreateSearchFlow() (executor.Flow, error) {
+	searchActivityFactory, err := c.buildSearchActivityFactory()
+	if err != nil {
+		return nil, err
+	}
+
+	searchFlowFactory, err := searchFlow.NewFactory(
+		searchActivityFactory,
+		c.CommandService,
+		c.OutputService,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create search flow factory: %w", err)
+	}
+
+	return searchFlowFactory.NewFlow(), nil
+}
+
+// CreateDoFlow creates a complete do flow with all dependencies.
+func (c *Container) CreateDoFlow() (executor.Flow, error) {
+	workspaceService := workspace.NewService(c.CommandService)
+	gitService, err := git.NewService(workspaceService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create git service: %w", err)
+	}
+
+	filterService, err := filter.NewService(c.ConfigService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create filter service: %w", err)
+	}
+
+	projectStateSvc := project.NewStateService(gitService, filterService, workspaceService)
+
+	agentConfigService, err := agentcore.NewService(c.ConfigService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent config service: %w", err)
+	}
+
+	providerService := provider.NewService()
+	modelService, err := model.NewService(c.ConfigService, providerService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create model service: %w", err)
+	}
+
+	presetService, err := preset.NewService(c.ConfigService, modelService)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
+	}
+
+	// Initialize database and repositories
+	if err := c.initDB(); err != nil {
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	metaRepo := meta.NewRepository(c.dbHost)
+	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
+
+	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vector search service: %w", err)
+	}
+
+	gatewayFactory, err := gateway.NewFactory(
+		c.GetRateLimitRepo(),
+		c.GetCacheRepo(),
+		c.CommandService,
+		c.TraceLogger,
+		c.CommandService,
+		c.GetHTTPClientService(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
+	}
+
+	// We need retrieval service for search_code tool
+	// Use default embedding preset from index config
+	indexConfig, err := c.resolveIndexConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
+	}
+
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
+	}
+
+	invokeLLMFactory, err := draftcontent.NewFactory(gatewayFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create invoke llm factory: %w", err)
+	}
+
+	agentLoopFactory, err := agentloop.NewFactory(invokeLLMFactory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent loop factory: %w", err)
+	}
+
+	flowFactory := doFlow.NewFactory(
+		agentConfigService,
+		presetService,
+		workspaceService,
+		gitService,
+		projectStateSvc,
+		retrievalSvc,
+		gatewayFactory,
+		agentLoopFactory,
+		c.CommandService,
+		c.OutputService,
+	)
+
+	return flowFactory.NewFlow(), nil
+}
+
+func (c *Container) buildSearchActivityFactory() (executor.ActivityFactory[*queryactivity.Input, *queryactivity.Output], error) {
 	// Initialize database and repositories
 	if err := c.initDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
@@ -671,13 +791,12 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	profileService, err := profile.NewService(c.ConfigService, modelService)
+	presetService, err := preset.NewService(c.ConfigService, modelService)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create profile service: %w", err)
+		return nil, fmt.Errorf("failed to create preset service: %w", err)
 	}
 
-	// Get resolved index configuration
-	indexConfigService, err := index.NewConfigService(c.ConfigService, profileService)
+	indexConfigService, err := index.NewConfigService(c.ConfigService, presetService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create index config service: %w", err)
 	}
@@ -687,13 +806,11 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to get index config: %w", err)
 	}
 
-	// Initialize services
 	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vector search service: %w", err)
 	}
 
-	// Create gateway factory for embeddings
 	gatewayFactory, err := gateway.NewFactory(
 		c.GetRateLimitRepo(),
 		c.GetCacheRepo(),
@@ -706,35 +823,22 @@ func (c *Container) CreateQueryFlow() (executor.Flow, error) {
 		return nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	// Create embeddings gateway
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	// Create retrieval service with RetrievalDocument for indexing, RetrievalQuery for search
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
 
-	// Create query activity factory
-	queryActivityFactory, err := queryactivity.NewFactory(retrievalSvc)
+	searchActivityFactory, err := queryactivity.NewFactory(retrievalSvc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create query activity factory: %w", err)
+		return nil, fmt.Errorf("failed to create search activity factory: %w", err)
 	}
 
-	// Create query flow factory
-	queryFlowFactory, err := queryFlow.NewFactory(
-		queryActivityFactory,
-		c.CommandService,
-		c.OutputService,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create query flow factory: %w", err)
-	}
-
-	return queryFlowFactory.NewFlow(), nil
+	return searchActivityFactory, nil
 }
 
 // CreateAskFlow creates a complete ask flow with all dependencies.
@@ -747,12 +851,12 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 	metaRepo := meta.NewRepository(c.dbHost)
 	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
 
-	cfg, err := c.loadAskConfig()
+	cfg, err := c.loadAnswerConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	if err := c.ensureAskSystemPrompt(cfg); err != nil {
+	if err := c.ensureAnswerSystemPrompt(cfg); err != nil {
 		return nil, err
 	}
 
@@ -761,61 +865,57 @@ func (c *Container) CreateAskFlow() (executor.Flow, error) {
 		return nil, err
 	}
 
-	profileService, err := c.buildProfileService()
+	presetService, err := c.buildPresetService()
 	if err != nil {
 		return nil, err
 	}
 
-	retrieveContextFactory, invokeLLMFactory, err := c.buildAskFactories(metaRepo, indexRepoImpl, indexConfig)
+	retrieveContextFactory, invokeLLMFactory, err := c.buildAnswerFactories(metaRepo, indexRepoImpl, indexConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create ask flow factory with resolved parameters
+	// Create answer flow factory with resolved parameters
 	askFlowFactory, err := askFlow.NewFactory(
 		retrieveContextFactory,
 		invokeLLMFactory,
 		c.CommandService,
-		profileService,
+		presetService,
 		c.OutputService,
 		c.ConfigService,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ask flow factory: %w", err)
+		return nil, fmt.Errorf("failed to create answer flow factory: %w", err)
 	}
 
 	return askFlowFactory.NewFlow(), nil
 }
 
-func (c *Container) loadAskConfig() (*config.Config, error) {
+func (c *Container) loadAnswerConfig() (*config.Config, error) {
 	cfg, err := c.ConfigService.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
-	if cfg.Ask == nil {
-		return nil, fmt.Errorf("ask configuration is missing")
+	if cfg.Flows == nil || cfg.Flows.Answer == nil {
+		return nil, fmt.Errorf("answer configuration is missing")
 	}
 	return cfg, nil
 }
 
-func (c *Container) ensureAskSystemPrompt(cfg *config.Config) error {
-	systemPrompt := cfg.Ask.SystemPrompt
-	if flagPrompt, err := c.CommandService.GetSystemPromptFlag(); err == nil && flagPrompt != "" {
-		systemPrompt = flagPrompt
-	}
-	if systemPrompt == "" {
-		return fmt.Errorf("system prompt is required (set in config ask.systemPrompt or via --system-prompt flag)")
+func (c *Container) ensureAnswerSystemPrompt(cfg *config.Config) error {
+	if cfg == nil || cfg.Flows == nil || cfg.Flows.Answer == nil {
+		return fmt.Errorf("answer configuration is missing")
 	}
 	return nil
 }
 
-func (c *Container) buildAskFactories(
+func (c *Container) buildAnswerFactories(
 	metaRepo *meta.Repository,
 	indexRepoImpl *indexRepo.Repository,
 	indexConfig *domainindex.ResolvedConfig,
 ) (
-	retrieveFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
-	invokeFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	retrieveFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output],
+	invokeFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output],
 	err error,
 ) {
 	vectorSearchSvc, err := vector.NewSearchService(metaRepo)
@@ -835,22 +935,22 @@ func (c *Container) buildAskFactories(
 		return nil, nil, fmt.Errorf("failed to create gateway factory: %w", err)
 	}
 
-	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Profile)
+	embeddingsGW, err := gatewayFactory.NewEmbeddingsGateway(c.ShutdownService.Context(), indexConfig.Preset)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Profile.Model, domainGateway.RetrievalQuery)
+	retrievalSvc, err := retrieval.NewService(embeddingsGW, vectorSearchSvc, indexRepoImpl, indexConfig.Preset.Model, domainGateway.RetrievalQuery)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create retrieval service: %w", err)
 	}
 
-	retrieveContextFactory, err := retrievecontext.NewFactory(retrievalSvc)
+	retrieveContextFactory, err := fetchcontext.NewFactory(retrievalSvc)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create retrieve context factory: %w", err)
 	}
 
-	invokeLLMFactory, err := invokellm.NewFactory(gatewayFactory)
+	invokeLLMFactory, err := draftcontent.NewFactory(gatewayFactory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create invoke LLM factory: %w", err)
 	}
