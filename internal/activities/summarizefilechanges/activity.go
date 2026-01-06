@@ -100,7 +100,7 @@ func (f *Factory) NewActivity() executor.Activity[*Input, *Output] {
 			UserPrompt:   content,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to write summary for %s: %w", input.Filename, err)
+			return nil, fmt.Errorf("failed to generate summary for %s: %w", input.Filename, err)
 		}
 		if invokeOutput == nil || invokeOutput.Response == nil {
 			return nil, fmt.Errorf("InvokeLLM returned nil response")
