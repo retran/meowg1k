@@ -35,9 +35,10 @@ type Definition struct {
 	DefaultModel    string        `json:"default_model"`
 	DefaultBaseURL  string        `json:"default_base_url"`
 	DefaultEnvVar   string        `json:"default_env_var"`
-	RequiresAPIKey  bool          `json:"requires_api_key"`
-	RequiresBaseURL bool          `json:"requires_base_url"`
+	Tokenizer       string        `json:"tokenizer"`
 	MaxInputTokens  int           `json:"max_input_tokens"`
 	MaxOutputTokens int           `json:"max_output_tokens"`
 	DefaultTimeout  time.Duration `json:"default_timeout"`
+	RequiresAPIKey  bool          `json:"requires_api_key"`
+	RequiresBaseURL bool          `json:"requires_base_url"`
 }

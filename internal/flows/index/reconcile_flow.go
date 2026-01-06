@@ -8,13 +8,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/chunkallfiles"
-	"github.com/retran/meowg1k/internal/activities/computeallembeddings"
-	"github.com/retran/meowg1k/internal/activities/deduplicateandprepare"
-	"github.com/retran/meowg1k/internal/activities/distributeandsave"
-	"github.com/retran/meowg1k/internal/activities/finalizesnapshots"
-	"github.com/retran/meowg1k/internal/activities/preparebatches"
-	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
+	"github.com/retran/meowg1k/internal/activities/buildbatches"
+	"github.com/retran/meowg1k/internal/activities/embedall"
+	"github.com/retran/meowg1k/internal/activities/finalizeindex"
+	"github.com/retran/meowg1k/internal/activities/prepareindex"
+	"github.com/retran/meowg1k/internal/activities/savechunks"
+	"github.com/retran/meowg1k/internal/activities/scanworktree"
+	"github.com/retran/meowg1k/internal/activities/splitfiles"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -22,13 +22,13 @@ import (
 // Factory builds index reconciliation flows.
 type Factory struct {
 	cleanupFactory               executor.ActivityFactory[struct{}, struct{}]
-	scanStateFactory             executor.ActivityFactory[struct{}, *scanworkspacestate.Output]
-	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output]
-	chunkAllFilesFactory         executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output]
-	prepareBatchesFactory        executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output]
-	computeAllEmbeddingsFactory  executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output]
-	distributeAndSaveFactory     executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output]
-	finalizeSnapshotsFactory     executor.ActivityFactory[*finalizesnapshots.Input, struct{}]
+	scanStateFactory             executor.ActivityFactory[struct{}, *scanworktree.Output]
+	deduplicateAndPrepareFactory executor.ActivityFactory[*prepareindex.Input, *prepareindex.Output]
+	chunkAllFilesFactory         executor.ActivityFactory[*splitfiles.Input, *splitfiles.Output]
+	prepareBatchesFactory        executor.ActivityFactory[*buildbatches.Input, *buildbatches.Output]
+	computeAllEmbeddingsFactory  executor.ActivityFactory[*embedall.Input, *embedall.Output]
+	distributeAndSaveFactory     executor.ActivityFactory[*savechunks.Input, *savechunks.Output]
+	finalizeSnapshotsFactory     executor.ActivityFactory[*finalizeindex.Input, struct{}]
 	buildVectorIndicesFactory    executor.ActivityFactory[struct{}, struct{}]
 	batchSize                    int
 }
@@ -36,13 +36,13 @@ type Factory struct {
 // NewFactory creates a reconciliation flow factory.
 func NewFactory(
 	cleanupFactory executor.ActivityFactory[struct{}, struct{}],
-	scanStateFactory executor.ActivityFactory[struct{}, *scanworkspacestate.Output],
-	deduplicateAndPrepareFactory executor.ActivityFactory[*deduplicateandprepare.Input, *deduplicateandprepare.Output],
-	chunkAllFilesFactory executor.ActivityFactory[*chunkallfiles.Input, *chunkallfiles.Output],
-	prepareBatchesFactory executor.ActivityFactory[*preparebatches.Input, *preparebatches.Output],
-	computeAllEmbeddingsFactory executor.ActivityFactory[*computeallembeddings.Input, *computeallembeddings.Output],
-	distributeAndSaveFactory executor.ActivityFactory[*distributeandsave.Input, *distributeandsave.Output],
-	finalizeSnapshotsFactory executor.ActivityFactory[*finalizesnapshots.Input, struct{}],
+	scanStateFactory executor.ActivityFactory[struct{}, *scanworktree.Output],
+	deduplicateAndPrepareFactory executor.ActivityFactory[*prepareindex.Input, *prepareindex.Output],
+	chunkAllFilesFactory executor.ActivityFactory[*splitfiles.Input, *splitfiles.Output],
+	prepareBatchesFactory executor.ActivityFactory[*buildbatches.Input, *buildbatches.Output],
+	computeAllEmbeddingsFactory executor.ActivityFactory[*embedall.Input, *embedall.Output],
+	distributeAndSaveFactory executor.ActivityFactory[*savechunks.Input, *savechunks.Output],
+	finalizeSnapshotsFactory executor.ActivityFactory[*finalizeindex.Input, struct{}],
 	buildVectorIndicesFactory executor.ActivityFactory[struct{}, struct{}],
 	batchSize int,
 ) (*Factory, error) {
@@ -106,7 +106,7 @@ func NewFactory(
 // 100% consistency by rebuilding all snapshots and vector indices from scratch.
 func (f *Factory) NewFlow() executor.Flow {
 	return func(ctx context.Context, flowCtx *executor.Context) error {
-		flowCtx.SendRunning("Starting index reconciliation")
+		flowCtx.SendRunningWithDetails("I'm rebuilding the search index", "mode=full")
 
 		exec, err := f.validateFlowContext(ctx, flowCtx)
 		if err != nil {
@@ -141,7 +141,7 @@ func (f *Factory) NewFlow() executor.Flow {
 		}
 
 		// Step 5.1.8: Flow completion
-		flowCtx.SendCompleted("Index reconciliation complete")
+		flowCtx.SendCompletedWithDetails("I've rebuilt the search index", "mode=full")
 		return nil
 	}
 }
@@ -165,17 +165,15 @@ func (f *Factory) validateFlowContext(ctx context.Context, flowCtx *executor.Con
 
 func (f *Factory) runCleanup(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
 	cleanupActivity := f.cleanupFactory.NewActivity()
-	cleanupFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{})
-	if _, err := cleanupFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "Cleanup", cleanupActivity, struct{}{}); err != nil {
 		return fmt.Errorf("cleanup failed: %w", err)
 	}
 	return nil
 }
 
-func (f *Factory) runScan(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) (*scanworkspacestate.Output, error) {
+func (f *Factory) runScan(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) (*scanworktree.Output, error) {
 	scanActivity := f.scanStateFactory.NewActivity()
-	scanFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
-	scanResult, err := scanFuture.Get(ctx)
+	scanResult, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ScanState", scanActivity, struct{}{})
 	if err != nil {
 		return nil, fmt.Errorf("workspace scan failed: %w", err)
 	}
@@ -186,15 +184,13 @@ func (f *Factory) runDeduplicate(
 	ctx context.Context,
 	flowCtx *executor.Context,
 	exec executor.Executor,
-	scanResult *scanworkspacestate.Output,
-) (*deduplicateandprepare.Output, error) {
-	flowCtx.SendRunning("Deduplicating files")
+	scanResult *scanworktree.Output,
+) (*prepareindex.Output, error) {
 	deduplicateActivity := f.deduplicateAndPrepareFactory.NewActivity()
-	deduplicateInput := &deduplicateandprepare.Input{
+	deduplicateInput := &prepareindex.Input{
 		WorkspaceState: scanResult,
 	}
-	deduplicateFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
-	deduplicateResult, err := deduplicateFuture.Get(ctx)
+	deduplicateResult, err := executor.ExecuteActivity(ctx, exec, flowCtx, "DeduplicateAndPrepare", deduplicateActivity, deduplicateInput)
 	if err != nil {
 		return nil, fmt.Errorf("deduplication failed: %w", err)
 	}
@@ -208,57 +204,54 @@ func (f *Factory) processNewFiles(
 	filesToProcess []domainindex.FileToProcess,
 ) (map[string]int64, error) {
 	if len(filesToProcess) == 0 {
-		flowCtx.SendRunning("No new files to process - all files already indexed")
+		flowCtx.SendCompletedWithDetails("I've already indexed everything", "files=0")
 		return make(map[string]int64), nil
 	}
 
-	flowCtx.SendRunning(fmt.Sprintf("Processing %d unique files", len(filesToProcess)))
+	flowCtx.SendRunningWithDetails("I'm indexing files", fmt.Sprintf("files=%d", len(filesToProcess)))
 
 	chunkActivity := f.chunkAllFilesFactory.NewActivity()
-	chunkInput := &chunkallfiles.Input{
+	chunkInput := &splitfiles.Input{
 		StateName: "Deduplicated",
 		Files:     filesToProcess,
 	}
-	chunkFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
-	chunkResults, err := chunkFuture.Get(ctx)
+	chunkResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ChunkAll_Unique", chunkActivity, chunkInput)
 	if err != nil {
 		return nil, fmt.Errorf("chunking failed: %w", err)
 	}
 
 	prepareBatchesActivity := f.prepareBatchesFactory.NewActivity()
-	prepareBatchesInput := &preparebatches.Input{
+	prepareBatchesInput := &buildbatches.Input{
 		StateName:    "Deduplicated",
 		ChunkResults: chunkResults,
 		BatchSize:    f.batchSize,
 	}
-	prepareBatchesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
-	preparedBatches, err := prepareBatchesFuture.Get(ctx)
+	preparedBatches, err := executor.ExecuteActivity(ctx, exec, flowCtx, "PrepareBatches_Unique", prepareBatchesActivity, prepareBatchesInput)
 	if err != nil {
 		return nil, fmt.Errorf("batch preparation failed: %w", err)
 	}
 
 	computeActivity := f.computeAllEmbeddingsFactory.NewActivity()
-	computeInput := &computeallembeddings.Input{
+	computeInput := &embedall.Input{
 		StateName:       "Deduplicated",
 		PreparedBatches: preparedBatches,
 	}
-	computeFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
-	embeddingResults, err := computeFuture.Get(ctx)
+	embeddingResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "ComputeEmbeddings_Unique", computeActivity, computeInput)
 	if err != nil {
 		return nil, fmt.Errorf("embedding computation failed: %w", err)
 	}
 
 	saveActivity := f.distributeAndSaveFactory.NewActivity()
-	saveInput := &distributeandsave.Input{
+	saveInput := &savechunks.Input{
 		StateName:        "Deduplicated",
 		EmbeddingResults: embeddingResults,
 	}
-	saveFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
-	saveResults, err := saveFuture.Get(ctx)
+	saveResults, err := executor.ExecuteActivity(ctx, exec, flowCtx, "DistributeAndSave_Unique", saveActivity, saveInput)
 	if err != nil {
 		return nil, fmt.Errorf("save failed: %w", err)
 	}
 
+	flowCtx.SendCompletedWithDetails("I've indexed the files", fmt.Sprintf("count=%d", len(saveResults.VersionMap)))
 	return saveResults.VersionMap, nil
 }
 
@@ -266,20 +259,17 @@ func (f *Factory) finalizeSnapshots(
 	ctx context.Context,
 	flowCtx *executor.Context,
 	exec executor.Executor,
-	scanResult *scanworkspacestate.Output,
+	scanResult *scanworktree.Output,
 	existingVersions map[string]int64,
 	newVersions map[string]int64,
 ) error {
-	flowCtx.SendRunning("Finalizing snapshots...")
-
 	finalizeSnapshotsActivity := f.finalizeSnapshotsFactory.NewActivity()
-	finalizeInput := &finalizesnapshots.Input{
+	finalizeInput := &finalizeindex.Input{
 		ScanResult:       scanResult,
 		ExistingVersions: existingVersions,
 		NewVersions:      newVersions,
 	}
-	finalizeSnapshotsFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput)
-	if _, err := finalizeSnapshotsFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "FinalizeSnapshots", finalizeSnapshotsActivity, finalizeInput); err != nil {
 		return fmt.Errorf("snapshots finalization failed: %w", err)
 	}
 	return nil
@@ -287,8 +277,7 @@ func (f *Factory) finalizeSnapshots(
 
 func (f *Factory) buildVectorIndices(ctx context.Context, flowCtx *executor.Context, exec executor.Executor) error {
 	buildVectorIndicesActivity := f.buildVectorIndicesFactory.NewActivity()
-	vectorIndicesFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{})
-	if _, err := vectorIndicesFuture.Get(ctx); err != nil {
+	if _, err := executor.ExecuteActivity(ctx, exec, flowCtx, "BuildVectorIndices", buildVectorIndicesActivity, struct{}{}); err != nil {
 		return fmt.Errorf("vector indices build failed: %w", err)
 	}
 	return nil

@@ -1,239 +1,247 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package config defines domain types for application configuration including profiles, tasks, filters, and chunking settings.
+// Package config defines domain types for application configuration including providers, models, presets, and flows.
 package config
 
-import (
-	"time"
-)
+import "time"
 
 // Config represents the complete meowg1k configuration.
 type Config struct {
-	// Models define LLM API instances with their connection parameters and rate limits
-	Models map[string]*ModelDefinition `yaml:"models" mapstructure:"models"`
-
-	// Profiles define reusable LLM request configurations
-	Profiles map[string]*ProfileDefinition `yaml:"profiles" mapstructure:"profiles"`
-
-	// Generate command configuration
-	Generate *GenerateConfig `yaml:"generate" mapstructure:"generate"`
-
-	// Filter configuration for pre-analysis noise filtering
-	Filter *FilterConfig `yaml:"filter" mapstructure:"filter"`
-
-	// Summarize engine configuration ("Map" phase)
-	Summarize *SummarizeConfig `yaml:"summarize" mapstructure:"summarize"`
-
-	// Commit command configuration ("Reduce" phase)
-	Commit *CommandConfig `yaml:"commit" mapstructure:"commit"`
-
-	// PullRequest command configuration ("Reduce" phase)
-	PullRequest *CommandConfig `yaml:"pullRequest" mapstructure:"pullRequest"`
-
-	// Index configuration for document indexing
-	Index *IndexConfig `yaml:"index" mapstructure:"index"`
-
-	// Ask configuration for RAG-based question answering
-	Ask *AskConfig `yaml:"ask" mapstructure:"ask"`
-
-	// Cache configuration for LLM response caching
-	Cache *CacheConfig `yaml:"cache" mapstructure:"cache"`
+	Filter        *FilterConfig              `yaml:"filter" mapstructure:"filter"`
+	Providers     map[string]*ProviderConfig `yaml:"providers" mapstructure:"providers"`
+	Models        map[string]*ModelConfig    `yaml:"models" mapstructure:"models"`
+	Presets       map[string]*PresetConfig   `yaml:"presets" mapstructure:"presets"`
+	Activities    *ActivitiesConfig          `yaml:"activities" mapstructure:"activities"`
+	Agent         *AgentConfig               `yaml:"agent" mapstructure:"agent"`
+	Flows         *FlowsConfig               `yaml:"flows" mapstructure:"flows"`
+	SchemaVersion int                        `yaml:"schema_version" mapstructure:"schema_version"`
 }
 
 // CacheConfig defines configuration for LLM response caching.
 type CacheConfig struct {
-	// Enabled determines whether caching is enabled
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-
-	// TTL defines how long cache entries should be kept before being purged
-	TTL time.Duration `yaml:"ttl" mapstructure:"ttl"`
-}
-
-// ModelDefinition defines an LLM API instance with connection parameters.
-// A model instance represents a specific API endpoint with its own rate limits.
-// Multiple profiles can reference the same model instance to share rate limits.
-type ModelDefinition struct {
-	RateLimit       *ModelRateLimitConfig `yaml:"rateLimit" mapstructure:"rateLimit"`
-	Provider        string                `yaml:"provider" mapstructure:"provider"`
-	Model           string                `yaml:"model" mapstructure:"model"`
-	BaseURL         string                `yaml:"baseURL" mapstructure:"baseURL"`
-	APIKeyEnv       string                `yaml:"apiKeyEnv" mapstructure:"apiKeyEnv"`
-	Tokenizer       string                `yaml:"tokenizer" mapstructure:"tokenizer"`
-	MaxInputTokens  int                   `yaml:"maxInputTokens" mapstructure:"maxInputTokens"`
-	MaxOutputTokens int                   `yaml:"maxOutputTokens" mapstructure:"maxOutputTokens"`
-}
-
-// ModelRateLimitConfig defines rate limiting for a model instance.
-type ModelRateLimitConfig struct {
-	// RequestsPerMinute sets the maximum requests per minute (0 = unlimited)
-	RequestsPerMinute int `yaml:"requestsPerMinute" mapstructure:"requestsPerMinute"`
-
-	// TokensPerMinute sets the maximum tokens per minute (0 = unlimited)
-	TokensPerMinute int `yaml:"tokensPerMinute" mapstructure:"tokensPerMinute"`
-
-	// RequestsPerDay sets the maximum requests per day (0 = unlimited)
-	RequestsPerDay int `yaml:"requestsPerDay" mapstructure:"requestsPerDay"`
-}
-
-// ProfileDefinition defines request-specific parameters for using a model.
-// Profiles reference a model instance and add request-specific settings like timeout and temperature.
-type ProfileDefinition struct {
-	CandidateCount    *int                   `yaml:"candidateCount" mapstructure:"candidateCount"`
-	MirostatEta       *float64               `yaml:"mirostatEta" mapstructure:"mirostatEta"`
-	Temperature       *float64               `yaml:"temperature" mapstructure:"temperature"`
-	TopP              *float64               `yaml:"topP" mapstructure:"topP"`
-	TopK              *int                   `yaml:"topK" mapstructure:"topK"`
-	MaxTokens         *int                   `yaml:"maxTokens" mapstructure:"maxTokens"`
-	FrequencyPenalty  *float64               `yaml:"frequencyPenalty" mapstructure:"frequencyPenalty"`
-	PresencePenalty   *float64               `yaml:"presencePenalty" mapstructure:"presencePenalty"`
-	Seed              *int                   `yaml:"seed" mapstructure:"seed"`
-	Cache             *CacheConfig           `yaml:"cache" mapstructure:"cache"`
-	ResponseFormat    *string                `yaml:"responseFormat" mapstructure:"responseFormat"`
-	TopLogProbs       *int                   `yaml:"topLogProbs" mapstructure:"topLogProbs"`
-	Grammar           *string                `yaml:"grammar" mapstructure:"grammar"`
-	LogProbs          *bool                  `yaml:"logProbs" mapstructure:"logProbs"`
-	ResponseSchema    map[string]interface{} `yaml:"responseSchema" mapstructure:"responseSchema"`
-	LogitBias         map[string]int         `yaml:"logitBias" mapstructure:"logitBias"`
-	ServiceTier       *string                `yaml:"serviceTier" mapstructure:"serviceTier"`
-	User              *string                `yaml:"user" mapstructure:"user"`
-	RepetitionPenalty *float64               `yaml:"repetitionPenalty" mapstructure:"repetitionPenalty"`
-	MinP              *float64               `yaml:"minP" mapstructure:"minP"`
-	TopA              *float64               `yaml:"topA" mapstructure:"topA"`
-	TypicalP          *float64               `yaml:"typicalP" mapstructure:"typicalP"`
-	Mirostat          *int                   `yaml:"mirostat" mapstructure:"mirostat"`
-	MirostatTau       *float64               `yaml:"mirostatTau" mapstructure:"mirostatTau"`
-	Model             string                 `yaml:"model" mapstructure:"model"`
-	Stop              []string               `yaml:"stop" mapstructure:"stop"`
-	Timeout           time.Duration          `yaml:"timeout" mapstructure:"timeout"`
-}
-
-// GenerateConfig holds configuration for the generate command.
-type GenerateConfig struct {
-	// Default settings used when no task is specified
-	Default *GenerateDefault `yaml:"default" mapstructure:"default"`
-
-	// Tasks define named generation tasks with specific prompts and settings
-	Tasks map[string]*GenerateTask `yaml:"tasks" mapstructure:"tasks"`
-}
-
-// GenerateDefault defines default settings for the generate command.
-type GenerateDefault struct {
-	// Profile references a profile defined in the profiles section
-	Profile string `yaml:"profile" mapstructure:"profile"`
-
-	// SystemPrompt sets the default system prompt for all generation requests
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-}
-
-// GenerateTask defines a specific generation task.
-// Tasks allow predefined prompts and settings for common use cases.
-type GenerateTask struct {
-	// Profile references a profile defined in the profiles section (optional)
-	Profile string `yaml:"profile" mapstructure:"profile"`
-
-	// SystemPrompt overrides the default system prompt for this task (optional)
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-
-	// UserPrompt sets the task-specific user prompt
-	UserPrompt string `yaml:"userPrompt" mapstructure:"userPrompt"`
+	Enabled bool          `yaml:"enabled" mapstructure:"enabled"`
+	TTL     time.Duration `yaml:"ttl" mapstructure:"ttl"`
 }
 
 // FilterConfig defines files to ignore during analysis.
 type FilterConfig struct {
-	// Ignore specifies glob patterns for files to exclude from analysis
 	Ignore []string `yaml:"ignore" mapstructure:"ignore"`
 }
 
-// Strategy defines summarization strategy with its settings.
-type Strategy struct {
-	// Type specifies the summarization approach
-	Type string `yaml:"type" mapstructure:"type"`
-
-	// IncludeOriginalFile determines whether to send the original file content
-	IncludeOriginalFile bool `yaml:"includeOriginalFile" mapstructure:"includeOriginalFile"`
-
-	// IncludeChangedFile determines whether to send the changed file content
-	IncludeChangedFile bool `yaml:"includeChangedFile" mapstructure:"includeChangedFile"`
+// ProviderConfig defines shared provider settings used by models.
+type ProviderConfig struct {
+	Limits     *ModelLimits     `yaml:"limits" mapstructure:"limits"`
+	RateLimit  *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Type       string           `yaml:"type" mapstructure:"type"`
+	BaseURL    string           `yaml:"base_url" mapstructure:"base_url"`
+	APIKeyEnv  string           `yaml:"api_key_env" mapstructure:"api_key_env"`
+	Tokenizer  string           `yaml:"tokenizer" mapstructure:"tokenizer"`
+	RetryCount int              `yaml:"retry_count" mapstructure:"retry_count"`
 }
 
-// SummarizeConfig holds configuration for the summarization engine.
-// Used during the "Map" phase of change analysis.
-type SummarizeConfig struct {
-	// Default summarization settings used when no rule matches
-	Default *SummarizeDefault `yaml:"default" mapstructure:"default"`
-
-	// Rules define file-specific summarization behavior
-	Rules []*SummarizeRule `yaml:"rules" mapstructure:"rules"`
+// ModelConfig defines an LLM API instance with connection parameters.
+type ModelConfig struct {
+	Limits    *ModelLimits     `yaml:"limits" mapstructure:"limits"`
+	RateLimit *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Metadata  map[string]any   `yaml:"metadata" mapstructure:"metadata"`
+	Provider  string           `yaml:"provider" mapstructure:"provider"`
+	Model     string           `yaml:"model" mapstructure:"model"`
+	BaseURL   string           `yaml:"base_url" mapstructure:"base_url"`
+	APIKeyEnv string           `yaml:"api_key_env" mapstructure:"api_key_env"`
+	Tokenizer string           `yaml:"tokenizer" mapstructure:"tokenizer"`
 }
 
-// SummarizeDefault defines default summarization settings.
-type SummarizeDefault struct {
-	// Profile references a profile defined in the profiles section
-	Profile string `yaml:"profile" mapstructure:"profile"`
-
-	// Strategy defines how files should be processed
-	Strategy *Strategy `yaml:"strategy" mapstructure:"strategy"`
-
-	// SystemPrompt sets the default system prompt for summarization
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+// ModelLimits defines model token limits.
+type ModelLimits struct {
+	MaxInputTokens  int `yaml:"max_input_tokens" mapstructure:"max_input_tokens"`
+	MaxOutputTokens int `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
 }
 
-// SummarizeRule defines file-specific summarization rules.
-// Rules allow customized processing based on file patterns.
-type SummarizeRule struct {
-	// Match specifies a gitignore-style pattern for files this rule applies to.
-	// Supports glob patterns like *.go, **/*.go, internal/**, etc.
-	Match string `yaml:"match" mapstructure:"match"`
-
-	// Profile references a profile defined in the profiles section (optional)
-	Profile string `yaml:"profile" mapstructure:"profile"`
-
-	// Strategy defines how matching files should be processed (optional)
-	Strategy *Strategy `yaml:"strategy" mapstructure:"strategy"`
-
-	// SystemPrompt overrides the default system prompt for matching files (optional)
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-
-	// Skip indicates whether to skip processing matching files entirely
-	Skip bool `yaml:"skip" mapstructure:"skip"`
+// RateLimitConfig defines rate limiting for a model instance.
+type RateLimitConfig struct {
+	RequestsPerMinute int `yaml:"requests_per_minute" mapstructure:"requests_per_minute"`
+	TokensPerMinute   int `yaml:"tokens_per_minute" mapstructure:"tokens_per_minute"`
+	RequestsPerDay    int `yaml:"requests_per_day" mapstructure:"requests_per_day"`
 }
 
-// CommandConfig defines configuration for commit and PR commands.
-// Used during the "Reduce" phase of change analysis.
-type CommandConfig struct {
-	// Profile references a profile defined in the profiles section
-	Profile string `yaml:"profile" mapstructure:"profile"`
-
-	// Strategy determines how changes are processed:
-	// - "summarize" (default): uses Map-Reduce approach to summarize each file then compose the final message
-	// - "flat": sends the entire diff directly to the model without summarization
-	Strategy string `yaml:"strategy" mapstructure:"strategy"`
-
-	// SystemPrompt sets the system prompt for the command
-	SystemPrompt string `yaml:"systemPrompt" mapstructure:"systemPrompt"`
+// PresetConfig defines a reusable runtime configuration.
+type PresetConfig struct {
+	Cache   *CacheConfig   `yaml:"cache" mapstructure:"cache"`
+	Request *RequestConfig `yaml:"request" mapstructure:"request"`
+	Labels  map[string]any `yaml:"labels" mapstructure:"labels"`
+	Extends string         `yaml:"extends" mapstructure:"extends"`
+	Model   string         `yaml:"model" mapstructure:"model"`
+	Timeout time.Duration  `yaml:"timeout" mapstructure:"timeout"`
 }
 
-// IndexConfig defines configuration for document indexing.
-type IndexConfig struct {
+// RequestConfig defines request-level generation parameters.
+type RequestConfig struct {
+	CandidateCount    *int                   `yaml:"candidate_count" mapstructure:"candidate_count"`
+	Temperature       *float64               `yaml:"temperature" mapstructure:"temperature"`
+	TopP              *float64               `yaml:"top_p" mapstructure:"top_p"`
+	TopK              *int                   `yaml:"top_k" mapstructure:"top_k"`
+	MaxTokens         *int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	FrequencyPenalty  *float64               `yaml:"frequency_penalty" mapstructure:"frequency_penalty"`
+	PresencePenalty   *float64               `yaml:"presence_penalty" mapstructure:"presence_penalty"`
+	Seed              *int                   `yaml:"seed" mapstructure:"seed"`
+	Cache             *CacheConfig           `yaml:"cache" mapstructure:"cache"`
+	ResponseFormat    *string                `yaml:"response_format" mapstructure:"response_format"`
+	TopLogProbs       *int                   `yaml:"top_log_probs" mapstructure:"top_log_probs"`
+	Grammar           *string                `yaml:"grammar" mapstructure:"grammar"`
+	LogProbs          *bool                  `yaml:"log_probs" mapstructure:"log_probs"`
+	ResponseSchema    map[string]interface{} `yaml:"response_schema" mapstructure:"response_schema"`
+	LogitBias         map[string]int         `yaml:"logit_bias" mapstructure:"logit_bias"`
+	ServiceTier       *string                `yaml:"service_tier" mapstructure:"service_tier"`
+	User              *string                `yaml:"user" mapstructure:"user"`
+	RepetitionPenalty *float64               `yaml:"repetition_penalty" mapstructure:"repetition_penalty"`
+	MinP              *float64               `yaml:"min_p" mapstructure:"min_p"`
+	TopA              *float64               `yaml:"top_a" mapstructure:"top_a"`
+	TypicalP          *float64               `yaml:"typical_p" mapstructure:"typical_p"`
+	Mirostat          *int                   `yaml:"mirostat" mapstructure:"mirostat"`
+	MirostatTau       *float64               `yaml:"mirostat_tau" mapstructure:"mirostat_tau"`
+	MirostatEta       *float64               `yaml:"mirostat_eta" mapstructure:"mirostat_eta"`
+	Stop              []string               `yaml:"stop" mapstructure:"stop"`
+}
+
+// FlowsConfig groups user-facing workflows.
+type FlowsConfig struct {
+	Write  *WriteFlowConfig  `yaml:"write" mapstructure:"write"`
+	Index  *IndexFlowConfig  `yaml:"index" mapstructure:"index"`
+	Answer *AnswerFlowConfig `yaml:"answer" mapstructure:"answer"`
+	Draft  *DraftFlowConfig  `yaml:"draft" mapstructure:"draft"`
+}
+
+// ActivitiesConfig groups reusable building blocks used by flows.
+type ActivitiesConfig struct {
+	Summarize *SummarizeActivityConfig `yaml:"summarize" mapstructure:"summarize"`
+}
+
+// WriteFlowConfig holds configuration for the write command.
+type WriteFlowConfig struct {
+	Tasks        map[string]*WriteTask `yaml:"tasks" mapstructure:"tasks"`
+	Metadata     map[string]any        `yaml:"metadata" mapstructure:"metadata"`
+	Preset       string                `yaml:"preset" mapstructure:"preset"`
+	SystemPrompt string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+}
+
+// WriteTask defines a specific generation task.
+type WriteTask struct {
+	Preset       string `yaml:"preset" mapstructure:"preset"`
+	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	UserPrompt   string `yaml:"user_prompt" mapstructure:"user_prompt"`
+}
+
+// IndexFlowConfig defines configuration for document indexing.
+type IndexFlowConfig struct {
 	Chunker   *ChunkerConfig `yaml:"chunker" mapstructure:"chunker"`
-	Profile   string         `yaml:"profile" mapstructure:"profile"`
-	BatchSize int            `yaml:"batchSize" mapstructure:"batchSize"`
+	Preset    string         `yaml:"preset" mapstructure:"preset"`
+	BatchSize int            `yaml:"batch_size" mapstructure:"batch_size"`
 }
 
 // ChunkerConfig defines parameters for text chunking.
 type ChunkerConfig struct {
-	// MaxRunes is the maximum number of runes per chunk
-	MaxRunes int `yaml:"maxRunes" mapstructure:"maxRunes"`
-
-	// OverlapRunes is the number of runes to overlap between chunks
-	OverlapRunes int `yaml:"overlapRunes" mapstructure:"overlapRunes"`
+	MaxRunes     int `yaml:"max_runes" mapstructure:"max_runes"`
+	OverlapRunes int `yaml:"overlap_runes" mapstructure:"overlap_runes"`
 }
 
-// AskConfig defines configuration for RAG-based question answering.
-type AskConfig struct {
-	Profile      string  `yaml:"profile" mapstructure:"profile"`
-	SystemPrompt string  `yaml:"systemPrompt" mapstructure:"systemPrompt"`
-	TopK         int     `yaml:"topK" mapstructure:"topK"`
-	MinScore     float32 `yaml:"minScore" mapstructure:"minScore"`
+// AnswerFlowConfig defines configuration for RAG-based question answering.
+type AnswerFlowConfig struct {
+	Retrieval    *RetrievalConfig `yaml:"retrieval" mapstructure:"retrieval"`
+	Preset       string           `yaml:"preset" mapstructure:"preset"`
+	SystemPrompt string           `yaml:"system_prompt" mapstructure:"system_prompt"`
+}
+
+// RetrievalConfig defines retrieval settings for RAG.
+type RetrievalConfig struct {
+	TopK     int     `yaml:"top_k" mapstructure:"top_k"`
+	MinScore float32 `yaml:"min_score" mapstructure:"min_score"`
+}
+
+// AgentConfig holds configuration for agent mode.
+type AgentConfig struct {
+	Tools        *AgentToolsConfig               `yaml:"tools" mapstructure:"tools"`
+	Pipelines    map[string]*AgentPipelineConfig `yaml:"pipelines" mapstructure:"pipelines"`
+	Personas     map[string]*PersonaConfig       `yaml:"personas" mapstructure:"personas"`
+	Safety       *AgentSafetyConfig              `yaml:"safety" mapstructure:"safety"`
+	SystemPrompt string                          `yaml:"system_prompt" mapstructure:"system_prompt"`
+}
+
+// AgentPipelineConfig defines a named pipeline with shared prompt and step order.
+type AgentPipelineConfig struct {
+	Instructions string   `yaml:"instructions" mapstructure:"instructions"`
+	Steps        []string `yaml:"steps" mapstructure:"steps"`
+}
+
+// PersonaConfig defines a reusable agent persona.
+type PersonaConfig struct {
+	Role             string   `yaml:"role" mapstructure:"role"`
+	Preset           string   `yaml:"preset" mapstructure:"preset"`
+	Tools            []string `yaml:"tools" mapstructure:"tools"`
+	SystemPersona    string   `yaml:"system_persona" mapstructure:"system_persona"`
+	UserInstructions string   `yaml:"user_instructions" mapstructure:"user_instructions"`
+	AllowedDelegates []string `yaml:"allowed_delegates" mapstructure:"allowed_delegates"`
+	AllowedTasks     []string `yaml:"allowed_tasks" mapstructure:"allowed_tasks"`
+}
+
+// AgentSafetyConfig defines safety limits for the agent.
+type AgentSafetyConfig struct {
+	CircuitBreaker *CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
+	MaxSteps       int                   `yaml:"max_steps" mapstructure:"max_steps"`
+	DryRun         bool                  `yaml:"dry_run" mapstructure:"dry_run"`
+}
+
+// CircuitBreakerConfig defines circuit breaker settings.
+type CircuitBreakerConfig struct {
+	MaxRestarts int `yaml:"max_restarts" mapstructure:"max_restarts"`
+}
+
+// AgentToolsConfig defines tool defaults for agent mode.
+type AgentToolsConfig struct {
+	SearchDefaults   *AgentSearchDefaults `yaml:"search_defaults" mapstructure:"search_defaults"`
+	ToolDescriptions map[string]string    `yaml:"tool_descriptions" mapstructure:"tool_descriptions"`
+}
+
+// AgentSearchDefaults defines defaults for embeddings search.
+type AgentSearchDefaults struct {
+	Snapshots []string `yaml:"snapshots" mapstructure:"snapshots"`
+	TopK      int      `yaml:"top_k" mapstructure:"top_k"`
+	MinScore  float32  `yaml:"min_score" mapstructure:"min_score"`
+}
+
+// DraftFlowConfig groups commit/pr draft commands.
+type DraftFlowConfig struct {
+	Commit *CommandFlowConfig `yaml:"commit" mapstructure:"commit"`
+	Pr     *CommandFlowConfig `yaml:"pr" mapstructure:"pr"`
+}
+
+// SummarizeActivityConfig holds configuration for the summarization engine.
+type SummarizeActivityConfig struct {
+	Preset       string           `yaml:"preset" mapstructure:"preset"`
+	Strategy     *StrategyConfig  `yaml:"strategy" mapstructure:"strategy"`
+	SystemPrompt string           `yaml:"system_prompt" mapstructure:"system_prompt"`
+	Rules        []*SummarizeRule `yaml:"rules" mapstructure:"rules"`
+}
+
+// StrategyConfig defines summarization strategy with its settings.
+type StrategyConfig struct {
+	Type                string `yaml:"type" mapstructure:"type"`
+	IncludeOriginalFile bool   `yaml:"include_original_file" mapstructure:"include_original_file"`
+	IncludeChangedFile  bool   `yaml:"include_changed_file" mapstructure:"include_changed_file"`
+}
+
+// SummarizeRule defines file-specific summarization rules.
+type SummarizeRule struct {
+	Match        string          `yaml:"match" mapstructure:"match"`
+	Preset       string          `yaml:"preset" mapstructure:"preset"`
+	Strategy     *StrategyConfig `yaml:"strategy" mapstructure:"strategy"`
+	SystemPrompt string          `yaml:"system_prompt" mapstructure:"system_prompt"`
+	Skip         bool            `yaml:"skip" mapstructure:"skip"`
+}
+
+// CommandFlowConfig defines configuration for commit and PR commands.
+type CommandFlowConfig struct {
+	Preset       string `yaml:"preset" mapstructure:"preset"`
+	Strategy     string `yaml:"strategy" mapstructure:"strategy"`
+	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 }

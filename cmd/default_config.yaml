@@ -1,232 +1,140 @@
 # meowg1k Configuration File
+# Replace provider/model values with your own, or use a preset config from the GitHub repo.
 
-# This file defines models, profiles, and command-specific settings for the meowg1k CLI tool.
-# For a detailed guide, visit: https://github.com/retran/meowg1k/blob/main/docs/02-CONFIGURATION.md
+schema_version: 1
 
-# Defines .gitignore-style patterns to exclude files and directories from all commands.
-# Essential for ignoring dependencies, build artifacts, and sensitive files to improve
-# performance, reduce cost, and enhance security.
 filter:
-  # (Required) A list of glob patterns for files/directories to ignore.
-  ignorePatterns:
-    - "*.lock"
+  ignore:
+    - "**/*.lock"
     - "*.min.js"
     - "*.min.css"
+    - "*.map"
+    - "go.sum"
     - "vendor/"
     - "node_modules/"
     - ".git/"
+    - ".idea/"
+    - ".vscode/"
     - ".meowg1k/"
+    - "dist/"
+    - "build/"
+    - "bin/"
+    - "__pycache__/"
+    - ".DS_Store"
 
-# Defines the large language models (LLMs) you want to use. Each entry specifies a provider,
-# model identifier, and optional settings like rate limits or connection details.
+providers:
+  primary:
+    type: "openai-compatible"
+    base_url: "https://api.your-provider.com/v1"
+    api_key_env: "MEOW_API_KEY"
+
 models:
-  # A fast and cost-effective model, ideal for summarization and simple tasks.
-  gemini-flash:
-    # (Required) The name of the AI provider (e.g., "gemini", "openai", "anthropic", "llama").
-    provider: "gemini"
-    # (Required) The specific model identifier as defined by the provider.
-    model: "gemini-2.5-flash"
-    # (Optional) A configuration block to prevent excessive API usage and control costs.
-    rateLimit:
-      # (Optional) The maximum number of API requests allowed per minute.
-      requestsPerMinute: 15
-      # (Optional) The maximum number of tokens (input + output) processed per minute.
-      tokensPerMinute: 300000
-      # (Optional) The maximum number of API requests allowed in a 24-hour period.
-      requestsPerDay: 300
-    # (Optional) Overrides the model's default maximum input token limit if supported by the provider.
-    maxInputTokens: 100000
+  primary:
+    provider: "primary"
+    model: "MODEL_NAME"
 
-
-  # A more powerful model for complex reasoning, code review, and generation.
-  gemini-pro:
-    provider: "gemini"
-    model: "gemini-1.5-pro-latest"
-    rateLimit:
-      requestsPerMinute: 10
-      tokensPerMinute: 150000
-      requestsPerDay: 150
-
-  # A specialized model for generating text embeddings, used by the 'index' command for RAG.
-  gemini-embeddings:
-    provider: "gemini"
-    model: "text-embedding-004"
-    rateLimit:
-      requestsPerMinute: 3000
-      tokensPerMinute: 1000000
-      requestsPerDay: 1000000
-
-  # # Example for a local or self-hosted model (e.g., Llama.cpp server).
-  # local-model:
-  #   provider: "llama"
-  #   # (Required for local/self-hosted) The base URL of the model server.
-  #   baseURL: "http://localhost:8080"
-  #   # (Optional) Specify a custom environment variable for the API key if needed.
-  #   apiKeyEnv: "MY_LOCAL_API_KEY"
-
-# Configures caching for LLM responses to reduce costs and latency.
-# These global settings can be overridden on a per-profile basis.
-cache:
-  # (Required) Set to 'true' to enable caching, 'false' to disable.
-  enabled: true
-  # (Required) Time-to-live for cache entries (e.g., "24h", "7d", "30m").
-  ttl: "24h"
-
-# Profiles are reusable sets of parameters for LLM requests. They allow you to define
-# different behaviors (e.g., "fast", "smart") and apply them to various commands.
-profiles:
-  # Profile for quick tasks where speed is prioritized.
-  fast:
-    # (Required) References a model defined in the 'models' section.
-    model: "gemini-flash"
-    # (Optional) Controls randomness. Lower value (e.g., 0.2) = more deterministic.
-    temperature: 0.3
-    # (Optional) Request timeout duration (e.g., "5m", "30s"). Defaults to 5 minutes.
-    timeout: "10m"
-    # (Optional) Overrides global cache settings for this profile.
+presets:
+  base:
     cache:
       enabled: true
       ttl: "24h"
+    request:
+      temperature: 0.2
+      top_p: 0.95
+    timeout: "5m"
 
-  # Profile for tasks requiring deep analysis and high-quality output.
-  smart:
-    model: "gemini-pro"
-    timeout: "10m"
-    temperature: 0.2
-    # (Optional) Nucleus sampling. Considers tokens comprising the top P% probability mass.
-    topP: 0.95
-    cache:
-      enabled: true
-      ttl: "72h"
-
-  # Profile dedicated to creating embeddings for the 'index' command.
-  embeddings:
-    model: "gemini-embeddings"
-    timeout: "10m"
-    cache:
-      enabled: true
-      ttl: "72h"
-
-# Configures pre-defined tasks for the 'meowg1k generate' command.
-generate:
-  # Default settings for all 'generate' tasks unless overridden.
   default:
-    # (Required) The default profile to use.
-    profile: "fast"
-    # (Required) The default system message that instructs the AI on its role.
-    systemPrompt: >-
-      You are an expert AI assistant for software development, specializing in code analysis and generation.
-      Your responses must be clear, concise, and production-ready.
-      Adhere strictly to the user's requirements.
+    extends: "base"
+    model: "primary"
 
-  # A collection of custom, reusable tasks, invokable with 'meowg1k generate -t <task_name>'.
-  tasks:
-    review:
-      # (Optional) A specific profile for this task, overriding the default.
-      profile: "smart"
-      # (Required) The prompt defining what the task should accomplish.
-      userPrompt: >-
-        Perform a thorough code review of the following code.
-        Focus on correctness, maintainability, readability, performance, and security.
-        Provide actionable suggestions with references to specific lines when possible.
-    doc:
-      profile: "smart"
-      userPrompt: >-
-        Write a complete documentation comment for the following code element (e.g., function, class, type, module).
-        Requirements:
-          - Start with a concise summary of the element's purpose.
-          - Describe parameters, return values, side effects, and potential errors.
-          - Mention concurrency safety and usage examples if relevant.
-          - Return ONLY the documentation block, without the source code itself.
-    test:
-      profile: "smart"
-      userPrompt: >-
-        Write comprehensive unit tests for the following code.
-        Requirements:
-          - Use a clear, structured approach (e.g., table-driven tests or Arrange-Act-Assert).
-          - Cover the happy path, edge cases, and error scenarios.
-          - Ensure tests are deterministic and can be parallelized where safe.
-          - Return only compilable test code in the detected language.
+flows:
+  write:
+    preset: "default"
+    system_prompt: "You are a helpful assistant."
+    tasks:
+      review:
+        preset: "default"
+        user_prompt: "Review the code for correctness, design, performance, and security."
 
-# Configures the document indexing process, building a vector database for the 'ask' command.
-index:
-  # (Required) Profile for computing embeddings. Must reference an embedding model.
-  profile: "embeddings"
-  # (Optional) Settings for splitting files into smaller, embeddable chunks.
-  chunker:
-    # (Optional, default: 1024) Max number of Unicode runes (characters) per chunk.
-    maxRunes: 1024
-    # (Optional, default: 100) Number of runes to overlap between chunks to maintain context.
-    overlapRunes: 100
-  # (Optional, default: 32) Number of chunks to process in a single embedding API call.
-  batchSize: 32
+  index:
+    preset: "default"
+    chunker:
+      max_runes: 1024
+      overlap_runes: 128
+    batch_size: 64
 
-# Configures the question-answering behavior of 'meowg1k ask'.
-ask:
-  # (Required) Profile for generating the final answer.
-  profile: "smart"
-  # (Optional, default: 5) The number of top-matching document chunks to retrieve for context.
-  topK: 5
-  # (Optional, default: 0.7) The minimum similarity score (0.0-1.0) for a chunk to be considered relevant.
-  minScore: 0.7
-  # (Required) The system prompt that guides the LLM in formulating its answer.
-  systemPrompt: >-
-    You are an expert AI assistant helping developers understand their codebase.
-    Answer questions based ONLY on the provided code context.
-    Be precise, concise, and reference specific code elements when relevant.
-    If the context doesn't contain enough information, clearly state that.
+  answer:
+    preset: "default"
+    retrieval:
+      top_k: 20
+      min_score: 0.4
+    system_prompt: "Answer based on the provided context only."
 
-# Configures the "map" step for 'commit' and 'pullrequest' commands (when using "summarize" strategy).
-summarize:
-  # Default settings applied when no specific rule matches.
-  default:
-    # (Required) The profile to use for summarizing individual file diffs.
-    profile: "fast"
-    # (Required) The system prompt for the summarization task.
-    systemPrompt: >-
-      You are a code analysis assistant.
-      Analyze the provided code diff and create a concise, one-sentence summary of the changes.
-      Focus on the core intent: what was modified, added, or removed.
-  # # (Optional) A list of rules to apply different summarization strategies based on file paths.
-  # # Rules are evaluated top-down; the first match wins.
-  rules:
-    # (Required) A glob pattern to match against file paths.
-    - match: "internal/core/**/*.go"
-      # (Optional) The profile to use for matching files.
-      profile: "smart"
-      # (Optional) The system prompt to use for matching files.
-      systemPrompt: "Analyze this critical Go code change, focusing on business logic and potential side effects."
-    # This rule is intentionally enabled: it will skip summarizing all Markdown documentation changes.
-    - match: "**/*.md"
-      # (Optional) If true, files matching this pattern are not summarized.
-      skip: true
+  draft:
+    commit:
+      preset: "default"
+      strategy: "summarize"
+      system_prompt: "Write a Conventional Commit message."
+    pr:
+      preset: "default"
+      strategy: "summarize"
+      system_prompt: "Write a Pull Request description."
 
-# Configures the 'meowg1k commit' command for generating Git commit messages.
-commit:
-  default:
-    # (Required) Profile to use for generating the final commit message.
-    profile: "smart"
-    # (Optional, default: "summarize") Determines how changes are processed.
-    # "summarize": Map-Reduce approach for large changes. Summarizes each file first.
-    # "flat": Sends the entire diff directly to the model. Faster for small changes.
-    strategy: "summarize"
-    # (Required) The system prompt guiding the commit message generation.
-    systemPrompt: >-
-      You are an expert on Git and Conventional Commits.
-      Generate a clear, concise commit message in the Conventional Commits format.
-      Focus on the "why" and "what" of the changes, not the "how".
-      The message should be suitable for a changelog.
+agent:
+  system_prompt: "You are an autonomous coding agent."
+  tools:
+    search_defaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      top_k: 10
+      min_score: 0.6
+  safety:
+    max_steps: 30
+    circuit_breaker:
+      max_restarts: 5
+    dry_run: false
+  pipelines:
+    default:
+      steps: ["discover", "plan", "execute", "verify", "final"]
+  personas:
+    discover:
+      role: "Principal Software Engineer"
+      preset: "default"
+      tools: ["dir_list", "search_text", "search_semantic", "file_read"]
+      system_persona: "You gather minimum context needed to act."
+      user_instructions: "List key files and constraints; do not edit files."
+    plan:
+      role: "Technical Project Manager"
+      preset: "default"
+      tools: ["plan_read", "plan_init", "file_read", "search_text"]
+      system_persona: "You convert context into a task list."
+      user_instructions: "Create an ordered plan with clear steps."
+    execute:
+      role: "Principal Software Engineer"
+      preset: "default"
+      tools: ["file_read", "file_write", "file_edit", "shell_exec", "plan_update_task"]
+      system_persona: "You implement the plan safely."
+      user_instructions: "Make the smallest correct diff and update tasks."
+    verify:
+      role: "Principal QA Engineer"
+      preset: "default"
+      tools: ["shell_exec", "git_diff", "plan_update_task"]
+      system_persona: "You validate correctness."
+      user_instructions: "Check diffs and run tests when useful."
+    final:
+      role: "Technical Project Manager"
+      preset: "default"
+      tools: []
+      system_persona: "You report outcomes."
+      user_instructions: "Summarize what changed and why."
 
-# Configures the 'meowg1k pullrequest' command for generating PR descriptions.
-pullRequest:
-  default:
-    # (Required) Profile to use for generating the PR description.
-    profile: "smart"
-    strategy: "summarize"
-    # (Required) The system prompt guiding the PR description generation.
-    systemPrompt: >-
-      You are a senior technical writer specializing in pull request descriptions.
-      Generate a comprehensive PR description that clearly explains:
-      - The problem being solved (the "why").
-      - A summary of the changes made (the "what").
-      - Any potential impact, breaking changes, or required migrations.
+activities:
+  summarize:
+    preset: "default"
+    strategy:
+      type: "plain"
+      include_original_file: false
+      include_changed_file: false
+    system_prompt: "Summarize changes concisely."
+    rules:
+      - match: "**/*.{lock,sum}"
+        skip: true

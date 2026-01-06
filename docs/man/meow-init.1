@@ -1,7 +1,7 @@
 .\" docs/man/meow-init.1
-.TH MEOW-INIT 1 "2025-10-11" "meowg1k" "User Commands"
+.TH MEOW-INIT 1 "2025-10-11" "meow" "User Commands"
 .SH NAME
-meow-init \- initialize a new meowg1k project configuration
+meow-init \- initialize a new meow project configuration
 .SH SYNOPSIS
 .B meow init
 [\fB\-f\fR|\fB\-\-force\fR]
@@ -13,8 +13,8 @@ The
 command creates a new
 .B .meowg1k.yaml
 configuration file in the current directory (or in the directory specified
-by \fB\-\-workspace\fR). This file defines models, profiles, and settings
-for all meowg1k commands.
+by \fB\-\-workspace\fR). This file defines models, presets, and settings
+for all meow commands.
 .PP
 The generated configuration uses Google Gemini as the default LLM provider
 with sensible defaults for all commands. After initialization, you must
@@ -74,8 +74,8 @@ Two Gemini models are pre-configured:
 125K tokens/min, 100 requests/day
 .RE
 .TP
-.B Profiles
-Two profiles reference the models above:
+.B Presets
+Two presets reference the models above:
 .RS
 .IP \[bu] 2
 .B fast
@@ -86,10 +86,10 @@ Two profiles reference the models above:
 .RE
 .TP
 .B Commands
-Default profiles and prompts for:
+Default presets and prompts for:
 .BR generate ,
 .BR commit ,
-.BR pullRequest ,
+.BR pr ,
 .BR summarize ,
 and
 .BR filter
@@ -138,7 +138,7 @@ API key.
 .PP
 .B 2. Set environment variable
 .RS
-Add to your shell profile (~/.bashrc, ~/.zshrc):
+Add to your shell rc file (~/.bashrc, ~/.zshrc):
 .PP
 .nf
 .B export MEOW_GEMINI_API_KEY="your-api-key-here"
@@ -154,7 +154,7 @@ Then restart your shell or run:
 .B 3. Test the setup
 .RS
 .nf
-.B echo "Create a hello world function" | meow generate
+.B echo "Create a hello world function" | meow write
 .fi
 .RE
 
@@ -193,7 +193,7 @@ command does not require an existing configuration or API keys. It can be
 run before setting up any credentials.
 .PP
 The generated configuration file is a standard YAML file and can be manually
-edited to customize models, profiles, prompts, and rate limits.
+edited to customize models, presets, prompts, and rate limits.
 .PP
 The default configuration uses Google Gemini because it offers a generous
 free tier. You can edit the configuration to use other providers such as
@@ -201,9 +201,9 @@ OpenAI, Anthropic, OpenRouter, or local models via llama.cpp.
 
 .SH SEE ALSO
 .BR meow (1),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
-.BR meow\-pullrequest (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
+.BR meow\-draft\-pr (1),
 .BR meow\-config (5),
 .BR meow\-security (7)
 
@@ -211,7 +211,7 @@ OpenAI, Anthropic, OpenRouter, or local models via llama.cpp.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

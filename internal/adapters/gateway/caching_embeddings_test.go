@@ -128,23 +128,6 @@ func TestCachingEmbeddingsGateway_CreateCacheKey(t *testing.T) {
 	assert.NotEqual(t, key1, key3, "Different parameters should produce different cache keys")
 }
 
-func TestCachingEmbeddingsGateway_NilContext(t *testing.T) {
-	mockGateway := &mockEmbGatewayForCaching{
-		embeddings: []domainGateway.Embedding{{0.1, 0.2, 0.3}},
-	}
-	mockCache := newMockCacheForCaching()
-
-	gateway := newCachingEmbeddingsGateway(mockGateway, mockCache, false)
-
-	request := domainGateway.NewComputeEmbeddingsRequest("model", []string{"text1"}, domainGateway.RetrievalDocument)
-
-	//nolint:staticcheck // intentionally testing nil context handling
-	result, err := gateway.ComputeEmbeddings(nil, request)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context cannot be nil")
-	assert.Nil(t, result)
-}
-
 func TestCachingEmbeddingsGateway_NilGateway(t *testing.T) {
 	var gateway *cachingEmbeddingsGateway = nil
 

@@ -41,7 +41,7 @@ For Windows users, `meowg1k` can be installed via the Scoop package manager.
 scoop bucket add meow [https://github.com/retran/scoop-meow-bucket.git](https://github.com/retran/scoop-meow-bucket.git)
 
 # Then, install the package
-scoop install meow
+scoop install meowg1k
 ```
 
 ### From Package Files (.deb / .rpm)
@@ -53,7 +53,7 @@ For Debian-based and Red Hat-based Linux distributions, you can download a `.deb
 Download the appropriate `.deb` file (`amd64` or `arm64`) and install it using `dpkg`:
 
 ```bash
-sudo dpkg -i meow_<version>_amd64.deb
+sudo dpkg -i meowg1k_<version>_amd64.deb
 ```
 
 #### For Fedora / CentOS / RHEL (.rpm)
@@ -86,4 +86,4 @@ If you see a "command not found" error, ensure that the installation directory (
 
 ## Next Steps
 
-Once `meowg1k` is installed, the next step is to [configure your API keys and profiles](./02-CONFIGURATION.md).
+Once `meowg1k` is installed, the next step is to [configure your API keys and presets](./02-CONFIGURATION.md).

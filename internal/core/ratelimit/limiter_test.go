@@ -181,7 +181,7 @@ func TestLimiterConcurrency(t *testing.T) {
 	defer db.Close()
 
 	config := Config{
-		ID:                "test-concurrent",
+		ID:                "test-overlap",
 		RequestsPerMinute: 100,
 		TokensPerMinute:   1000,
 		RequestsPerDay:    5000,
@@ -194,7 +194,7 @@ func TestLimiterConcurrency(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test that concurrent acquisitions work correctly
+	// Test that overlapping acquisitions work correctly.
 	successCount := 0
 	for i := 0; i < 50; i++ {
 		if limiter.TryAcquire(ctx, 10) {

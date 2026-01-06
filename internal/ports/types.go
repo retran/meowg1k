@@ -13,7 +13,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/ratelimit"
 )
 
@@ -27,14 +27,14 @@ type ConfigResolver interface {
 	Get() (*config.Config, error)
 }
 
-// ProfileResolver resolves profile configurations.
-type ProfileResolver interface {
-	Get(profile profile.Profile) (*profile.ResolvedProfile, error)
+// PresetResolver resolves preset configurations.
+type PresetResolver interface {
+	Get(preset preset.Preset) (*preset.ResolvedPreset, error)
 }
 
 // GenerationGateway defines the contract for a client that generates content using an LLM.
 type GenerationGateway interface {
-	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error)
+	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error)
 }
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings
@@ -52,7 +52,7 @@ type Gateway interface {
 
 // GenerationGatewayFactory creates generation gateways for LLM providers.
 type GenerationGatewayFactory interface {
-	NewGenerationGateway(ctx context.Context, profile *profile.ResolvedProfile) (GenerationGateway, error)
+	NewGenerationGateway(ctx context.Context, preset *preset.ResolvedPreset) (GenerationGateway, error)
 }
 
 // Host provides access to database connections.
@@ -213,6 +213,19 @@ type GitService interface {
 
 	// ReadStagedFileContent reads the content of a staged file from Git index.
 	ReadStagedFileContent(filePath string) (string, error)
+}
+
+// GitToolingService defines the interface for extended git operations used by agent tools.
+type GitToolingService interface {
+	Status() (string, error)
+	Diff(ref, path string) (string, error)
+	Show(ref string) (string, error)
+	Log(limit int, path string) (string, error)
+	Branches() ([]string, error)
+	CurrentBranch() (string, error)
+	Stage(paths []string) (string, error)
+	Commit(message string) (string, error)
+	HeadHash() (string, error)
 }
 
 // FilterService defines the interface for file filtering operations.

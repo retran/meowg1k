@@ -218,7 +218,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 	service := NewService(ctx, logger, timeout)
 
-	// Test concurrent registration and context access
+	// Test overlapping registration and context access.
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
 		wg.Add(2)
@@ -236,7 +236,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 
-	// Shutdown should work after concurrent operations
+	// Shutdown should work after overlapping operations.
 	service.Shutdown()
 
 	// Give some time for shutdown to complete
@@ -258,7 +258,7 @@ func TestListenForSignalsContextCancellation(t *testing.T) {
 
 	service := NewService(ctx, logger, timeout)
 
-	// Start ListenForSignals in a goroutine
+	// Start ListenForSignals in the background.
 	done := make(chan bool, 1)
 
 	go func() {
@@ -286,7 +286,7 @@ func TestListenForSignalsShutdown(t *testing.T) {
 
 	service := NewService(ctx, logger, timeout)
 
-	// Start ListenForSignals in a goroutine
+	// Start ListenForSignals in the background.
 	done := make(chan bool, 1)
 
 	go func() {
@@ -447,7 +447,7 @@ func TestListenForSignals_ContextCanceled(t *testing.T) {
 
 	service := NewService(ctx, logger, timeout)
 
-	// Start listening in a goroutine
+	// Start listening in the background.
 	var result bool
 	done := make(chan bool)
 	go func() {
@@ -557,7 +557,7 @@ func TestConcurrentRegisterAndShutdown(t *testing.T) {
 	var wg sync.WaitGroup
 	callbackCount := atomic.Int32{}
 
-	// Start registering callbacks concurrently
+	// Start registering callbacks in the background.
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
@@ -595,7 +595,7 @@ func TestListenForSignals_SIGINT(t *testing.T) {
 		return nil
 	})
 
-	// Start listening in a goroutine
+	// Start listening in the background.
 	done := make(chan bool)
 	go func() {
 		result := service.ListenForSignals()
@@ -650,7 +650,7 @@ func TestListenForSignals_SIGTERM(t *testing.T) {
 		return nil
 	})
 
-	// Start listening in a goroutine
+	// Start listening in the background.
 	done := make(chan bool)
 	go func() {
 		result := service.ListenForSignals()

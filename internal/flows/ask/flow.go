@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/retran/meowg1k/internal/activities/invokellm"
-	"github.com/retran/meowg1k/internal/activities/retrievecontext"
+	"github.com/retran/meowg1k/internal/activities/draftcontent"
+	"github.com/retran/meowg1k/internal/activities/fetchcontext"
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/executor"
 )
@@ -23,30 +23,30 @@ type CommandParametersReader interface {
 	GetSnapshotsFlag() ([]string, error)
 	GetTopKFlag() (int, error)
 	GetMinScoreFlag() (float32, error)
-	GetProfileFlag() (string, error)
+	GetPresetFlag() (string, error)
 }
 
-// ConfigReader provides access to ask configuration.
+// ConfigReader provides access to answer configuration.
 type ConfigReader interface {
 	Get() (*config.Config, error)
 }
 
 // Factory creates instances of the ask flow.
 type Factory struct {
-	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output]
-	invokeLLMFactory       executor.ActivityFactory[*invokellm.Input, *invokellm.Output]
+	retrieveContextFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output]
+	invokeLLMFactory       executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output]
 	parametersReader       CommandParametersReader
-	profileResolver        ports.ProfileResolver
+	presetResolver         ports.PresetResolver
 	outputWriter           ports.OutputWriter
 	configReader           ConfigReader
 }
 
 // NewFactory creates a new ask flow factory.
 func NewFactory(
-	retrieveContextFactory executor.ActivityFactory[*retrievecontext.Input, *retrievecontext.Output],
-	invokeLLMFactory executor.ActivityFactory[*invokellm.Input, *invokellm.Output],
+	retrieveContextFactory executor.ActivityFactory[*fetchcontext.Input, *fetchcontext.Output],
+	invokeLLMFactory executor.ActivityFactory[*draftcontent.Input, *draftcontent.Output],
 	parametersReader CommandParametersReader,
-	profileResolver ports.ProfileResolver,
+	presetResolver ports.PresetResolver,
 	outputWriter ports.OutputWriter,
 	configReader ConfigReader,
 ) (*Factory, error) {
@@ -59,8 +59,8 @@ func NewFactory(
 	if parametersReader == nil {
 		return nil, fmt.Errorf("ask.NewFactory: parametersReader cannot be nil")
 	}
-	if profileResolver == nil {
-		return nil, fmt.Errorf("ask.NewFactory: profileResolver cannot be nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("ask.NewFactory: presetResolver cannot be nil")
 	}
 	if outputWriter == nil {
 		return nil, fmt.Errorf("ask.NewFactory: outputWriter cannot be nil")
@@ -73,7 +73,7 @@ func NewFactory(
 		retrieveContextFactory: retrieveContextFactory,
 		invokeLLMFactory:       invokeLLMFactory,
 		parametersReader:       parametersReader,
-		profileResolver:        profileResolver,
+		presetResolver:         presetResolver,
 		outputWriter:           outputWriter,
 		configReader:           configReader,
 	}, nil
@@ -86,7 +86,7 @@ func (f *Factory) NewFlow() executor.Flow {
 	}
 }
 
-const defaultAskSystemPrompt = `You are a helpful AI assistant that answers questions based on the provided context.
+const defaultAnswerSystemPrompt = `You are a helpful AI assistant that answers questions based on the provided context.
 
 Instructions:
 - Use ONLY the information from the context to answer the question
@@ -96,21 +96,29 @@ Instructions:
 - If the question cannot be answered with the given context, clearly state that`
 
 func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) error {
-	flowCtx.SendRunning("Starting ask flow")
-
-	cfg, err := f.loadAskConfig()
+	cfg, err := f.loadAnswerConfig()
 	if err != nil {
 		return err
 	}
 
-	params, err := f.resolveAskParams(cfg)
+	params, err := f.resolveAnswerParams(cfg)
 	if err != nil {
 		return err
 	}
+	flowCtx.SendRunningWithDetails(
+		"I'm answering the question",
+		fmt.Sprintf(
+			"question=%q\nsnapshots=%s\ntop_k=%d\nmin_score=%.2f",
+			params.question,
+			strings.Join(params.snapshots, ","),
+			params.topK,
+			params.minScore,
+		),
+	)
 
-	resolvedProfile, err := f.profileResolver.Get(profile.Profile(params.profileName))
+	resolvedPreset, err := f.presetResolver.Get(preset.Preset(params.presetName))
 	if err != nil {
-		return fmt.Errorf("failed to resolve profile '%s': %w", params.profileName, err)
+		return fmt.Errorf("failed to resolve preset %q: %w", params.presetName, err)
 	}
 
 	exec, err := f.getExecutor(flowCtx)
@@ -124,60 +132,107 @@ func (f *Factory) runAskFlow(ctx context.Context, flowCtx *executor.Context) err
 	}
 
 	if retrieveContextOutput.Context == "" {
-		return f.handleEmptyContext(flowCtx)
+		return f.handleEmptyContext(flowCtx, params.question)
 	}
 
 	userPrompt := fmt.Sprintf("Context:\n%s\n\nQuestion: %s", retrieveContextOutput.Context, params.question)
 
-	invokeLLMOutput, err := f.runInvokeLLM(ctx, flowCtx, exec, resolvedProfile, defaultAskSystemPrompt, userPrompt)
+	systemPrompt := defaultAnswerSystemPrompt
+	if cfg.Flows.Answer.SystemPrompt != "" {
+		systemPrompt = cfg.Flows.Answer.SystemPrompt
+	}
+
+	invokeLLMOutput, err := f.runInvokeLLM(ctx, flowCtx, exec, resolvedPreset, systemPrompt, userPrompt)
 	if err != nil {
 		return err
 	}
+	if invokeLLMOutput.Response == nil {
+		return fmt.Errorf("InvokeLLM returned nil response")
+	}
 
-	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeLLMOutput.Content)); err != nil {
+	if err := f.outputWriter.PrintLine(strings.TrimSpace(invokeLLMOutput.Response.Text())); err != nil {
 		return fmt.Errorf("failed to print generated content: %w", err)
 	}
 
-	flowCtx.SendCompleted("Ask flow completed")
+	flowCtx.SendCompletedWithDetails("I've answered the question", fmt.Sprintf("question=%q", params.question))
+
 	return nil
 }
 
-func (f *Factory) handleEmptyContext(flowCtx *executor.Context) error {
+func (f *Factory) handleEmptyContext(flowCtx *executor.Context, question string) error {
 	if err := f.outputWriter.PrintLine("No relevant context found to answer the question."); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
 	}
-	flowCtx.SendCompleted("No context found")
+	flowCtx.SendCompletedWithDetails("I couldn't find relevant context", fmt.Sprintf("question=%q", question))
 	return nil
 }
 
-type askParams struct {
-	question    string
-	profileName string
-	snapshots   []string
-	topK        int
-	minScore    float32
+type answerParams struct {
+	question   string
+	presetName string
+	snapshots  []string
+	topK       int
+	minScore   float32
 }
 
-func (f *Factory) loadAskConfig() (*config.Config, error) {
+func (f *Factory) loadAnswerConfig() (*config.Config, error) {
 	cfg, err := f.configReader.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
-	if cfg.Ask == nil {
-		return nil, fmt.Errorf("ask configuration is missing")
+	if cfg.Flows == nil || cfg.Flows.Answer == nil {
+		return nil, fmt.Errorf("answer configuration is missing")
 	}
 	return cfg, nil
 }
 
-func (f *Factory) resolveAskParams(cfg *config.Config) (*askParams, error) {
-	question, err := f.parametersReader.GetQuestionFlag()
+func (f *Factory) resolveAnswerParams(cfg *config.Config) (*answerParams, error) {
+	question, err := f.resolveQuestion()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get question: %w", err)
-	}
-	if question == "" {
-		return nil, fmt.Errorf("question is required")
+		return nil, err
 	}
 
+	snapshots, err := f.resolveSnapshots()
+	if err != nil {
+		return nil, err
+	}
+
+	topK, err := f.resolveTopK(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	minScore, err := f.resolveMinScore(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	presetName, err := f.resolvePresetName(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &answerParams{
+		question:   question,
+		presetName: presetName,
+		snapshots:  snapshots,
+		topK:       topK,
+		minScore:   minScore,
+	}, nil
+}
+
+func (f *Factory) resolveQuestion() (string, error) {
+	question, err := f.parametersReader.GetQuestionFlag()
+	if err != nil {
+		return "", fmt.Errorf("failed to get question: %w", err)
+	}
+	if question == "" {
+		return "", fmt.Errorf("question is required")
+	}
+	return question, nil
+}
+
+func (f *Factory) resolveSnapshots() ([]string, error) {
 	snapshots, err := f.parametersReader.GetSnapshotsFlag()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get snapshots: %w", err)
@@ -185,41 +240,51 @@ func (f *Factory) resolveAskParams(cfg *config.Config) (*askParams, error) {
 	if len(snapshots) == 0 {
 		snapshots = []string{"_workdir_", "_stage_", "_head_"}
 	}
+	return snapshots, nil
+}
 
+func (f *Factory) resolveTopK(cfg *config.Config) (int, error) {
 	topK, err := f.parametersReader.GetTopKFlag()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get topK: %w", err)
+		return 0, fmt.Errorf("failed to get topK: %w", err)
 	}
 	if topK <= 0 {
-		topK = defaultTopK(cfg.Ask.TopK)
-	}
-
-	minScore, err := f.parametersReader.GetMinScoreFlag()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get min score: %w", err)
-	}
-	if minScore <= 0 {
-		minScore = defaultMinScore(cfg.Ask.MinScore)
-	}
-
-	profileName, err := f.parametersReader.GetProfileFlag()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get profile: %w", err)
-	}
-	if profileName == "" {
-		profileName = cfg.Ask.Profile
-		if profileName == "" {
-			return nil, fmt.Errorf("profile is required (set in config ask.profile or via --profile flag)")
+		if cfg.Flows.Answer.Retrieval != nil {
+			topK = defaultTopK(cfg.Flows.Answer.Retrieval.TopK)
+		} else {
+			topK = defaultTopK(0)
 		}
 	}
+	return topK, nil
+}
 
-	return &askParams{
-		question:    question,
-		profileName: profileName,
-		snapshots:   snapshots,
-		topK:        topK,
-		minScore:    minScore,
-	}, nil
+func (f *Factory) resolveMinScore(cfg *config.Config) (float32, error) {
+	minScore, err := f.parametersReader.GetMinScoreFlag()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get min score: %w", err)
+	}
+	if minScore <= 0 {
+		if cfg.Flows.Answer.Retrieval != nil {
+			minScore = defaultMinScore(cfg.Flows.Answer.Retrieval.MinScore)
+		} else {
+			minScore = defaultMinScore(0)
+		}
+	}
+	return minScore, nil
+}
+
+func (f *Factory) resolvePresetName(cfg *config.Config) (string, error) {
+	presetName, err := f.parametersReader.GetPresetFlag()
+	if err != nil {
+		return "", fmt.Errorf("failed to get preset: %w", err)
+	}
+	if presetName == "" {
+		presetName = cfg.Flows.Answer.Preset
+		if presetName == "" {
+			return "", fmt.Errorf("preset is required (set in config flows.answer.preset or via --preset flag)")
+		}
+	}
+	return presetName, nil
 }
 
 func defaultTopK(configValue int) int {
@@ -251,18 +316,17 @@ func (f *Factory) runRetrieveContext(
 	ctx context.Context,
 	flowCtx *executor.Context,
 	exec executor.Executor,
-	params *askParams,
-) (*retrievecontext.Output, error) {
+	params *answerParams,
+) (*fetchcontext.Output, error) {
 	retrieveContextActivity := f.retrieveContextFactory.NewActivity()
-	retrieveContextInput := &retrievecontext.Input{
+	retrieveContextInput := &fetchcontext.Input{
 		QueryText:        params.question,
 		SnapshotPriority: params.snapshots,
 		TopK:             params.topK,
 		MinScore:         params.minScore,
 	}
 
-	retrieveContextFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
-	retrieveContextOutput, err := retrieveContextFuture.Get(ctx)
+	retrieveContextOutput, err := executor.ExecuteActivity(ctx, exec, flowCtx, "RetrieveContext", retrieveContextActivity, retrieveContextInput)
 	if err != nil {
 		return nil, fmt.Errorf("context retrieval failed: %w", err)
 	}
@@ -273,19 +337,18 @@ func (f *Factory) runInvokeLLM(
 	ctx context.Context,
 	flowCtx *executor.Context,
 	exec executor.Executor,
-	resolvedProfile *profile.ResolvedProfile,
+	resolvedPreset *preset.ResolvedPreset,
 	systemPrompt string,
 	userPrompt string,
-) (*invokellm.Output, error) {
+) (*draftcontent.Output, error) {
 	invokeLLMActivity := f.invokeLLMFactory.NewActivity()
-	invokeLLMInput := &invokellm.Input{
-		Profile:      resolvedProfile,
+	invokeLLMInput := &draftcontent.Input{
+		Preset:       resolvedPreset,
 		SystemPrompt: systemPrompt,
 		UserPrompt:   userPrompt,
 	}
 
-	invokeLLMFuture := executor.ExecuteActivity(ctx, exec, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
-	invokeLLMOutput, err := invokeLLMFuture.Get(ctx)
+	invokeLLMOutput, err := executor.ExecuteActivity(ctx, exec, flowCtx, "InvokeLLM", invokeLLMActivity, invokeLLMInput)
 	if err != nil {
 		return nil, fmt.Errorf("answer generation failed: %w", err)
 	}

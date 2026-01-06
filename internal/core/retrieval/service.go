@@ -129,7 +129,7 @@ func validateSearchParams(
 		return fmt.Errorf("context cannot be nil")
 	}
 	if queryText == "" {
-		return fmt.Errorf("query text cannot be empty")
+		return fmt.Errorf("searchindex text cannot be empty")
 	}
 	if len(snapshotPriority) == 0 {
 		return fmt.Errorf("snapshot priority list cannot be empty")
@@ -149,11 +149,11 @@ func (s *Service) computeQueryEmbedding(ctx context.Context, queryText string) (
 
 	embeddings, err := s.embeddingsGW.ComputeEmbeddings(ctx, request)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute query embedding: %w", err)
+		return nil, fmt.Errorf("failed to compute searchindex embedding: %w", err)
 	}
 
 	if len(embeddings) == 0 {
-		return nil, fmt.Errorf("no embeddings returned for query")
+		return nil, fmt.Errorf("no embeddings returned for searchindex")
 	}
 
 	return embeddings[0], nil

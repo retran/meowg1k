@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/task"
 )
 
@@ -33,7 +33,7 @@ func TestNewGeneratePromptService(t *testing.T) {
 	mockTask := &mockTaskConfigurationProvider{
 		config: &task.ResolvedConfig{
 			Name:         "test-task",
-			Profile:      &profile.ResolvedProfile{},
+			Preset:       &preset.ResolvedPreset{},
 			SystemPrompt: "Test system prompt",
 			UserPrompt:   "Test user prompt",
 		},

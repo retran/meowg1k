@@ -27,28 +27,36 @@ func newRateLimitedGenerationGateway(innerGateway ports.GenerationGateway, limit
 func (g *rateLimitedGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
-		return "", fmt.Errorf("rate limited generation gateway is nil")
+		return nil, fmt.Errorf("rate limited generation gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	tokenCount := estimateTokenCount(request.SystemPrompt() + request.UserPrompt())
+	promptText := request.SystemPrompt() + request.UserPrompt()
+	if msgs := request.Messages(); len(msgs) > 0 {
+		promptText = ""
+		for _, m := range msgs {
+			promptText += string(m.Role) + ":" + m.Content + "\n"
+		}
+	}
+
+	tokenCount := estimateTokenCount(promptText)
 
 	if err := g.limiter.Wait(ctx, tokenCount); err != nil {
-		return "", fmt.Errorf("failed to acquire rate limit tokens: %w", err)
+		return nil, fmt.Errorf("failed to acquire rate limit tokens: %w", err)
 	}
 
 	content, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
 	return content, nil
 }

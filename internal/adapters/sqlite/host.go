@@ -87,7 +87,7 @@ func (h *localHostImpl) GetProjectDB() (*sql.DB, error) {
 }
 
 func getDB(path string) (*sql.DB, error) {
-	// Add busy_timeout and cache parameters for better concurrent access
+	// Add busy_timeout and cache parameters for better multi-client access.
 	// Increased timeout to 30 seconds to handle high concurrency
 	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on&_busy_timeout=30000&cache=shared", path)
 	db, err := sql.Open("sqlite3", dbURL)
@@ -96,14 +96,14 @@ func getDB(path string) (*sql.DB, error) {
 	}
 
 	// Configure connection pool to reduce contention
-	// SQLite works best with limited concurrent writers in WAL mode
+	// SQLite works best with limited writers in WAL mode.
 	db.SetMaxOpenConns(5)    // Limit total connections to reduce lock contention
 	db.SetMaxIdleConns(2)    // Keep some connections ready
 	db.SetConnMaxLifetime(0) // Reuse connections indefinitely
 
 	ctx := context.Background()
 
-	// Enable Write-Ahead Logging for better concurrent access
+	// Enable Write-Ahead Logging for better multi-client access.
 	if _, err := db.ExecContext(ctx, "PRAGMA journal_mode=WAL"); err != nil {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
@@ -128,7 +128,7 @@ func getDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to set wal_autocheckpoint: %w", err)
 	}
 
-	// Configure connection pool for better concurrent access
+	// Configure connection pool for better multi-client access.
 	// SQLite with WAL can handle multiple readers, but only one writer at a time
 	db.SetMaxOpenConns(10)   // Allow multiple connections
 	db.SetMaxIdleConns(5)    // Keep some connections idle

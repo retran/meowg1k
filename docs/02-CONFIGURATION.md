@@ -8,7 +8,7 @@ This guide covers everything from setting your API keys to creating complex, rul
 
 The primary way to provide API keys to `meowg1k` is through environment variables. The tool automatically looks for variables based on the provider you choose.
 
-Set these in your shell profile (e.g., `~/.bashrc`, `~/.zshrc`):
+Set these in your shell rc file (e.g., `~/.bashrc`, `~/.zshrc`):
 
 ```bash
 # For Google Gemini
@@ -21,7 +21,7 @@ export MEOW_OPENAI_API_KEY="sk-..."
 export MEOW_ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-> **Note:** You can specify a custom environment variable name within a profile using the `apiKeyEnv` field if needed.
+> **Note:** You can specify a custom environment variable name within a preset using the `apiKeyEnv` field if needed.
 
 ## 2. Configuration File Hierarchy
 
@@ -43,7 +43,7 @@ This layered approach means that settings from the project/explicit config will 
 `meowg1k` automatically detects the workspace (project) root directory by walking up the directory tree from your current working directory. This workspace root is used for multiple purposes:
 
 - Finding the project configuration file (`.meowg1k.yaml` or `.yml`) when `--config` flag is not used
-- Setting the working context for various commands (such as `commit`, `pullrequest`, etc.)
+- Setting the working context for various commands (such as `commit`, `pr`, etc.)
 - Determining the scope of file operations and git operations
 
 The tool looks for the following markers in each directory, stopping at the first match:
@@ -77,7 +77,7 @@ If no markers are found, the current working directory is used as the workspace 
 You can override the automatic detection by using the `--workspace` flag:
 
 ```bash
-meow commit --workspace /path/to/project
+meow draft commit --workspace /path/to/project
 ```
 
 This is useful when:
@@ -94,7 +94,7 @@ The `config.yaml` file has several top-level sections that control different asp
 
 ### `models`
 
-Models are definitions of a specific LLM API endpoint, including its provider, connection details, and rate limits. You can define multiple models and reference them from different profiles.
+Models are definitions of a specific LLM API endpoint, including its provider, connection details, and rate limits. You can define multiple models and reference them from different presets.
 
 ```yaml
 models:
@@ -125,30 +125,50 @@ models:
       tokensPerMinute: 40000 # Max 40k tokens (input + output) per minute
 ```
 
-### `profiles`
+### `presets`
 
-Profiles define a reusable set of parameters for an LLM request, such as timeout, temperature, and sampling parameters. Each profile must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
+Presets define a reusable set of parameters for an LLM request, such as timeout, temperature, and sampling parameters.
+**Note:** `presets` replace the older `profiles` concept.
 
-````yaml
-profiles:
-  # A profile for fast, general tasks
-  fast:
+Each preset must reference a `model` defined in the `models` section. This allows you to create different behaviors (e.g., "creative" vs. "analytical") using the same underlying model.
+
+**Extending Presets:**
+
+Presets can inherit from other presets using the `extends` field. This allows you to define a base preset and create specialized variations without duplication.
+
+```yaml
+presets:
+  # Base preset
+  base:
+    model: "gpt-4"
+    temperature: 0.5
+
+  # Extended preset
+  creative:
+    extends: "base"
+    temperature: 0.9 # Overrides base temperature
+```
+
+```yaml
+presets:
+  # A preset for lightweight, general tasks
+  openrouter-free:
     model: "openrouter-llama-free"
 
-  # A profile for complex tasks that may take longer
-  smart:
+  # A preset for complex tasks that may take longer
+  claude-sonnet:
     model: "claude-sonnet"
     timeout: "10m" # Increase timeout for long tasks
     temperature: 0.2
 
-  # A profile for creative generation
+  # A preset for creative generation
   creative:
     model: "claude-sonnet"
     temperature: 0.8
     topP: 0.95
     topK: 50
 
-  # A profile for deterministic code generation
+  # A preset for deterministic code generation
   deterministic-code:
     model: "claude-sonnet"
     temperature: 0.1
@@ -156,20 +176,20 @@ profiles:
     seed: 42 # For reproducible results
     stop: ["```", "END"] # Stop at code blocks or END marker
 
-  # A profile to reduce repetition
+  # A preset to reduce repetition
   no-repeat:
     model: "gpt-4"
     temperature: 0.5
     frequencyPenalty: 0.8 # Discourage repeating tokens
     presencePenalty: 0.6 # Encourage topic diversity
 
-  # A profile for JSON structured output
+  # A preset for JSON structured output
   json-output:
     model: "gpt-4"
     responseFormat: "json_object" # Force JSON output
     temperature: 0.3
 
-  # A profile for OpenRouter with advanced sampling
+  # A preset for OpenRouter with advanced sampling
   openrouter-creative:
     model: "openrouter-model"
     temperature: 0.9
@@ -177,7 +197,7 @@ profiles:
     minP: 0.05 # OpenRouter-specific
     topA: 0.2 # OpenRouter-specific
 
-  # A profile for llama.cpp with Mirostat
+  # A preset for llama.cpp with Mirostat
   local-mirostat:
     model: "local-dev"
     temperature: 0.7
@@ -187,7 +207,7 @@ profiles:
     typicalP: 0.95 # Typical sampling
 ````
 
-#### Profile Parameters
+#### Preset Parameters
 
 ##### Basic Parameters
 
@@ -209,7 +229,7 @@ profiles:
 
 ##### Output Control Parameters
 
-- **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this profile.
+- **`maxTokens`** (optional): Overrides the model's default maximum output tokens for this preset.
 - **`stop`** (optional): List of sequences where the model will stop generating. E.g., `["END", "STOP"]`.
 - **`candidateCount`** (optional): Number of response candidates to generate. Supported by OpenAI (as `n`) and Gemini.
 
@@ -246,7 +266,7 @@ profiles:
 
 ##### Cache Parameters
 
-- **`cache`** (optional): Override global cache settings for this profile (see Cache section).
+- **`cache`** (optional): Override global cache settings for this preset (see Cache section).
 
 **Note:** The availability and exact behavior of parameters may vary by provider:
 
@@ -287,14 +307,14 @@ cache:
   ttl: "168h" # Cache entries expire after 1 week (7 * 24h)
 ```
 
-You can also override these settings on a per-profile basis:
+You can also override these settings on a per-preset basis:
 
 ```yaml
-profiles:
-  no-cache-profile:
+presets:
+  no-cache-preset:
     model: "claude-sonnet"
     cache:
-      enabled: false # Disable cache for this profile
+      enabled: false # Disable cache for this preset
 ```
 
 ### `filter`
@@ -327,7 +347,7 @@ This section configures the "Map" phase for `commit` and `pullrequest` commands,
 summarize:
   # Default settings applied when no specific rule matches
   default:
-    profile: "fast"
+    preset: "openrouter-free"
     systemPrompt: "Summarize this code change concisely."
 
   # Rules are evaluated top-down; the first match wins
@@ -338,7 +358,7 @@ summarize:
 
     # 2. Use a powerful model for critical Go files
     - match: "internal/adapters/**/*.go"
-      profile: "smart"
+      preset: "claude-sonnet"
       systemPrompt: "Analyze this Go code change, focusing on business logic and potential side effects."
 
     # 3. Skip generated test snapshots
@@ -367,19 +387,19 @@ Both `commit` and `pullrequest` commands support a `strategy` field that determi
 - Use `"summarize"` (default) for larger changesets, complex refactorings, or when you need detailed per-file analysis
 
 ```yaml
-generate:
+write:
   default:
-    profile: "smart"
+    preset: "claude-sonnet"
     systemPrompt: "You are an expert software engineer."
   tasks:
     security-review:
       userPrompt: "Perform a comprehensive security review of this code."
     add-tests:
-      profile: "smart" # Can override the default profile
+      preset: "claude-sonnet" # Can override the default preset
       userPrompt: "Write comprehensive unit tests for this code in Go."
 
 commit:
-  profile: "smart"
+  preset: "claude-sonnet"
   strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer reviewing code changes. Your task is to write a high-quality commit message in the Conventional Commits format based on the provided summaries of file changes.
@@ -391,8 +411,8 @@ commit:
     4.  **Body (Optional):** If the change is non-trivial, add a body explaining the "why" behind the change, not just the "what". Describe the problem and the solution.
     5.  **Footer:** If applicable, add a `BREAKING CHANGE:` notice or link to issues (e.g., `Closes #42`).
 
-pullRequest:
-  profile: "smart"
+pr:
+  preset: "claude-sonnet"
   strategy: "summarize" # Optional: "summarize" (default) or "flat"
   systemPrompt: |
     You are an expert software engineer tasked with writing a Pull Request description. Based on the summaries of file changes, generate a complete PR description in Markdown format.
@@ -434,7 +454,7 @@ pullRequest:
 
 ### Minimal Configuration
 
-For a quick start, you only need to define a default model and profile.
+For a quick start, you only need to define a default model and preset.
 
 ```yaml
 # .meowg1k.yaml
@@ -443,18 +463,18 @@ models:
     provider: "gemini"
     model: "gemini-1.5-flash-latest"
 
-profiles:
+presets:
   default:
     model: "default"
 
-# All commands will now use this profile by default.
-generate:
+# All commands will now use this preset by default.
+write:
   default:
-    profile: "default"
+    preset: "default"
 commit:
-  profile: "default"
-pullRequest:
-  profile: "default"
+  preset: "default"
+pr:
+  preset: "default"
 ```
 
 ### Comprehensive Configuration
@@ -469,16 +489,21 @@ models:
     model: "gemini-1.5-flash-latest"
     rateLimit:
       requestsPerMinute: 30
+  gemini-embeddings:
+    provider: "gemini"
+    model: "text-embedding-004"
   claude-sonnet:
     provider: "anthropic"
     model: "claude-sonnet-4-5-20250929"
 
-profiles:
-  fast:
+presets:
+  gemini-flash:
     model: "gemini-flash"
-  smart:
+  claude-sonnet:
     model: "claude-sonnet"
     timeout: "15m"
+  gemini-embeddings:
+    model: "gemini-embeddings"
 
 filter:
   ignore:
@@ -488,29 +513,29 @@ filter:
 
 summarize:
   default:
-    profile: "fast"
+    preset: "gemini-flash"
     systemPrompt: "Summarize the following code change."
   rules:
     - match: "internal/database/**/*.sql"
-      profile: "smart"
+      preset: "claude-sonnet"
       systemPrompt: "Analyze this SQL migration. Explain schema changes and potential data loss risks."
 
-generate:
+write:
   default:
-    profile: "smart"
+    preset: "claude-sonnet"
   tasks:
     refactor:
       userPrompt: "Refactor this code to improve readability and performance."
     docs:
-      profile: "fast"
+      preset: "gemini-flash"
       userPrompt: "Generate GoDoc comments for all public functions."
 
 commit:
-  profile: "smart"
+  preset: "claude-sonnet"
   systemPrompt: "Write a Conventional Commit message based on the provided change summaries."
 
-pullRequest:
-  profile: "smart"
+pr:
+  preset: "claude-sonnet"
   systemPrompt: "Write a detailed PR description based on the provided change summaries. Include a title, a summary of changes, and potential risks."
 ```
 
@@ -520,9 +545,9 @@ The `index` section configures the document indexing process for RAG (Retrieval-
 
 ```yaml
 index:
-  # Profile for computing embeddings (required)
-  # This profile must reference a model that supports embeddings
-  profile: "embeddings"
+  # Preset for computing embeddings (required)
+  # This preset must reference a model that supports embeddings
+  preset: "gemini-embeddings"
 
   # Chunker configuration
   chunker:
@@ -567,9 +592,9 @@ The `ask` section configures the RAG-based question answering feature.
 
 ```yaml
 ask:
-  # Profile for generating answers (required)
+  # Preset for generating answers (required)
   # This should reference a capable LLM model for reasoning
-  profile: "smart"
+  preset: "gemini-pro"
 
   # Number of top chunks to retrieve for context
   # More chunks = more context but slower and may introduce noise
@@ -599,6 +624,72 @@ ask:
 - **Specific questions** (e.g., "Where is the login function?")
   - Lower `topK` (3-5)
   - Higher `minScore` (0.7-0.8)
+
+### `agent`
+
+The `agent` section configures the multi-step agent workflow used by `meow do`.
+It is configured as:
+- `system_prompt`: base system prompt applied to all steps
+- `flows`: ordered step lists + shared flow prompt
+- `personas`: per-step preset/tools/instructions
+
+Prompt composition:
+- **System prompt** (concatenated):
+  1) `agent.system_prompt`
+  2) `agent.flows.<name>.instructions`
+  3) (runtime) a short role/step line
+  4) `agent.personas.<step>.system_persona`
+- **User message**: goal + MEMORY FACTS + PREVIOUS STEP OUTPUTS, then `agent.personas.<step>.user_instructions`
+
+```yaml
+agent:
+  system_prompt: >-
+    You are a multi-step agent.
+    Use tools when needed and be concise.
+  tools:
+    searchDefaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      topK: 8
+      minScore: 0.6
+  flows:
+    default:
+      instructions: >-
+        Flow contract: steps run in order and share context through PREVIOUS STEP OUTPUTS.
+      steps: ["discover", "plan", "execute", "verify"]
+  personas:
+    discover:
+      role: "Code Discovery Agent"
+      preset: "gemini-flash"
+      tools: ["list_files", "search_code", "read_file", "summarize", "memorize_fact"]
+      system_persona: "You are a lead software engineer doing fast, high-signal codebase discovery."
+      user_instructions: >-
+        Gather the minimum context needed. Do not modify files.
+    plan:
+      role: "Planning Agent"
+      preset: "gemini-pro"
+      tools: ["get_plan", "read_file", "create_plan", "memorize_fact"]
+      system_persona: "You are a pragmatic tech lead planning work."
+      user_instructions: >-
+        Output the task list only.
+    execute:
+      role: "Execution Agent"
+      preset: "gemini-pro"
+      tools: ["get_plan", "read_file", "write_file", "edit_file", "run_shell", "update_task"]
+      system_persona: "You are a senior software engineer implementing changes safely in an existing codebase."
+      user_instructions: >-
+        Implement the plan and update task status.
+    verify:
+      role: "Verification Agent"
+      preset: "gemini-flash"
+      tools: ["run_shell", "get_diff", "summarize", "update_task", "restart_with_instruction"]
+      system_persona: "You are a meticulous reviewer and release engineer."
+      user_instructions: >-
+        Verify correctness; request a restart if issues remain.
+```
+
+**Notes:**
+
+- Search defaults apply to `search_code` tool calls and can be overridden by CLI flags.
 
 ## Next Steps
 

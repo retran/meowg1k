@@ -5,8 +5,10 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 
 	"google.golang.org/genai"
 
@@ -45,33 +47,139 @@ func newGeminiGateway(ctx context.Context, apiKey string) (ports.Gateway, error)
 func (g *geminiGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", fmt.Errorf("gemini gateway is nil")
+		return nil, fmt.Errorf("gemini gateway is nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	generationConfig := buildGeminiGenerationConfig(request)
+	if tools := request.Tools(); len(tools) > 0 {
+		generationConfig.Tools = buildGeminiTools(tools)
+		generationConfig.ToolConfig = &genai.ToolConfig{
+			FunctionCallingConfig: &genai.FunctionCallingConfig{Mode: genai.FunctionCallingConfigModeAuto},
+		}
+	}
 
-	userPrompt := genai.Text(request.UserPrompt())
+	userPromptText := g.mapMessagesToPrompt(request)
+	userPrompt := genai.Text(userPromptText)
 
 	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
 	if err != nil {
-		return "", fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
+		return nil, fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
 	}
 
 	if err := validateGeminiResponse(result, request.Model()); err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return result.Text(), nil
+	blocks := parseGeminiBlocksOrdered(result)
+	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+}
+
+func (g *geminiGateway) mapMessagesToPrompt(request *gateway.GenerateContentRequest) string {
+	msgs := request.Messages()
+	if len(msgs) == 0 {
+		return request.UserPrompt()
+	}
+
+	var b strings.Builder
+	for i := range msgs {
+		g.writeGeminiMessage(&b, &msgs[i])
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func (g *geminiGateway) writeGeminiMessage(b *strings.Builder, m *gateway.Message) {
+	role := string(m.Role)
+	if role == "" {
+		role = "unknown"
+	}
+	if len(m.ToolCalls) > 0 {
+		g.writeGeminiToolCalls(b, role, m.ToolCalls)
+		return
+	}
+	if m.Role == gateway.MessageRoleTool {
+		g.writeGeminiToolResult(b, m)
+		return
+	}
+	b.WriteString(strings.ToUpper(role))
+	b.WriteString(":\n")
+	b.WriteString(strings.TrimSpace(m.Content))
+	b.WriteString("\n\n")
+}
+
+func (g *geminiGateway) writeGeminiToolCalls(b *strings.Builder, role string, toolCalls []gateway.ToolCall) {
+	b.WriteString(strings.ToUpper(role))
+	b.WriteString(" TOOL_CALLS:\n")
+	for _, c := range toolCalls {
+		args, err := json.Marshal(c.Arguments)
+		if err != nil {
+			args = []byte("{}")
+		}
+		b.WriteString("- ")
+		b.WriteString(c.Name)
+		if c.ID != "" {
+			b.WriteString(" (id=")
+			b.WriteString(c.ID)
+			b.WriteString(")")
+		}
+		b.WriteString(" args=")
+		b.Write(args)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+}
+
+func (g *geminiGateway) writeGeminiToolResult(b *strings.Builder, m *gateway.Message) {
+	b.WriteString("TOOL ")
+	b.WriteString(m.ToolName)
+	if m.ToolCallID != "" {
+		b.WriteString(" (tool_call_id=")
+		b.WriteString(m.ToolCallID)
+		b.WriteString(")")
+	}
+	b.WriteString(":\n")
+	b.WriteString(strings.TrimSpace(m.Content))
+	b.WriteString("\n\n")
+}
+
+func parseGeminiBlocksOrdered(resp *genai.GenerateContentResponse) []gateway.ContentBlock {
+	if resp == nil || len(resp.Candidates) == 0 {
+		return nil
+	}
+
+	parts := resp.Candidates[0].Content.Parts
+	if len(parts) == 0 {
+		return nil
+	}
+
+	blocks := make([]gateway.ContentBlock, 0, len(parts))
+	for _, part := range parts {
+		if part == nil {
+			continue
+		}
+		if part.FunctionCall != nil {
+			call := gateway.ToolCall{ID: part.FunctionCall.ID, Name: part.FunctionCall.Name, Arguments: part.FunctionCall.Args}
+			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+			continue
+		}
+		if part.Text != "" {
+			kind := gateway.ContentBlockText
+			if part.Thought {
+				kind = gateway.ContentBlockReasoning
+			}
+			blocks = append(blocks, gateway.ContentBlock{Kind: kind, Text: part.Text})
+		}
+	}
+	return blocks
 }
 
 func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai.GenerateContentConfig {
@@ -85,6 +193,27 @@ func buildGeminiGenerationConfig(request *gateway.GenerateContentRequest) *genai
 	applyGeminiLogprobConfig(config, request)
 
 	return config
+}
+
+func buildGeminiTools(tools []gateway.ToolDefinition) []*genai.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	functions := make([]*genai.FunctionDeclaration, 0, len(tools))
+	for _, tool := range tools {
+		functions = append(functions, &genai.FunctionDeclaration{
+			Name:                 tool.Name,
+			Description:          tool.Description,
+			ParametersJsonSchema: tool.Parameters,
+		})
+	}
+
+	return []*genai.Tool{
+		{
+			FunctionDeclarations: functions,
+		},
+	}
 }
 
 func applyGeminiSystemPrompt(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {

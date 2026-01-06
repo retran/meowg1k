@@ -18,17 +18,18 @@ var indexCmd = &cobra.Command{
 
 This command processes all files in the workspace according to filter rules,
 chunks them, computes embeddings, and builds vector indices for efficient
-similarity search. The indices are used by 'query' and 'ask' commands.
+similarity search. The indices are used by 'search' and 'ask' commands.
 
 The indexing process includes:
   - Scanning workspace state (workdir, stage, head)
   - Chunking files according to configuration
-  - Computing embeddings using the configured profile
+  - Computing embeddings using the configured preset
   - Building and saving vector indices
 
-	Example:
+Example:
   meow index`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "IndexFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateIndexReconcileFlow()
 		})

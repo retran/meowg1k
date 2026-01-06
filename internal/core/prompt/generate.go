@@ -21,13 +21,13 @@ type TaskConfigurationProvider interface {
 	Get() (*task.ResolvedConfig, error)
 }
 
-// GeneratePromptService constructs prompts for the generate command.
+// GeneratePromptService constructs prompts for the write command.
 type GeneratePromptService struct {
 	systemPrompt string
 	userPrompt   string
 }
 
-// NewGeneratePromptService creates a prompt service for the generate command.
+// NewGeneratePromptService creates a prompt service for the write command.
 func NewGeneratePromptService(
 	stdInReader StandardInputReader,
 	taskConfigProvider TaskConfigurationProvider,

@@ -7,35 +7,35 @@ package pullrequest
 import (
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/domain/profile"
-	pullrequest2 "github.com/retran/meowg1k/internal/domain/pullrequest"
+	"github.com/retran/meowg1k/internal/domain/preset"
+	domainpullrequest "github.com/retran/meowg1k/internal/domain/pullrequest"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Service resolves PR configuration from application config and profiles.
+// Service resolves PR configuration from application config and presets.
 type Service struct {
-	configResolver  ports.ConfigResolver
-	profileResolver ports.ProfileResolver
+	configResolver ports.ConfigResolver
+	presetResolver ports.PresetResolver
 }
 
 // NewService creates a new PR configuration service.
-func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+func NewService(configResolver ports.ConfigResolver, presetResolver ports.PresetResolver) (*Service, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	return &Service{
-		configResolver:  configResolver,
-		profileResolver: profileResolver,
+		configResolver: configResolver,
+		presetResolver: presetResolver,
 	}, nil
 }
 
 // Get resolves the PR configuration.
-func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
+func (s *Service) Get() (*domainpullrequest.ResolvedConfig, error) {
 	if s == nil {
 		return nil, fmt.Errorf("pull request service is nil")
 	}
@@ -45,14 +45,14 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
-	var profileName string
+	var presetName string
 	var systemPrompt string
 	var strategy string
 
-	if config.PullRequest != nil {
-		profileName = config.PullRequest.Profile
-		systemPrompt = config.PullRequest.SystemPrompt
-		strategy = config.PullRequest.Strategy
+	if config.Flows != nil && config.Flows.Draft != nil && config.Flows.Draft.Pr != nil {
+		presetName = config.Flows.Draft.Pr.Preset
+		systemPrompt = config.Flows.Draft.Pr.SystemPrompt
+		strategy = config.Flows.Draft.Pr.Strategy
 	}
 
 	// Default to "summarize" if strategy is not specified
@@ -60,17 +60,17 @@ func (s *Service) Get() (*pullrequest2.ResolvedConfig, error) {
 		strategy = "summarize"
 	}
 
-	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
+	resolvedPreset, err := s.presetResolver.Get(preset.Preset(presetName))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile %q: %w", profileName, err)
+		return nil, fmt.Errorf("failed to resolve preset %q: %w", presetName, err)
 	}
 
 	if systemPrompt == "" {
 		return nil, fmt.Errorf("failed to get system prompt")
 	}
 
-	return &pullrequest2.ResolvedConfig{
-		Profile:      resolvedProfile,
+	return &domainpullrequest.ResolvedConfig{
+		Preset:       resolvedPreset,
 		Strategy:     strategy,
 		SystemPrompt: systemPrompt,
 	}, nil

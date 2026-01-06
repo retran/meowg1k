@@ -5,13 +5,13 @@
 package task
 
 import (
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // ResolvedConfig represents a resolved task configuration.
 type ResolvedConfig struct {
 	Name         string
-	Profile      *profile.ResolvedProfile
+	Preset       *preset.ResolvedPreset
 	SystemPrompt string
 	UserPrompt   string
 }

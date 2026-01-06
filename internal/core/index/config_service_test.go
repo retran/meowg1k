@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // Mock implementations for testing
@@ -23,26 +23,28 @@ func (m *mockConfigResolver) Get() (*config.Config, error) {
 		return m.GetFunc()
 	}
 	return &config.Config{
-		Index: &config.IndexConfig{
-			Profile: "test-profile",
-			Chunker: &config.ChunkerConfig{
-				MaxRunes:     1000,
-				OverlapRunes: 100,
+		Flows: &config.FlowsConfig{
+			Index: &config.IndexFlowConfig{
+				Preset: "test-preset",
+				Chunker: &config.ChunkerConfig{
+					MaxRunes:     1000,
+					OverlapRunes: 100,
+				},
+				BatchSize: 32,
 			},
-			BatchSize: 32,
 		},
 	}, nil
 }
 
-type mockProfileResolver struct {
-	GetFunc func(prof profile.Profile) (*profile.ResolvedProfile, error)
+type mockPresetResolver struct {
+	GetFunc func(prof preset.Preset) (*preset.ResolvedPreset, error)
 }
 
-func (m *mockProfileResolver) Get(prof profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockPresetResolver) Get(prof preset.Preset) (*preset.ResolvedPreset, error) {
 	if m.GetFunc != nil {
 		return m.GetFunc(prof)
 	}
-	return &profile.ResolvedProfile{
+	return &preset.ResolvedPreset{
 		Name: string(prof),
 	}, nil
 }
@@ -50,9 +52,9 @@ func (m *mockProfileResolver) Get(prof profile.Profile) (*profile.ResolvedProfil
 func TestNewConfigService(t *testing.T) {
 	t.Run("Valid parameters", func(t *testing.T) {
 		configResolver := &mockConfigResolver{}
-		profileResolver := &mockProfileResolver{}
+		presetResolver := &mockPresetResolver{}
 
-		service, err := NewConfigService(configResolver, profileResolver)
+		service, err := NewConfigService(configResolver, presetResolver)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -62,9 +64,9 @@ func TestNewConfigService(t *testing.T) {
 	})
 
 	t.Run("Nil configResolver", func(t *testing.T) {
-		profileResolver := &mockProfileResolver{}
+		presetResolver := &mockPresetResolver{}
 
-		service, err := NewConfigService(nil, profileResolver)
+		service, err := NewConfigService(nil, presetResolver)
 		if err == nil {
 			t.Fatal("Expected error for nil configResolver")
 		}
@@ -76,18 +78,18 @@ func TestNewConfigService(t *testing.T) {
 		}
 	})
 
-	t.Run("Nil profileResolver", func(t *testing.T) {
+	t.Run("Nil presetResolver", func(t *testing.T) {
 		configResolver := &mockConfigResolver{}
 
 		service, err := NewConfigService(configResolver, nil)
 		if err == nil {
-			t.Fatal("Expected error for nil profileResolver")
+			t.Fatal("Expected error for nil presetResolver")
 		}
 		if service != nil {
 			t.Fatal("Expected service to be nil when error occurs")
 		}
-		if !strings.Contains(err.Error(), "profile resolver is nil") {
-			t.Errorf("Expected profile resolver error, got: %v", err)
+		if !strings.Contains(err.Error(), "preset resolver is nil") {
+			t.Errorf("Expected preset resolver error, got: %v", err)
 		}
 	})
 }
@@ -95,9 +97,9 @@ func TestNewConfigService(t *testing.T) {
 func TestConfigService_Get(t *testing.T) {
 	t.Run("Successful configuration retrieval", func(t *testing.T) {
 		configResolver := &mockConfigResolver{}
-		profileResolver := &mockProfileResolver{}
+		presetResolver := &mockPresetResolver{}
 
-		service, _ := NewConfigService(configResolver, profileResolver)
+		service, _ := NewConfigService(configResolver, presetResolver)
 		cfg, err := service.Get()
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
@@ -105,8 +107,8 @@ func TestConfigService_Get(t *testing.T) {
 		if cfg == nil {
 			t.Fatal("Expected config to be non-nil")
 		}
-		if cfg.Profile == nil {
-			t.Fatal("Expected profile to be non-nil")
+		if cfg.Preset == nil {
+			t.Fatal("Expected preset to be non-nil")
 		}
 		if cfg.ChunkerMaxRunes != 1000 {
 			t.Errorf("Expected ChunkerMaxRunes=1000, got %d", cfg.ChunkerMaxRunes)
@@ -137,7 +139,7 @@ func TestConfigService_Get(t *testing.T) {
 				return nil, errors.New("config error")
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		_, err := service.Get()
 		if err == nil {
@@ -152,11 +154,11 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: nil,
+					Flows: nil,
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		_, err := service.Get()
 		if err == nil {
@@ -167,28 +169,30 @@ func TestConfigService_Get(t *testing.T) {
 		}
 	})
 
-	t.Run("Empty profile name", func(t *testing.T) {
+	t.Run("Empty preset name", func(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "",
-						Chunker: &config.ChunkerConfig{
-							MaxRunes:     1000,
-							OverlapRunes: 100,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset: "",
+							Chunker: &config.ChunkerConfig{
+								MaxRunes:     1000,
+								OverlapRunes: 100,
+							},
 						},
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		_, err := service.Get()
 		if err == nil {
-			t.Fatal("Expected error for empty profile")
+			t.Fatal("Expected error for empty preset")
 		}
-		if !strings.Contains(err.Error(), "index.profile is required") {
-			t.Errorf("Expected profile required error, got: %v", err)
+		if !strings.Contains(err.Error(), "index.preset is required") {
+			t.Errorf("Expected preset required error, got: %v", err)
 		}
 	})
 
@@ -196,14 +200,16 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "test-profile",
-						Chunker: nil,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset:  "test-preset",
+							Chunker: nil,
+						},
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		_, err := service.Get()
 		if err == nil {
@@ -214,20 +220,20 @@ func TestConfigService_Get(t *testing.T) {
 		}
 	})
 
-	t.Run("ProfileResolver returns error", func(t *testing.T) {
-		profileResolver := &mockProfileResolver{
-			GetFunc: func(prof profile.Profile) (*profile.ResolvedProfile, error) {
-				return nil, errors.New("profile error")
+	t.Run("PresetResolver returns error", func(t *testing.T) {
+		presetResolver := &mockPresetResolver{
+			GetFunc: func(prof preset.Preset) (*preset.ResolvedPreset, error) {
+				return nil, errors.New("preset error")
 			},
 		}
-		service, _ := NewConfigService(&mockConfigResolver{}, profileResolver)
+		service, _ := NewConfigService(&mockConfigResolver{}, presetResolver)
 
 		_, err := service.Get()
 		if err == nil {
-			t.Fatal("Expected error from profileResolver")
+			t.Fatal("Expected error from presetResolver")
 		}
-		if !strings.Contains(err.Error(), "failed to resolve profile") {
-			t.Errorf("Expected profile resolve error, got: %v", err)
+		if !strings.Contains(err.Error(), "failed to resolve preset") {
+			t.Errorf("Expected preset resolve error, got: %v", err)
 		}
 	})
 
@@ -235,18 +241,20 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "test-profile",
-						Chunker: &config.ChunkerConfig{
-							MaxRunes:     1000,
-							OverlapRunes: 100,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset: "test-preset",
+							Chunker: &config.ChunkerConfig{
+								MaxRunes:     1000,
+								OverlapRunes: 100,
+							},
+							BatchSize: 0, // Should default to 32
 						},
-						BatchSize: 0, // Should default to 32
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		cfg, err := service.Get()
 		if err != nil {
@@ -261,18 +269,20 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "test-profile",
-						Chunker: &config.ChunkerConfig{
-							MaxRunes:     1000,
-							OverlapRunes: 100,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset: "test-preset",
+							Chunker: &config.ChunkerConfig{
+								MaxRunes:     1000,
+								OverlapRunes: 100,
+							},
+							BatchSize: -10, // Should default to 32
 						},
-						BatchSize: -10, // Should default to 32
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		cfg, err := service.Get()
 		if err != nil {
@@ -287,18 +297,20 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "test-profile",
-						Chunker: &config.ChunkerConfig{
-							MaxRunes:     1000,
-							OverlapRunes: 100,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset: "test-preset",
+							Chunker: &config.ChunkerConfig{
+								MaxRunes:     1000,
+								OverlapRunes: 100,
+							},
+							BatchSize: 64,
 						},
-						BatchSize: 64,
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		cfg, err := service.Get()
 		if err != nil {
@@ -316,18 +328,20 @@ func TestConfigService_Get(t *testing.T) {
 		configResolver := &mockConfigResolver{
 			GetFunc: func() (*config.Config, error) {
 				return &config.Config{
-					Index: &config.IndexConfig{
-						Profile: "test-profile",
-						Chunker: &config.ChunkerConfig{
-							MaxRunes:     expectedMaxRunes,
-							OverlapRunes: expectedOverlapRunes,
+					Flows: &config.FlowsConfig{
+						Index: &config.IndexFlowConfig{
+							Preset: "test-preset",
+							Chunker: &config.ChunkerConfig{
+								MaxRunes:     expectedMaxRunes,
+								OverlapRunes: expectedOverlapRunes,
+							},
+							BatchSize: 32,
 						},
-						BatchSize: 32,
 					},
 				}, nil
 			},
 		}
-		service, _ := NewConfigService(configResolver, &mockProfileResolver{})
+		service, _ := NewConfigService(configResolver, &mockPresetResolver{})
 
 		cfg, err := service.Get()
 		if err != nil {
@@ -344,15 +358,15 @@ func TestConfigService_Get(t *testing.T) {
 
 func TestConfigService_Get_ReturnsResolvedConfig(t *testing.T) {
 	t.Run("Returns valid ResolvedConfig structure", func(t *testing.T) {
-		expectedProfile := &profile.ResolvedProfile{
-			Name: "test-profile",
+		expectedPreset := &preset.ResolvedPreset{
+			Name: "test-preset",
 		}
-		profileResolver := &mockProfileResolver{
-			GetFunc: func(prof profile.Profile) (*profile.ResolvedProfile, error) {
-				return expectedProfile, nil
+		presetResolver := &mockPresetResolver{
+			GetFunc: func(prof preset.Preset) (*preset.ResolvedPreset, error) {
+				return expectedPreset, nil
 			},
 		}
-		service, _ := NewConfigService(&mockConfigResolver{}, profileResolver)
+		service, _ := NewConfigService(&mockConfigResolver{}, presetResolver)
 
 		cfg, err := service.Get()
 		if err != nil {
@@ -363,8 +377,8 @@ func TestConfigService_Get_ReturnsResolvedConfig(t *testing.T) {
 			t.Fatal("Expected ResolvedConfig to be non-nil")
 		}
 
-		if cfg.Profile != expectedProfile {
-			t.Error("Expected profile to match")
+		if cfg.Preset != expectedPreset {
+			t.Error("Expected preset to match")
 		}
 	})
 }

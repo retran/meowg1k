@@ -141,8 +141,7 @@ func TestRunActivity(t *testing.T) {
 		return "result", nil
 	}
 
-	fut := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
-	result, err := fut.Get(ctx)
+	result, err := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
 	if err != nil {
 		t.Errorf("expected no error, got %v", err)
 	}
@@ -160,8 +159,7 @@ func TestRunActivityWithError(t *testing.T) {
 		return "", errActivity
 	}
 
-	fut := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
-	_, err := fut.Get(ctx)
+	_, err := ExecuteActivity(ctx, exec, parentCtx, "test", activity, "input")
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -194,7 +192,7 @@ func TestNoOpFeedbackHandler(t *testing.T) {
 		Timestamp:    time.Now(),
 	}
 
-	handler(feedback) // Should do nothing and not panic
+	handler(feedback) // Should run nothing and not panic
 }
 
 func TestFeedbackString(t *testing.T) {
@@ -213,7 +211,7 @@ func TestFeedbackString(t *testing.T) {
 				Error:        errTest,
 				Timestamp:    time.Now(),
 			},
-			expected: "[test-activity] running: running with error (50.0%) (test error)",
+			expected: "[test-activity] running: running with error (test error)",
 		},
 		{
 			name: "error without progress",
@@ -237,7 +235,7 @@ func TestFeedbackString(t *testing.T) {
 				Error:        nil,
 				Timestamp:    time.Now(),
 			},
-			expected: "[test-activity] running: running (75.0%)",
+			expected: "[test-activity] running: running",
 		},
 		{
 			name: "no error no progress",
@@ -307,13 +305,13 @@ func TestExecutorContextSendFeedbackMultipleRetries(t *testing.T) {
 	if feedbackCalls[0].Error == nil {
 		t.Error("Expected error in first retry feedback")
 	}
-	if feedbackCalls[0].Metadata["retry_attempt"] != 1 {
-		t.Errorf("Expected retry attempt 1, got %v", feedbackCalls[0].Metadata["retry_attempt"])
+	if feedbackCalls[0].Message != "I'm retrying the operation" {
+		t.Errorf("Expected retry message, got %q", feedbackCalls[0].Message)
 	}
 
 	// Check third retry
-	if feedbackCalls[1].Metadata["retry_attempt"] != 3 {
-		t.Errorf("Expected retry attempt 3, got %v", feedbackCalls[1].Metadata["retry_attempt"])
+	if feedbackCalls[1].Message != "I'm retrying the operation" {
+		t.Errorf("Expected retry message, got %q", feedbackCalls[1].Message)
 	}
 }
 
@@ -369,9 +367,7 @@ func TestExecutorWithComplexActivity(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := ExecuteActivity(ctx, executor, parentCtx, "complex", complexActivity, "test-input")
-
-	result, err := future.Get(context.Background())
+	result, err := ExecuteActivity(ctx, executor, parentCtx, "complex", complexActivity, "test-input")
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -407,9 +403,7 @@ func TestExecutorWithActivityThatFails(t *testing.T) {
 	ctx := context.Background()
 	parentCtx := NewContext("parent", handler, executor)
 
-	future := ExecuteActivity(ctx, executor, parentCtx, "failing", failingActivity, 42)
-
-	_, err := future.Get(context.Background())
+	_, err := ExecuteActivity(ctx, executor, parentCtx, "failing", failingActivity, 42)
 	if err == nil {
 		t.Fatal("Expected error from failing activity")
 	}
@@ -449,15 +443,13 @@ func TestExecutorFlowWithSubactivities(t *testing.T) {
 		executorCtx.SendRunning("Starting flow")
 
 		// Run first activity
-		future1 := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity1", simpleActivity, "input1")
-		result1, err := future1.Get(ctx)
+		result1, err := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity1", simpleActivity, "input1")
 		if err != nil {
 			return err
 		}
 
 		// Run second activity
-		future2 := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity2", simpleActivity, "input2")
-		result2, err := future2.Get(ctx)
+		result2, err := ExecuteActivity(ctx, executorCtx.GetExecutor(), executorCtx, "activity2", simpleActivity, "input2")
 		if err != nil {
 			return err
 		}
@@ -508,9 +500,7 @@ func TestExecutorWithTimeout(t *testing.T) {
 	defer cancel()
 
 	parentCtx := NewContext("parent", NoOpFeedbackHandler, executor)
-	future := ExecuteActivity(ctx, executor, parentCtx, "slow", slowActivity, "test")
-
-	_, err := future.Get(context.Background())
+	_, err := ExecuteActivity(ctx, executor, parentCtx, "slow", slowActivity, "test")
 	if err == nil {
 		t.Fatal("Expected timeout error")
 	}

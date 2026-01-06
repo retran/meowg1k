@@ -171,8 +171,8 @@ func (s *Service) GetIntentFlag() (string, error) {
 	return val, nil
 }
 
-// GetTargetBranchFlag retrieves the target-branch flag from command flags.
-func (s *Service) GetTargetBranchFlag() (string, error) {
+// GetDiffFlag retrieves the diff flag from command flags.
+func (s *Service) GetDiffFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
 	}
@@ -181,9 +181,9 @@ func (s *Service) GetTargetBranchFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	val, err := s.cmd.Flags().GetString("target-branch")
+	val, err := s.cmd.Flags().GetString("diff")
 	if err != nil {
-		return "", fmt.Errorf("failed to get target-branch flag: %w", err)
+		return "", fmt.Errorf("failed to get diff flag: %w", err)
 	}
 	return val, nil
 }
@@ -248,7 +248,7 @@ func (s *Service) GetUpdateCacheFlag() (bool, error) {
 	return val, nil
 }
 
-// GetQueryTextFlag retrieves the query text from command arguments or stdin.
+// GetQueryTextFlag retrieves the searchindex text from command arguments or stdin.
 func (s *Service) GetQueryTextFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
@@ -269,7 +269,7 @@ func (s *Service) GetQueryTextFlag() (string, error) {
 		return s.stdin, nil
 	}
 
-	return "", fmt.Errorf("query text is required (provide as argument or via stdin)")
+	return "", fmt.Errorf("searchindex text is required (provide as argument or via stdin)")
 }
 
 // GetSnapshotsFlag retrieves the snapshots flag from command flags.
@@ -365,8 +365,8 @@ func (s *Service) GetQuestionFlag() (string, error) {
 	return "", fmt.Errorf("question is required (provide as argument or via stdin)")
 }
 
-// GetProfileFlag retrieves the profile flag from command flags.
-func (s *Service) GetProfileFlag() (string, error) {
+// GetPresetFlag retrieves the preset flag from command flags.
+func (s *Service) GetPresetFlag() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("command service is nil")
 	}
@@ -375,9 +375,9 @@ func (s *Service) GetProfileFlag() (string, error) {
 		return "", fmt.Errorf("command is nil")
 	}
 
-	val, err := s.cmd.Flags().GetString("profile")
+	val, err := s.cmd.Flags().GetString("preset")
 	if err != nil {
-		return "", fmt.Errorf("failed to get profile flag: %w", err)
+		return "", fmt.Errorf("failed to get preset flag: %w", err)
 	}
 	return val, nil
 }
@@ -414,4 +414,43 @@ func (s *Service) GetSystemPromptFlag() (string, error) {
 		return "", fmt.Errorf("failed to get system-prompt flag: %w", err)
 	}
 	return val, nil
+}
+
+// GetDryRunFlag retrieves the dry-run flag from command flags.
+func (s *Service) GetDryRunFlag() (bool, error) {
+	if s == nil {
+		return false, fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return false, fmt.Errorf("command is nil")
+	}
+
+	val, err := s.cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		return false, fmt.Errorf("failed to get dry-run flag: %w", err)
+	}
+	return val, nil
+}
+
+// GetTaskInput retrieves the task input from command arguments or stdin.
+func (s *Service) GetTaskInput() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("command service is nil")
+	}
+
+	if s.cmd == nil {
+		return "", fmt.Errorf("command is nil")
+	}
+
+	args := s.cmd.Flags().Args()
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	if s.stdin != "" {
+		return s.stdin, nil
+	}
+
+	return "", fmt.Errorf("task input is required (provide as argument or via stdin)")
 }

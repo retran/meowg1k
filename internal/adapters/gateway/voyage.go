@@ -42,7 +42,7 @@ func newVoyageGateway(apiKey string, httpClient *http.Client) (ports.EmbeddingsG
 
 const (
 	// DefaultTaskType is the fallback input_type used by Voyage embeddings.
-	DefaultTaskType = "query"
+	DefaultTaskType = "searchindex"
 )
 
 // mapTaskTypeToInputType maps our generic gateway.TaskType to Voyage AI's input_type parameter.
@@ -65,7 +65,7 @@ func mapTaskTypeToInputType(taskType gateway.TaskType) string {
 	case gateway.FactVerification:
 		return DefaultTaskType
 	default:
-		return DefaultTaskType // default to query for unknown task types
+		return DefaultTaskType // default to searchindex for unknown task types
 	}
 }
 

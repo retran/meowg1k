@@ -33,7 +33,7 @@ func TestLogger_LogAPIInteraction(t *testing.T) {
 
 	entry := &APIInteractionEntry{
 		Command:  "commit",
-		Profile:  "default",
+		Preset:   "default",
 		Provider: "openai",
 		Model:    "gpt-4",
 		Request: RequestData{
@@ -175,7 +175,7 @@ func TestLogger_MultipleEntries(t *testing.T) {
 
 	err = logger.LogAPIInteraction(&APIInteractionEntry{
 		Command:  "commit",
-		Profile:  "default",
+		Preset:   "default",
 		Provider: "openai",
 		Model:    "gpt-4",
 		Request: RequestData{
@@ -279,14 +279,11 @@ func TestLogger_FeedbackHandler(t *testing.T) {
 		ActivityName: "TestActivity",
 		Status:       executor.StatusRunning,
 		Message:      "Processing",
-		Metadata: map[string]any{
-			"progress": 50,
-		},
 	}
 
 	handler(feedback)
 
-	// Wait a bit for async logging
+	// Wait a bit for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	if !innerCalled {
@@ -352,7 +349,7 @@ func TestLogger_FeedbackHandlerWithError(t *testing.T) {
 
 	handler(feedback)
 
-	// Wait a bit for async logging
+	// Wait a bit for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	// Verify log was created with error

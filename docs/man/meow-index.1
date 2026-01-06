@@ -1,5 +1,5 @@
 .\" docs/man/meow-index.1
-.TH MEOW-INDEX 1 "2025-10-15" "meowg1k" "User Commands"
+.TH MEOW-INDEX 1 "2025-10-15" "meow" "User Commands"
 .SH NAME
 meow-index \- index workspace files for semantic search and RAG
 .SH SYNOPSIS
@@ -55,7 +55,7 @@ configuration section:
 .PP
 .nf
 index:
-  profile: "embeddings"  # Profile with embedding model
+  preset: "embeddings"  # Preset with embedding model
 
   chunker:
     maxRunes: 1024       # Maximum chunk size in Unicode runes
@@ -64,7 +64,7 @@ index:
   batchSize: 64          # Chunks per embedding API call
 .fi
 .PP
-The profile must reference a model that supports embeddings:
+The preset must reference a model that supports embeddings:
 .PP
 .nf
 models:
@@ -72,7 +72,7 @@ models:
     provider: "gemini"
     model: "text-embedding-004"
 
-profiles:
+presets:
   embeddings:
     model: "gemini-embeddings"
 .fi
@@ -139,7 +139,7 @@ work-in-progress code.
 .PP
 This allows searching through historical code (HEAD), staged changes, and
 current work simultaneously. When searching with
-.BR meow-query (1)
+.BR meow-search (1)
 or
 .BR meow-ask (1),
 results from all three snapshots are merged and sorted by similarity.
@@ -234,11 +234,11 @@ For complete privacy with llama.cpp:
 #     provider: "llama"
 #     model: "nomic-embed-text-v1.5"
 #     baseURL: "http://localhost:8080"
-# profiles:
+# presets:
 #   embeddings:
 #     model: "local-embeddings"
 # index:
-#   profile: "embeddings"
+#   preset: "embeddings"
 #   batchSize: 1  # Process one chunk at a time for local
 
 # Index with local model
@@ -278,7 +278,7 @@ Embedding API authentication failure
 .IP \[bu]
 Rate limit exceeded
 .IP \[bu]
-Invalid configuration (missing profile or model)
+Invalid configuration (missing preset or model)
 .IP \[bu]
 Insufficient disk space for index
 
@@ -302,7 +302,7 @@ Documentation: use larger chunks (2048 runes).
 Cache embeddings to avoid recomputing for repeated indexing operations:
 .PP
 .nf
-profiles:
+presets:
   embeddings:
     model: "gemini-embeddings"
     cache:
@@ -320,7 +320,7 @@ profiles:
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

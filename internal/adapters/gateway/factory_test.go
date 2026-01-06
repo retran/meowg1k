@@ -19,7 +19,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/model"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
@@ -151,14 +151,14 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		profile     *profile.ResolvedProfile
+		preset      *preset.ResolvedPreset
 		name        string
 		errorMsg    string
 		expectError bool
 	}{
 		{
 			name: "OpenAI provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAI,
 				Model:           "gpt-4",
 				MaxInputTokens:  8000,
@@ -172,7 +172,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenAI provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAI,
 				Model:           "gpt-4",
 				MaxInputTokens:  8000,
@@ -187,7 +187,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Anthropic provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Anthropic,
 				Model:           "claude-3-haiku-20240307",
 				MaxInputTokens:  8000,
@@ -201,7 +201,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Anthropic provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Anthropic,
 				Model:           "claude-3-haiku-20240307",
 				MaxInputTokens:  8000,
@@ -216,7 +216,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Gemini provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Gemini,
 				Model:           "gemini-1.5-flash",
 				MaxInputTokens:  8000,
@@ -230,7 +230,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Gemini provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Gemini,
 				Model:           "gemini-1.5-flash",
 				MaxInputTokens:  8000,
@@ -245,7 +245,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Llama provider with base URL",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
 				MaxInputTokens:  8000,
@@ -259,7 +259,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Llama provider without base URL",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
 				MaxInputTokens:  8000,
@@ -274,7 +274,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenAI-compatible provider with base URL and API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAICompatible,
 				Model:           "custom-model",
 				MaxInputTokens:  8000,
@@ -288,7 +288,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenAI-compatible provider without base URL",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAICompatible,
 				Model:           "custom-model",
 				MaxInputTokens:  8000,
@@ -303,7 +303,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenAI-compatible provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAICompatible,
 				Model:           "custom-model",
 				MaxInputTokens:  8000,
@@ -317,7 +317,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenRouter provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenRouter,
 				Model:           "openrouter/auto",
 				MaxInputTokens:  8000,
@@ -331,7 +331,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "OpenRouter provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenRouter,
 				Model:           "openrouter/auto",
 				MaxInputTokens:  8000,
@@ -346,7 +346,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 		},
 		{
 			name: "Voyage provider (should fail for generation)",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Voyage,
 				Model:           "voyage-large-2",
 				MaxInputTokens:  8000,
@@ -363,7 +363,7 @@ func TestGatewayFactory_NewGenerationGateway(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gateway, err := factory.NewGenerationGateway(ctx, tt.profile)
+			gateway, err := factory.NewGenerationGateway(ctx, tt.preset)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -392,14 +392,14 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		profile     *profile.ResolvedProfile
+		preset      *preset.ResolvedPreset
 		name        string
 		errorMsg    string
 		expectError bool
 	}{
 		{
 			name: "OpenAI provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAI,
 				Model:           "text-embedding-ada-002",
 				MaxInputTokens:  8000,
@@ -413,7 +413,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "OpenAI provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenAI,
 				Model:           "text-embedding-ada-002",
 				MaxInputTokens:  8000,
@@ -428,7 +428,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Gemini provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Gemini,
 				Model:           "models/embedding-001",
 				MaxInputTokens:  8000,
@@ -442,7 +442,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Gemini provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Gemini,
 				Model:           "models/embedding-001",
 				MaxInputTokens:  8000,
@@ -457,7 +457,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Voyage provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Voyage,
 				Model:           "voyage-large-2",
 				MaxInputTokens:  8000,
@@ -471,7 +471,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Voyage provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Voyage,
 				Model:           "voyage-large-2",
 				MaxInputTokens:  8000,
@@ -486,7 +486,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "OpenRouter provider with API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenRouter,
 				Model:           "openai/text-embedding-ada-002",
 				MaxInputTokens:  8000,
@@ -500,7 +500,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "OpenRouter provider without API key",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.OpenRouter,
 				Model:           "openai/text-embedding-ada-002",
 				MaxInputTokens:  8000,
@@ -515,7 +515,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Llama provider (implemented)",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
 				MaxInputTokens:  8000,
@@ -529,7 +529,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Llama provider (missing BaseURL)",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Llama,
 				Model:           "llama-3.1-70b-instruct",
 				MaxInputTokens:  8000,
@@ -544,7 +544,7 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 		},
 		{
 			name: "Anthropic provider (not supported)",
-			profile: &profile.ResolvedProfile{
+			preset: &preset.ResolvedPreset{
 				Provider:        provider.Anthropic,
 				Model:           "claude-3-haiku-20240307",
 				MaxInputTokens:  8000,
@@ -558,16 +558,16 @@ func TestGatewayFactory_NewEmbeddingsGateway(t *testing.T) {
 			errorMsg:    "anthropic provider does not provide embedding models",
 		},
 		{
-			name:        "Nil profile",
-			profile:     nil,
+			name:        "Nil preset",
+			preset:      nil,
 			expectError: true,
-			errorMsg:    "profile cannot be nil",
+			errorMsg:    "preset cannot be nil",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gateway, err := factory.NewEmbeddingsGateway(ctx, tt.profile)
+			gateway, err := factory.NewEmbeddingsGateway(ctx, tt.preset)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -595,8 +595,8 @@ func TestGatewayFactory_NoOpLimiterFallback(t *testing.T) {
 	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	assert.NoError(t, err)
 
-	// Create a profile with rate limits enabled
-	prof := &profile.ResolvedProfile{
+	// Create a preset with rate limits enabled
+	prof := &preset.ResolvedPreset{
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
 		MaxInputTokens:  8000,
@@ -635,8 +635,8 @@ func TestGatewayFactory_NoLimitsNoOpLimiter(t *testing.T) {
 	factory, err := NewFactory(repo, mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	assert.NoError(t, err)
 
-	// Create a profile with NO rate limits - should use no-op limiter without touching DB
-	prof := &profile.ResolvedProfile{
+	// Create a preset with NO rate limits - should use no-op limiter without touching DB
+	prof := &preset.ResolvedPreset{
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
 		MaxInputTokens:  8000,

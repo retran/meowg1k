@@ -9,7 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
+	"github.com/retran/meowg1k/internal/activities/scanworktree"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
@@ -51,7 +51,7 @@ type PrepareOutput struct {
 
 // PrepareForProcessing normalizes workspace state for indexing.
 func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
-	wsState, ok := workspaceState.(*scanworkspacestate.Output)
+	wsState, ok := workspaceState.(*scanworktree.Output)
 	if !ok {
 		return nil, fmt.Errorf("invalid workspaceState type")
 	}
@@ -60,7 +60,7 @@ func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState inter
 
 func (s *Service) prepareForProcessingImpl(
 	ctx context.Context,
-	workspaceState *scanworkspacestate.Output,
+	workspaceState *scanworktree.Output,
 ) (*PrepareOutput, error) {
 	if workspaceState == nil {
 		return nil, fmt.Errorf("workspaceState cannot be nil")
@@ -201,7 +201,7 @@ func (s *Service) saveNewVersionImpl(
 
 // FinalizeInput defines the payload for snapshot finalization.
 type FinalizeInput struct {
-	ScanResult       *scanworkspacestate.Output
+	ScanResult       *scanworktree.Output
 	ExistingVersions map[string]int64
 	NewVersions      map[string]int64
 }
