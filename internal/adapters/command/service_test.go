@@ -543,7 +543,7 @@ func TestCommandServiceStateManagement(t *testing.T) {
 }
 
 func TestCommandServiceConcurrency(t *testing.T) {
-	cmd := &cobra.Command{Use: "concurrent-test"}
+	cmd := &cobra.Command{Use: "overlap-test"}
 	cmd.Flags().String("config", "test-config", "config path")
 	cmd.Flags().Bool("silent", false, "silent mode")
 
@@ -552,46 +552,46 @@ func TestCommandServiceConcurrency(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	// Test concurrent access to service methods
+	// Test overlapping access to service methods.
 	done := make(chan bool, 10)
 
 	for i := 0; i < 10; i++ {
 		go func(id int) {
 			defer func() { done <- true }()
 
-			// Multiple concurrent calls to various methods
+			// Multiple overlapping calls to various methods.
 			_, err := service.GetConfigPath()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetConfigPath failed: %v", id, err)
+				t.Errorf("Worker %d: GetConfigPath failed: %v", id, err)
 				return
 			}
 
 			name, err := service.GetCommandName()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetCommandName failed: %v", id, err)
+				t.Errorf("Worker %d: GetCommandName failed: %v", id, err)
 				return
 			}
-			if name != "concurrent-test" {
-				t.Errorf("Goroutine %d: Expected 'concurrent-test', got '%s'", id, name)
+			if name != "overlap-test" {
+				t.Errorf("Worker %d: Expected 'overlap-test', got '%s'", id, name)
 				return
 			}
 
 			_, err = service.GetSilentFlag()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetSilentFlag failed: %v", id, err)
+				t.Errorf("Worker %d: GetSilentFlag failed: %v", id, err)
 				return
 			}
 
 			stdin, err := service.GetStdIn()
 			if err != nil {
-				t.Errorf("Goroutine %d: GetStdIn failed: %v", id, err)
+				t.Errorf("Worker %d: GetStdIn failed: %v", id, err)
 				return
 			}
 			_ = stdin // Just verify it doesn't return error
 		}(i)
 	}
 
-	// Wait for all goroutines to complete
+	// Wait for all workers to complete.
 	for i := 0; i < 10; i++ {
 		<-done
 	}
@@ -792,8 +792,8 @@ func TestNilServiceMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("GetTargetBranchFlag on nil service", func(t *testing.T) {
-		_, err := service.GetTargetBranchFlag()
+	t.Run("GetDiffFlag on nil service", func(t *testing.T) {
+		_, err := service.GetDiffFlag()
 		if err == nil {
 			t.Error("Expected error for nil service, got nil")
 		}
@@ -960,7 +960,7 @@ func TestGetQueryTextFlagFromArgs(t *testing.T) {
 	}
 
 	// Simulate passing arguments
-	cmd.SetArgs([]string{"test query text"})
+	cmd.SetArgs([]string{"test searchindex text"})
 	cmd.Execute()
 
 	service, err := NewService(cmd)
@@ -973,8 +973,8 @@ func TestGetQueryTextFlagFromArgs(t *testing.T) {
 		t.Fatalf("GetQueryTextFlag failed: %v", err)
 	}
 
-	if queryText != "test query text" {
-		t.Errorf("Expected query text 'test query text', got '%s'", queryText)
+	if queryText != "test searchindex text" {
+		t.Errorf("Expected searchindex text 'test searchindex text', got '%s'", queryText)
 	}
 }
 
@@ -992,8 +992,8 @@ func TestGetQueryTextFlagNoArgsNoStdin(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when no args and no stdin")
 	}
-	if !strings.Contains(err.Error(), "query text is required") {
-		t.Errorf("Expected 'query text is required' error, got: %v", err)
+	if !strings.Contains(err.Error(), "searchindex text is required") {
+		t.Errorf("Expected 'searchindex text is required' error, got: %v", err)
 	}
 }
 
@@ -1336,50 +1336,50 @@ func TestGetQuestionFlagNilService(t *testing.T) {
 	}
 }
 
-func TestGetProfileFlag(t *testing.T) {
+func TestGetPresetFlag(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	cmd.Flags().String("profile", "", "profile name")
-	cmd.Flags().Set("profile", "production")
+	cmd.Flags().String("preset", "", "preset name")
+	cmd.Flags().Set("preset", "production")
 
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	profile, err := service.GetProfileFlag()
+	preset, err := service.GetPresetFlag()
 	if err != nil {
-		t.Fatalf("GetProfileFlag failed: %v", err)
+		t.Fatalf("GetPresetFlag failed: %v", err)
 	}
 
-	if profile != "production" {
-		t.Errorf("Expected profile 'production', got '%s'", profile)
+	if preset != "production" {
+		t.Errorf("Expected preset 'production', got '%s'", preset)
 	}
 }
 
-func TestGetProfileFlagEmpty(t *testing.T) {
+func TestGetPresetFlagEmpty(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
-	cmd.Flags().String("profile", "", "profile name")
+	cmd.Flags().String("preset", "", "preset name")
 
 	service, err := NewService(cmd)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	profile, err := service.GetProfileFlag()
+	preset, err := service.GetPresetFlag()
 	if err != nil {
-		t.Fatalf("GetProfileFlag failed: %v", err)
+		t.Fatalf("GetPresetFlag failed: %v", err)
 	}
 
-	if profile != "" {
-		t.Errorf("Expected empty profile, got '%s'", profile)
+	if preset != "" {
+		t.Errorf("Expected empty preset, got '%s'", preset)
 	}
 }
 
-func TestGetProfileFlagUndefined(t *testing.T) {
+func TestGetPresetFlagUndefined(t *testing.T) {
 	cmd := &cobra.Command{
 		Use: "test",
 	}
@@ -1389,16 +1389,16 @@ func TestGetProfileFlagUndefined(t *testing.T) {
 		t.Fatalf("NewService failed: %v", err)
 	}
 
-	_, err = service.GetProfileFlag()
+	_, err = service.GetPresetFlag()
 	if err == nil {
-		t.Error("Expected error when profile flag is not defined")
+		t.Error("Expected error when preset flag is not defined")
 	}
 }
 
-func TestGetProfileFlagNilService(t *testing.T) {
+func TestGetPresetFlagNilService(t *testing.T) {
 	var service *Service
 
-	_, err := service.GetProfileFlag()
+	_, err := service.GetPresetFlag()
 	if err == nil {
 		t.Error("Expected error for nil service")
 	}
@@ -1535,6 +1535,167 @@ func TestGetSystemPromptFlagNilService(t *testing.T) {
 	var service *Service
 
 	_, err := service.GetSystemPromptFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetDryRunFlagTrue(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("dry-run", false, "dry run")
+	cmd.Flags().Set("dry-run", "true")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	dryRun, err := service.GetDryRunFlag()
+	if err != nil {
+		t.Fatalf("GetDryRunFlag failed: %v", err)
+	}
+
+	if !dryRun {
+		t.Error("Expected dry-run flag to be true")
+	}
+}
+
+func TestGetDryRunFlagFalse(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+	cmd.Flags().Bool("dry-run", false, "dry run")
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	dryRun, err := service.GetDryRunFlag()
+	if err != nil {
+		t.Fatalf("GetDryRunFlag failed: %v", err)
+	}
+
+	if dryRun {
+		t.Error("Expected dry-run flag to be false")
+	}
+}
+
+func TestGetDryRunFlagUndefined(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetDryRunFlag()
+	if err == nil {
+		t.Error("Expected error when dry-run flag is not defined")
+	}
+}
+
+func TestGetDryRunFlagNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetDryRunFlag()
+	if err == nil {
+		t.Error("Expected error for nil service")
+	}
+}
+
+func TestGetTaskInputFromArgs(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+		Run: func(cmd *cobra.Command, args []string) {},
+	}
+
+	cmd.SetArgs([]string{"run the thing"})
+	cmd.Execute()
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	taskInput, err := service.GetTaskInput()
+	if err != nil {
+		t.Fatalf("GetTaskInput failed: %v", err)
+	}
+
+	if taskInput != "run the thing" {
+		t.Errorf("Expected task input 'run the thing', got '%s'", taskInput)
+	}
+}
+
+func TestGetTaskInputFromStdin(t *testing.T) {
+	oldStdin := os.Stdin
+	defer func() {
+		os.Stdin = oldStdin
+	}()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	defer r.Close()
+	defer w.Close()
+
+	os.Stdin = r
+
+	testInput := "stdin task input\n"
+	if _, err := w.WriteString(testInput); err != nil {
+		t.Fatalf("Failed to write to pipe: %v", err)
+	}
+	w.Close()
+
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	taskInput, err := service.GetTaskInput()
+	if err != nil {
+		t.Fatalf("GetTaskInput failed: %v", err)
+	}
+
+	expected := strings.TrimSpace(testInput)
+	if taskInput != expected {
+		t.Errorf("Expected task input '%s', got '%s'", expected, taskInput)
+	}
+}
+
+func TestGetTaskInputNoArgsNoStdin(t *testing.T) {
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	service, err := NewService(cmd)
+	if err != nil {
+		t.Fatalf("NewService failed: %v", err)
+	}
+
+	_, err = service.GetTaskInput()
+	if err == nil {
+		t.Error("Expected error when no args and no stdin")
+	}
+	if !strings.Contains(err.Error(), "task input is required") {
+		t.Errorf("Expected 'task input is required' error, got: %v", err)
+	}
+}
+
+func TestGetTaskInputNilService(t *testing.T) {
+	var service *Service
+
+	_, err := service.GetTaskInput()
 	if err == nil {
 		t.Error("Expected error for nil service")
 	}

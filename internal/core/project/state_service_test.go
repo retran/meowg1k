@@ -4,12 +4,19 @@
 package project
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
+
+	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
 
-// Mock implementations for testing
+// Mock implementations for testing.
+const ignoredFilename = "ignored.txt"
 
 type mockGitService struct {
 	ListFilesFunc             func(ref string) ([]string, error)
@@ -156,7 +163,7 @@ func TestStateService_GetHeadState(t *testing.T) {
 	t.Run("Filters ignored files", func(t *testing.T) {
 		gitSvc := &mockGitService{
 			ListFilesFunc: func(ref string) ([]string, error) {
-				return []string{"file1.go", "ignored.txt", "file2.go"}, nil
+				return []string{"file1.go", ignoredFilename, "file2.go"}, nil
 			},
 			ReadFileAtCommitFunc: func(ref, filePath string) (string, error) {
 				return "content", nil
@@ -164,7 +171,7 @@ func TestStateService_GetHeadState(t *testing.T) {
 		}
 		filterSvc := &mockFilterService{
 			IsIgnoredFileFunc: func(filePath string) bool {
-				return filePath == "ignored.txt"
+				return filePath == ignoredFilename
 			},
 		}
 		service := NewStateService(gitSvc, filterSvc, &mockWorkspaceService{})
@@ -176,8 +183,8 @@ func TestStateService_GetHeadState(t *testing.T) {
 		if len(state) != 2 {
 			t.Errorf("Expected 2 files (filtered 1), got %d", len(state))
 		}
-		if _, ok := state["ignored.txt"]; ok {
-			t.Error("Expected ignored.txt to be filtered out")
+		if _, ok := state[ignoredFilename]; ok {
+			t.Errorf("Expected %s to be filtered out", ignoredFilename)
 		}
 	})
 
@@ -220,7 +227,7 @@ func TestStateService_GetHeadState(t *testing.T) {
 			t.Error("Expected content hash to be computed")
 		}
 		// Verify content is stored
-		if string(fileState.Content) != content {
+		if !bytes.Equal(fileState.Content, []byte(content)) {
 			t.Errorf("Expected content %q, got %q", content, string(fileState.Content))
 		}
 	})
@@ -398,4 +405,185 @@ func TestComputeContentHash(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestEnsurePathWithinRoot(t *testing.T) {
+	t.Run("accepts paths inside root", func(t *testing.T) {
+		root := filepath.Join(t.TempDir(), "root")
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatalf("failed to create root: %v", err)
+		}
+
+		path := filepath.Join(root, "file.txt")
+		cleaned, err := ensurePathWithinRoot(path, root)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if cleaned != path {
+			t.Errorf("expected cleaned path %s, got %s", path, cleaned)
+		}
+	})
+
+	t.Run("rejects paths outside root", func(t *testing.T) {
+		root := filepath.Join(t.TempDir(), "root")
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatalf("failed to create root: %v", err)
+		}
+
+		outside := filepath.Join(t.TempDir(), "outside.txt")
+		if _, err := ensurePathWithinRoot(outside, root); err == nil {
+			t.Fatal("expected error for path outside root")
+		}
+	})
+}
+
+func TestReadFileState(t *testing.T) {
+	t.Run("reads file and computes hash", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "file.txt")
+		content := []byte("hello")
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+
+		state, err := readFileState(path)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if !bytes.Equal(state.Content, content) {
+			t.Errorf("expected content %q, got %q", content, state.Content)
+		}
+		if state.ContentHash != computeContentHash(content) {
+			t.Errorf("expected hash %s, got %s", computeContentHash(content), state.ContentHash)
+		}
+	})
+
+	t.Run("returns error when file missing", func(t *testing.T) {
+		if _, err := readFileState(filepath.Join(t.TempDir(), "missing.txt")); err == nil {
+			t.Fatal("expected error for missing file")
+		}
+	})
+}
+
+func TestCheckWalkContext(t *testing.T) {
+	t.Run("returns context error when cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		if err := checkWalkContext(ctx, nil); err == nil {
+			t.Fatal("expected context cancellation error")
+		}
+	})
+
+	t.Run("returns walk error when provided", func(t *testing.T) {
+		walkErr := errors.New("walk error")
+		if err := checkWalkContext(context.Background(), walkErr); err == nil || !errors.Is(err, walkErr) {
+			t.Fatalf("expected walk error, got %v", err)
+		}
+	})
+}
+
+func TestHandleWorkdirEntry(t *testing.T) {
+	makeEntry := func(t *testing.T, path string) fs.DirEntry {
+		t.Helper()
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat failed: %v", err)
+		}
+		return fs.FileInfoToDirEntry(info)
+	}
+
+	t.Run("adds file state for valid file", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, "keep.txt")
+		if err := os.WriteFile(path, []byte("content"), 0o600); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+
+		filterSvc := &mockFilterService{}
+		service := NewStateService(&mockGitService{}, filterSvc, &mockWorkspaceService{})
+		state := map[string]domainindex.FileState{}
+
+		err := service.handleWorkdirEntry(context.Background(), root, state, path, makeEntry(t, path), nil)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if _, ok := state["keep.txt"]; !ok {
+			t.Fatal("expected keep.txt to be tracked")
+		}
+	})
+
+	t.Run("skips ignored files", func(t *testing.T) {
+		root := t.TempDir()
+		path := filepath.Join(root, ignoredFilename)
+		if err := os.WriteFile(path, []byte("content"), 0o600); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+
+		filterSvc := &mockFilterService{
+			IsIgnoredFileFunc: func(filePath string) bool {
+				return filePath == ignoredFilename
+			},
+		}
+		service := NewStateService(&mockGitService{}, filterSvc, &mockWorkspaceService{})
+		state := map[string]domainindex.FileState{}
+
+		err := service.handleWorkdirEntry(context.Background(), root, state, path, makeEntry(t, path), nil)
+		if err != nil {
+			t.Fatalf("expected no error, got %v", err)
+		}
+		if _, ok := state[ignoredFilename]; ok {
+			t.Fatalf("expected %s to be skipped", ignoredFilename)
+		}
+	})
+
+	t.Run("rejects files outside root", func(t *testing.T) {
+		root := t.TempDir()
+		outsideDir := t.TempDir()
+		path := filepath.Join(outsideDir, "outside.txt")
+		if err := os.WriteFile(path, []byte("content"), 0o600); err != nil {
+			t.Fatalf("write failed: %v", err)
+		}
+
+		service := NewStateService(&mockGitService{}, &mockFilterService{}, &mockWorkspaceService{})
+		state := map[string]domainindex.FileState{}
+
+		err := service.handleWorkdirEntry(context.Background(), root, state, path, makeEntry(t, path), nil)
+		if err == nil {
+			t.Fatal("expected error for file outside root")
+		}
+	})
+}
+
+func TestStateService_GetWorkdirState_Success(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "keep.txt"), []byte("keep"), 0o600); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ignoredFilename), []byte("ignore"), 0o600); err != nil {
+		t.Fatalf("write failed: %v", err)
+	}
+
+	service := NewStateService(
+		&mockGitService{},
+		&mockFilterService{
+			IsIgnoredFileFunc: func(filePath string) bool { return filePath == ignoredFilename },
+		},
+		&mockWorkspaceService{
+			GetFunc: func() (string, error) {
+				return root, nil
+			},
+		},
+	)
+
+	state, err := service.GetWorkdirState(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if _, ok := state["keep.txt"]; !ok {
+		t.Fatal("expected keep.txt to be tracked")
+	}
+	if _, ok := state[ignoredFilename]; ok {
+		t.Fatalf("expected %s to be filtered out", ignoredFilename)
+	}
 }

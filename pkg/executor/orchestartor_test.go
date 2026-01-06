@@ -40,7 +40,7 @@ func TestFlowRunner_RunFlow(t *testing.T) {
 		{
 			name:      "flow execution with error",
 			flowError: context.DeadlineExceeded,
-			wantError: true,
+			wantError: false, // Errors are reported via tracker and suppressed
 			silent:    true,
 		},
 	}
@@ -148,7 +148,8 @@ func TestFlowRunner_RunFlowWithBothErrors(t *testing.T) {
 
 	err = runner.Execute(context.Background(), "TestFlow", flow, false)
 
-	if err == nil {
-		t.Error("RunFlow() expected error, got nil")
+	// Flow errors are now reported via tracker and suppressed
+	if err != nil {
+		t.Errorf("RunFlow() expected nil (error reported via tracker), got: %v", err)
 	}
 }

@@ -1,5 +1,5 @@
 .\" docs/man/meow.1
-.TH MEOW 1 "2025-10-04" "meowg1k" "User Commands"
+.TH MEOW 1 "2025-10-04" "meow" "User Commands"
 .SH NAME
 meow \- your purr-sonal AI sidekick for the terminal
 .SH SYNOPSIS
@@ -17,7 +17,7 @@ interactive conversation. It transforms code and text into AI-enhanced
 results through a Unix-philosophy interface.
 .PP
 The tool supports multiple LLM providers through a configuration-driven
-approach using reusable profiles to simplify working with cloud models
+approach using reusable presets to simplify working with cloud models
 (Gemini, OpenAI, Anthropic, OpenRouter) and local inference (llama.cpp,
 OpenAI-compatible APIs).
 .PP
@@ -28,24 +28,22 @@ is controlled through version-controlled YAML configuration files.
 .SS Code Generation Commands
 .TP
 .B init
-Initialize a new meowg1k project configuration by creating a
+Initialize a new meow project configuration by creating a
 .B .meowg1k.yaml
 file with sensible defaults. Uses Google Gemini as the default provider.
 .TP
-.B generate
+.B write
 Generate content based on a prompt and/or context provided via stdin.
 Supports predefined tasks and custom prompts. Works with all supported
 providers. Aliases: \fBgen\fR, \fBg\fR.
 .TP
-.B commit
-Generate commit messages based on staged changes or the difference between
-branches. Supports two strategies: \fBsummarize\fR (Map-Reduce for large
-commits) and \fBflat\fR (direct diff for small commits). Alias: \fBc\fR.
+.B draft
+Draft commit messages or Pull Request descriptions based on code diffs.
+Subcommands: \fBcommit\fR, \fBpr\fR.
 .TP
-.B pullrequest
-Generate Pull Request title and description based on the difference between
-your current branch and a base branch. Supports two strategies: \fBsummarize\fR
-and \fBflat\fR. Alias: \fBpr\fR.
+.B do
+Run a multi-step agent workflow (research \[->] plan \[->] execute \[->] verify)
+to complete a task with tool use.
 
 .SS RAG and Code Search Commands
 .TP
@@ -54,9 +52,9 @@ Index workspace files by computing embeddings and building vector indices for
 semantic search and RAG-based queries. Processes workdir, stage, and HEAD
 snapshots. Alias: \fBidx\fR.
 .TP
-.B query
+.B search
 Search for code chunks similar to the query text using vector similarity
-(semantic search). Returns relevant code with similarity scores. Alias: \fBq\fR.
+(semantic search). Returns relevant code with similarity scores. Alias: \fBs\fR.
 .TP
 .B ask
 Ask a question about your codebase and get an AI-generated answer using
@@ -130,7 +128,7 @@ environment variable. Embeddings only.
 .B llama
 Local llama.cpp HTTP server. Optionally uses
 .B MEOW_LLAMA_API_KEY
-environment variable. Requires explicit baseURL in profile.
+environment variable. Requires explicit baseURL in preset.
 .TP
 .B openai\-compatible
 Custom OpenAI\-compatible APIs. Requires
@@ -161,7 +159,7 @@ Optional API key for the llama provider.
 API key for OpenAI\-compatible providers.
 
 .SH CONFIGURATION
-Configuration uses a hierarchical profile-based system. Files are read with
+Configuration uses a hierarchical preset-based system. Files are read with
 this precedence (each subsequent location overrides the previous):
 .IP "1." 3
 User config:
@@ -181,7 +179,7 @@ The configuration file has several top-level sections:
 .B models
 Model definitions including provider, connection details, and rate limits.
 .TP
-.B profiles
+.B presets
 Reusable LLM request parameters referencing models, with timeout, temperature,
 and sampling settings.
 .TP
@@ -194,32 +192,32 @@ Gitignore-style patterns to exclude files from analysis
 (for security and noise reduction).
 .TP
 .B summarize
-Map-phase configuration for commit and pullrequest commands, with
+Map-phase configuration for commit and PR draft commands, with
 .br
 rule-based file-specific settings.
 .TP
-.B generate
-Configuration for the generate command, including predefined tasks.
+.B write
+Configuration for the write command, including predefined tasks.
 .TP
 .B commit
 Reduce-phase configuration for generating commit messages. Supports
 .br
 \fBsummarize\fR and \fBflat\fR strategies.
 .TP
-.B pullRequest
+.B pr
 Reduce-phase configuration for generating PR descriptions. Supports
 .br
 \fBsummarize\fR and \fBflat\fR strategies.
 .TP
 .B index
-Configuration for indexing workspace files, including embedding profile,
+Configuration for indexing workspace files, including embedding preset,
 .br
 chunker settings, and batch size.
 .TP
 .B ask
 Configuration for RAG-based question answering, including retrieval
 .br
-parameters (topK, minScore) and answer generation profile.
+parameters (topK, minScore) and answer generation preset.
 .PP
 See
 .BR meow\-config (5)
@@ -245,13 +243,13 @@ Force overwrite existing configuration:
 Use a predefined task:
 .PP
 .nf
-.B cat main.go | meow generate \-t review
+.B cat main.go | meow write \-t review
 .fi
 .PP
 Direct prompt generation:
 .PP
 .nf
-.B echo "Create a REST API" | meow generate \-u "Write Go code"
+.B echo "Create a REST API" | meow write \-u "Write Go code"
 .fi
 .PP
 Refactor code with custom prompt:
@@ -265,32 +263,32 @@ Generate commit message from staged changes:
 .PP
 .nf
 .B git add .
-.B meow commit
+.B meow draft commit
 .fi
 .PP
 Provide developer intent:
 .PP
 .nf
-.B meow commit \-i "Fix user authentication bug"
+.B meow draft commit \-i "Fix user authentication bug"
 .fi
 .PP
-Generate squash commit message:
+Generate branch diff commit message:
 .PP
 .nf
-.B meow commit \-\-target\-branch main
+.B meow draft commit \-\-diff branch \-\-base main
 .fi
 
 .SS Pull Request Description
 Generate PR description:
 .PP
 .nf
-.B meow pullrequest \-\-base main
+.B meow draft pr \-\-base main
 .fi
 .PP
 With developer intent:
 .PP
 .nf
-.B meow pullrequest \-b dev \-i "Add complete Stripe payment integration"
+.B meow draft pr \-b dev \-i "Add complete Stripe payment integration"
 .fi
 
 .SS RAG and Code Search
@@ -303,8 +301,8 @@ Index your codebase:
 Semantic code search:
 .PP
 .nf
-.B meow query "authentication middleware"
-.B meow query "error handling" \-\-top\-k 20 \-\-min\-score 0.5
+.B meow search "authentication middleware"
+.B meow search "error handling" \-\-top\-k 20 \-\-min\-score 0.5
 .fi
 .PP
 Ask questions about your codebase:
@@ -317,14 +315,14 @@ Ask questions about your codebase:
 Search specific snapshots:
 .PP
 .nf
-.B meow query "new feature" \-\-snapshots _workdir_
+.B meow search "new feature" \-\-snapshots _workdir_
 .B meow ask "What changed?" \-s _workdir_,_stage_
 .fi
 
 .SS Project Configuration
 Create
 .B ./.meowg1k.yaml
-with custom profiles and tasks:
+with custom presets and tasks:
 .PP
 .nf
 models:
@@ -338,7 +336,7 @@ models:
     provider: "gemini"
     model: "text-embedding-004"
 
-profiles:
+presets:
   fast:
     model: "gemini-flash"
   smart:
@@ -346,30 +344,30 @@ profiles:
   embeddings:
     model: "gemini-embeddings"
 
-generate:
+write:
   default:
-    profile: "fast"
+    preset: "gemini-flash"
   tasks:
     security:
-      profile: "smart"
+      preset: "gemini-pro"
       userPrompt: "Perform security analysis"
 
 commit:
-  profile: "smart"
+  preset: "gemini-pro"
   strategy: "summarize"
 
-pullRequest:
-  profile: "smart"
+pr:
+  preset: "gemini-pro"
   strategy: "summarize"
 
 index:
-  profile: "embeddings"
+  preset: "embeddings"
   chunker:
     maxRunes: 1024
     overlapRunes: 128
 
 ask:
-  profile: "smart"
+  preset: "gemini-pro"
   topK: 5
   minScore: 0.7
 .fi
@@ -377,9 +375,9 @@ ask:
 Then use the configuration:
 .PP
 .nf
-.B cat auth.go | meow generate \-t security
-.B meow commit
-.B meow pr \-\-base main
+.B cat auth.go | meow write \-t security
+.B meow draft commit
+.B meow draft pr \-\-base main
 .fi
 
 .SH FILES
@@ -475,9 +473,9 @@ cryptographically signed.
 
 .SH SEE ALSO
 .BR meow\-init (1),
-.BR meow\-generate (1),
-.BR meow\-commit (1),
-.BR meow\-pullrequest (1),
+.BR meow\-write (1),
+.BR meow\-draft\-commit (1),
+.BR meow\-draft\-pr (1),
 .BR meow\-version (1),
 .BR meow\-config (5),
 .BR meow\-security (7)
@@ -486,7 +484,7 @@ cryptographically signed.
 Andrew Vasilyev <me@retran.me>
 
 .SH COPYRIGHT
-Copyright © 2025 The meowg1k Authors
+Copyright © 2025 The meow Authors
 Licensed under the Apache License, Version 2.0.
 .PP
 Project page: https://github.com/retran/meowg1k

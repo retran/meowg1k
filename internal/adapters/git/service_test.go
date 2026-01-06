@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -619,4 +620,113 @@ func TestServiceWithCustomWorkspace(t *testing.T) {
 	}
 
 	t.Logf("Successfully tested git service with custom workspace: %s", tmpDir)
+}
+
+func TestServiceImpl_ToolingMethods(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := exec.CommandContext(context.Background(), "git", "init", tmpDir).Run(); err != nil {
+		t.Skipf("Cannot init git repo: %v", err)
+	}
+
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "config", "user.name", "Test User").Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "config", "user.email", "test@example.com").Run()
+
+	testFilePath := filepath.Join(tmpDir, testFileName)
+	if err := os.WriteFile(testFilePath, []byte("line 1\n"), 0o644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "add", testFileName).Run()
+	exec.CommandContext(context.Background(), "git", "-C", tmpDir, "commit", "-m", "Initial commit").Run()
+
+	service, err := NewService(&customWorkspaceService{dir: tmpDir})
+	if err != nil {
+		t.Fatalf("NewService() failed: %v", err)
+	}
+
+	status, err := service.Status()
+	if err != nil {
+		t.Fatalf("Status() failed: %v", err)
+	}
+	if status != "" {
+		t.Errorf("Expected clean status, got %q", status)
+	}
+
+	logOutput, err := service.Log(1, "")
+	if err != nil {
+		t.Fatalf("Log() failed: %v", err)
+	}
+	if !strings.Contains(logOutput, "Initial commit") {
+		t.Errorf("Expected log to contain commit message, got %q", logOutput)
+	}
+
+	showOutput, err := service.Show("HEAD")
+	if err != nil {
+		t.Fatalf("Show() failed: %v", err)
+	}
+	if !strings.Contains(showOutput, "Initial commit") {
+		t.Errorf("Expected show output to contain commit message, got %q", showOutput)
+	}
+
+	branches, err := service.Branches()
+	if err != nil {
+		t.Fatalf("Branches() failed: %v", err)
+	}
+
+	currentBranch, err := service.CurrentBranch()
+	if err != nil {
+		t.Fatalf("CurrentBranch() failed: %v", err)
+	}
+	if currentBranch == "" {
+		t.Error("Expected current branch to be non-empty")
+	}
+	if !containsString(branches, currentBranch) {
+		t.Errorf("Expected branches to contain %q, got %v", currentBranch, branches)
+	}
+
+	if err := os.WriteFile(testFilePath, []byte("line 1\nline 2\n"), 0o644); err != nil {
+		t.Fatalf("Failed to update test file: %v", err)
+	}
+
+	diffOutput, err := service.Diff("", testFileName)
+	if err != nil {
+		t.Fatalf("Diff() failed: %v", err)
+	}
+	if !strings.Contains(diffOutput, "line 2") {
+		t.Errorf("Expected diff output to include changes, got %q", diffOutput)
+	}
+
+	status, err = service.Status()
+	if err != nil {
+		t.Fatalf("Status() failed after modification: %v", err)
+	}
+	if !strings.Contains(status, testFileName) {
+		t.Errorf("Expected status to mention %s, got %q", testFileName, status)
+	}
+
+	if _, err := service.Stage([]string{testFileName}); err != nil {
+		t.Fatalf("Stage() failed: %v", err)
+	}
+
+	if _, err := service.Commit("Second commit"); err != nil {
+		t.Fatalf("Commit() failed: %v", err)
+	}
+
+	headHash, err := service.HeadHash()
+	if err != nil {
+		t.Fatalf("HeadHash() failed: %v", err)
+	}
+	if headHash == "" {
+		t.Error("Expected HeadHash to be non-empty")
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

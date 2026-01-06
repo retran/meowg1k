@@ -83,14 +83,16 @@ func TestService_Get_Success(t *testing.T) {
 	defer os.Unsetenv("TEST_API_KEY")
 
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
-				Provider:        "openai",
-				Model:           "gpt-4",
-				MaxInputTokens:  8000,
-				MaxOutputTokens: 2000,
-				BaseURL:         "https://api.openai.com/v1",
-				APIKeyEnv:       "TEST_API_KEY",
+				Provider:  "openai",
+				Model:     "gpt-4",
+				BaseURL:   "https://api.openai.com/v1",
+				APIKeyEnv: "TEST_API_KEY",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  8000,
+					MaxOutputTokens: 2000,
+				},
 			},
 		},
 	}
@@ -100,7 +102,6 @@ func TestService_Get_Success(t *testing.T) {
 		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
-				DefaultModel:    "gpt-4",
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 2000,
 				DefaultBaseURL:  "https://api.openai.com/v1",
@@ -128,12 +129,14 @@ func TestService_Get_Success(t *testing.T) {
 
 func TestService_Get_Cached(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
-				Provider:        "openai",
-				Model:           "gpt-4",
-				MaxInputTokens:  8000,
-				MaxOutputTokens: 2000,
+				Provider: "openai",
+				Model:    "gpt-4",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  8000,
+					MaxOutputTokens: 2000,
+				},
 			},
 		},
 	}
@@ -143,7 +146,6 @@ func TestService_Get_Cached(t *testing.T) {
 		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
-				DefaultModel:    "gpt-4",
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 2000,
 			},
@@ -174,7 +176,7 @@ func TestService_Get_Cached(t *testing.T) {
 
 func TestService_Get_ModelNotFound(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{},
+		Models: map[string]*config.ModelConfig{},
 	}
 
 	configResolver := &mockServiceConfigResolver{config: cfg}
@@ -293,12 +295,12 @@ func TestService_ValidateResolvedModel_EmptyModelName(t *testing.T) {
 	}
 }
 
-func TestService_ResolveModelInternal_WithDefaults(t *testing.T) {
+func TestService_ResolveModelInternal_ModelNameRequired(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
 				Provider: "openai",
-				// Model not specified - should use provider default
+				Model:    "",
 			},
 		},
 	}
@@ -308,7 +310,6 @@ func TestService_ResolveModelInternal_WithDefaults(t *testing.T) {
 		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
-				DefaultModel:    "gpt-3.5-turbo",
 				MaxInputTokens:  4000,
 				MaxOutputTokens: 2000,
 				DefaultBaseURL:  "https://api.openai.com/v1",
@@ -322,29 +323,23 @@ func TestService_ResolveModelInternal_WithDefaults(t *testing.T) {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	resolved, err := service.Get("test-model")
-	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
-	}
-
-	// Should use provider defaults
-	if resolved.Model != "gpt-3.5-turbo" {
-		t.Errorf("Expected default model 'gpt-3.5-turbo', got '%s'", resolved.Model)
-	}
-	if resolved.MaxInputTokens != 4000 {
-		t.Errorf("Expected default max input tokens 4000, got %d", resolved.MaxInputTokens)
+	_, err = service.Get("test-model")
+	if err == nil {
+		t.Fatal("Expected error for missing model name")
 	}
 }
 
 func TestService_ResolveModelInternal_WithRateLimit(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
-				Provider:        "openai",
-				Model:           "gpt-4",
-				MaxInputTokens:  8000,
-				MaxOutputTokens: 2000,
-				RateLimit: &config.ModelRateLimitConfig{
+				Provider: "openai",
+				Model:    "gpt-4",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  8000,
+					MaxOutputTokens: 2000,
+				},
+				RateLimit: &config.RateLimitConfig{
 					RequestsPerMinute: 10,
 					TokensPerMinute:   100000,
 					RequestsPerDay:    1000,
@@ -358,7 +353,6 @@ func TestService_ResolveModelInternal_WithRateLimit(t *testing.T) {
 		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
-				DefaultModel:    "gpt-4",
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 2000,
 			},
@@ -385,7 +379,7 @@ func TestService_ResolveModelInternal_WithRateLimit(t *testing.T) {
 
 func TestService_ResolveModelInternal_UnknownProvider(t *testing.T) {
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
 				Provider: "unknown-provider",
 				Model:    "some-model",
@@ -435,13 +429,15 @@ func TestService_ResolveModelInternal_APIKeyFromEnv(t *testing.T) {
 	defer os.Unsetenv("CUSTOM_API_KEY")
 
 	cfg := &config.Config{
-		Models: map[string]*config.ModelDefinition{
+		Models: map[string]*config.ModelConfig{
 			"test-model": {
-				Provider:        "openai",
-				Model:           "gpt-4",
-				MaxInputTokens:  8000,
-				MaxOutputTokens: 2000,
-				APIKeyEnv:       "CUSTOM_API_KEY",
+				Provider:  "openai",
+				Model:     "gpt-4",
+				APIKeyEnv: "CUSTOM_API_KEY",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  8000,
+					MaxOutputTokens: 2000,
+				},
 			},
 		},
 	}
@@ -451,7 +447,6 @@ func TestService_ResolveModelInternal_APIKeyFromEnv(t *testing.T) {
 		providers: map[provider.Provider]provider.Definition{
 			"openai": {
 				Type:            "openai",
-				DefaultModel:    "gpt-4",
 				MaxInputTokens:  8000,
 				MaxOutputTokens: 2000,
 			},

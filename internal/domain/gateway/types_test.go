@@ -303,3 +303,60 @@ func TestGenerateContentRequest_Chaining(t *testing.T) {
 	assert.NotNil(t, req.Seed())
 	assert.Equal(t, seed, *req.Seed())
 }
+
+func TestNewComputeEmbeddingsRequest(t *testing.T) {
+	model := "embedding-model"
+	chunks := []string{"alpha", "beta"}
+	taskType := RetrievalQuery
+
+	req := NewComputeEmbeddingsRequest(model, chunks, taskType)
+
+	assert.NotNil(t, req)
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, chunks, req.Chunks())
+	assert.Equal(t, taskType, req.TaskType())
+	assert.Equal(t, 0, req.Dimensions())
+}
+
+func TestNewComputeEmbeddingsRequestWithDimensions(t *testing.T) {
+	model := "embedding-model"
+	chunks := []string{"gamma"}
+	taskType := Classification
+	dimensions := 768
+
+	req := NewComputeEmbeddingsRequestWithDimensions(model, chunks, taskType, dimensions)
+
+	assert.NotNil(t, req)
+	assert.Equal(t, model, req.Model())
+	assert.Equal(t, chunks, req.Chunks())
+	assert.Equal(t, taskType, req.TaskType())
+	assert.Equal(t, dimensions, req.Dimensions())
+}
+
+func TestComputeDistance(t *testing.T) {
+	mixin := &ComputeDistanceMixin{}
+
+	distance, err := mixin.ComputeDistance(Embedding{1, 0}, Embedding{0, 1})
+
+	assert.NoError(t, err)
+	assert.InDelta(t, 0.0, distance, 1e-9)
+}
+
+func TestComputeDistance_Errors(t *testing.T) {
+	mixin := &ComputeDistanceMixin{}
+
+	_, err := mixin.ComputeDistance(Embedding{1, 2}, Embedding{1})
+	assert.Error(t, err)
+
+	_, err = mixin.ComputeDistance(Embedding{}, Embedding{})
+	assert.Error(t, err)
+}
+
+func TestComputeDistance_ZeroMagnitude(t *testing.T) {
+	mixin := &ComputeDistanceMixin{}
+
+	distance, err := mixin.ComputeDistance(Embedding{0, 0}, Embedding{0, 0})
+
+	assert.NoError(t, err)
+	assert.Equal(t, 0.0, distance)
+}

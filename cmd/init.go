@@ -24,12 +24,7 @@ var initCmd = &cobra.Command{
 	Long: `Initialize creates a .meowg1k.yaml configuration file in the current directory.
 
 This command checks if a project configuration file already exists. If not,
-it creates one with sensible defaults using Google Gemini as the default provider.
-
-After initialization, you should set the MEOW_GEMINI_API_KEY environment variable:
-  export MEOW_GEMINI_API_KEY="your-api-key-here"
-
-You can get a free API key from: https://aistudio.google.com/app/apikey`,
+it creates one with a minimal, provider-agnostic template that you can extend.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		force, err := cmd.Flags().GetBool("force")
 		if err != nil {
@@ -71,13 +66,12 @@ You can get a free API key from: https://aistudio.google.com/app/apikey`,
 		if silent {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", configPath) //nolint:errcheck // Output errors are not critical
 		} else {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Configuration file created: %s\n", configPath)                       //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")                                                      //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "1. Get a free API key from: https://aistudio.google.com/app/apikey\n") //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "2. Set the environment variable:\n")                                   //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   export MEOW_GEMINI_API_KEY=\"your-api-key-here\"\n")                //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "3. Try it out:\n")                                                     //nolint:errcheck // Output errors are not critical
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow generate\n")          //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✓ Configuration file created: %s\n", configPath)           //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")                                          //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "1. Edit providers/models/presets in .meowg1k.yaml\n")      //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "2. Set the API key environment variable you referenced\n") //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "3. Try it out:\n")                                         //nolint:errcheck // Output errors are not critical
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   echo \"Create a hello world function\" | meow write\n") //nolint:errcheck // Output errors are not critical
 		}
 
 		return nil

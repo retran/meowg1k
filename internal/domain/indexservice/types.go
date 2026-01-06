@@ -5,7 +5,7 @@
 package indexservice
 
 import (
-	"github.com/retran/meowg1k/internal/activities/scanworkspacestate"
+	"github.com/retran/meowg1k/internal/activities/scanworktree"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
@@ -34,7 +34,7 @@ type SaveVersionOutput struct {
 
 // FinalizeInput represents the input for finalizing live snapshots.
 type FinalizeInput struct {
-	ScanResult       *scanworkspacestate.Output
+	ScanResult       *scanworktree.Output
 	ExistingVersions map[string]int64
 	NewVersions      map[string]int64
 }

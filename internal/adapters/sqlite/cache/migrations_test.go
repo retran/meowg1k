@@ -232,7 +232,7 @@ func TestMigrations_TableUsable(t *testing.T) {
 		SELECT key, value, created_at FROM llm_cache WHERE key = ?
 	`, "test-key").Scan(&key, &value, &createdAt)
 	if err != nil {
-		t.Fatalf("failed to query llm_cache: %v", err)
+		t.Fatalf("failed to searchindex llm_cache: %v", err)
 	}
 
 	if key != "test-key" || value != "test-value" || createdAt != 123456789 {

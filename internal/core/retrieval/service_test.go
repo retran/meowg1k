@@ -226,7 +226,7 @@ func TestService_Search(t *testing.T) {
 		service, _ := NewService(embeddingsGW, vectorSearchSvc, indexRepo, "model", gateway.RetrievalQuery)
 
 		ctx := context.Background()
-		results, err := service.Search(ctx, "test query", []string{"snapshot1"}, 5, 0.5)
+		results, err := service.Search(ctx, "test searchindex", []string{"snapshot1"}, 5, 0.5)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
@@ -248,16 +248,16 @@ func TestService_Search(t *testing.T) {
 		}
 	})
 
-	t.Run("Empty query text", func(t *testing.T) {
+	t.Run("Empty searchindex text", func(t *testing.T) {
 		service, _ := NewService(&mockEmbeddingsGateway{}, &mockVectorSearchService{}, &mockIndexRepository{}, "model", gateway.RetrievalQuery)
 
 		ctx := context.Background()
 		_, err := service.Search(ctx, "", []string{"snap"}, 5, 0.5)
 		if err == nil {
-			t.Fatal("Expected error for empty query text")
+			t.Fatal("Expected error for empty searchindex text")
 		}
-		if !strings.Contains(err.Error(), "query text cannot be empty") {
-			t.Errorf("Expected empty query error, got: %v", err)
+		if !strings.Contains(err.Error(), "searchindex text cannot be empty") {
+			t.Errorf("Expected empty searchindex error, got: %v", err)
 		}
 	})
 
@@ -310,7 +310,7 @@ func TestService_Search(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for embeddings computation failure")
 		}
-		if !strings.Contains(err.Error(), "failed to compute query embedding") {
+		if !strings.Contains(err.Error(), "failed to compute searchindex embedding") {
 			t.Errorf("Expected embedding error, got: %v", err)
 		}
 	})
@@ -399,7 +399,7 @@ func TestService_RetrieveContext(t *testing.T) {
 		service, _ := NewService(&mockEmbeddingsGateway{}, &mockVectorSearchService{}, &mockIndexRepository{}, "model", gateway.RetrievalQuery)
 
 		ctx := context.Background()
-		contextStr, err := service.RetrieveContext(ctx, "test query", []string{"snapshot1"}, 5, 0.5)
+		contextStr, err := service.RetrieveContext(ctx, "test searchindex", []string{"snapshot1"}, 5, 0.5)
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}

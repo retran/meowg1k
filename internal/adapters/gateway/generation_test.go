@@ -143,7 +143,7 @@ func TestComputeDistanceMixin(t *testing.T) {
 			name:        "Regular similarity calculation",
 			a:           domainGateway.Embedding{1.0, 2.0, 3.0},
 			b:           domainGateway.Embedding{2.0, 4.0, 6.0},
-			expected:    1.0, // These are parallel vectors
+			expected:    1.0, // These are aligned vectors.
 			expectError: false,
 		},
 		{

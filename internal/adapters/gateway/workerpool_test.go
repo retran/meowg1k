@@ -16,7 +16,7 @@ import (
 
 func TestNewWorkerPoolGateway(t *testing.T) {
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		responseText: "test response",
 	}
 
 	tests := []struct {
@@ -53,7 +53,7 @@ func TestNewWorkerPoolGateway(t *testing.T) {
 
 func TestWorkerPoolGateway_GenerateContent(t *testing.T) {
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		responseText: "test response",
 	}
 
 	gateway := newWorkerPoolGateway(mockGateway, 2)
@@ -65,8 +65,8 @@ func TestWorkerPoolGateway_GenerateContent(t *testing.T) {
 		t.Errorf("GenerateContent() unexpected error = %v", err)
 	}
 
-	if response != "test response" {
-		t.Errorf("GenerateContent() = %v, want %v", response, "test response")
+	if response.Text() != "test response" {
+		t.Errorf("GenerateContent() = %v, want %v", response.Text(), "test response")
 	}
 }
 
@@ -79,20 +79,10 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 	var mu sync.Mutex
 
 	slowGateway := &mockGenerationGateway{
-		response: "test response",
+		responseText: "test response",
 	}
 
-	// Wrap the mock to track concurrency
-	trackingGateway := &struct {
-		*mockGenerationGateway
-	}{slowGateway}
-
-	// Override GenerateContent to track concurrency
-	originalMock := trackingGateway.mockGenerationGateway
-	trackingGateway.mockGenerationGateway = &mockGenerationGateway{
-		response: originalMock.response,
-		err:      originalMock.err,
-	}
+	originalMock := slowGateway
 
 	// Create a custom gateway that tracks active requests
 	type trackingWorkerPool struct {
@@ -123,14 +113,14 @@ func TestWorkerPoolGateway_Concurrency(t *testing.T) {
 	}
 
 	// Implement GenerateContent
-	generateFunc := func(ctx context.Context, request *domainGateway.GenerateContentRequest) (string, error) {
+	generateFunc := func(ctx context.Context, request *domainGateway.GenerateContentRequest) (*domainGateway.GenerateContentResponse, error) {
 		select {
 		case customGateway.semaphore <- struct{}{}:
 			defer func() {
 				<-customGateway.semaphore
 			}()
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return nil, ctx.Err()
 		}
 
 		customGateway.tracker()
@@ -167,12 +157,12 @@ type blockingMockGateway struct {
 	blockChan chan struct{}
 }
 
-func (b *blockingMockGateway) GenerateContent(ctx context.Context, req *domainGateway.GenerateContentRequest) (string, error) {
+func (b *blockingMockGateway) GenerateContent(ctx context.Context, req *domainGateway.GenerateContentRequest) (*domainGateway.GenerateContentResponse, error) {
 	select {
 	case <-b.blockChan:
-		return "completed", nil
+		return &domainGateway.GenerateContentResponse{Blocks: []domainGateway.ContentBlock{{Kind: domainGateway.ContentBlockText, Text: "completed"}}}, nil
 	case <-ctx.Done():
-		return "", ctx.Err()
+		return nil, ctx.Err()
 	}
 }
 
@@ -216,7 +206,7 @@ func TestWorkerPoolGateway_ContextCancellation(t *testing.T) {
 
 func TestWorkerPoolGateway_MultipleRequests(t *testing.T) {
 	mockGateway := &mockGenerationGateway{
-		response: "test response",
+		responseText: "test response",
 	}
 
 	gateway := newWorkerPoolGateway(mockGateway, 3)
@@ -235,7 +225,7 @@ func TestWorkerPoolGateway_MultipleRequests(t *testing.T) {
 			request := domainGateway.NewGenerateContentRequest("test-model", "System", "User", 1000)
 			response, err := gateway.GenerateContent(ctx, request)
 			errors[idx] = err
-			responses[idx] = response
+			responses[idx] = response.Text()
 		}(i)
 	}
 

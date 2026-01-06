@@ -213,7 +213,7 @@ func (r *Repository) ensureBlobDir(db *sql.DB) (string, error) {
 func resolveBlobDir(db *sql.DB) (string, error) {
 	rows, err := db.QueryContext(context.Background(), "PRAGMA database_list")
 	if err != nil {
-		return "", fmt.Errorf("failed to query database list: %w", err)
+		return "", fmt.Errorf("failed to searchindex database list: %w", err)
 	}
 	defer func() { _ = rows.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -301,7 +301,7 @@ func resolveBlobPath(blobDir, fileName string) (string, error) {
 }
 
 func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, key string) (string, error) {
-	query := `
+	searchindex := `
 		SELECT CASE
 			WHEN substr(value, 1, ?) = ? THEN substr(value, ? + 1)
 			ELSE NULL
@@ -311,7 +311,7 @@ func (r *Repository) getExistingFileReference(ctx context.Context, db *sql.DB, k
 	`
 
 	var tail []byte
-	err := db.QueryRowContext(ctx, query,
+	err := db.QueryRowContext(ctx, searchindex,
 		len(fileRefPrefixBytes),
 		fileRefPrefixBytes,
 		len(fileRefPrefixBytes),

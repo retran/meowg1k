@@ -67,7 +67,7 @@ func TestRunMigrations_EmptyMigrations(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 0 {
 		t.Errorf("expected version 0, got %d", version)
@@ -102,7 +102,7 @@ func TestRunMigrations_SingleMigration(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 1 {
 		t.Errorf("expected version 1, got %d", version)
@@ -151,7 +151,7 @@ func TestRunMigrations_MultipleMigrations(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 2 {
 		t.Errorf("expected version 2, got %d", version)
@@ -219,7 +219,7 @@ func TestRunMigrations_SkipsAppliedMigrations(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 2 {
 		t.Errorf("expected version 2, got %d", version)
@@ -269,7 +269,7 @@ func TestRunMigrations_UnorderedMigrations(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 3 {
 		t.Errorf("expected version 3, got %d", version)
@@ -312,7 +312,7 @@ func TestRunMigrations_MigrationError(t *testing.T) {
 	var version uint
 	err = db.QueryRowContext(context.Background(), "SELECT version FROM schema_versions").Scan(&version)
 	if err != nil {
-		t.Fatalf("failed to query schema version: %v", err)
+		t.Fatalf("failed to searchindex schema version: %v", err)
 	}
 	if version != 0 {
 		t.Errorf("expected version 0 after rollback, got %d", version)

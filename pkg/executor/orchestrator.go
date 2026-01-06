@@ -27,7 +27,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new FlowRunner with the given container.
 // traceLogger can be nil if trace logging is not needed.
-// concurrency limits the number of concurrent activities (0 means no limit).
+// concurrency limits the number of in-flight activities (0 means no limit).
 func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger, concurrency int) (*Orchestrator, error) {
 	if outputSink == nil {
 		return nil, fmt.Errorf("flusher is nil")
@@ -41,6 +41,8 @@ func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger, concurrency
 }
 
 // Execute executes a flow with proper tracker initialization and cleanup.
+// If the flow returns a ReportedError, it suppresses the error since it was already
+// reported via the feedback tracker.
 func (o *Orchestrator) Execute(
 	ctx context.Context,
 	flowName string,
@@ -51,7 +53,7 @@ func (o *Orchestrator) Execute(
 		return fmt.Errorf("flow runner is nil")
 	}
 
-	executionTracker := NewTracker(silent)
+	executionTracker := NewProgressTracker(silent)
 	executionTracker.Start()
 
 	// Wrap the feedback handler with trace logging if available
@@ -65,11 +67,15 @@ func (o *Orchestrator) Execute(
 		WithFeedbackHandler(feedbackHandler)
 
 	err := exec.ExecuteFlow(ctx, flowName, flow)
-	if err != nil {
-		err = fmt.Errorf("failed to execute flow: %w", err)
-	}
 
 	executionTracker.Stop()
+
+	// If error was reported via tracker, suppress it to avoid duplicate error messages
+	if err != nil && IsReportedError(err) {
+		err = nil
+	} else if err != nil {
+		err = fmt.Errorf("failed to execute flow: %w", err)
+	}
 
 	if flushErr := o.outputSink.Flush(); flushErr != nil {
 		if err != nil {

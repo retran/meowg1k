@@ -20,7 +20,7 @@
 
 ## 🎯 Overview
 
-**meowg1k** is a command-line interface that brings the power of modern LLMs (Large Language Models) into your terminal. Unlike interactive assistants, meowg1k is designed for **automation and scripting** — a Unix-philosophy tool that predictably transforms code into AI-enhanced results.
+**meowg1k** is a command-line tool that brings the power of modern LLMs (Large Language Models) into your terminal. The executable is `meow`. Unlike interactive assistants, meowg1k is designed for **automation and scripting** — a Unix-philosophy tool that predictably transforms code into AI-enhanced results.
 
 ### Who Should Use This?
 
@@ -69,7 +69,7 @@ Built for scripting and CI/CD, not conversations. Predictable input/output model
 
 ### 💰 **Transparent Cost Control**
 
-Fine-grained rate limiting and token caps prevent unexpected bills. Configure request quotas, set spending limits per profile, and monitor usage—all in code.
+Fine-grained rate limiting and token caps prevent unexpected bills. Configure request quotas, set spending limits per preset, and monitor usage—all in code.
 
 ### 📝 **Configuration as Code**
 
@@ -145,7 +145,7 @@ export MEOW_GEMINI_API_KEY="your-api-key-here"
 source ~/.bashrc  # or ~/.zshrc
 ```
 
-### 3️⃣ Start Using meowg1k
+### 3️⃣ Start Using meow
 
 ```bash
 # Generate code from a prompt
@@ -153,16 +153,16 @@ echo "Create a hello world function in Python" | meow g
 
 # Generate a commit message
 git add .
-meow commit
+meow draft commit
 
 # Generate a Pull Request description
-meow pullrequest --base main
+meow draft pr --base main
 
 # Index your codebase for semantic search
 meow index
 
 # Search your code semantically
-meow query "authentication logic"
+meow search "authentication logic"
 
 # Ask questions about your codebase
 meow ask "How does error handling work in this project?"
@@ -218,7 +218,7 @@ This project is licensed under the [**Apache License 2.0**](./LICENSE).
 
 ### Made with ❤️ by Andrew Vasilyev and feline assistants Sonya Blade, Mila, and Marcus Fenix
 
-**Happy coding with project meow! 🐱**
+**Happy coding with Project Meow! 🐱**
 
 [⭐ Star us on GitHub](https://github.com/retran/meowg1k) • [🐛 Report Bug](https://github.com/retran/meowg1k/issues) • [💡 Request Feature](https://github.com/retran/meowg1k/issues) • [🔀 Contribute](https://github.com/retran/meowg1k/pulls)
 
