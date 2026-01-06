@@ -5,18 +5,52 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ReportedError wraps an error that has already been reported via the feedback tracker.
+// When this error is returned, callers should not report it again.
+type ReportedError struct {
+	err error
+}
+
+// Error implements the error interface.
+func (e *ReportedError) Error() string {
+	if e.err == nil {
+		return "reported error"
+	}
+	return e.err.Error()
+}
+
+// Unwrap returns the wrapped error.
+func (e *ReportedError) Unwrap() error {
+	return e.err
+}
+
+// NewReportedError wraps an error as a ReportedError.
+func NewReportedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ReportedError{err: err}
+}
+
+// IsReportedError checks if an error is a ReportedError.
+func IsReportedError(err error) bool {
+	var reportedErr *ReportedError
+	return errors.As(err, &reportedErr)
+}
 
 // Status represents the current status of an activity.
 type Status string
 
 const (
-	// StatusPending indicates that the activity is pending.
-	StatusPending Status = "pending"
 	// StatusRunning indicates that the activity is running.
 	StatusRunning Status = "running"
+	// StatusProgress indicates that the activity has a progress update.
+	StatusProgress Status = "progress"
 	// StatusCompleted indicates that the activity has completed.
 	StatusCompleted Status = "completed"
 	// StatusFailed indicates that the activity has failed.
@@ -45,13 +79,13 @@ func NoRetryPolicy() RetryPolicy {
 
 // Feedback contains information about activity execution progress.
 type Feedback struct {
-	Timestamp    time.Time      `json:"timestamp"`
-	Error        error          `json:"-"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
-	ActivityName string         `json:"activity_name"`
-	Status       Status         `json:"status"`
-	Message      string         `json:"message"`
-	Progress     float64        `json:"progress"`
+	Timestamp    time.Time `json:"timestamp"`
+	Error        error     `json:"-"`
+	ActivityName string    `json:"activity_name"`
+	Status       Status    `json:"status"`
+	Message      string    `json:"message"`
+	Details      string    `json:"details,omitempty"`
+	Progress     float64   `json:"progress"`
 }
 
 // String returns a string representation of the feedback.
@@ -61,18 +95,7 @@ func (f *Feedback) String() string {
 	}
 
 	if f.Error != nil {
-		if f.Progress > 0 {
-			return fmt.Sprintf(
-				"[%s] %s: %s (%.1f%%) (%v)",
-				f.ActivityName, f.Status, f.Message, f.Progress*100, f.Error,
-			)
-		}
-
 		return fmt.Sprintf("[%s] %s: %s (%v)", f.ActivityName, f.Status, f.Message, f.Error)
-	}
-
-	if f.Progress > 0 {
-		return fmt.Sprintf("[%s] %s: %s (%.1f%%)", f.ActivityName, f.Status, f.Message, f.Progress*100)
 	}
 
 	return fmt.Sprintf("[%s] %s: %s", f.ActivityName, f.Status, f.Message)
@@ -86,9 +109,10 @@ func NoOpFeedbackHandler(_ *Feedback) {}
 
 // Context provides feedback capabilities to activities and access to the executor.
 type Context struct {
-	Executor     Executor
-	feedbackFunc FeedbackHandler
-	name         string
+	Executor      Executor
+	feedbackFunc  FeedbackHandler
+	name          string
+	errorReported bool
 }
 
 // NewContext creates a new executor context.
@@ -111,6 +135,25 @@ func (c *Context) Name() string {
 	return c.name
 }
 
+// Child returns a new context that reports feedback under the current activity.
+func (c *Context) Child(name string) *Context {
+	if c == nil {
+		return nil
+	}
+	if name == "" {
+		name = "child"
+	}
+	fullName := name
+	if c.name != "" {
+		fullName = fmt.Sprintf("%s::%s", c.name, name)
+	}
+	return &Context{
+		name:         fullName,
+		feedbackFunc: c.feedbackFunc,
+		Executor:     c.Executor,
+	}
+}
+
 // GetExecutor returns the executor associated with the context.
 func (c *Context) GetExecutor() Executor {
 	if c == nil {
@@ -119,7 +162,15 @@ func (c *Context) GetExecutor() Executor {
 	return c.Executor
 }
 
-func (c *Context) sendFeedback(status Status, progress float64, message string, err error, metadata map[string]any) {
+// IsErrorReported returns true if an error was reported via SendFailed.
+func (c *Context) IsErrorReported() bool {
+	if c == nil {
+		return false
+	}
+	return c.errorReported
+}
+
+func (c *Context) sendFeedback(status Status, progress float64, message string, details string, err error) {
 	if c == nil || c.feedbackFunc == nil {
 		return
 	}
@@ -129,44 +180,66 @@ func (c *Context) sendFeedback(status Status, progress float64, message string, 
 		Status:       status,
 		Progress:     progress,
 		Message:      message,
+		Details:      details,
 		Timestamp:    time.Now(),
 		Error:        err,
-		Metadata:     metadata,
 	}
 
 	c.feedbackFunc(feedback)
 }
 
-// SendRunning sends a running status update to indicate that the activity is executing.
-// Use this at the beginning of your activity execution.
-//
-// Docker Compose Style Usage:
-// Activities should send concise, action-oriented messages.
-// Examples:
-//   - "Reading 5 files"
-//   - "Generating content"
-//   - "Processing data"
+// SendRunning sends a running status feedback with the given message.
 func (c *Context) SendRunning(message string) {
-	c.sendFeedback(StatusRunning, 0, message, nil, nil)
+	c.SendRunningWithDetails(message, "")
 }
 
-// SendCompleted sends a completed status update.
-// Use brief messages that indicate what was accomplished.
-// Example: "Read 5 files", "Generated", "Summarized" (not "Successfully completed...").
+// SendCompleted sends a completed status feedback with the given message.
 func (c *Context) SendCompleted(message string) {
-	c.sendFeedback(StatusCompleted, 1, message, nil, nil)
+	c.SendCompletedWithDetails(message, "")
 }
 
-// SendFailed sends a failed status update.
+// SendFailed sends a failed status feedback with the given error and message.
 func (c *Context) SendFailed(err error, message string) {
-	c.sendFeedback(StatusFailed, 0, message, err, nil)
+	c.SendFailedWithDetails(err, message, "")
 }
 
-// SendRetry sends a retry status update.
+// SendRetry sends a retry status feedback with the given attempt number and error.
 func (c *Context) SendRetry(attempt int, err error) {
-	c.sendFeedback(StatusRunning, 0, fmt.Sprintf("Retrying (%d)", attempt), err, map[string]any{
-		"retry_attempt": attempt,
-	})
+	c.SendRetryWithDetails("I'm retrying the operation", "", attempt, err)
+}
+
+// SendRunningWithDetails sends a running status feedback with the given message and details.
+func (c *Context) SendRunningWithDetails(message string, details string) {
+	c.sendFeedback(StatusRunning, 0, message, details, nil)
+}
+
+// SendCompletedWithDetails sends a completed status feedback with the given message and details.
+func (c *Context) SendCompletedWithDetails(message string, details string) {
+	c.sendFeedback(StatusCompleted, 1, message, details, nil)
+}
+
+// SendFailedWithDetails sends a failed status feedback with the given error, message, and details.
+func (c *Context) SendFailedWithDetails(err error, message string, details string) {
+	if c != nil {
+		c.errorReported = true
+	}
+	c.sendFeedback(StatusFailed, 0, message, details, err)
+}
+
+// SendRetryWithDetails sends a retry status feedback with the given message, details, attempt number, and error.
+func (c *Context) SendRetryWithDetails(message string, details string, attempt int, err error) {
+	_ = attempt
+	c.sendFeedback(StatusRunning, 0, message, details, err)
+}
+
+// SendProgress sends a running status feedback intended to be logged as progress.
+func (c *Context) SendProgress(message string) {
+	c.SendProgressWithDetails(message, "")
+}
+
+// SendProgressWithDetails sends a running status feedback intended to be logged as progress.
+func (c *Context) SendProgressWithDetails(message string, details string) {
+	c.sendFeedback(StatusProgress, 0, message, details, nil)
 }
 
 // Activity defines a function that can be executed by the executor.
@@ -193,21 +266,6 @@ type Execution struct {
 	ParentName string
 	Children   []string
 	Level      int
-}
-
-func (e *Execution) getDurationString() string {
-	if e.EndTime == nil {
-		return ""
-	}
-	duration := e.EndTime.Sub(e.StartTime)
-	switch {
-	case duration < time.Second:
-		return fmt.Sprintf("%dms", duration.Milliseconds())
-	case duration < time.Minute:
-		return fmt.Sprintf("%.1fs", duration.Seconds())
-	default:
-		return fmt.Sprintf("%.1fm", duration.Minutes())
-	}
 }
 
 // RetryPolicy defines the retry behavior for an operation.

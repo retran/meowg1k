@@ -208,16 +208,24 @@ func TestGetLogDirWithLocalAppData(t *testing.T) {
 func TestNewAppContainer(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+models:
   test:
     provider: "openai"
     model: "gpt-3.5-turbo"
-    maxInputTokens: 1000
-    maxOutputTokens: 500
-generate:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
+    limits:
+      max_input_tokens: 1000
+      max_output_tokens: 500
+presets:
+  test:
+    model: "test"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -492,23 +500,37 @@ func TestGetLogDirFallbacks(t *testing.T) {
 func TestNewAppContainerServicesCreation(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
-	configContent := `profiles:
+	configContent := `schema_version: 1
+providers:
+  openai:
+    type: "openai"
+  anthropic:
+    type: "anthropic"
+models:
   test:
     provider: "openai"
     model: "gpt-4"
-    maxInputTokens: 2000
-    maxOutputTokens: 1000
-    temperature: 0.7
+    limits:
+      max_input_tokens: 2000
+      max_output_tokens: 1000
   anthropic:
     provider: "anthropic"
     model: "claude-3"
-generate:
-  default:
-    profile: "test"
-    systemPrompt: "You are a helpful assistant"
-  anthropic-task:
-    profile: "anthropic"
-    systemPrompt: "You are an expert assistant"
+presets:
+  test:
+    model: "test"
+    request:
+      temperature: 0.7
+  anthropic:
+    model: "anthropic"
+flows:
+  write:
+    preset: "test"
+    system_prompt: "You are a helpful assistant"
+    tasks:
+      anthropic-task:
+        preset: "anthropic"
+        system_prompt: "You are an expert assistant"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {
@@ -557,18 +579,18 @@ generate:
 		t.Fatalf("Failed to get config: %v", err)
 	}
 
-	if len(cfg.Profiles) != 2 {
-		t.Errorf("Expected 2 profiles, got %d", len(cfg.Profiles))
+	if len(cfg.Presets) != 2 {
+		t.Errorf("Expected 2 presets, got %d", len(cfg.Presets))
 	}
 
-	if cfg.Generate == nil {
-		t.Error("Generate config should not be nil")
+	if cfg.Flows == nil || cfg.Flows.Write == nil {
+		t.Error("Write pipeline config should not be nil")
 	}
 
-	if cfg.Generate.Tasks == nil {
+	if cfg.Flows != nil && cfg.Flows.Write != nil && cfg.Flows.Write.Tasks == nil {
 		t.Log("No explicit tasks configured beyond default")
-	} else if len(cfg.Generate.Tasks) != 1 {
-		t.Logf("Expected 1 task, got %d", len(cfg.Generate.Tasks))
+	} else if cfg.Flows != nil && cfg.Flows.Write != nil && len(cfg.Flows.Write.Tasks) != 1 {
+		t.Logf("Expected 1 task, got %d", len(cfg.Flows.Write.Tasks))
 	}
 
 	taskName, err := container.CommandService.GetTaskName()
@@ -599,13 +621,21 @@ generate:
 func TestAppContainerKeyContextValue(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "minimal-config.yaml")
-	configContent := `profiles:
+	configContent := `schema_version: 1
+providers:
+  test:
+    type: "test"
+models:
   minimal:
     provider: "test"
     model: "test-model"
-generate:
-  default:
-    profile: "minimal"
+presets:
+  minimal:
+    model: "minimal"
+flows:
+  write:
+    preset: "minimal"
+    system_prompt: "test"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0o644)
 	if err != nil {

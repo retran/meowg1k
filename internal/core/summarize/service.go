@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	summarize2 "github.com/retran/meowg1k/internal/domain/summarize"
 	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/pkg/gitignore"
@@ -16,23 +16,23 @@ import (
 
 // Service resolves file summarization configurations.
 type Service struct {
-	configResolver  ports.ConfigResolver
-	profileResolver ports.ProfileResolver
+	configResolver ports.ConfigResolver
+	presetResolver ports.PresetResolver
 }
 
 // NewService creates a new file summarization configuration service.
-func NewService(configResolver ports.ConfigResolver, profileResolver ports.ProfileResolver) (*Service, error) {
+func NewService(configResolver ports.ConfigResolver, presetResolver ports.PresetResolver) (*Service, error) {
 	if configResolver == nil {
 		return nil, fmt.Errorf("config resolver is nil")
 	}
 
-	if profileResolver == nil {
-		return nil, fmt.Errorf("profile resolver is nil")
+	if presetResolver == nil {
+		return nil, fmt.Errorf("preset resolver is nil")
 	}
 
 	return &Service{
-		configResolver:  configResolver,
-		profileResolver: profileResolver,
+		configResolver: configResolver,
+		presetResolver: presetResolver,
 	}, nil
 }
 
@@ -47,11 +47,12 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 		return nil, fmt.Errorf("failed to get application config: %w", err)
 	}
 
-	if currentConfig.Summarize == nil {
+	if currentConfig.Activities == nil || currentConfig.Activities.Summarize == nil {
 		return nil, nil
 	}
 
-	matchingRule := findMatchingRule(currentConfig.Summarize, filename)
+	activityCfg := currentConfig.Activities.Summarize
+	matchingRule := findMatchingRule(activityCfg, filename)
 
 	if matchingRule != nil && matchingRule.Skip {
 		return &summarize2.ResolvedConfig{
@@ -59,11 +60,11 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 		}, nil
 	}
 
-	profileName, strategy, systemPrompt := resolveSettings(currentConfig.Summarize, matchingRule)
+	presetName, strategy, systemPrompt := resolveSettings(activityCfg, matchingRule)
 
-	resolvedProfile, err := s.profileResolver.Get(profile.Profile(profileName))
+	resolvedPreset, err := s.presetResolver.Get(preset.Preset(presetName))
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile: %w", err)
+		return nil, fmt.Errorf("failed to resolve preset: %w", err)
 	}
 
 	if strategy == nil {
@@ -71,7 +72,7 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 	}
 
 	return &summarize2.ResolvedConfig{
-		Profile:             resolvedProfile,
+		Preset:              resolvedPreset,
 		Strategy:            strategy,
 		SystemPrompt:        systemPrompt,
 		Skip:                false,
@@ -80,7 +81,7 @@ func (s *Service) Get(filename string) (*summarize2.ResolvedConfig, error) {
 	}, nil
 }
 
-func findMatchingRule(cfg *config.SummarizeConfig, filename string) *config.SummarizeRule {
+func findMatchingRule(cfg *config.SummarizeActivityConfig, filename string) *config.SummarizeRule {
 	for _, rule := range cfg.Rules {
 		if rule.Match == "" {
 			continue
@@ -95,28 +96,26 @@ func findMatchingRule(cfg *config.SummarizeConfig, filename string) *config.Summ
 }
 
 func resolveSettings(
-	summarizeConfig *config.SummarizeConfig,
+	summarizeConfig *config.SummarizeActivityConfig,
 	rule *config.SummarizeRule,
-) (profileName string, strategy *config.Strategy, systemPrompt string) {
+) (presetName string, strategy *config.StrategyConfig, systemPrompt string) {
 	if rule != nil {
-		applyRuleSettings(rule, &profileName, &strategy, &systemPrompt)
+		applyRuleSettings(rule, &presetName, &strategy, &systemPrompt)
 	}
 
-	if summarizeConfig.Default != nil {
-		applyDefaultSettings(summarizeConfig.Default, &profileName, &strategy, &systemPrompt)
-	}
+	applyDefaultSettings(summarizeConfig, &presetName, &strategy, &systemPrompt)
 
-	return profileName, strategy, systemPrompt
+	return presetName, strategy, systemPrompt
 }
 
 func applyRuleSettings(
 	rule *config.SummarizeRule,
-	profileName *string,
-	strategy **config.Strategy,
+	presetName *string,
+	strategy **config.StrategyConfig,
 	systemPrompt *string,
 ) {
-	if rule.Profile != "" {
-		*profileName = rule.Profile
+	if rule.Preset != "" {
+		*presetName = rule.Preset
 	}
 	if rule.Strategy != nil {
 		*strategy = rule.Strategy
@@ -127,13 +126,13 @@ func applyRuleSettings(
 }
 
 func applyDefaultSettings(
-	defaults *config.SummarizeDefault,
-	profileName *string,
-	strategy **config.Strategy,
+	defaults *config.SummarizeActivityConfig,
+	presetName *string,
+	strategy **config.StrategyConfig,
 	systemPrompt *string,
 ) {
-	if *profileName == "" {
-		*profileName = defaults.Profile
+	if *presetName == "" {
+		*presetName = defaults.Preset
 	}
 	if *strategy == nil {
 		*strategy = defaults.Strategy
@@ -143,8 +142,8 @@ func applyDefaultSettings(
 	}
 }
 
-func defaultStrategy() *config.Strategy {
-	return &config.Strategy{
+func defaultStrategy() *config.StrategyConfig {
+	return &config.StrategyConfig{
 		Type:                "plain",
 		IncludeOriginalFile: false,
 		IncludeChangedFile:  false,

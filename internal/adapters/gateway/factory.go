@@ -11,7 +11,7 @@ import (
 
 	ratelimit2 "github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/core/ratelimit"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -67,13 +67,13 @@ func NewFactory(
 	}, nil
 }
 
-// getRateLimiter returns or creates a rate limiter for the given profile.
+// getRateLimiter returns or creates a rate limiter for the given preset.
 // This method is thread-safe. Each unique model instance gets its own rate limiter.
 // The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
 // or endpoints get separate rate limiters.
-func (f *Factory) getRateLimiter(resolvedProfile *profile.ResolvedProfile) (ratelimit.Limiter, error) {
-	if resolvedProfile == nil {
-		return nil, fmt.Errorf("profile cannot be nil")
+func (f *Factory) getRateLimiter(resolvedPreset *preset.ResolvedPreset) (ratelimit.Limiter, error) {
+	if resolvedPreset == nil {
+		return nil, fmt.Errorf("preset cannot be nil")
 	}
 
 	f.mu.Lock()
@@ -82,7 +82,7 @@ func (f *Factory) getRateLimiter(resolvedProfile *profile.ResolvedProfile) (rate
 	// Generate key based on model instance characteristics
 	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
 	// TODO use centralized method to generate keys
-	key := string(resolvedProfile.Provider) + ":" + resolvedProfile.BaseURL + ":" + resolvedProfile.Model + ":" + resolvedProfile.APIKeyEnv
+	key := string(resolvedPreset.Provider) + ":" + resolvedPreset.BaseURL + ":" + resolvedPreset.Model + ":" + resolvedPreset.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {
 		return limiter, nil
@@ -90,9 +90,9 @@ func (f *Factory) getRateLimiter(resolvedProfile *profile.ResolvedProfile) (rate
 
 	config := ratelimit.Config{
 		ID:                key,
-		RequestsPerMinute: resolvedProfile.RateLimit.RequestsPerMinute,
-		TokensPerMinute:   resolvedProfile.RateLimit.TokensPerMinute,
-		RequestsPerDay:    resolvedProfile.RateLimit.RequestsPerDay,
+		RequestsPerMinute: resolvedPreset.RateLimit.RequestsPerMinute,
+		TokensPerMinute:   resolvedPreset.RateLimit.TokensPerMinute,
+		RequestsPerDay:    resolvedPreset.RateLimit.RequestsPerDay,
 	}
 
 	var limiter ratelimit.Limiter
@@ -113,8 +113,8 @@ func (f *Factory) getRateLimiter(resolvedProfile *profile.ResolvedProfile) (rate
 	return limiter, nil
 }
 
-// shouldEnableCache determines whether caching should be enabled based on profile config and flags.
-func (f *Factory) shouldEnableCache(resolvedProfile *profile.ResolvedProfile) bool {
+// shouldEnableCache determines whether caching should be enabled based on preset config and flags.
+func (f *Factory) shouldEnableCache(resolvedPreset *preset.ResolvedPreset) bool {
 	// Cache must be available
 	if f.cacheRepo == nil {
 		return false
@@ -127,8 +127,8 @@ func (f *Factory) shouldEnableCache(resolvedProfile *profile.ResolvedProfile) bo
 		}
 	}
 
-	// Check if caching is enabled for this profile
-	return resolvedProfile.CacheEnabled
+	// Check if caching is enabled for this preset
+	return resolvedPreset.CacheEnabled
 }
 
 // shouldUpdateCache determines whether cache should be forcefully updated based on flags.
@@ -141,20 +141,20 @@ func (f *Factory) shouldUpdateCache() bool {
 	return err == nil && updateCache
 }
 
-// NewGenerationGateway creates a new generation gateway based on the provided profile.
+// NewGenerationGateway creates a new generation gateway based on the provided preset.
 func (f *Factory) NewGenerationGateway(
 	ctx context.Context,
-	resolvedProfile *profile.ResolvedProfile,
+	resolvedPreset *preset.ResolvedPreset,
 ) (ports.GenerationGateway, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context cannot be nil")
 	}
 
-	if resolvedProfile == nil {
-		return nil, fmt.Errorf("profile cannot be nil")
+	if resolvedPreset == nil {
+		return nil, fmt.Errorf("preset cannot be nil")
 	}
 
-	gateway, err := f.buildGenerationGateway(ctx, resolvedProfile)
+	gateway, err := f.buildGenerationGateway(ctx, resolvedPreset)
 	if err != nil {
 		return nil, err
 	}
@@ -162,14 +162,14 @@ func (f *Factory) NewGenerationGateway(
 	// Determine max concurrency based on rate limits
 	// Use RPM (requests per minute) as a guide for concurrency
 	// TODO review this logic
-	maxConcurrency := resolvedProfile.RateLimit.RequestsPerMinute
+	maxConcurrency := resolvedPreset.RateLimit.RequestsPerMinute
 	if maxConcurrency == 0 {
-		maxConcurrency = 10 // Default to 10 concurrent requests if unlimited
+		maxConcurrency = 10 // Default to 10 requests if unlimited.
 	}
 
 	gateway = newWorkerPoolGateway(gateway, maxConcurrency)
 
-	limiter, err := f.getRateLimiter(resolvedProfile)
+	limiter, err := f.getRateLimiter(resolvedPreset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
@@ -177,7 +177,7 @@ func (f *Factory) NewGenerationGateway(
 	gateway = newRateLimitedGenerationGateway(gateway, limiter)
 
 	// Conditionally wrap with caching
-	if f.shouldEnableCache(resolvedProfile) {
+	if f.shouldEnableCache(resolvedPreset) {
 		updateCache := f.shouldUpdateCache()
 		gateway = newCachingGenerationGateway(gateway, f.cacheRepo, updateCache)
 	}
@@ -187,30 +187,30 @@ func (f *Factory) NewGenerationGateway(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get command name: %w", err)
 	}
-	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, commandName, resolvedProfile.Name, string(resolvedProfile.Provider))
+	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider))
 
 	return gateway, nil
 }
 
-// NewEmbeddingsGateway creates a new embeddings gateway based on the provided profile.
+// NewEmbeddingsGateway creates a new embeddings gateway based on the provided preset.
 func (f *Factory) NewEmbeddingsGateway(
 	ctx context.Context,
-	resolvedProfile *profile.ResolvedProfile,
+	resolvedPreset *preset.ResolvedPreset,
 ) (ports.EmbeddingsGateway, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context cannot be nil")
 	}
 
-	if resolvedProfile == nil {
-		return nil, fmt.Errorf("profile cannot be nil")
+	if resolvedPreset == nil {
+		return nil, fmt.Errorf("preset cannot be nil")
 	}
 
-	gateway, err := f.buildEmbeddingsGateway(ctx, resolvedProfile)
+	gateway, err := f.buildEmbeddingsGateway(ctx, resolvedPreset)
 	if err != nil {
 		return nil, err
 	}
 
-	limiter, err := f.getRateLimiter(resolvedProfile)
+	limiter, err := f.getRateLimiter(resolvedPreset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
 	}
@@ -218,7 +218,7 @@ func (f *Factory) NewEmbeddingsGateway(
 	gateway = newRateLimitedEmbeddingsGateway(gateway, limiter)
 
 	// Conditionally wrap with caching
-	if f.shouldEnableCache(resolvedProfile) {
+	if f.shouldEnableCache(resolvedPreset) {
 		updateCache := f.shouldUpdateCache()
 		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)
 	}
@@ -228,187 +228,187 @@ func (f *Factory) NewEmbeddingsGateway(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get command name: %w", err)
 	}
-	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, commandName, resolvedProfile.Name, string(resolvedProfile.Provider))
+	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider))
 
 	return gateway, nil
 }
 
-func (f *Factory) buildGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	switch resolvedProfile.Provider {
+func (f *Factory) buildGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	switch resolvedPreset.Provider {
 	case provider.Gemini:
-		return f.newGeminiGenerationGateway(ctx, resolvedProfile)
+		return f.newGeminiGenerationGateway(ctx, resolvedPreset)
 	case provider.Llama:
-		return f.newLlamaGenerationGateway(resolvedProfile)
+		return f.newLlamaGenerationGateway(resolvedPreset)
 	case provider.OpenAI:
-		return f.newOpenAIGenerationGateway(resolvedProfile)
+		return f.newOpenAIGenerationGateway(resolvedPreset)
 	case provider.OpenRouter:
-		return f.newOpenRouterGenerationGateway(ctx, resolvedProfile)
+		return f.newOpenRouterGenerationGateway(ctx, resolvedPreset)
 	case provider.Anthropic:
-		return f.newAnthropicGenerationGateway(resolvedProfile)
+		return f.newAnthropicGenerationGateway(resolvedPreset)
 	case provider.Voyage:
 		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
 	case provider.OpenAICompatible:
-		return f.newOpenAICompatibleGenerationGateway(resolvedProfile)
+		return f.newOpenAICompatibleGenerationGateway(resolvedPreset)
 	default:
-		return nil, fmt.Errorf("provider must be specified for model %q", resolvedProfile.Model)
+		return nil, fmt.Errorf("provider must be specified for model %q", resolvedPreset.Model)
 	}
 }
 
-func (f *Factory) buildEmbeddingsGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	switch resolvedProfile.Provider {
+func (f *Factory) buildEmbeddingsGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	switch resolvedPreset.Provider {
 	case provider.Gemini:
-		return f.newGeminiEmbeddingsGateway(ctx, resolvedProfile)
+		return f.newGeminiEmbeddingsGateway(ctx, resolvedPreset)
 	case provider.Llama:
-		return f.newLlamaEmbeddingsGateway(resolvedProfile)
+		return f.newLlamaEmbeddingsGateway(resolvedPreset)
 	case provider.Anthropic:
 		return nil, fmt.Errorf("anthropic provider does not provide embedding models (use voyage provider for embeddings recommended by Anthropic)")
 	case provider.OpenAI:
-		return f.newOpenAIEmbeddingsGateway(resolvedProfile)
+		return f.newOpenAIEmbeddingsGateway(resolvedPreset)
 	case provider.OpenAICompatible:
-		return f.newOpenAICompatibleEmbeddingsGateway(resolvedProfile)
+		return f.newOpenAICompatibleEmbeddingsGateway(resolvedPreset)
 	case provider.OpenRouter:
-		return f.newOpenRouterEmbeddingsGateway(resolvedProfile)
+		return f.newOpenRouterEmbeddingsGateway(resolvedPreset)
 	case provider.Voyage:
-		return f.newVoyageEmbeddingsGateway(resolvedProfile)
+		return f.newVoyageEmbeddingsGateway(resolvedPreset)
 	default:
-		return nil, fmt.Errorf("provider must be specified for embeddings model %q", resolvedProfile.Model)
+		return nil, fmt.Errorf("provider must be specified for embeddings model %q", resolvedPreset.Model)
 	}
 }
 
-func (f *Factory) newGeminiGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("gemini provider requires an API key for model %q", resolvedProfile.Model)
+func (f *Factory) newGeminiGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("gemini provider requires an API key for model %q", resolvedPreset.Model)
 	}
-	gateway, err := newGeminiGateway(ctx, resolvedProfile.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newLlamaGenerationGateway(resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.BaseURL == "" {
-		return nil, fmt.Errorf("llama provider requires a base URL for model %q", resolvedProfile.Model)
+func (f *Factory) newLlamaGenerationGateway(resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.BaseURL == "" {
+		return nil, fmt.Errorf("llama provider requires a base URL for model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	gateway, err := newLlamaGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient)
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	gateway, err := newLlamaGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newOpenAIGenerationGateway(resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("openai provider requires an API key for model %q", resolvedProfile.Model)
+func (f *Factory) newOpenAIGenerationGateway(resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("openai provider requires an API key for model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	return newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient), nil
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	return newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient), nil
 }
 
-func (f *Factory) newOpenAICompatibleGenerationGateway(resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.BaseURL == "" {
-		return nil, fmt.Errorf("openai-compatible provider requires a base URL for model %q", resolvedProfile.Model)
+func (f *Factory) newOpenAICompatibleGenerationGateway(resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.BaseURL == "" {
+		return nil, fmt.Errorf("openai-compatible provider requires a base URL for model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	return newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient), nil
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	return newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient), nil
 }
 
-func (f *Factory) newOpenRouterGenerationGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("openrouter provider requires an API key for model %q", resolvedProfile.Model)
+func (f *Factory) newOpenRouterGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("openrouter provider requires an API key for model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	gateway, err := NewOpenRouterGateway(ctx, resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient)
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	gateway, err := NewOpenRouterGateway(ctx, resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newAnthropicGenerationGateway(resolvedProfile *profile.ResolvedProfile) (ports.GenerationGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("anthropic provider requires an API key for model %q", resolvedProfile.Model)
+func (f *Factory) newAnthropicGenerationGateway(resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("anthropic provider requires an API key for model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	gateway, err := newAnthropicGateway(resolvedProfile.APIKey, httpClient)
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	gateway, err := newAnthropicGateway(resolvedPreset.APIKey, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newGeminiEmbeddingsGateway(ctx context.Context, resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newGeminiEmbeddingsGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	gateway, err := newGeminiGateway(ctx, resolvedProfile.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newLlamaEmbeddingsGateway(resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.BaseURL == "" {
-		return nil, fmt.Errorf("llama provider requires a base URL for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newLlamaEmbeddingsGateway(resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.BaseURL == "" {
+		return nil, fmt.Errorf("llama provider requires a base URL for embeddings model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	llamaGW, err := newLlamaGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient)
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	llamaGW, err := newLlamaGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create llama gateway for embeddings model %q: %w", resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create llama gateway for embeddings model %q: %w", resolvedPreset.Model, err)
 	}
 
 	gateway, ok := llamaGW.(ports.EmbeddingsGateway)
 	if !ok {
-		return nil, fmt.Errorf("llama gateway does not implement EmbeddingsGateway for model %q", resolvedProfile.Model)
+		return nil, fmt.Errorf("llama gateway does not implement EmbeddingsGateway for model %q", resolvedPreset.Model)
 	}
 	return gateway, nil
 }
 
-func (f *Factory) newOpenAIEmbeddingsGateway(resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("openai provider requires an API key for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newOpenAIEmbeddingsGateway(resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("openai provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	return newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient), nil
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	return newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient), nil
 }
 
-func (f *Factory) newOpenAICompatibleEmbeddingsGateway(resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.BaseURL == "" {
-		return nil, fmt.Errorf("openai-compatible provider requires a base URL for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newOpenAICompatibleEmbeddingsGateway(resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.BaseURL == "" {
+		return nil, fmt.Errorf("openai-compatible provider requires a base URL for embeddings model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	return newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient), nil
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	return newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient), nil
 }
 
-func (f *Factory) newOpenRouterEmbeddingsGateway(resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("openrouter provider requires an API key for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newOpenRouterEmbeddingsGateway(resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("openrouter provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	return newOpenAIGateway(resolvedProfile.BaseURL, resolvedProfile.APIKey, httpClient), nil
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	return newOpenAIGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient), nil
 }
 
-func (f *Factory) newVoyageEmbeddingsGateway(resolvedProfile *profile.ResolvedProfile) (ports.EmbeddingsGateway, error) {
-	if resolvedProfile.APIKey == "" {
-		return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", resolvedProfile.Model)
+func (f *Factory) newVoyageEmbeddingsGateway(resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if resolvedPreset.APIKey == "" {
+		return nil, fmt.Errorf("voyage provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	httpClient := f.httpClientService.GetWithTimeout(resolvedProfile.Timeout)
-	gateway, err := newVoyageGateway(resolvedProfile.APIKey, httpClient)
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	gateway, err := newVoyageGateway(resolvedPreset.APIKey, httpClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedProfile.Provider, resolvedProfile.Model, err)
+		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }

@@ -82,8 +82,8 @@ func TestGeminiProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'Google Gemini', got '%s'", p.Name)
 	}
 
-	if p.DefaultModel != "gemini-2.5-flash" {
-		t.Errorf("Expected default model 'gemini-2.5-flash', got '%s'", p.DefaultModel)
+	if p.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", p.DefaultModel)
 	}
 
 	if p.DefaultEnvVar != "MEOW_GEMINI_API_KEY" {
@@ -118,8 +118,8 @@ func TestOpenAIProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'OpenAI', got '%s'", provider.Name)
 	}
 
-	if provider.DefaultModel != "gpt-4o-mini" {
-		t.Errorf("Expected default model 'gpt-4o-mini', got '%s'", provider.DefaultModel)
+	if provider.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", provider.DefaultModel)
 	}
 
 	if provider.DefaultBaseURL != "https://api.openai.com/v1" {
@@ -146,8 +146,8 @@ func TestAnthropicProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'Anthropic Claude', got '%s'", provider.Name)
 	}
 
-	if provider.DefaultModel != "claude-3-5-haiku-20241022" {
-		t.Errorf("Expected default model 'claude-3-5-haiku-20241022', got '%s'", provider.DefaultModel)
+	if provider.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", provider.DefaultModel)
 	}
 
 	if provider.MaxInputTokens != 200000 {
@@ -166,8 +166,8 @@ func TestLlamaProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'Meta Llama', got '%s'", provider.Name)
 	}
 
-	if provider.DefaultModel != "llama3.2:3b" {
-		t.Errorf("Expected default model 'llama3.2:3b', got '%s'", provider.DefaultModel)
+	if provider.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", provider.DefaultModel)
 	}
 
 	if provider.RequiresAPIKey {
@@ -194,8 +194,8 @@ func TestVoyageProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'Voyage AI', got '%s'", provider.Name)
 	}
 
-	if provider.DefaultModel != "voyage-3" {
-		t.Errorf("Expected default model 'voyage-3', got '%s'", provider.DefaultModel)
+	if provider.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", provider.DefaultModel)
 	}
 
 	if provider.MaxOutputTokens != 0 {
@@ -251,8 +251,8 @@ func TestOpenRouterProviderConfiguration(t *testing.T) {
 		t.Errorf("Expected name 'OpenRouter', got '%s'", provider.Name)
 	}
 
-	if provider.DefaultModel != "anthropic/claude-3.5-haiku" {
-		t.Errorf("Expected default model 'anthropic/claude-3.5-haiku', got '%s'", provider.DefaultModel)
+	if provider.DefaultModel != "" {
+		t.Errorf("Expected empty default model, got '%s'", provider.DefaultModel)
 	}
 
 	if provider.DefaultBaseURL != "https://openrouter.ai/api/v1" {

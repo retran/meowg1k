@@ -189,13 +189,13 @@ func TestRootCmdPersistentPreRunE(t *testing.T) {
 	})
 
 	t.Run("App initialization for other commands", func(t *testing.T) {
-		generateCmd := &cobra.Command{
-			Use: "generate",
+		writeCmd := &cobra.Command{
+			Use: "write",
 		}
 
-		err := rootCmd.PersistentPreRunE(generateCmd, []string{})
+		err := rootCmd.PersistentPreRunE(writeCmd, []string{})
 		if err != nil {
-			t.Logf("Expected error for generate command (app initialization): %v", err)
+			t.Logf("Expected error for write command (app initialization): %v", err)
 			if strings.Contains(err.Error(), "failed to initialize app") {
 				t.Log("Got expected app initialization error")
 			} else {

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -33,33 +34,44 @@ func newCachingGenerationGateway(innerGateway ports.GenerationGateway, cache por
 func (g *cachingGenerationGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
-		return "", fmt.Errorf("caching generation gateway is nil")
+		return nil, fmt.Errorf("caching generation gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	cacheKey := g.createCacheKey(request)
 
 	if !g.updateCache {
 		if cachedValue, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
-			return cachedValue, nil
+			var cachedResp gateway.GenerateContentResponse
+			if err := json.Unmarshal([]byte(cachedValue), &cachedResp); err == nil {
+				return &cachedResp, nil
+			}
 		}
 	}
 
 	result, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
 
-	if err := g.cache.Set(ctx, cacheKey, result); err != nil {
+	encoded, err := json.Marshal(result)
+	if err == nil {
+		if err := g.cache.Set(ctx, cacheKey, string(encoded)); err != nil {
+			// Log error but don't fail the request
+			// TODO: add logging when logger is available in this context
+			_ = err
+		}
+	}
+	if err != nil {
 		// Log error but don't fail the request
 		// TODO: add logging when logger is available in this context
 		_ = err
@@ -71,11 +83,16 @@ func (g *cachingGenerationGateway) GenerateContent(
 // createCacheKey generates a deterministic cache key from the request parameters.
 // Uses SHA256 to create a fixed-length key from all parameters.
 func (g *cachingGenerationGateway) createCacheKey(request *gateway.GenerateContentRequest) string {
+	toolsJSON, err := request.ToolsJSON()
+	if err != nil {
+		toolsJSON = ""
+	}
 	data := fmt.Sprintf(
-		"gen:%s:%s:%s:%d",
+		"gen:%s:%s:%s:%s:%d",
 		request.Model(),
 		request.SystemPrompt(),
 		request.UserPrompt(),
+		toolsJSON,
 		request.MaxOutputTokens(),
 	)
 

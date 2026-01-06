@@ -6,13 +6,13 @@ package summarize
 
 import (
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // ResolvedConfig holds the resolved summarization configuration for a specific file.
 type ResolvedConfig struct {
-	Profile             *profile.ResolvedProfile
-	Strategy            *config.Strategy
+	Preset              *preset.ResolvedPreset
+	Strategy            *config.StrategyConfig
 	SystemPrompt        string
 	Skip                bool
 	IncludeOriginalFile bool

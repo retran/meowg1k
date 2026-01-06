@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -14,6 +15,20 @@ import (
 )
 
 type flowBuilder func(container *app.Container) (executor.Flow, error)
+
+// validateInputOrStdin checks if input is provided via args or stdin.
+func validateInputOrStdin(_ *cobra.Command, args []string) error {
+	if len(args) > 0 {
+		return nil
+	}
+
+	stat, err := os.Stdin.Stat()
+	if err == nil && (stat.Mode()&os.ModeCharDevice) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("input required: provide as argument or via stdin")
+}
 
 func runFlowCommand(cmd *cobra.Command, flowName string, build flowBuilder) error {
 	ctx := cmd.Context()

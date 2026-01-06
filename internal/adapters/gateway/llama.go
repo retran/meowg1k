@@ -56,17 +56,21 @@ func newLlamaGateway(baseURL, apiKey string, httpClient *http.Client) (ports.Gen
 }
 
 // GenerateContent sends a content generation request to the local LLM server.
-func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if g == nil {
-		return "", fmt.Errorf("llama gateway is nil")
+		return nil, fmt.Errorf("llama gateway is nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	if len(request.Tools()) > 0 {
+		return nil, gateway.ErrToolCallingNotSupported
 	}
 
 	prompt := buildLlamaPrompt(request)
@@ -74,14 +78,25 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 
 	response, err := g.client.Complete(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content from local LLM API: %w", err)
+		return nil, fmt.Errorf("failed to write content from local LLM API: %w", err)
 	}
 
-	return response.Content, nil
+	return &gateway.GenerateContentResponse{
+		Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: response.Content}},
+	}, nil
 }
 
 func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	var promptBuilder strings.Builder
+
+	msgs := request.Messages()
+	if len(msgs) > 0 {
+		for i := range msgs {
+			writeLlamaMessage(&promptBuilder, &msgs[i])
+		}
+		promptBuilder.WriteString(assistantStart)
+		return promptBuilder.String()
+	}
 
 	if request.SystemPrompt() != "" {
 		promptBuilder.WriteString(systemPromptStart)
@@ -95,6 +110,72 @@ func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
 	promptBuilder.WriteString(assistantStart)
 
 	return promptBuilder.String()
+}
+
+func writeLlamaMessage(sb *strings.Builder, m *gateway.Message) {
+	switch m.Role {
+	case gateway.MessageRoleSystem:
+		if strings.TrimSpace(m.Content) != "" {
+			sb.WriteString(systemPromptStart)
+			sb.WriteString(strings.TrimSpace(m.Content))
+			sb.WriteString(systemPromptEnd)
+		}
+	case gateway.MessageRoleUser:
+		if strings.TrimSpace(m.Content) != "" {
+			sb.WriteString(userPromptStart)
+			sb.WriteString(strings.TrimSpace(m.Content))
+			sb.WriteString(userPromptEnd)
+		}
+	case gateway.MessageRoleAssistant:
+		writeLlamaAssistantMessage(sb, m)
+	case gateway.MessageRoleTool:
+		writeLlamaToolMessage(sb, m)
+	}
+}
+
+func writeLlamaAssistantMessage(sb *strings.Builder, m *gateway.Message) {
+	if strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0 {
+		return
+	}
+	sb.WriteString(assistantStart)
+	if strings.TrimSpace(m.Content) != "" {
+		sb.WriteString(strings.TrimSpace(m.Content))
+		sb.WriteString("\n")
+	}
+	if len(m.ToolCalls) > 0 {
+		sb.WriteString("ToolCalls:\n")
+		for _, c := range m.ToolCalls {
+			sb.WriteString("- ")
+			sb.WriteString(c.Name)
+			if c.ID != "" {
+				sb.WriteString(" (id=")
+				sb.WriteString(c.ID)
+				sb.WriteString(")")
+			}
+			sb.WriteString("\n")
+		}
+	}
+	sb.WriteString(systemPromptEnd)
+}
+
+func writeLlamaToolMessage(sb *strings.Builder, m *gateway.Message) {
+	if strings.TrimSpace(m.Content) == "" {
+		return
+	}
+	sb.WriteString(userPromptStart)
+	sb.WriteString("ToolResult")
+	if m.ToolName != "" {
+		sb.WriteString(" ")
+		sb.WriteString(m.ToolName)
+	}
+	if m.ToolCallID != "" {
+		sb.WriteString(" (tool_call_id=")
+		sb.WriteString(m.ToolCallID)
+		sb.WriteString(")")
+	}
+	sb.WriteString(":\n")
+	sb.WriteString(strings.TrimSpace(m.Content))
+	sb.WriteString(userPromptEnd)
 }
 
 func newLlamaCompletionRequest(prompt string, request *gateway.GenerateContentRequest) *llama.CompletionRequest {

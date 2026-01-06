@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/retran/meowg1k/internal/domain/config"
-	"github.com/retran/meowg1k/internal/domain/profile"
+	"github.com/retran/meowg1k/internal/domain/preset"
 )
 
 // Mock implementations for testing
@@ -22,23 +22,23 @@ func (m *mockConfigResolver) Get() (*config.Config, error) {
 	return m.Cfg, nil
 }
 
-// mockProfileResolver is a mock implementation of ProfileResolver for testing.
-type mockProfileResolver struct {
-	profiles map[profile.Profile]*profile.ResolvedProfile
-	err      error
+// mockPresetResolver is a mock implementation of PresetResolver for testing.
+type mockPresetResolver struct {
+	presets map[preset.Preset]*preset.ResolvedPreset
+	err     error
 }
 
-func (m *mockProfileResolver) Get(p profile.Profile) (*profile.ResolvedProfile, error) {
+func (m *mockPresetResolver) Get(p preset.Preset) (*preset.ResolvedPreset, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return m.profiles[p], nil
+	return m.presets[p], nil
 }
 
 func TestNewService(t *testing.T) {
 	configSvc := &mockConfigResolver{}
-	profileSvc := &mockProfileResolver{}
-	svc, err := NewService(configSvc, profileSvc)
+	presetSvc := &mockPresetResolver{}
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -51,8 +51,8 @@ func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{},
 	}
-	profileSvc := &mockProfileResolver{}
-	svc, err := NewService(configSvc, profileSvc)
+	presetSvc := &mockPresetResolver{}
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -69,18 +69,23 @@ func TestGetSummarizationConfig_NoSummarizeConfig(t *testing.T) {
 func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Summarize: &config.SummarizeConfig{
-				Rules: []*config.SummarizeRule{
-					{
-						Match: "*.go",
-						Skip:  true,
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{},
+			},
+			Activities: &config.ActivitiesConfig{
+				Summarize: &config.SummarizeActivityConfig{
+					Rules: []*config.SummarizeRule{
+						{
+							Match: "*.go",
+							Skip:  true,
+						},
 					},
 				},
 			},
 		},
 	}
-	profileSvc := &mockProfileResolver{}
-	svc, err := NewService(configSvc, profileSvc)
+	presetSvc := &mockPresetResolver{}
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -100,11 +105,14 @@ func TestGetSummarizationConfig_SkipRule(t *testing.T) {
 func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Summarize: &config.SummarizeConfig{
-				Default: &config.SummarizeDefault{
-					Profile:      "default",
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{},
+			},
+			Activities: &config.ActivitiesConfig{
+				Summarize: &config.SummarizeActivityConfig{
+					Preset:       "default",
 					SystemPrompt: "Default prompt",
-					Strategy: &config.Strategy{
+					Strategy: &config.StrategyConfig{
 						Type:                "plain",
 						IncludeOriginalFile: true,
 						IncludeChangedFile:  false,
@@ -113,15 +121,15 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
 			"default": {
 				Name:  "default",
 				Model: "gpt-4",
 			},
 		},
 	}
-	svc, err := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -136,8 +144,8 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 	if result.Skip {
 		t.Fatal("Expected Skip to be false")
 	}
-	if result.Profile.Name != "default" {
-		t.Errorf("Expected profile name 'default', got '%s'", result.Profile.Name)
+	if result.Preset.Name != "default" {
+		t.Errorf("Expected preset name 'default', got '%s'", result.Preset.Name)
 	}
 	if result.SystemPrompt != "Default prompt" {
 		t.Errorf("Expected system prompt 'Default prompt', got '%s'", result.SystemPrompt)
@@ -153,23 +161,26 @@ func TestGetSummarizationConfig_WithDefaults(t *testing.T) {
 func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Summarize: &config.SummarizeConfig{
-				Rules: []*config.SummarizeRule{
-					{
-						Match:        "*.go",
-						Profile:      "golang",
-						SystemPrompt: "Go specific prompt",
-						Strategy: &config.Strategy{
-							Type:                "diff",
-							IncludeOriginalFile: false,
-							IncludeChangedFile:  true,
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{},
+			},
+			Activities: &config.ActivitiesConfig{
+				Summarize: &config.SummarizeActivityConfig{
+					Rules: []*config.SummarizeRule{
+						{
+							Match:        "*.go",
+							Preset:       "golang",
+							SystemPrompt: "Go specific prompt",
+							Strategy: &config.StrategyConfig{
+								Type:                "diff",
+								IncludeOriginalFile: false,
+								IncludeChangedFile:  true,
+							},
 						},
 					},
-				},
-				Default: &config.SummarizeDefault{
-					Profile:      "default",
+					Preset:       "default",
 					SystemPrompt: "Default prompt",
-					Strategy: &config.Strategy{
+					Strategy: &config.StrategyConfig{
 						Type:                "plain",
 						IncludeOriginalFile: true,
 						IncludeChangedFile:  false,
@@ -178,15 +189,15 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 			},
 		},
 	}
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
 			"golang": {
 				Name:  "golang",
 				Model: "claude-3",
 			},
 		},
 	}
-	svc, err := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -198,8 +209,8 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 	if result == nil {
 		t.Fatal("Expected result, got nil")
 	}
-	if result.Profile.Name != "golang" {
-		t.Errorf("Expected profile name 'golang', got '%s'", result.Profile.Name)
+	if result.Preset.Name != "golang" {
+		t.Errorf("Expected preset name 'golang', got '%s'", result.Preset.Name)
 	}
 	if result.SystemPrompt != "Go specific prompt" {
 		t.Errorf("Expected system prompt 'Go specific prompt', got '%s'", result.SystemPrompt)
@@ -212,21 +223,24 @@ func TestGetSummarizationConfig_WithRuleOverride(t *testing.T) {
 	}
 }
 
-func TestGetSummarizationConfig_ProfileError(t *testing.T) {
+func TestGetSummarizationConfig_PresetError(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Summarize: &config.SummarizeConfig{
-				Default: &config.SummarizeDefault{
-					Profile: "nonexistent",
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{},
+			},
+			Activities: &config.ActivitiesConfig{
+				Summarize: &config.SummarizeActivityConfig{
+					Preset: "nonexistent",
 				},
 			},
 		},
 	}
-	mockErr := fmt.Errorf("profile not found in configuration")
-	profileSvc := &mockProfileResolver{
+	mockErr := fmt.Errorf("preset not found in configuration")
+	presetSvc := &mockPresetResolver{
 		err: mockErr,
 	}
-	svc, err := NewService(configSvc, profileSvc)
+	svc, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -238,8 +252,8 @@ func TestGetSummarizationConfig_ProfileError(t *testing.T) {
 }
 
 func TestNewServiceWithNilConfigResolver(t *testing.T) {
-	profileSvc := &mockProfileResolver{}
-	service, err := NewService(nil, profileSvc)
+	presetSvc := &mockPresetResolver{}
+	service, err := NewService(nil, presetSvc)
 	if err == nil {
 		t.Error("Expected error when config resolver is nil")
 	}
@@ -248,14 +262,14 @@ func TestNewServiceWithNilConfigResolver(t *testing.T) {
 	}
 }
 
-func TestNewServiceWithNilProfileResolver(t *testing.T) {
+func TestNewServiceWithNilPresetResolver(t *testing.T) {
 	configSvc := &mockConfigResolver{}
 	service, err := NewService(configSvc, nil)
 	if err == nil {
-		t.Error("Expected error when profile resolver is nil")
+		t.Error("Expected error when preset resolver is nil")
 	}
 	if service != nil {
-		t.Error("Expected nil service when profile resolver is nil")
+		t.Error("Expected nil service when preset resolver is nil")
 	}
 }
 
@@ -269,8 +283,8 @@ func TestGetWithNilService(t *testing.T) {
 
 func TestGetWithConfigError(t *testing.T) {
 	configSvc := &mockConfigResolverWithError{}
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
 			"default": {
 				Name:  "default",
 				Model: "gpt-4",
@@ -278,7 +292,7 @@ func TestGetWithConfigError(t *testing.T) {
 		},
 	}
 
-	service, err := NewService(configSvc, profileSvc)
+	service, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
@@ -292,24 +306,27 @@ func TestGetWithConfigError(t *testing.T) {
 func TestGetWithDefaultStrategy(t *testing.T) {
 	configSvc := &mockConfigResolver{
 		Cfg: &config.Config{
-			Summarize: &config.SummarizeConfig{
-				Default: &config.SummarizeDefault{
-					Profile:      "default",
+			Flows: &config.FlowsConfig{
+				Draft: &config.DraftFlowConfig{},
+			},
+			Activities: &config.ActivitiesConfig{
+				Summarize: &config.SummarizeActivityConfig{
+					Preset:       "default",
 					SystemPrompt: "Default prompt",
 					Strategy:     nil, // No strategy specified
 				},
 			},
 		},
 	}
-	profileSvc := &mockProfileResolver{
-		profiles: map[profile.Profile]*profile.ResolvedProfile{
+	presetSvc := &mockPresetResolver{
+		presets: map[preset.Preset]*preset.ResolvedPreset{
 			"default": {
 				Name:  "default",
 				Model: "gpt-4",
 			},
 		},
 	}
-	service, err := NewService(configSvc, profileSvc)
+	service, err := NewService(configSvc, presetSvc)
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}

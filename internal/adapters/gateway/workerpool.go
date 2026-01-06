@@ -33,17 +33,17 @@ func newWorkerPoolGateway(innerGateway ports.GenerationGateway, maxConcurrency i
 func (g *workerPoolGateway) GenerateContent(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
-) (string, error) {
+) (*gateway.GenerateContentResponse, error) {
 	if g == nil {
-		return "", fmt.Errorf("worker pool gateway is nil")
+		return nil, fmt.Errorf("worker pool gateway is nil")
 	}
 
 	if ctx == nil {
-		return "", fmt.Errorf("context cannot be nil")
+		return nil, fmt.Errorf("context cannot be nil")
 	}
 
 	if request == nil {
-		return "", fmt.Errorf("request cannot be nil")
+		return nil, fmt.Errorf("request cannot be nil")
 	}
 
 	select {
@@ -52,12 +52,12 @@ func (g *workerPoolGateway) GenerateContent(
 			<-g.semaphore
 		}()
 	case <-ctx.Done():
-		return "", fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
+		return nil, fmt.Errorf("context cancelled while waiting for worker pool slot: %w", ctx.Err())
 	}
 
 	content, err := g.gateway.GenerateContent(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate content: %w", err)
+		return nil, fmt.Errorf("failed to write content: %w", err)
 	}
 	return content, nil
 }

@@ -5,8 +5,10 @@
 package gateway
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // GenerateContentRequest holds the parameters for a content generation request.
@@ -36,8 +38,127 @@ type GenerateContentRequest struct {
 	model             string
 	systemPrompt      string
 	userPrompt        string
+	messages          []Message
 	stop              []string
+	tools             []ToolDefinition
 	maxOutputTokens   int
+}
+
+// MessageRole represents the role of a message in a conversation.
+type MessageRole string
+
+const (
+	// MessageRoleSystem is the system role.
+	MessageRoleSystem MessageRole = "system"
+	// MessageRoleUser is the user role.
+	MessageRoleUser MessageRole = "user"
+	// MessageRoleAssistant is the assistant role.
+	MessageRoleAssistant MessageRole = "assistant"
+	// MessageRoleTool is the tool role.
+	MessageRoleTool MessageRole = "tool"
+)
+
+// Message is a single chat turn. Tool messages should include ToolCallID.
+// Some providers may ignore fields they don't support.
+type Message struct {
+	Role       MessageRole `json:"role"`
+	Content    string      `json:"content,omitempty"`
+	ToolCallID string      `json:"tool_call_id,omitempty"`
+	ToolName   string      `json:"tool_name,omitempty"`
+	ToolCalls  []ToolCall  `json:"tool_calls,omitempty"`
+}
+
+// ErrToolCallingNotSupported indicates the gateway does not support tool calling.
+var ErrToolCallingNotSupported = fmt.Errorf("tool calling not supported")
+
+// ToolDefinition describes a tool/function that the model can call.
+type ToolDefinition struct {
+	Parameters  map[string]any `json:"parameters,omitempty"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+}
+
+// ToolCall represents a model-emitted tool call.
+type ToolCall struct {
+	Arguments map[string]any `json:"arguments"`
+	Name      string         `json:"name"`
+	ID        string         `json:"id,omitempty"`
+}
+
+// ContentBlockKind represents the type of content block.
+type ContentBlockKind string
+
+const (
+	// ContentBlockText is a text content block.
+	ContentBlockText ContentBlockKind = "text"
+	// ContentBlockReasoning is a reasoning content block.
+	ContentBlockReasoning ContentBlockKind = "reasoning"
+	// ContentBlockToolCall is a tool call content block.
+	ContentBlockToolCall ContentBlockKind = "tool_call"
+)
+
+// ContentBlock is an ordered element emitted by the model.
+//
+// Providers that support interleaving (e.g., Anthropic) should preserve the
+// original order when mapping to blocks.
+type ContentBlock struct {
+	ToolCall *ToolCall        `json:"tool_call,omitempty"`
+	Kind     ContentBlockKind `json:"kind"`
+	Text     string           `json:"text,omitempty"`
+}
+
+// GenerateContentResponse represents an ordered model response.
+type GenerateContentResponse struct {
+	Blocks []ContentBlock `json:"blocks,omitempty"`
+}
+
+// Text returns all text content blocks concatenated.
+func (r *GenerateContentResponse) Text() string {
+	if r == nil {
+		return ""
+	}
+	return joinTextBlocks(r.Blocks, ContentBlockText)
+}
+
+// Reasoning returns all reasoning content blocks concatenated.
+func (r *GenerateContentResponse) Reasoning() string {
+	if r == nil {
+		return ""
+	}
+	return joinTextBlocks(r.Blocks, ContentBlockReasoning)
+}
+
+// ToolCalls returns all tool call blocks.
+func (r *GenerateContentResponse) ToolCalls() []ToolCall {
+	if r == nil {
+		return nil
+	}
+	toolCalls := make([]ToolCall, 0)
+	for _, b := range r.Blocks {
+		if b.Kind != ContentBlockToolCall || b.ToolCall == nil {
+			continue
+		}
+		toolCalls = append(toolCalls, *b.ToolCall)
+	}
+	return toolCalls
+}
+
+func joinTextBlocks(blocks []ContentBlock, kind ContentBlockKind) string {
+	var sb strings.Builder
+	for _, b := range blocks {
+		if b.Kind != kind {
+			continue
+		}
+		segment := strings.TrimSpace(b.Text)
+		if segment == "" {
+			continue
+		}
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(segment)
+	}
+	return strings.TrimSpace(sb.String())
 }
 
 // NewGenerateContentRequest creates and returns a new GenerateContentRequest.
@@ -46,8 +167,54 @@ func NewGenerateContentRequest(model, systemPrompt, userPrompt string, maxOutput
 		model:           model,
 		systemPrompt:    systemPrompt,
 		userPrompt:      userPrompt,
+		messages:        nil,
+		tools:           nil,
 		maxOutputTokens: maxOutputTokens,
 	}
+}
+
+// WithMessages sets chat messages for providers that support message history.
+// If messages are set, providers should prefer them over SystemPrompt/UserPrompt.
+func (r *GenerateContentRequest) WithMessages(messages []Message) *GenerateContentRequest {
+	r.messages = messages
+	return r
+}
+
+// Messages returns the chat messages if set.
+func (r *GenerateContentRequest) Messages() []Message {
+	if r == nil {
+		return nil
+	}
+	return r.messages
+}
+
+// WithTools sets tool definitions for native tool calling.
+func (r *GenerateContentRequest) WithTools(tools []ToolDefinition) *GenerateContentRequest {
+	r.tools = tools
+	return r
+}
+
+// Tools returns the tool definitions if set.
+func (r *GenerateContentRequest) Tools() []ToolDefinition {
+	if r == nil {
+		return nil
+	}
+	return r.tools
+}
+
+// ToolsJSON returns the tool definitions as JSON string.
+func (r *GenerateContentRequest) ToolsJSON() (string, error) {
+	if r == nil {
+		return "", nil
+	}
+	if len(r.tools) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(r.tools)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal tools: %w", err)
+	}
+	return string(b), nil
 }
 
 // WithTemperature sets the temperature parameter and returns the request.
@@ -104,7 +271,7 @@ func (r *GenerateContentRequest) WithResponseSchema(responseSchema map[string]in
 	return r
 }
 
-// WithCandidateCount sets the number of candidates to generate and returns the request.
+// WithCandidateCount sets the number of candidates to write and returns the request.
 func (r *GenerateContentRequest) WithCandidateCount(candidateCount *int) *GenerateContentRequest {
 	r.candidateCount = candidateCount
 	return r
@@ -253,7 +420,7 @@ func (r *GenerateContentRequest) ResponseSchema() map[string]interface{} {
 	return r.responseSchema
 }
 
-// CandidateCount returns the number of candidates to generate for the content generation request.
+// CandidateCount returns the number of candidates to write for the content generation request.
 func (r *GenerateContentRequest) CandidateCount() *int {
 	return r.candidateCount
 }

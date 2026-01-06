@@ -12,6 +12,7 @@ import (
 
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/domain/gateway"
+	"github.com/retran/meowg1k/internal/ports"
 )
 
 // mockTraceLogger implements TraceLogger for testing.
@@ -39,11 +40,13 @@ type mockLoggingGenerationGateway struct {
 	response string
 }
 
-func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (string, error) {
+func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
 	if m.err != nil {
-		return "", m.err
+		return nil, m.err
 	}
-	return m.response, nil
+	return &gateway.GenerateContentResponse{
+		Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: m.response}},
+	}, nil
 }
 
 // mockLoggingEmbeddingsGateway implements ports.EmbeddingsGateway for testing.
@@ -83,11 +86,11 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 		t.Fatalf("Expected no error, got %v", err)
 	}
 
-	if content != "Generated content" {
-		t.Errorf("Expected 'Generated content', got %s", content)
+	if content.Text() != "Generated content" {
+		t.Errorf("Expected 'Generated content', got %s", content.Text())
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -99,8 +102,8 @@ func TestLoggingGenerationGateway_Success(t *testing.T) {
 	if entry.Command != "commit" {
 		t.Errorf("Expected command 'commit', got %s", entry.Command)
 	}
-	if entry.Profile != "default" {
-		t.Errorf("Expected profile 'default', got %s", entry.Profile)
+	if entry.Preset != "default" {
+		t.Errorf("Expected preset 'default', got %s", entry.Preset)
 	}
 	if entry.Provider != "openai" {
 		t.Errorf("Expected provider 'openai', got %s", entry.Provider)
@@ -130,7 +133,7 @@ func TestLoggingGenerationGateway_Error(t *testing.T) {
 		t.Fatal("Expected error, got nil")
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -152,7 +155,7 @@ func TestLoggingGenerationGateway_NilLogger(t *testing.T) {
 	wrapped := newLoggingGenerationGateway(inner, nil, "commit", "default", "openai")
 
 	// Should return the inner gateway when logger is nil
-	if wrapped != inner {
+	if wrapped != ports.GenerationGateway(inner) {
 		t.Error("Expected wrapped gateway to be the inner gateway when logger is nil")
 	}
 }
@@ -180,7 +183,7 @@ func TestLoggingEmbeddingsGateway_Success(t *testing.T) {
 		t.Errorf("Expected 2 embeddings, got %d", len(embeddings))
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()
@@ -214,7 +217,7 @@ func TestLoggingEmbeddingsGateway_Error(t *testing.T) {
 		t.Fatal("Expected error, got nil")
 	}
 
-	// Wait for async logging
+	// Wait for background logging.
 	time.Sleep(50 * time.Millisecond)
 
 	interactions := logger.getInteractions()

@@ -1,0 +1,190 @@
+.\" docs/man/meow-write.1
+.TH MEOW-WRITE 1 "2025-10-04" "meow" "User Commands"
+.SH NAME
+meow-write \- generate content based on prompts and context
+.SH SYNOPSIS
+.B meow write
+[\fIflags\fR]
+.br
+.B meow gen
+[\fIflags\fR]
+.br
+.B meow g
+[\fIflags\fR]
+.SH DESCRIPTION
+.B meow write
+generates content using configured AI provider presets and tasks. It is
+designed for automation and scripting, transforming input into AI-enhanced
+output through a predictable pipeline.
+.PP
+Input can be provided via stdin (for context) and/or command-line flags
+(for instructions). The command supports predefined tasks configured in
+YAML files and ad-hoc prompts for one-off operations.
+.PP
+All providers (Gemini, OpenAI, Anthropic, OpenRouter, llama.cpp, and
+OpenAI-compatible APIs) are supported through the unified preset system
+with smart defaults and minimal configuration required.
+.SH OPTIONS
+.TP
+.BR \-t ", " \-\-task " " \fINAME\fR
+Run a predefined task from configuration. Tasks are defined in the
+.B write.tasks
+section of config files. Tasks can specify a preset, system prompt,
+and user prompt, allowing complex, reusable workflows to be invoked
+with a simple name.
+.TP
+.BR \-s ", " \-\-system\-prompt " " \fITEXT\fR
+Override the system prompt. The system prompt sets the AI's role and
+behavior (e.g., "You are an expert Go developer"). If not specified,
+uses the system prompt from the task or preset configuration.
+.TP
+.BR \-u ", " \-\-user\-prompt " " \fITEXT\fR
+Specify the user prompt (instruction) for generation. This tells the AI
+what to do with the provided context. Can be combined with stdin to
+provide both context and instruction.
+.TP
+.BR \-\-workspace " " \fIDIRECTORY\fR
+Specify the workspace root directory. Overrides automatic workspace detection.
+.TP
+.BR \-\-config " " \fIFILE\fR
+Use a specific configuration file.
+.TP
+.BR \-\-silent
+Enable silent mode for scripting.
+.TP
+.BR \-h ", " \-\-help
+Show command help and usage information.
+
+.SH CONFIGURATION
+Uses the preset system defined in
+.BR meow\-config (5).
+Presets specify provider, model, timeout, rate limiting, and token caps
+with smart defaults for each provider.
+.PP
+The
+.B generate
+section in configuration files defines default settings and tasks:
+.PP
+.nf
+generate:
+  default:
+    preset: "gemini-flash"              # Default preset for generate
+    systemPrompt: "You are..."   # Optional default system prompt
+
+  tasks:
+    review:
+      preset: "gemini-pro"           # Override preset for this task
+      systemPrompt: "Expert reviewer..."
+      userPrompt: "Review this code thoroughly"
+
+    security:
+      preset: "gemini-pro"
+      userPrompt: "Analyze for security vulnerabilities"
+.fi
+.PP
+Configuration files are read with hierarchical precedence:
+.IP "1." 3
+User config: \fB~/.config/meowg1k/config.yaml\fR
+.IP "2."
+Project config: \fB./.meowg1k.yaml\fR
+.IP "3."
+Explicit config via \fB\-\-config\fR flag
+.SH EXAMPLES
+.SS Using Predefined Tasks
+Run a code review task:
+.PP
+.nf
+.B cat main.go | meow write \-t review
+.fi
+.PP
+Security analysis with predefined configuration:
+.PP
+.nf
+.B cat auth.go | meow write \-t security
+.fi
+
+.SS Ad-Hoc Prompts
+Provide context via stdin and instruction via flag:
+.PP
+.nf
+.B cat service.py | meow write \-u "Add comprehensive error handling"
+.fi
+.PP
+Generate from text prompt alone:
+.PP
+.nf
+.B echo "Create a REST API" | meow g \-u "Write Go code with proper structure"
+.fi
+.PP
+Refactor JavaScript to TypeScript:
+.PP
+.nf
+.B echo "function add(a, b) { return a + b; }" | meow g \\
+  \-s "You are a TypeScript expert" \\
+  \-u "Convert to TypeScript with type hints"
+.fi
+
+.SS Using Different Providers
+With Gemini (free tier):
+.PP
+.nf
+.B export MEOW_GEMINI_API_KEY="your-key"
+.B cat code.go | meow g \-u "Explain this code"
+.fi
+.PP
+With local llama.cpp server:
+.PP
+.nf
+# Ensure preset configured in .meowg1k.yaml:
+# presets:
+#   local:
+#     provider: "llama"
+#     baseURL: "http://localhost:8080"
+#
+# generate:
+#   default:
+#     preset: "local"
+
+.B cat sensitive.go | meow g \-u "Review for issues"
+.fi
+
+.SS Silent Mode for Scripts
+Generate without progress indicators:
+.PP
+.nf
+.B cat input.txt | meow write \-u "Summarize" \-\-silent > output.txt
+.fi
+
+.SH ENVIRONMENT
+Providers use these environment variables for API keys:
+.TP
+.B MEOW_GEMINI_API_KEY
+API key for Gemini provider.
+.TP
+.B MEOW_OPENAI_API_KEY
+API key for OpenAI provider.
+.TP
+.B MEOW_OPENROUTER_API_KEY
+API key for OpenRouter provider.
+.TP
+.B MEOW_ANTHROPIC_API_KEY
+API key for Anthropic provider.
+.TP
+.B MEOW_VOYAGE_API_KEY
+API key for Voyage AI provider (embeddings only).
+.TP
+.B MEOW_LLAMA_API_KEY
+Optional API key for llama provider.
+.TP
+.B MEOW_OPENAI_COMPATIBLE_API_KEY
+API key for OpenAI-compatible providers.
+
+.SH EXIT STATUS
+Returns 0 on success, non-zero on error.
+
+.SH SEE ALSO
+.BR meow (1),
+.BR meow\-init (1),
+.BR meow\-version (1),
+.BR meow\-config (5),
+.BR meow\-security (7)
