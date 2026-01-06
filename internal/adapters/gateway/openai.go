@@ -102,7 +102,7 @@ func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatC
 			openai.UserMessage(request.UserPrompt()),
 		},
 		Model: request.Model(),
-		// Prefer MaxCompletionTokens (includes reasoning tokens); MaxTokens is deprecated for o-series.
+		// Use MaxCompletionTokens (includes reasoning tokens) for compatibility with newer models.
 		MaxCompletionTokens: openai.Int(int64(request.MaxOutputTokens())),
 	}
 
