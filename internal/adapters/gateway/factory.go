@@ -81,7 +81,7 @@ func (f *Factory) getRateLimiter(resolvedPreset *preset.ResolvedPreset) (ratelim
 
 	// Generate key based on model instance characteristics
 	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
-	// TODO use centralized method to write keys
+	// TODO use centralized method to generate keys
 	key := string(resolvedPreset.Provider) + ":" + resolvedPreset.BaseURL + ":" + resolvedPreset.Model + ":" + resolvedPreset.APIKeyEnv
 
 	if limiter, exists := f.limiters[key]; exists {
