@@ -31,8 +31,9 @@ Examples:
 
   # Search more thoroughly with higher k and lower threshold
   meow ask "Where are the API routes defined?" --top-k 10 --min-score 0.5`,
-	Args: cobra.MaximumNArgs(1),
+	Args: validateInputOrStdin,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "AskFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateAskFlow()
 		})

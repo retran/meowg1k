@@ -239,14 +239,18 @@ func (e *executorImpl) executeFlowImpl(
 	select {
 	case <-ctx.Done():
 		flowCtx.SendFailed(ctx.Err(), "Flow canceled")
-		return fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err())
+		return NewReportedError(fmt.Errorf("flow %q is canceled: %w", flowCtx.name, ctx.Err()))
 	default:
 	}
 
 	err := flow(ctx, flowCtx)
 	if err != nil {
-		flowCtx.SendFailed(err, "Flow failed")
-		return fmt.Errorf("flow %q failed: %w", flowCtx.name, err)
+		// Report error via tracker if flow hasn't already reported it
+		if !flowCtx.IsErrorReported() {
+			flowCtx.SendFailed(err, "Flow failed")
+		}
+		// Return as ReportedError since it was reported via tracker
+		return NewReportedError(fmt.Errorf("flow %q failed: %w", flowCtx.name, err))
 	}
 
 	return nil

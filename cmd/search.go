@@ -35,8 +35,9 @@ Examples:
 
   # Get top 20 results in JSON format
   meow search "API endpoints" --top-k 20 --json`,
-	Args: cobra.MaximumNArgs(1),
+	Args: validateInputOrStdin,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "SearchFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateSearchFlow()
 		})

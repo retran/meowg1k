@@ -5,9 +5,43 @@ package executor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
+
+// ReportedError wraps an error that has already been reported via the feedback tracker.
+// When this error is returned, callers should not report it again.
+type ReportedError struct {
+	err error
+}
+
+// Error implements the error interface.
+func (e *ReportedError) Error() string {
+	if e.err == nil {
+		return "reported error"
+	}
+	return e.err.Error()
+}
+
+// Unwrap returns the wrapped error.
+func (e *ReportedError) Unwrap() error {
+	return e.err
+}
+
+// NewReportedError wraps an error as a ReportedError.
+func NewReportedError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ReportedError{err: err}
+}
+
+// IsReportedError checks if an error is a ReportedError.
+func IsReportedError(err error) bool {
+	var reportedErr *ReportedError
+	return errors.As(err, &reportedErr)
+}
 
 // Status represents the current status of an activity.
 type Status string
@@ -75,9 +109,10 @@ func NoOpFeedbackHandler(_ *Feedback) {}
 
 // Context provides feedback capabilities to activities and access to the executor.
 type Context struct {
-	Executor     Executor
-	feedbackFunc FeedbackHandler
-	name         string
+	Executor      Executor
+	feedbackFunc  FeedbackHandler
+	name          string
+	errorReported bool
 }
 
 // NewContext creates a new executor context.
@@ -125,6 +160,14 @@ func (c *Context) GetExecutor() Executor {
 		return nil
 	}
 	return c.Executor
+}
+
+// IsErrorReported returns true if an error was reported via SendFailed.
+func (c *Context) IsErrorReported() bool {
+	if c == nil {
+		return false
+	}
+	return c.errorReported
 }
 
 func (c *Context) sendFeedback(status Status, progress float64, message string, details string, err error) {
@@ -177,6 +220,9 @@ func (c *Context) SendCompletedWithDetails(message string, details string) {
 
 // SendFailedWithDetails sends a failed status feedback with the given error, message, and details.
 func (c *Context) SendFailedWithDetails(err error, message string, details string) {
+	if c != nil {
+		c.errorReported = true
+	}
 	c.sendFeedback(StatusFailed, 0, message, details, err)
 }
 

@@ -41,6 +41,8 @@ func NewOrchestrator(outputSink OutputSink, traceLogger TraceLogger, concurrency
 }
 
 // Execute executes a flow with proper tracker initialization and cleanup.
+// If the flow returns a ReportedError, it suppresses the error since it was already
+// reported via the feedback tracker.
 func (o *Orchestrator) Execute(
 	ctx context.Context,
 	flowName string,
@@ -65,11 +67,15 @@ func (o *Orchestrator) Execute(
 		WithFeedbackHandler(feedbackHandler)
 
 	err := exec.ExecuteFlow(ctx, flowName, flow)
-	if err != nil {
-		err = fmt.Errorf("failed to execute flow: %w", err)
-	}
 
 	executionTracker.Stop()
+
+	// If error was reported via tracker, suppress it to avoid duplicate error messages
+	if err != nil && IsReportedError(err) {
+		err = nil
+	} else if err != nil {
+		err = fmt.Errorf("failed to execute flow: %w", err)
+	}
 
 	if flushErr := o.outputSink.Flush(); flushErr != nil {
 		if err != nil {

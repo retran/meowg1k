@@ -15,8 +15,17 @@ func newDoCmd() *cobra.Command {
 		Use:   "do [goal]",
 		Short: "Run an autonomous agent flow to accomplish a goal",
 		Long: `The 'do' command initiates a multi-agent workflow (Discover, Plan, Execute, Verify)
-to accomplish a complex task. It can read the goal from arguments or standard input.`,
+to accomplish a complex task. It can read the goal from arguments or standard input.
+
+Examples:
+  # Provide goal as argument
+  meow do "Add unit tests for the parser module"
+
+  # Provide goal via stdin
+  echo "Refactor authentication logic" | meow do`,
+		Args: validateInputOrStdin,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			cmd.SilenceUsage = true
 			return runFlowCommand(cmd, "DoFlow", func(container *app.Container) (executor.Flow, error) {
 				return container.CreateDoFlow()
 			})

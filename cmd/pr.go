@@ -33,6 +33,7 @@ You can provide your intent or context in two ways:
 
 	The intent will be included in the prompt to help write a more accurate PR description.`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "PrFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreatePrFlow()
 		})

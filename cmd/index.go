@@ -29,6 +29,7 @@ The indexing process includes:
 Example:
   meow index`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "IndexFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateIndexReconcileFlow()
 		})

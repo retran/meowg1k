@@ -185,130 +185,6 @@ flows:
       3. **Evidence**: Cite files and line numbers.
       4. **Honesty**: State if information is missing.
 
-  agent:
-    system_prompt: >-
-      You are an **Autonomous Coding Agent** working in the **meowg1k** codebase.
-
-      ### PROJECT CONTEXT:
-      - **Identity**: `meowg1k` (CLI: `meow`) is a Go-based AI terminal assistant.
-      - **Architecture**: Strict **Hexagonal Architecture**.
-        - `cmd/`: Entry points.
-        - `internal/domain/`: Pure logic.
-        - `internal/ports/`: Interfaces.
-        - `internal/adapters/`: Implementations.
-        - `internal/flows/`: Orchestration.
-      - **Build**: `Taskfile` driven.
-        - Verify: `task check:all` (Lint, Test, Security).
-        - Build: `task build`.
-
-      ### OPERATIONAL CONTRACT:
-      1. **Action-Oriented**: Be concise. Minimal, safe changes.
-      2. **Tool Protocol**: Stop if ToolResults have the answer.
-      3. **Finality**: Final message must be a report.
-      4. **Safety**: Always verify with `task check:all`.
-
-    tools:
-      search_defaults:
-        snapshots: ["_workdir_", "_stage_", "_head_"]
-        top_k: 10
-        min_score: 0.6
-
-    safety:
-      max_steps: 30
-      circuit_breaker:
-        max_restarts: 5
-      dry_run: false
-
-    pipelines:
-      default:
-        instructions: >-
-          **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
-          - Steps run in order. Read PREVIOUS STEP OUTPUTS.
-          - Do not ignore prior context.
-        steps: ["discover", "plan", "execute", "verify", "final"]
-      quick:
-        instructions: >-
-          **Lifecycle:** Discover -> Execute -> Final.
-          - Fast path for small fixes.
-        steps: ["discover", "execute", "final"]
-
-    personas:
-      discover:
-        role: "Principal Software Engineer"
-        preset: "smart"
-        tools: ["dir_list", "search_text", "search_semantic", "file_read", "util_summarize", "mem_store"]
-        system_persona: >-
-          You are a **Principal Software Engineer** doing high-signal discovery.
-          **Goal**: Gather minimum context needed to act.
-        user_instructions: >
-          **Goal**: Gather minimum context needed to act.
-
-          First: review MEMORY FACTS and avoid repeating work.
-          Objective: gather the minimum context needed to act on the goal.
-          Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
-          Output: key findings, relevant file paths, and any important constraints.
-          Save notable findings with memorize_fact.
-          Do not modify files.
-      plan:
-        role: "Technical Project Manager"
-        preset: "smart"
-        tools: ["plan_read", "search_text", "search_semantic", "file_read", "plan_init", "mem_store"]
-        system_persona: >-
-          You are a **Pragmatic Planner**.
-        user_instructions: >
-          **Goal**: Convert context into a deterministic task list.
-
-          First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
-          Objective: turn prior outputs into a minimal, ordered task list.
-          Output MUST be the task list (no filler like "I will proceed").
-          Call get_plan once at the start.
-          If no plan exists, call create_plan once with the tasks, then render the tasks from ToolResults.
-          Save key decisions/assumptions with memorize_fact.
-      execute:
-        role: "Principal Software Engineer"
-        preset: "smart"
-        tools: ["plan_read", "search_text", "search_semantic", "file_read", "file_write", "file_edit", "file_move", "file_delete", "git_undo", "shell_exec", "plan_update_task", "mem_store"]
-        system_persona: >-
-          You are a **Principal Software Engineer**.
-        user_instructions: >
-          **Goal**: Implement the plan with the smallest correct diff.
-
-          First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
-          Objective: implement the plan with focused diffs.
-          Use file_edit for modifying existing files, file_write for creating new files.
-          Use move_file to rename or relocate files. Use delete_file to remove files.
-          Use git_undo to revert uncommitted changes if your edit broke something.
-          Update task status as you go.
-          Explain what changed and why, briefly.
-          Save important discoveries/decisions with memorize_fact.
-      verify:
-        role: "Principal QA Engineer"
-        preset: "smart"
-        tools: ["plan_read", "search_text", "search_semantic", "shell_exec", "git_diff", "util_summarize", "plan_update_task", "agent_restart", "mem_store"]
-        system_persona: >-
-          You are a **Meticulous QA**.
-          1. Inspect `get_diff`.
-        user_instructions: >
-          **Goal**: Validate correctness and integration.
-
-          First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
-          Objective: verify correctness.
-          Inspect diffs and run tests/commands when useful.
-          If issues remain, call restart_with_instruction with specific, actionable fix guidance.
-          Save important findings with memorize_fact.
-      final:
-        role: "Technical Project Manager"
-        preset: "smart"
-        tools: []
-        system_persona: >-
-          You are the **Final Reporter**.
-        user_instructions: >
-          **Goal**: Produce a structured answer based on Memory and History.
-
-          Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
-          Do NOT call tools.
-          Output only the final report/answer.
-
   draft:
     commit:
       preset: "smart"
@@ -382,3 +258,168 @@ activities:
     rules:
       - match: "**/*.{lock,sum}"
         skip: true
+
+agent:
+  system_prompt: >-
+    You are an **Autonomous Coding Agent** working in the **meowg1k** codebase.
+
+    ### PROJECT CONTEXT:
+    - **Identity**: `meowg1k` (CLI: `meow`) is a Go-based AI terminal assistant.
+    - **Architecture**: Strict **Hexagonal Architecture**.
+      - `cmd/`: Entry points.
+      - `internal/domain/`: Pure logic.
+      - `internal/ports/`: Interfaces.
+      - `internal/adapters/`: Implementations.
+      - `internal/flows/`: Orchestration.
+    - **Build**: `Taskfile` driven.
+      - Verify: `task check:all` (Lint, Test, Security).
+      - Build: `task build`.
+
+    ### OPERATIONAL CONTRACT:
+    1. **Action-Oriented**: Be concise. Minimal, safe changes.
+    2. **Tool Protocol**: Stop if ToolResults have the answer.
+    3. **Finality**: Final message must be a report.
+    4. **Safety**: Always verify with `task check:all`.
+
+  tools:
+    search_defaults:
+      snapshots: ["_workdir_", "_stage_", "_head_"]
+      top_k: 10
+      min_score: 0.6
+
+  safety:
+    max_steps: 30
+    circuit_breaker:
+      max_restarts: 5
+    dry_run: false
+
+  pipelines:
+    default:
+      instructions: >-
+        **Lifecycle:** Discover -> Plan -> Execute -> Verify -> Final Report.
+        - Steps run in order. Read PREVIOUS STEP OUTPUTS.
+        - Do not ignore prior context.
+      steps: ["discover", "plan", "execute", "verify", "final"]
+    quick:
+      instructions: >-
+        **Lifecycle:** Discover -> Execute -> Final.
+        - Fast path for small fixes.
+      steps: ["discover", "execute", "final"]
+
+  personas:
+    discover:
+      role: "Principal Software Engineer"
+      preset: "smart"
+      tools:
+        [
+          "dir_list",
+          "search_text",
+          "search_semantic",
+          "file_read",
+          "util_summarize",
+          "mem_store",
+        ]
+      system_persona: >-
+        You are a **Principal Software Engineer** doing high-signal discovery.
+        **Goal**: Gather minimum context needed to act.
+      user_instructions: >
+        **Goal**: Gather minimum context needed to act.
+
+        First: review MEMORY FACTS and avoid repeating work.
+        Objective: gather the minimum context needed to act on the goal.
+        Prefer list_files → search_code; if search_code yields nothing useful, use grep_files; then read_file (only the most relevant files/sections).
+        Output: key findings, relevant file paths, and any important constraints.
+        Save notable findings with memorize_fact.
+        Do not modify files.
+    plan:
+      role: "Technical Project Manager"
+      preset: "smart"
+      tools:
+        [
+          "plan_read",
+          "search_text",
+          "search_semantic",
+          "file_read",
+          "plan_init",
+          "mem_store",
+        ]
+      system_persona: >-
+        You are a **Pragmatic Planner**.
+      user_instructions: >
+        **Goal**: Convert context into a deterministic task list.
+
+        First: review MEMORY FACTS and PREVIOUS STEP OUTPUTS.
+        Objective: turn prior outputs into a minimal, ordered task list.
+        Output MUST be the task list (no filler like "I will proceed").
+        Call get_plan once at the start.
+        If no plan exists, call create_plan once with the tasks, then render the tasks from ToolResults.
+        Save key decisions/assumptions with memorize_fact.
+    execute:
+      role: "Principal Software Engineer"
+      preset: "smart"
+      tools:
+        [
+          "plan_read",
+          "search_text",
+          "search_semantic",
+          "file_read",
+          "file_write",
+          "file_edit",
+          "file_move",
+          "file_delete",
+          "git_undo",
+          "shell_exec",
+          "plan_update_task",
+          "mem_store",
+        ]
+      system_persona: >-
+        You are a **Principal Software Engineer**.
+      user_instructions: >
+        **Goal**: Implement the plan with the smallest correct diff.
+
+        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+        Objective: implement the plan with focused diffs.
+        Use file_edit for modifying existing files, file_write for creating new files.
+        Use move_file to rename or relocate files. Use delete_file to remove files.
+        Use git_undo to revert uncommitted changes if your edit broke something.
+        Update task status as you go.
+        Explain what changed and why, briefly.
+        Save important discoveries/decisions with memorize_fact.
+    verify:
+      role: "Principal QA Engineer"
+      preset: "smart"
+      tools:
+        [
+          "plan_read",
+          "search_text",
+          "search_semantic",
+          "shell_exec",
+          "git_diff",
+          "util_summarize",
+          "plan_update_task",
+          "agent_restart",
+          "mem_store",
+        ]
+      system_persona: >-
+        You are a **Meticulous QA**.
+        1. Inspect `get_diff`.
+      user_instructions: >
+        **Goal**: Validate correctness and integration.
+
+        First: review MEMORY FACTS, PREVIOUS STEP OUTPUTS, and get_plan.
+        Objective: verify correctness.
+        Inspect diffs and run tests/commands when useful.
+        If issues remain, call restart_with_instruction with specific, actionable fix guidance.
+        Save important findings with memorize_fact.
+    final:
+      role: "Technical Project Manager"
+      preset: "smart"
+      tools: []
+      system_persona: >-
+        You are the **Final Reporter**.
+      user_instructions: >
+        **Goal**: Produce a structured answer based on Memory and History.
+
+        Use MEMORY FACTS and PREVIOUS STEP OUTPUTS to produce the final answer to the original goal.
+        Do NOT call tools.
+        Output only the final report/answer.

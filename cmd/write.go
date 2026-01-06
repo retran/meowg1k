@@ -15,6 +15,7 @@ var writeCmd = &cobra.Command{
 	Aliases: []string{"gen", "g"},
 	Short:   "Generate any content based on input - code, text, or docs",
 	RunE: func(cmd *cobra.Command, _ []string) error {
+		cmd.SilenceUsage = true
 		return runFlowCommand(cmd, "WriteFlow", func(container *app.Container) (executor.Flow, error) {
 			return container.CreateWriteFlow()
 		})
