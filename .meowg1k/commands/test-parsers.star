@@ -92,8 +92,12 @@ port = 8080
   <age>30</age>
 </person>"""
         parsed = ctx.xml.parse(xml_data)
+        stringified = ctx.xml.stringify(parsed, indent=True)
         output_lines.append("✅ **Parse**: " + str(parsed))
-        output_lines.append("⚠️  **Stringify**: Known edge cases, see test failures\n")
+        output_lines.append("✅ **Stringify**:")
+        output_lines.append("```xml")
+        output_lines.append(stringified)
+        output_lines.append("```\n")
     
     # Summary
     output_lines.append("---")
@@ -101,8 +105,8 @@ port = 8080
     output_lines.append("- `ctx.json` - Full support ✅")
     output_lines.append("- `ctx.yaml` - Full support ✅")
     output_lines.append("- `ctx.csv` - Full support ✅")
-    output_lines.append("- `ctx.toml` - Full support ✅ (minor edge case)")
-    output_lines.append("- `ctx.xml` - Basic support ⚠️ (has edge cases)")
+    output_lines.append("- `ctx.toml` - Full support ✅")
+    output_lines.append("- `ctx.xml` - Full support ✅ (uses clbanning/mxj library)")
     
     output = "\n".join(output_lines)
     ctx.output.markdown(output)
