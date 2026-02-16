@@ -3,6 +3,7 @@ module github.com/retran/meowg1k
 go 1.25.5
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/bmatcuk/doublestar/v4 v4.9.2
@@ -23,6 +24,7 @@ require (
 	go.starlark.net v0.0.0-20260102030733-3fee463870c9
 	golang.org/x/term v0.38.0
 	google.golang.org/genai v1.40.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -87,5 +89,4 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251002232023-7c0ddcbb5797 // indirect
 	google.golang.org/grpc v1.75.1 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
