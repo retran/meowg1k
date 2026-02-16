@@ -12,10 +12,13 @@ See detailed design decisions in: `docs/temp/streaming-redesign/ADR-001-streamin
 
 ```python
 # Chat primitive
-ctx.llm.chat(prompt, preset, system=None, use_session=True, stream=False, on_event=None) → str
+ctx.llm.chat(prompt, preset, system=None, use_session=True, stream=False, 
+             on_event=None, response_format=None, response_schema=None) → str | dict
 
-# Agentic primitive
-ctx.llm.agentic(prompt, preset, tools, system=None, use_session=True, stream=False, on_event=None, max_iterations=50) → str
+# Agent turn primitive
+ctx.llm.agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False,
+                   on_event=None, max_iterations=50, response_format=None, 
+                   response_schema=None) → str | dict
 
 # Embed unchanged
 ctx.llm.embed(texts, preset) → list[list[float]]
@@ -28,7 +31,9 @@ ctx.session.get_system() → str
 ctx.output.is_tty() → bool
 ```
 
-**Note**: `preset` parameter has **NO DEFAULT** - must be explicitly provided in all APIs.
+**Note**: 
+- `preset` parameter has **NO DEFAULT** - must be explicitly provided in all APIs
+- Return type is `str` by default, `dict` when `response_format="json_object"`
 
 ## Phase 0: Preparation (2-4h)
 
@@ -103,22 +108,24 @@ type StreamCallback func(event StreamEvent) error
 
 ## Phase 4: LLM Module Complete Rewrite (16-20h)
 
-**Goal**: Replace `generate()` with `chat()` and `agentic()`
+**Goal**: Replace `generate()` with `chat()` and `agent_turn()`
 
 ### Tasks
 - [ ] Delete `llmGenerate()` function from `internal/core/starlark/module_llm.go`
 - [ ] Implement `llmChat()` with streaming support
-- [ ] Implement `llmAgentic()` with tool execution
-- [ ] Add callback validation (required for streaming/agentic)
+- [ ] Implement `llmAgentTurn()` with tool execution
+- [ ] Add callback validation (required for streaming/agent_turn)
 - [ ] Integrate with session system prompt
 - [ ] Handle streaming event emission from Go → Starlark callback
+- [ ] Support `response_format` and `response_schema` parameters
+- [ ] Return `str` by default, `dict` when `response_format="json_object"`
 - [ ] Ensure final aggregated text is returned
 - [ ] Complete rewrite of `internal/core/starlark/module_llm_test.go`
 
 **Critical Logic**:
 - `chat()`: `on_event` required if `stream=True`, otherwise optional
-- `agentic()`: `on_event` always required (for tool events)
-- Both return final aggregated string
+- `agent_turn()`: `on_event` always required (for tool events)
+- Both return final aggregated string or parsed dict
 - Stream events are ephemeral (not stored in session)
 - Final messages stored in session
 
@@ -169,8 +176,8 @@ type StreamCallback func(event StreamEvent) error
 - [ ] **pr.star** - Migrate to `chat()` without streaming
 - [ ] **search.star** - Migrate to `chat()` without streaming
 - [ ] **extract.star** - Migrate to `chat()` without streaming
-- [ ] **orchestrator-agent.star** - Update `agentic()` signature, migrate `generate()` calls
-- [ ] **review-agent.star** - Update `agentic()` signature
+- [ ] **orchestrator-agent.star** - Update `agent_turn()` signature, migrate `generate()` calls
+- [ ] **review-agent.star** - Update `agent_turn()` signature
 
 ## Phase 8: Testing & Validation (16-20h)
 

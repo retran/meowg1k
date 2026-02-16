@@ -30,14 +30,20 @@ We will implement a **complete API redesign** for v0.3.0 with three clean primit
 
 ```python
 ctx.llm.chat(
-    prompt,              # Required: str
-    preset,              # Required: LLM preset name (NO DEFAULT)
-    system=None,         # Optional: override session system
-    use_session=True,    # Optional: session control (default: True)
-    stream=False,        # Optional: streaming control (default: False)
-    on_event=None        # Required if stream=True
-) → str
+    prompt,                  # Required: str
+    preset,                  # Required: LLM preset name (NO DEFAULT)
+    system=None,             # Optional: override session system
+    use_session=True,        # Optional: session control (default: True)
+    stream=False,            # Optional: streaming control (default: False)
+    on_event=None,           # Required if stream=True
+    response_format=None,    # Optional: "text" or "json_object"
+    response_schema=None     # Optional: JSON schema dict for structured output
+) → str | dict
 ```
+
+**Return Value**:
+- Returns `str` by default (text response)
+- Returns `dict` when `response_format="json_object"` (parsed JSON)
 
 **Purpose**: Single-turn or multi-turn conversations with streaming support.
 
@@ -58,22 +64,28 @@ ctx.llm.chat(
 - Response not persisted to session database
 - Useful for one-off queries or stateless operations
 
-### 2. Agentic API - Autonomous Tool Execution
+### 2. Agent Turn API - Autonomous Tool Execution
 
 ```python
-ctx.llm.agentic(
-    prompt,              # Required: str
-    preset,              # Required: LLM preset name (NO DEFAULT)
-    tools,               # Required: list[tool]
-    system=None,         # Optional: override session system
-    use_session=True,    # Optional: session control (default: True)
-    stream=False,        # Optional: streaming control (default: False)
-    on_event=None,       # Required (always - for tool events)
-    max_iterations=50    # Optional: iteration limit (default: 50)
-) → str
+ctx.llm.agent_turn(
+    prompt,                  # Required: str
+    preset,                  # Required: LLM preset name (NO DEFAULT)
+    tools,                   # Required: list[tool]
+    system=None,             # Optional: override session system
+    use_session=True,        # Optional: session control (default: True)
+    stream=False,            # Optional: streaming control (default: False)
+    on_event=None,           # Required (always - for tool events)
+    max_iterations=50,       # Optional: iteration limit (default: 50)
+    response_format=None,    # Optional: "text" or "json_object"
+    response_schema=None     # Optional: JSON schema dict for structured output
+) → str | dict
 ```
 
-**Purpose**: Autonomous workflows with tool execution and iteration.
+**Return Value**:
+- Returns `str` by default (text response)
+- Returns `dict` when `response_format="json_object"` (parsed JSON)
+
+**Purpose**: Single autonomous turn with iterative tool use.
 
 **Design Choices**:
 - `on_event` **always required** (tool execution visibility)
@@ -281,19 +293,43 @@ result = ctx.llm.agentic(
 )
 ```
 
-**Agentic (new)**:
+**Agent Turn (new)**:
 ```python
 def on_event(event):
     if event["kind"] == "tool_call_start":
         ctx.output.info(f"🔧 {event['tool_name']}")
 
 ctx.session.set_system("You are a helper")
-result = ctx.llm.agentic(
+result = ctx.llm.agent_turn(
     prompt="Fix bugs",
     preset="smart",
     tools=[tool1, tool2],
     on_event=on_event
 )
+```
+
+**Structured JSON Output**:
+```python
+# Define schema
+schema = {
+    "type": "object",
+    "properties": {
+        "bugs": {"type": "array", "items": {"type": "string"}},
+        "severity": {"type": "string", "enum": ["low", "medium", "high"]}
+    },
+    "required": ["bugs", "severity"]
+}
+
+# Get structured response (returns dict, not str)
+result = ctx.llm.chat(
+    prompt="Analyze this code for bugs",
+    preset="smart",
+    response_format="json_object",
+    response_schema=schema
+)
+
+# result is already a dict: {"bugs": ["..."], "severity": "high"}
+ctx.output.info(f"Found {len(result['bugs'])} bugs with {result['severity']} severity")
 ```
 
 ### Advantages
