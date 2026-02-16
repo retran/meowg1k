@@ -76,31 +76,29 @@ type PresetConfig struct {
 
 // RequestConfig defines request-level generation parameters.
 type RequestConfig struct {
-	CandidateCount    *int                   `yaml:"candidate_count" mapstructure:"candidate_count"`
-	Temperature       *float64               `yaml:"temperature" mapstructure:"temperature"`
-	TopP              *float64               `yaml:"top_p" mapstructure:"top_p"`
-	TopK              *int                   `yaml:"top_k" mapstructure:"top_k"`
-	MaxTokens         *int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
-	FrequencyPenalty  *float64               `yaml:"frequency_penalty" mapstructure:"frequency_penalty"`
-	PresencePenalty   *float64               `yaml:"presence_penalty" mapstructure:"presence_penalty"`
-	Seed              *int                   `yaml:"seed" mapstructure:"seed"`
-	Cache             *CacheConfig           `yaml:"cache" mapstructure:"cache"`
-	ResponseFormat    *string                `yaml:"response_format" mapstructure:"response_format"`
-	TopLogProbs       *int                   `yaml:"top_log_probs" mapstructure:"top_log_probs"`
-	Grammar           *string                `yaml:"grammar" mapstructure:"grammar"`
-	LogProbs          *bool                  `yaml:"log_probs" mapstructure:"log_probs"`
-	ResponseSchema    map[string]interface{} `yaml:"response_schema" mapstructure:"response_schema"`
-	LogitBias         map[string]int         `yaml:"logit_bias" mapstructure:"logit_bias"`
-	ServiceTier       *string                `yaml:"service_tier" mapstructure:"service_tier"`
-	User              *string                `yaml:"user" mapstructure:"user"`
-	RepetitionPenalty *float64               `yaml:"repetition_penalty" mapstructure:"repetition_penalty"`
-	MinP              *float64               `yaml:"min_p" mapstructure:"min_p"`
-	TopA              *float64               `yaml:"top_a" mapstructure:"top_a"`
-	TypicalP          *float64               `yaml:"typical_p" mapstructure:"typical_p"`
-	Mirostat          *int                   `yaml:"mirostat" mapstructure:"mirostat"`
-	MirostatTau       *float64               `yaml:"mirostat_tau" mapstructure:"mirostat_tau"`
-	MirostatEta       *float64               `yaml:"mirostat_eta" mapstructure:"mirostat_eta"`
-	Stop              []string               `yaml:"stop" mapstructure:"stop"`
+	CandidateCount    *int           `yaml:"candidate_count" mapstructure:"candidate_count"`
+	Temperature       *float64       `yaml:"temperature" mapstructure:"temperature"`
+	TopP              *float64       `yaml:"top_p" mapstructure:"top_p"`
+	TopK              *int           `yaml:"top_k" mapstructure:"top_k"`
+	MaxTokens         *int           `yaml:"max_tokens" mapstructure:"max_tokens"`
+	FrequencyPenalty  *float64       `yaml:"frequency_penalty" mapstructure:"frequency_penalty"`
+	PresencePenalty   *float64       `yaml:"presence_penalty" mapstructure:"presence_penalty"`
+	Seed              *int           `yaml:"seed" mapstructure:"seed"`
+	Cache             *CacheConfig   `yaml:"cache" mapstructure:"cache"`
+	TopLogProbs       *int           `yaml:"top_log_probs" mapstructure:"top_log_probs"`
+	Grammar           *string        `yaml:"grammar" mapstructure:"grammar"`
+	LogProbs          *bool          `yaml:"log_probs" mapstructure:"log_probs"`
+	LogitBias         map[string]int `yaml:"logit_bias" mapstructure:"logit_bias"`
+	ServiceTier       *string        `yaml:"service_tier" mapstructure:"service_tier"`
+	User              *string        `yaml:"user" mapstructure:"user"`
+	RepetitionPenalty *float64       `yaml:"repetition_penalty" mapstructure:"repetition_penalty"`
+	MinP              *float64       `yaml:"min_p" mapstructure:"min_p"`
+	TopA              *float64       `yaml:"top_a" mapstructure:"top_a"`
+	TypicalP          *float64       `yaml:"typical_p" mapstructure:"typical_p"`
+	Mirostat          *int           `yaml:"mirostat" mapstructure:"mirostat"`
+	MirostatTau       *float64       `yaml:"mirostat_tau" mapstructure:"mirostat_tau"`
+	MirostatEta       *float64       `yaml:"mirostat_eta" mapstructure:"mirostat_eta"`
+	Stop              []string       `yaml:"stop" mapstructure:"stop"`
 }
 
 // FlowsConfig groups user-facing workflows (legacy, will be deprecated).
