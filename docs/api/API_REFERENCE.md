@@ -899,6 +899,132 @@ print(ctx.json.stringify(data, indent=2))
 
 ---
 
+### yaml (YAML Handling)
+
+**`yaml.parse(string)`** -> `any`
+Parse YAML string into Starlark values. Supports nested structures, lists, and all YAML data types.
+
+**`yaml.stringify(value)`** -> `string`
+Convert Starlark value to YAML string.
+
+**Example:**
+```python
+# Parse YAML configuration
+config = ctx.yaml.parse('''
+name: myapp
+version: 1.0
+dependencies:
+  - package1
+  - package2
+''')
+
+# Access parsed data
+print(config["name"])  # "myapp"
+
+# Generate YAML
+output = ctx.yaml.stringify({"key": "value", "list": [1, 2, 3]})
+```
+
+---
+
+### xml (XML Handling)
+
+⚠️ **Note:** The XML module has known limitations with parsing and complex structures. Use with caution for simple XML documents only.
+
+**`xml.parse(string)`** -> `any`
+Parse XML string into Starlark values (limited functionality).
+
+**`xml.stringify(value, indent=False, root="")`** -> `string`
+Convert Starlark value to XML string.
+- `indent` (bool): Enable pretty-printing with indentation
+- `root` (string): Optional root element name to wrap the value
+
+**Example:**
+```python
+# Simple XML parsing (limited support)
+xml_str = '<root><item>value</item></root>'
+data = ctx.xml.parse(xml_str)
+
+# Generate XML (basic functionality)
+data = {"item": "value"}
+xml_output = ctx.xml.stringify(data, indent=True, root="root")
+```
+
+---
+
+### toml (TOML Handling)
+
+**`toml.parse(string)`** -> `any`
+Parse TOML string into Starlark values. Supports tables, nested tables, arrays, and TOML data types.
+
+**`toml.stringify(value)`** -> `string`
+Convert Starlark value to TOML string.
+
+**Example:**
+```python
+# Parse TOML configuration
+config = ctx.toml.parse('''
+[package]
+name = "myapp"
+version = "1.0.0"
+
+[dependencies]
+lib1 = "^1.2"
+lib2 = "^2.0"
+''')
+
+# Access parsed data
+print(config["package"]["name"])  # "myapp"
+
+# Generate TOML
+output = ctx.toml.stringify({
+    "database": {
+        "server": "localhost",
+        "port": 5432
+    }
+})
+```
+
+---
+
+### csv (CSV Handling)
+
+**`csv.parse(string, headers=False, delimiter=",")`** -> `list`
+Parse CSV string into Starlark list.
+- `headers=False`: Returns list of lists (rows)
+- `headers=True`: Returns list of dicts (first row as keys)
+- `delimiter`: Field separator (default: `,`)
+
+**`csv.stringify(value, delimiter=",")`** -> `string`
+Convert Starlark list to CSV string.
+- Accepts list of lists (simple rows) or list of dicts (with headers)
+- `delimiter`: Field separator (default: `,`)
+
+**Example:**
+```python
+# Parse CSV without headers
+csv_data = ctx.csv.parse('a,b,c\n1,2,3\n4,5,6')
+# Result: [["a", "b", "c"], ["1", "2", "3"], ["4", "5", "6"]]
+
+# Parse CSV with headers
+csv_data = ctx.csv.parse('name,age\nAlice,30\nBob,25', headers=True)
+# Result: [{"name": "Alice", "age": "30"}, {"name": "Bob", "age": "25"}]
+
+# Generate CSV from list of lists
+output = ctx.csv.stringify([["name", "age"], ["Alice", "30"], ["Bob", "25"]])
+
+# Generate CSV from list of dicts (auto-generates headers)
+output = ctx.csv.stringify([
+    {"name": "Alice", "age": 30},
+    {"name": "Bob", "age": 25}
+])
+
+# Use custom delimiter (TSV)
+tsv_data = ctx.csv.parse("a\tb\tc\n1\t2\t3", delimiter="\t")
+```
+
+---
+
 ### path (Path Manipulation)
 
 **`path.join(*parts)`** -> `string`

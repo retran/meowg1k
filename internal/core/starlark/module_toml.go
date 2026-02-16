@@ -27,7 +27,7 @@ func tomlParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple
 		return nil, err
 	}
 
-	var result interface{}
+	var result map[string]interface{}
 	if err := toml.Unmarshal([]byte(data), &result); err != nil {
 		return nil, err
 	}

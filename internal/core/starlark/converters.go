@@ -6,7 +6,7 @@ package starlark
 import "go.starlark.net/starlark"
 
 // goToStarlark converts a Go value to a Starlark value.
-// Supports: nil, bool, int, int64, float64, string, []interface{}, map[string]interface{}
+// Supports: nil, bool, int, int64, float64, string, []interface{}, []map[string]interface{}, map[string]interface{}
 func goToStarlark(v interface{}) starlark.Value {
 	switch val := v.(type) {
 	case nil:
@@ -22,6 +22,13 @@ func goToStarlark(v interface{}) starlark.Value {
 	case string:
 		return starlark.String(val)
 	case []interface{}:
+		items := make([]starlark.Value, len(val))
+		for i, item := range val {
+			items[i] = goToStarlark(item)
+		}
+		return starlark.NewList(items)
+	case []map[string]interface{}:
+		// Handle TOML array-of-tables
 		items := make([]starlark.Value, len(val))
 		for i, item := range val {
 			items[i] = goToStarlark(item)
