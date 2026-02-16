@@ -252,21 +252,187 @@ Enhance continuous integration:
 
 ## Future Enhancements
 
-### 13. Plugin System
+### 13. Library Import System (Bazel-style)
+**Status**: Idea  
+**Complexity**: Very High  
+**Estimated Effort**: 3-4 weeks
+
+Implement a Bazel-style library import system for downloading and managing Starlark dependencies from GitHub:
+
+- [ ] Design `load()` syntax for remote libraries (e.g., `load("@github.com/user/repo//lib:foo.star", "func")`)
+- [ ] Implement dependency resolution and version pinning
+- [ ] Add caching mechanism for downloaded libraries
+- [ ] Implement integrity checking (SHA256 hashes)
+- [ ] Create lock file format (similar to `go.sum` or `package-lock.json`)
+- [ ] Add `meow deps update` command for dependency management
+- [ ] Support private GitHub repositories via authentication
+- [ ] Add dependency graph visualization
+- [ ] Implement workspace concept (similar to Bazel `WORKSPACE` file)
+
+**Example**:
+```python
+# .meowg1k/deps.star (workspace file)
+github_archive(
+    name = "awesome_lib",
+    repo = "github.com/user/awesome-meow-lib",
+    ref = "v1.2.3",
+    sha256 = "abc123...",
+)
+
+# .meowg1k/commands/mycommand.star
+load("@awesome_lib//lib:util.star", "helper_func")
+```
+
+---
+
+### 14. Structured Data Libraries
+**Status**: Idea  
+**Complexity**: Medium  
+**Estimated Effort**: 1-2 weeks
+
+Expand data format support beyond JSON:
+
+**YAML Support**:
+- [ ] Add `yaml` Starlark module for parsing and serialization
+- [ ] Support YAML anchors and references
+- [ ] Add YAML validation helpers
+
+**XML Support**:
+- [ ] Add `xml` Starlark module for parsing and serialization
+- [ ] Support XPath queries
+- [ ] Add XML schema validation
+
+**TOML Support**:
+- [ ] Add `toml` Starlark module for parsing and serialization
+- [ ] Support TOML v1.0 specification
+- [ ] Add TOML validation helpers
+
+**CSV Support**:
+- [ ] Add `csv` Starlark module for parsing and writing
+- [ ] Support custom delimiters and quoting
+- [ ] Add CSV to JSON/dict conversion helpers
+
+**Example**:
+```python
+load("//lib/yaml.star", "yaml")
+load("//lib/xml.star", "xml")
+load("//lib/toml.star", "toml")
+
+# Parse YAML
+config = yaml.parse(fs.read("config.yaml"))
+
+# Convert to XML
+xml_str = xml.encode(config, root="config")
+
+# Write as TOML
+fs.write("config.toml", toml.encode(config))
+```
+
+---
+
+### 15. Structured LLM Responses
+**Status**: Idea  
+**Complexity**: High  
+**Estimated Effort**: 2-3 weeks
+
+Add support for structured/typed LLM responses with schema validation:
+
+- [ ] Implement JSON Schema-based response validation
+- [ ] Add `response_format` parameter to `llm.generate()`
+- [ ] Support OpenAI structured outputs API
+- [ ] Support Anthropic tool use for structured data
+- [ ] Support Gemini function calling for structured responses
+- [ ] Add Pydantic-style schema definitions in Starlark
+- [ ] Implement automatic retry on schema validation failure
+- [ ] Add response streaming for structured data
+- [ ] Support partial structured responses
+
+**Example**:
+```python
+load("//lib/llm.star", "llm")
+load("//lib/schema.star", "schema")
+
+# Define response schema
+ReviewSchema = schema.object({
+    "score": schema.integer(min=1, max=10),
+    "summary": schema.string(max_length=200),
+    "issues": schema.array(schema.string()),
+    "approved": schema.boolean(),
+})
+
+# Request structured response
+response = llm.generate(
+    prompt="Review this code: ...",
+    response_format=ReviewSchema,
+    validate=True,  # Auto-retry on validation failure
+)
+
+# response is guaranteed to match schema
+print(response.score)  # 8
+print(response.approved)  # True
+```
+
+---
+
+### 16. UI Streaming Support
+**Status**: Idea  
+**Complexity**: High  
+**Estimated Effort**: 2-3 weeks
+
+Enhance terminal UI to support real-time streaming of LLM responses:
+
+- [ ] Implement streaming text rendering with word wrapping
+- [ ] Add progress indicators for streaming responses
+- [ ] Support partial markdown rendering (render as tokens arrive)
+- [ ] Add syntax highlighting for streamed code blocks
+- [ ] Implement cancellation support (Ctrl+C during streaming)
+- [ ] Add visual indicators for thinking/processing state
+- [ ] Support multi-column streaming (side-by-side comparisons)
+- [ ] Add streaming diff visualization
+- [ ] Implement token-per-second metrics display
+- [ ] Add buffer management for very long responses
+
+**Example**:
+```python
+load("//lib/llm.star", "llm")
+load("//lib/ui.star", "ui")
+
+# Stream response with live UI updates
+for chunk in llm.stream(prompt="Write a story..."):
+    ui.append(chunk.content)  # Live rendering
+    ui.update_metrics(tokens=chunk.tokens, tps=chunk.tps)
+```
+
+**UI Features**:
+- Live word-wrapping as content streams
+- Progressive markdown rendering
+- Spinner/progress for long pauses
+- Token count and speed metrics
+- Graceful handling of interruption
+
+---
+
+### 17. Plugin System
 **Status**: Idea  
 **Complexity**: Very High  
 **Estimated Effort**: 2-3 weeks
 
-Allow third-party Starlark libraries:
+Allow third-party Starlark libraries with sandboxing and security:
 
 - [ ] Design plugin discovery mechanism
-- [ ] Implement plugin sandboxing
+- [ ] Implement plugin sandboxing (restrict file system access)
 - [ ] Create plugin registry/marketplace
 - [ ] Add plugin management commands (`meow plugin install`, etc.)
+- [ ] Implement plugin signing and verification
+- [ ] Add plugin dependency resolution
+- [ ] Support plugin configuration
+- [ ] Add plugin lifecycle hooks (install, uninstall, update)
+
+**Related**: Works well with Library Import System (#13)
 
 ---
 
-### 14. Web UI
+### 18. Web UI
 **Status**: Idea  
 **Complexity**: Very High  
 **Estimated Effort**: 4-6 weeks
@@ -277,10 +443,12 @@ Optional web interface for session management:
 - [ ] Implement session viewer
 - [ ] Implement live session monitoring
 - [ ] Add session replay functionality
+- [ ] Support real-time streaming in browser
+- [ ] Add collaborative session sharing
 
 ---
 
-### 15. Language Server Protocol (LSP)
+### 19. Language Server Protocol (LSP)
 **Status**: Idea  
 **Complexity**: Very High  
 **Estimated Effort**: 3-4 weeks
@@ -291,22 +459,8 @@ IDE support for Starlark commands:
 - [ ] Add autocomplete for meowg1k standard library
 - [ ] Add hover documentation
 - [ ] Add go-to-definition for library functions
-
----
-
-## Completed in This Branch ✓
-
-- [x] Starlark migration (all core logic moved from Go to Starlark)
-- [x] Unified session system with SQLite persistence
-- [x] Agentic capabilities with hierarchical planning
-- [x] Library ecosystem (14 libraries)
-- [x] Comprehensive library documentation (planning.star, memory.star, LIBRARY_INDEX.md)
-- [x] Test coverage improvement (44.2% → 64.9%)
-- [x] Documentation restructuring (docs/api/, docs/guides/)
-- [x] Legacy documentation cleanup (archive/, old man pages)
-- [x] Squashed commit with comprehensive message
-- [x] PR created with detailed description (#80)
-- [x] Tagged v0.2.0 as baseline before refactoring
+- [ ] Support remote library imports (from #13)
+- [ ] Add inline diagnostics for schema validation
 
 ---
 
