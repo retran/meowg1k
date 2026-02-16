@@ -13,7 +13,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/sqlite/index"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/meta"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/migrations"
-	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
+	"github.com/retran/meowg1k/internal/adapters/sqlite/session"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
@@ -146,7 +146,6 @@ func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 
 	allMigrations := []migrations.Migration{}
 
-	allMigrations = append(allMigrations, ratelimit.Migrations...)
 	allMigrations = append(allMigrations, cache.Migrations...)
 
 	// Future: add other subsystem migrations here
@@ -164,6 +163,7 @@ func (h *localHostImpl) getProjectDBMigrations() ([]migrations.Migration, error)
 
 	allMigrations = append(allMigrations, meta.Migrations...)
 	allMigrations = append(allMigrations, index.Migrations...)
+	allMigrations = append(allMigrations, session.Migrations...)
 
 	// Future: add other subsystem migrations here
 	// allMigrations = append(allMigrations, someother.Migrations...)

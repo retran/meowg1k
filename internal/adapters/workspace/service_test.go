@@ -379,3 +379,86 @@ func TestGetWithEmptyExplicitPath(t *testing.T) {
 		t.Error("Expected non-empty workspace directory from auto-detection")
 	}
 }
+
+// Test NewServiceWithPath
+
+func TestNewServiceWithPath(t *testing.T) {
+	testPath := "/test/workspace/path"
+	service := NewServiceWithPath(testPath)
+
+	if service == nil {
+		t.Fatal("NewServiceWithPath returned nil")
+	}
+
+	if service.workspacePathResolver == nil {
+		t.Fatal("Expected workspacePathResolver to be set")
+	}
+
+	// Verify that the fixed path resolver returns the correct path
+	path, err := service.workspacePathResolver.GetWorkspacePath()
+	if err != nil {
+		t.Fatalf("GetWorkspacePath failed: %v", err)
+	}
+
+	if path != testPath {
+		t.Errorf("Expected path %s, got %s", testPath, path)
+	}
+}
+
+func TestNewServiceWithPath_ActualDirectory(t *testing.T) {
+	// Create temp directory
+	tempDir := t.TempDir()
+
+	service := NewServiceWithPath(tempDir)
+
+	// Get should return the fixed path
+	dir, err := service.Get()
+	if err != nil {
+		t.Errorf("Get failed: %v", err)
+	}
+
+	if dir != tempDir {
+		t.Errorf("Expected workspace path %s, got %s", tempDir, dir)
+	}
+}
+
+func TestNewServiceWithPath_NonExistentPath(t *testing.T) {
+	nonExistentPath := "/nonexistent/test/path"
+
+	service := NewServiceWithPath(nonExistentPath)
+
+	// Get should fail for non-existent path
+	_, err := service.Get()
+	if err == nil {
+		t.Error("Expected error for non-existent path")
+	}
+}
+
+// Test fixedPathResolver directly
+
+func TestFixedPathResolver_GetWorkspacePath(t *testing.T) {
+	testPath := "/some/fixed/path"
+	resolver := &fixedPathResolver{path: testPath}
+
+	path, err := resolver.GetWorkspacePath()
+	if err != nil {
+		t.Errorf("GetWorkspacePath failed: %v", err)
+	}
+
+	if path != testPath {
+		t.Errorf("Expected path %s, got %s", testPath, path)
+	}
+}
+
+func TestFixedPathResolver_GetWorkspacePath_EmptyPath(t *testing.T) {
+	resolver := &fixedPathResolver{path: ""}
+
+	path, err := resolver.GetWorkspacePath()
+	if err != nil {
+		t.Errorf("GetWorkspacePath failed: %v", err)
+	}
+
+	if path != "" {
+		t.Errorf("Expected empty path, got %s", path)
+	}
+}

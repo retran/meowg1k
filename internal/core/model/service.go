@@ -6,7 +6,6 @@ package model
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/retran/meowg1k/internal/domain/config"
@@ -222,17 +221,12 @@ func (s *Service) resolveAPIKey(
 	providerCfg *config.ProviderConfig,
 	providerDef *provider.Definition,
 ) {
-	apiKeyEnv := modelDef.APIKeyEnv
-	if apiKeyEnv == "" && providerCfg != nil {
-		apiKeyEnv = providerCfg.APIKeyEnv
+	if modelDef.APIKey != "" {
+		resolved.APIKey = modelDef.APIKey
+		return
 	}
-	if apiKeyEnv == "" && providerDef.DefaultEnvVar != "" {
-		apiKeyEnv = providerDef.DefaultEnvVar
-	}
-
-	resolved.APIKeyEnv = apiKeyEnv
-	if apiKeyEnv != "" {
-		resolved.APIKey = os.Getenv(apiKeyEnv)
+	if providerCfg != nil && providerCfg.APIKey != "" {
+		resolved.APIKey = providerCfg.APIKey
 	}
 }
 

@@ -1,6 +1,3 @@
-// Copyright © 2025 The meowg1k Authors
-// SPDX-License-Identifier: Apache-2.0
-
 package cmd
 
 import (
@@ -9,378 +6,236 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestInitCommand(t *testing.T) {
-	if initCmd.Use != "init" {
-		t.Errorf("Expected Use to be 'init', got '%s'", initCmd.Use)
+// chdir into a temp dir for isolated filesystem ops
+func withTempDir(t *testing.T) func() {
+	t.Helper()
+	oldwd, _ := os.Getwd()
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	return func() { _ = os.Chdir(oldwd) }
+}
+
+func TestUpdateGitignore_AppendsSentinelOnce(t *testing.T) {
+	restore := withTempDir(t)
+	defer restore()
+
+	// No .gitignore: should create and add sentinel block
+	if err := updateGitignore(); err != nil {
+		t.Fatalf("updateGitignore failed: %v", err)
+	}
+	data, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatalf("read .gitignore failed: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "# meowg1k") {
+		t.Fatalf("sentinel not found in .gitignore")
 	}
 
-	if initCmd.Short != "Initialize a new meowg1k project configuration" {
-		t.Errorf("Expected Short to be 'Initialize a new meowg1k project configuration', got '%s'", initCmd.Short)
+	// Call again: should not duplicate
+	if err := updateGitignore(); err != nil {
+		t.Fatalf("second updateGitignore failed: %v", err)
 	}
-
-	if initCmd.RunE == nil {
-		t.Error("Expected RunE function to be defined")
+	data2, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatalf("read .gitignore failed: %v", err)
+	}
+	content2 := string(data2)
+	if strings.Count(content2, "# meowg1k") != 1 {
+		t.Fatalf("sentinel duplicated in .gitignore")
 	}
 }
 
-func TestInitCommandRegistered(t *testing.T) {
-	found := false
-	for _, cmd := range rootCmd.Commands() {
-		if cmd.Name() == "init" {
-			found = true
-			if cmd.Short != "Initialize a new meowg1k project configuration" {
-				t.Errorf("Expected Short description 'Initialize a new meowg1k project configuration', got '%s'", cmd.Short)
-			}
-			break
-		}
+func TestUpdateGitignore_PreservesTrailingNewline(t *testing.T) {
+	restore := withTempDir(t)
+	defer restore()
+
+	// Pre-existing file without trailing newline
+	if err := os.WriteFile(".gitignore", []byte("node_modules"), 0644); err != nil {
+		t.Fatalf("write .gitignore failed: %v", err)
 	}
-	if !found {
-		t.Error("Init command not found in root command")
+	if err := updateGitignore(); err != nil {
+		t.Fatalf("updateGitignore failed: %v", err)
+	}
+	data, err := os.ReadFile(".gitignore")
+	if err != nil {
+		t.Fatalf("read .gitignore failed: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "node_modules\n") {
+		t.Fatalf("existing content not preserved with newline")
+	}
+	if !strings.Contains(content, "# meowg1k") {
+		t.Fatalf("sentinel not appended")
 	}
 }
 
-func TestInitCommandCreatesConfig(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+func TestInitGlobalConfig(t *testing.T) {
+	t.Run("creates global config successfully", func(t *testing.T) {
+		// Setup: Use a temp home directory
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
 
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalWd)
+		cmd := &cobra.Command{}
+		cmd.SetOut(bytes.NewBuffer(nil))
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
+		err := initGlobalConfig(cmd, false)
+		require.NoError(t, err)
 
-	// Run init command
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
+		// Verify file was created
+		configPath := filepath.Join(tempHome, ".config", "meowg1k", "init.star")
+		_, err = os.Stat(configPath)
+		require.NoError(t, err, "init.star should exist")
 
-	err = initCmd.RunE(initCmd, []string{})
-	if err != nil {
-		t.Fatalf("Failed to run init command: %v", err)
-	}
+		// Verify content
+		content, err := os.ReadFile(configPath)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "meow.provider")
+	})
 
-	// Check if config file was created
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Errorf("Configuration file was not created at %s", configPath)
-	}
+	t.Run("fails when config exists without force", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
 
-	// Check if config file contains expected content
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("Failed to read config file: %v", err)
-	}
+		// Create existing config
+		configDir := filepath.Join(tempHome, ".config", "meowg1k")
+		os.MkdirAll(configDir, 0755)
+		initFile := filepath.Join(configDir, "init.star")
+		os.WriteFile(initFile, []byte("existing"), 0644)
 
-	contentStr := string(content)
-	expectedStrings := []string{
-		"schema_version:",
-		"providers:",
-		"models:",
-		"presets:",
-		"base:",
-		"flows:",
-		"write:",
-		"agent:",
-		"pipelines:",
-		"draft:",
-		"activities:",
-	}
+		cmd := &cobra.Command{}
+		cmd.SetOut(bytes.NewBuffer(nil))
 
-	for _, expected := range expectedStrings {
-		if !strings.Contains(contentStr, expected) {
-			t.Errorf("Config file does not contain expected string: %s", expected)
-		}
-	}
+		err := initGlobalConfig(cmd, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already exists")
+	})
 
-	// Check output message
-	output := buf.String()
-	if !strings.Contains(output, "Configuration file created") {
-		t.Errorf("Expected success message in output, got: %s", output)
-	}
+	t.Run("overwrites config with force flag", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
+
+		// Create existing config
+		configDir := filepath.Join(tempHome, ".config", "meowg1k")
+		os.MkdirAll(configDir, 0755)
+		initFile := filepath.Join(configDir, "init.star")
+		os.WriteFile(initFile, []byte("old content"), 0644)
+
+		cmd := &cobra.Command{}
+		cmd.SetOut(bytes.NewBuffer(nil))
+
+		err := initGlobalConfig(cmd, true)
+		require.NoError(t, err)
+
+		// Verify content was overwritten
+		content, err := os.ReadFile(initFile)
+		require.NoError(t, err)
+		assert.NotContains(t, string(content), "old content")
+		assert.Contains(t, string(content), "meow.provider")
+	})
 }
 
-func TestInitCommandFailsIfConfigExists(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-exists-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+func TestInitProjectConfig(t *testing.T) {
+	t.Run("creates project config successfully", func(t *testing.T) {
+		restore := withTempDir(t)
+		defer restore()
 
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalWd)
+		// Create a .git directory to simulate git repo
+		os.Mkdir(".git", 0755)
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
+		cmd := &cobra.Command{}
+		cmd.SetOut(bytes.NewBuffer(nil))
 
-	// Create existing config file
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-	if err := os.WriteFile(configPath, []byte("existing config"), 0o644); err != nil {
-		t.Fatalf("Failed to create existing config: %v", err)
-	}
+		err := initProjectConfig(cmd, false)
+		require.NoError(t, err)
 
-	// Run init command without force flag
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
+		// Verify directory and files were created
+		_, err = os.Stat(".meowg1k")
+		require.NoError(t, err, ".meowg1k directory should exist")
 
-	err = initCmd.RunE(initCmd, []string{})
-	if err == nil {
-		t.Error("Expected init command to fail when config exists, but it succeeded")
-	}
+		_, err = os.Stat(".meowg1k/init.star")
+		require.NoError(t, err, "init.star should exist")
 
-	if !strings.Contains(err.Error(), "already exists") {
-		t.Errorf("Expected error message about existing config, got: %v", err)
-	}
+		// Verify gitignore was updated
+		gitignoreContent, err := os.ReadFile(".gitignore")
+		require.NoError(t, err)
+		assert.Contains(t, string(gitignoreContent), "# meowg1k")
+	})
 
-	// Check that original config was not modified
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("Failed to read config file: %v", err)
-	}
+	t.Run("fails when project config exists without force", func(t *testing.T) {
+		restore := withTempDir(t)
+		defer restore()
 
-	if string(content) != "existing config" {
-		t.Errorf("Existing config was modified without --force flag")
-	}
+		// Create existing project config
+		os.MkdirAll(".meowg1k", 0755)
+		os.WriteFile(".meowg1k/init.star", []byte("existing"), 0644)
+
+		cmd := &cobra.Command{}
+		cmd.SetOut(bytes.NewBuffer(nil))
+
+		err := initProjectConfig(cmd, false)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already exists")
+	})
+
+	t.Run("works in non-git directory", func(t *testing.T) {
+		restore := withTempDir(t)
+		defer restore()
+
+		cmd := &cobra.Command{}
+		buf := bytes.NewBuffer(nil)
+		cmd.SetOut(buf)
+
+		err := initProjectConfig(cmd, false)
+		require.NoError(t, err)
+
+		// Should show warning
+		output := buf.String()
+		assert.Contains(t, output, "Warning: Not in a git repository")
+	})
 }
 
-func TestInitCommandForceOverwrite(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-force-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
+func TestRunInit(t *testing.T) {
+	t.Run("routes to global config with --global flag", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
 
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalWd)
+		cmd := &cobra.Command{}
+		cmd.Flags().Bool("global", true, "")
+		cmd.Flags().Bool("force", false, "")
+		cmd.SetOut(bytes.NewBuffer(nil))
 
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
+		err := runInit(cmd, nil)
+		require.NoError(t, err)
 
-	// Create existing config file
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-	if err := os.WriteFile(configPath, []byte("existing config"), 0o644); err != nil {
-		t.Fatalf("Failed to create existing config: %v", err)
-	}
+		// Verify global config was created
+		configPath := filepath.Join(tempHome, ".config", "meowg1k", "init.star")
+		_, err = os.Stat(configPath)
+		require.NoError(t, err)
+	})
 
-	// Run init command with force flag
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
-	initCmd.Flags().Set("force", "true")
-	defer initCmd.Flags().Set("force", "false") // Reset for other tests
+	t.Run("routes to project config without --global flag", func(t *testing.T) {
+		restore := withTempDir(t)
+		defer restore()
 
-	err = initCmd.RunE(initCmd, []string{})
-	if err != nil {
-		t.Fatalf("Failed to run init command with force flag: %v", err)
-	}
+		cmd := &cobra.Command{}
+		cmd.Flags().Bool("global", false, "")
+		cmd.Flags().Bool("force", false, "")
+		cmd.SetOut(bytes.NewBuffer(nil))
 
-	// Check that config was overwritten
-	content, err := os.ReadFile(configPath)
-	if err != nil {
-		t.Fatalf("Failed to read config file: %v", err)
-	}
+		err := runInit(cmd, nil)
+		require.NoError(t, err)
 
-	if string(content) == "existing config" {
-		t.Error("Config was not overwritten with --force flag")
-	}
-
-	// Check output message
-	output := buf.String()
-	if !strings.Contains(output, "Overwriting") {
-		t.Errorf("Expected overwrite message in output, got: %s", output)
-	}
-}
-
-func TestInitCommandFlagForce(t *testing.T) {
-	flag := initCmd.Flags().Lookup("force")
-	if flag == nil {
-		t.Error("Expected --force flag to be defined")
-		return
-	}
-
-	if flag.Shorthand != "f" {
-		t.Errorf("Expected shorthand 'f', got '%s'", flag.Shorthand)
-	}
-
-	if flag.DefValue != "false" {
-		t.Errorf("Expected default value 'false', got '%s'", flag.DefValue)
-	}
-}
-
-func TestInitCommandWorkspaceFlag(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-workspace-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Don't change to temp directory - use --workspace flag instead
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-
-	// Run init command with --workspace flag
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
-	rootCmd.PersistentFlags().Set("workspace", tmpDir)
-	defer rootCmd.PersistentFlags().Set("workspace", "") // Reset for other tests
-
-	err = initCmd.RunE(initCmd, []string{})
-	if err != nil {
-		t.Fatalf("Failed to run init command with workspace flag: %v", err)
-	}
-
-	// Verify we're still in original directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	if cwd != originalWd {
-		t.Errorf("Working directory changed unexpectedly from %s to %s", originalWd, cwd)
-	}
-
-	// Check if config file was created in the specified workspace
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Errorf("Configuration file was not created at %s", configPath)
-	}
-
-	// Check output message contains the correct path
-	output := buf.String()
-	if !strings.Contains(output, tmpDir) {
-		t.Errorf("Expected output to contain workspace path %s, got: %s", tmpDir, output)
-	}
-}
-
-func TestInitCommandSilentFlag(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-silent-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalWd)
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
-
-	// Run init command with --silent flag
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
-	rootCmd.PersistentFlags().Set("silent", "true")
-	defer rootCmd.PersistentFlags().Set("silent", "false") // Reset for other tests
-
-	err = initCmd.RunE(initCmd, []string{})
-	if err != nil {
-		t.Fatalf("Failed to run init command with silent flag: %v", err)
-	}
-
-	// Check output is minimal (just the path)
-	output := strings.TrimSpace(buf.String())
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-
-	// In silent mode, output should only be the path
-	// Use filepath.EvalSymlinks to handle /tmp -> /private/var/folders on macOS
-	expectedPath, _ := filepath.EvalSymlinks(configPath)
-	outputPath, _ := filepath.EvalSymlinks(output)
-	if outputPath != expectedPath {
-		t.Errorf("Expected silent output to be just the path %s, got: %s", expectedPath, outputPath)
-	}
-
-	// Should not contain verbose messages
-	if strings.Contains(output, "Next steps") {
-		t.Error("Silent mode should not contain 'Next steps' message")
-	}
-	if strings.Contains(output, "✓") {
-		t.Error("Silent mode should not contain success icon")
-	}
-}
-
-func TestInitCommandSilentFlagWithForce(t *testing.T) {
-	// Create a temporary directory for testing
-	tmpDir, err := os.MkdirTemp("", "meowg1k-init-test-silent-force-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Change to temp directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get current directory: %v", err)
-	}
-	defer os.Chdir(originalWd)
-
-	if err := os.Chdir(tmpDir); err != nil {
-		t.Fatalf("Failed to change to temp directory: %v", err)
-	}
-
-	// Create existing config file
-	configPath := filepath.Join(tmpDir, ".meowg1k.yaml")
-	if err := os.WriteFile(configPath, []byte("existing config"), 0o644); err != nil {
-		t.Fatalf("Failed to create existing config: %v", err)
-	}
-
-	// Run init command with --silent and --force flags
-	buf := new(bytes.Buffer)
-	initCmd.SetOut(buf)
-	initCmd.SetErr(buf)
-	rootCmd.PersistentFlags().Set("silent", "true")
-	initCmd.Flags().Set("force", "true")
-	defer rootCmd.PersistentFlags().Set("silent", "false") // Reset for other tests
-	defer initCmd.Flags().Set("force", "false")            // Reset for other tests
-
-	err = initCmd.RunE(initCmd, []string{})
-	if err != nil {
-		t.Fatalf("Failed to run init command with silent and force flags: %v", err)
-	}
-
-	// In silent mode, should not see "Overwriting" message
-	output := buf.String()
-	if strings.Contains(output, "Overwriting") {
-		t.Error("Silent mode should not contain 'Overwriting' message")
-	}
-
-	// Should only output the path
-	outputTrimmed := strings.TrimSpace(output)
-	// Use filepath.EvalSymlinks to handle /tmp -> /private/var/folders on macOS
-	expectedPath, _ := filepath.EvalSymlinks(configPath)
-	outputPath, _ := filepath.EvalSymlinks(outputTrimmed)
-	if outputPath != expectedPath {
-		t.Errorf("Expected silent output to be just the path %s, got: %s", expectedPath, outputPath)
-	}
+		// Verify project config was created
+		_, err = os.Stat(".meowg1k/init.star")
+		require.NoError(t, err)
+	})
 }

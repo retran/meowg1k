@@ -46,7 +46,7 @@ func (s *Service) GetMainDBPath() (string, error) {
 }
 
 // GetProjectDBPath returns the path to the project database file.
-// The project database is stored in <workspace root>/.meowg1k/project.db.
+// The project database is stored in <workspace root>/.meowg1k/.data/project.db.
 func (s *Service) GetProjectDBPath() (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("database path service is nil")
@@ -61,7 +61,7 @@ func (s *Service) GetProjectDBPath() (string, error) {
 		return "", fmt.Errorf("failed to get workspace root: %w", err)
 	}
 
-	projectDBDir := filepath.Join(workspaceRoot, ".meowg1k")
+	projectDBDir := filepath.Join(workspaceRoot, ".meowg1k", ".data")
 	if err := os.MkdirAll(projectDBDir, 0o750); err != nil {
 		return "", fmt.Errorf("failed to create project database directory: %w", err)
 	}

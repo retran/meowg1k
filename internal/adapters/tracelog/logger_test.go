@@ -6,13 +6,10 @@ package tracelog
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/retran/meowg1k/pkg/executor"
 )
 
 type mockWorkspaceResolver struct {
@@ -255,148 +252,5 @@ func TestDisabledLogger(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("Disabled logger should not return error: %v", err)
-	}
-}
-
-func TestLogger_FeedbackHandler(t *testing.T) {
-	tempDir := t.TempDir()
-	resolver := &mockWorkspaceResolver{workspaceDir: tempDir}
-
-	logger := NewLogger(resolver)
-	defer logger.Close()
-
-	// Track if inner handler was called
-	innerCalled := false
-	innerHandler := func(feedback *executor.Feedback) {
-		innerCalled = true
-	}
-
-	// Create wrapped handler
-	handler := logger.FeedbackHandler(innerHandler)
-
-	// Test with successful feedback
-	feedback := &executor.Feedback{
-		ActivityName: "TestActivity",
-		Status:       executor.StatusRunning,
-		Message:      "Processing",
-	}
-
-	handler(feedback)
-
-	// Wait a bit for background logging.
-	time.Sleep(50 * time.Millisecond)
-
-	if !innerCalled {
-		t.Error("Inner handler was not called")
-	}
-
-	// Verify log was created
-	logsDir := filepath.Join(tempDir, logsSubDir)
-	files, err := os.ReadDir(logsDir)
-	if err != nil {
-		t.Fatalf("Failed to read logs directory: %v", err)
-	}
-
-	if len(files) != 1 {
-		t.Fatalf("Expected 1 log file, got %d", len(files))
-	}
-
-	// Verify log content
-	logFile := filepath.Join(logsDir, files[0].Name())
-	f, err := os.Open(logFile)
-	if err != nil {
-		t.Fatalf("Failed to open log file: %v", err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	var loggedEntry ExecutionEventEntry
-	if scanner.Scan() {
-		if err := json.Unmarshal(scanner.Bytes(), &loggedEntry); err != nil {
-			t.Fatalf("Failed to unmarshal log entry: %v", err)
-		}
-	} else {
-		t.Fatalf("No log entries found")
-	}
-
-	if loggedEntry.LogEntryType != LogEntryTypeExecutionEvent {
-		t.Errorf("Expected log_entry_type %s, got %s", LogEntryTypeExecutionEvent, loggedEntry.LogEntryType)
-	}
-	if loggedEntry.ExecutionName != "TestActivity" {
-		t.Errorf("Expected execution_name 'TestActivity', got %s", loggedEntry.ExecutionName)
-	}
-	if loggedEntry.Status != string(executor.StatusRunning) {
-		t.Errorf("Expected status 'running', got %s", loggedEntry.Status)
-	}
-}
-
-func TestLogger_FeedbackHandlerWithError(t *testing.T) {
-	tempDir := t.TempDir()
-	resolver := &mockWorkspaceResolver{workspaceDir: tempDir}
-
-	logger := NewLogger(resolver)
-	defer logger.Close()
-
-	handler := logger.FeedbackHandler(nil)
-
-	// Test with error feedback
-	feedback := &executor.Feedback{
-		ActivityName: "FailedActivity",
-		Status:       executor.StatusFailed,
-		Message:      "Operation failed",
-		Error:        fmt.Errorf("test error"),
-	}
-
-	handler(feedback)
-
-	// Wait a bit for background logging.
-	time.Sleep(50 * time.Millisecond)
-
-	// Verify log was created with error
-	logsDir := filepath.Join(tempDir, logsSubDir)
-	logFile := filepath.Join(logsDir, func() string {
-		files, _ := os.ReadDir(logsDir)
-		return files[0].Name()
-	}())
-
-	f, err := os.Open(logFile)
-	if err != nil {
-		t.Fatalf("Failed to open log file: %v", err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	var loggedEntry ExecutionEventEntry
-	if scanner.Scan() {
-		if err := json.Unmarshal(scanner.Bytes(), &loggedEntry); err != nil {
-			t.Fatalf("Failed to unmarshal log entry: %v", err)
-		}
-	}
-
-	if loggedEntry.Error != "test error" {
-		t.Errorf("Expected error 'test error', got %s", loggedEntry.Error)
-	}
-}
-
-func TestLogger_FeedbackHandlerDisabled(t *testing.T) {
-	logger := NewDisabledLogger()
-	defer logger.Close()
-
-	innerCalled := false
-	innerHandler := func(feedback *executor.Feedback) {
-		innerCalled = true
-	}
-
-	handler := logger.FeedbackHandler(innerHandler)
-
-	feedback := &executor.Feedback{
-		ActivityName: "TestActivity",
-		Status:       executor.StatusRunning,
-	}
-
-	handler(feedback)
-
-	if !innerCalled {
-		t.Error("Inner handler should still be called for disabled logger")
 	}
 }
