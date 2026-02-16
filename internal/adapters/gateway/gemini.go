@@ -60,28 +60,43 @@ func (g *geminiGateway) GenerateContent(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	generationConfig := buildGeminiGenerationConfig(request)
-	if tools := request.Tools(); len(tools) > 0 {
-		generationConfig.Tools = buildGeminiTools(tools)
-		generationConfig.ToolConfig = &genai.ToolConfig{
-			FunctionCallingConfig: &genai.FunctionCallingConfig{Mode: genai.FunctionCallingConfigModeAuto},
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
+		generationConfig := buildGeminiGenerationConfig(request)
+		if tools := request.Tools(); len(tools) > 0 {
+			generationConfig.Tools = buildGeminiTools(tools)
+			generationConfig.ToolConfig = &genai.ToolConfig{
+				FunctionCallingConfig: &genai.FunctionCallingConfig{Mode: genai.FunctionCallingConfigModeAuto},
+			}
 		}
-	}
 
-	userPromptText := g.mapMessagesToPrompt(request)
-	userPrompt := genai.Text(userPromptText)
+		userPromptText := g.mapMessagesToPrompt(request)
+		userPrompt := genai.Text(userPromptText)
 
-	result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
-	}
+		result, err := g.client.Models.GenerateContent(ctx, request.Model(), userPrompt, generationConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch response from Gemini API for model %q: %w", request.Model(), err)
+		}
 
-	if err := validateGeminiResponse(result, request.Model()); err != nil {
-		return nil, err
-	}
+		if err := validateGeminiResponse(result, request.Model()); err != nil {
+			return nil, err
+		}
 
-	blocks := parseGeminiBlocksOrdered(result)
-	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+		blocks := parseGeminiBlocksOrdered(result)
+
+		// Extract usage information
+		tokenCount := 0
+		var usage *gateway.UsageMetadata
+		if result.UsageMetadata != nil {
+			tokenCount = int(result.UsageMetadata.TotalTokenCount)
+			usage = &gateway.UsageMetadata{
+				PromptTokens:     int(result.UsageMetadata.PromptTokenCount),
+				CompletionTokens: int(result.UsageMetadata.CandidatesTokenCount),
+				TotalTokens:      int(result.UsageMetadata.TotalTokenCount),
+			}
+		}
+
+		return &gateway.GenerateContentResponse{Blocks: blocks, TokenCount: tokenCount, Usage: usage}, nil
+	}, fmt.Sprintf("Gemini GenerateContent for model %q", request.Model()))
 }
 
 func (g *geminiGateway) mapMessagesToPrompt(request *gateway.GenerateContentRequest) string {
@@ -340,6 +355,37 @@ func validateGeminiResponse(result *genai.GenerateContentResponse, model string)
 	return nil
 }
 
+// CountTokens counts tokens for the given content chunks using the Gemini API.
+func (g *geminiGateway) CountTokens(
+	ctx context.Context,
+	model string,
+	chunks []string,
+) (int, error) {
+	if ctx == nil {
+		return 0, fmt.Errorf("context cannot be nil")
+	}
+
+	if g == nil {
+		return 0, fmt.Errorf("gemini gateway is nil")
+	}
+
+	if len(chunks) == 0 {
+		return 0, nil
+	}
+
+	contents := make([]*genai.Content, 0, len(chunks))
+	for _, chunk := range chunks {
+		contents = append(contents, genai.NewContentFromText(chunk, genai.RoleUser))
+	}
+
+	response, err := g.client.Models.CountTokens(ctx, model, contents, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count tokens for model %q: %w", model, err)
+	}
+
+	return int(response.TotalTokens), nil
+}
+
 // ComputeEmbeddings sends a request to the Google Gemini API to compute embeddings for the given text chunks.
 func (g *geminiGateway) ComputeEmbeddings(
 	ctx context.Context,
@@ -357,44 +403,44 @@ func (g *geminiGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	contents := make([]*genai.Content, 0, len(request.Chunks()))
-	for _, value := range request.Chunks() {
-		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
-	}
-
-	config := &genai.EmbedContentConfig{
-		TaskType: string(request.TaskType()),
-	}
-
-	if request.Dimensions() > 0 {
-		dimensions := request.Dimensions()
-		if dimensions > math.MaxInt32 {
-			return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
+		contents := make([]*genai.Content, 0, len(request.Chunks()))
+		for _, value := range request.Chunks() {
+			contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
 		}
 
-		dims := int32(dimensions) // #nosec G115 // overflow checked above
-		config.OutputDimensionality = &dims
-	}
-
-	response, err := g.client.Models.EmbedContent(ctx,
-		request.Model(),
-		contents,
-		config,
-	)
-	if err != nil {
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from Gemini API for model %q: %w", request.Model(), err)
-	}
-
-	embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
-
-	for _, value := range response.Embeddings {
-		values := make([]float64, len(value.Values))
-		for i, v := range value.Values {
-			values[i] = float64(v)
+		config := &genai.EmbedContentConfig{
+			TaskType: string(request.TaskType()),
 		}
 
-		embeddings = append(embeddings, values)
-	}
+		if request.Dimensions() > 0 {
+			dimensions := request.Dimensions()
+			if dimensions > math.MaxInt32 {
+				return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
+			}
 
-	return embeddings, nil
+			dims := int32(dimensions) // #nosec G115 // overflow checked above
+			config.OutputDimensionality = &dims
+		}
+
+		response, err := g.client.Models.EmbedContent(ctx,
+			request.Model(),
+			contents,
+			config,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
+		for _, value := range response.Embeddings {
+			values := make([]float64, len(value.Values))
+			for i, v := range value.Values {
+				values[i] = float64(v)
+			}
+			embeddings = append(embeddings, values)
+		}
+
+		return embeddings, nil
+	}, fmt.Sprintf("Gemini ComputeEmbeddings for model %q", request.Model()))
 }

@@ -154,12 +154,23 @@ func (s *Service) resolvePresetInternal(
 		Grammar:           preset.Request.Grammar,
 	}
 
-	// Merge cache configuration (preset overrides parent)
-	if preset.Cache != nil {
-		resolved.CacheEnabled = preset.Cache.Enabled
-		resolved.CacheTTL = preset.Cache.TTL
+	// Merge cache configuration (preset overrides defaults)
+	// Default: caching is enabled with 168h (7 days) TTL
+	if resolved.CacheEnabled == false && resolved.CacheTTL == 0 {
+		// First preset in chain - set defaults
+		resolved.CacheEnabled = true
+		resolved.CacheTTL = 168 * time.Hour // 7 days default
 	}
-	// Otherwise, caching is disabled (CacheEnabled defaults to false)
+
+	if preset.Cache != nil {
+		// Only override if explicitly set (nil means not specified in YAML)
+		if preset.Cache.Enabled != nil {
+			resolved.CacheEnabled = *preset.Cache.Enabled
+		}
+		if preset.Cache.TTL > 0 {
+			resolved.CacheTTL = preset.Cache.TTL
+		}
+	}
 
 	if resolved.Timeout == 0 {
 		resolved.Timeout = 5 * time.Minute

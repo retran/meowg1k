@@ -13,6 +13,7 @@ import (
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"
 	"github.com/openai/openai-go/v2/shared/constant"
+	tiktoken "github.com/pkoukk/tiktoken-go"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
@@ -65,34 +66,46 @@ func (g *openaiGateway) GenerateContent(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	params := buildOpenAIChatParams(request)
-	if tools := request.Tools(); len(tools) > 0 {
-		params.ToolChoice = openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
-		params.Tools = buildOpenAITools(tools)
-	}
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
+		params := buildOpenAIChatParams(request)
+		if tools := request.Tools(); len(tools) > 0 {
+			params.ToolChoice = openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
+			params.Tools = buildOpenAITools(tools)
+		}
 
-	response, err := g.client.Chat.Completions.New(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write content from OpenAI-compatible API for model %q: %w", request.Model(), err)
-	}
+		response, err := g.client.Chat.Completions.New(ctx, params)
+		if err != nil {
+			return nil, err
+		}
 
-	if len(response.Choices) == 0 {
-		return nil, fmt.Errorf("failed to write content: no choices returned from OpenAI-compatible API for model %q", request.Model())
-	}
+		if len(response.Choices) == 0 {
+			return nil, fmt.Errorf("no choices returned from OpenAI-compatible API for model %q", request.Model())
+		}
 
-	msg := response.Choices[0].Message
-	toolCalls := mapOpenAIToolCalls(msg.ToolCalls)
+		msg := response.Choices[0].Message
+		toolCalls := mapOpenAIToolCalls(msg.ToolCalls)
 
-	blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
-	if msg.Content != "" {
-		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: msg.Content})
-	}
-	for i := range toolCalls {
-		call := toolCalls[i]
-		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
-	}
+		blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
+		if msg.Content != "" {
+			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: msg.Content})
+		}
+		for i := range toolCalls {
+			call := toolCalls[i]
+			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+		}
 
-	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+		// Extract usage information
+		var usage *gateway.UsageMetadata
+		if response.Usage.TotalTokens > 0 {
+			usage = &gateway.UsageMetadata{
+				PromptTokens:     int(response.Usage.PromptTokens),
+				CompletionTokens: int(response.Usage.CompletionTokens),
+				TotalTokens:      int(response.Usage.TotalTokens),
+			}
+		}
+
+		return &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}, nil
+	}, fmt.Sprintf("OpenAI GenerateContent for model %q", request.Model()))
 }
 
 func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatCompletionNewParams {
@@ -268,26 +281,60 @@ func (g *openaiGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	params := openai.EmbeddingNewParams{
-		Input: openai.EmbeddingNewParamsInputUnion{
-			OfArrayOfStrings: request.Chunks(),
-		},
-		Model: request.Model(),
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
+		params := openai.EmbeddingNewParams{
+			Input: openai.EmbeddingNewParamsInputUnion{
+				OfArrayOfStrings: request.Chunks(),
+			},
+			Model: request.Model(),
+		}
+
+		if request.Dimensions() > 0 {
+			params.Dimensions = openai.Int(int64(request.Dimensions()))
+		}
+
+		response, err := g.client.Embeddings.New(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+
+		embeddings := make([]gateway.Embedding, 0, len(response.Data))
+		for i := range response.Data {
+			embeddings = append(embeddings, response.Data[i].Embedding)
+		}
+
+		return embeddings, nil
+	}, fmt.Sprintf("OpenAI ComputeEmbeddings for model %q", request.Model()))
+}
+
+// CountTokens estimates the number of tokens in the given text using tiktoken.
+// For embeddings, it concatenates all chunks and counts the total tokens.
+// Returns an error if the model encoding cannot be determined.
+func (g *openaiGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+	if g == nil {
+		return 0, fmt.Errorf("openai gateway is nil")
 	}
 
-	if request.Dimensions() > 0 {
-		params.Dimensions = openai.Int(int64(request.Dimensions()))
+	if len(texts) == 0 {
+		return 0, nil
 	}
 
-	response, err := g.client.Embeddings.New(ctx, params)
+	// Get the appropriate encoding for the model
+	encoding, err := tiktoken.EncodingForModel(model)
 	if err != nil {
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from OpenAI-compatible API for model %q: %w", request.Model(), err)
+		// If we can't find the model-specific encoding, try cl100k_base (used by most modern models)
+		encoding, err = tiktoken.GetEncoding("cl100k_base")
+		if err != nil {
+			return 0, fmt.Errorf("failed to get tiktoken encoding: %w", err)
+		}
 	}
 
-	embeddings := make([]gateway.Embedding, 0, len(response.Data))
-	for i := range response.Data {
-		embeddings = append(embeddings, response.Data[i].Embedding)
+	// Count tokens across all texts
+	totalTokens := 0
+	for _, text := range texts {
+		tokens := encoding.Encode(text, nil, nil)
+		totalTokens += len(tokens)
 	}
 
-	return embeddings, nil
+	return totalTokens, nil
 }

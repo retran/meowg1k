@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/retran/meowg1k/internal/activities/scanworktree"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
@@ -165,7 +164,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"file1.go": {
 					Content:     []byte("package main"),
@@ -209,7 +208,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 	t.Run("Nil workspace state", func(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, &mockSnapshotRepository{})
 
-		_, err := service.PrepareForProcessing(context.Background(), (*scanworktree.Output)(nil))
+		_, err := service.PrepareForProcessing(context.Background(), (*domainindex.WorkspaceState)(nil))
 		if err == nil {
 			t.Fatal("Expected error for nil workspaceState")
 		}
@@ -222,7 +221,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		indexRepo := &mockIndexRepository{}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"file1.go": {
 					Content:     []byte("same content"),
@@ -258,7 +257,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"file1.go": {
 					Content:     []byte("content"),
@@ -290,7 +289,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		indexRepo := &mockIndexRepository{}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"head.go": {
 					Content:     []byte("head content"),
@@ -329,7 +328,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		indexRepo := &mockIndexRepository{}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"shared.ts": {
 					Content:     []byte("head version"),
@@ -379,7 +378,7 @@ func TestService_PrepareForProcessing(t *testing.T) {
 		}
 		service, _ := NewService(indexRepo, &mockSnapshotRepository{})
 
-		workspaceState := &scanworktree.Output{
+		workspaceState := &domainindex.WorkspaceState{
 			HeadState: map[string]domainindex.FileState{
 				"file1.go": {
 					Content:     []byte("content"),
@@ -620,7 +619,7 @@ func TestService_FinalizeLiveSnapshots(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, snapshotRepo)
 
 		input := &FinalizeInput{
-			ScanResult: &scanworktree.Output{
+			ScanResult: &domainindex.WorkspaceState{
 				HeadState: map[string]domainindex.FileState{
 					"file.go": {Content: []byte("content"), ContentHash: "hash1"},
 				},
@@ -697,7 +696,7 @@ func TestService_FinalizeLiveSnapshots(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, snapshotRepo)
 
 		input := &FinalizeInput{
-			ScanResult: &scanworktree.Output{
+			ScanResult: &domainindex.WorkspaceState{
 				HeadState: map[string]domainindex.FileState{
 					"file1.go": {Content: []byte("c1"), ContentHash: "hash1"},
 					"file2.go": {Content: []byte("c2"), ContentHash: "hash2"},
@@ -731,7 +730,7 @@ func TestService_FinalizeLiveSnapshots(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, snapshotRepo)
 
 		input := &FinalizeInput{
-			ScanResult: &scanworktree.Output{
+			ScanResult: &domainindex.WorkspaceState{
 				HeadState:    map[string]domainindex.FileState{},
 				StageState:   map[string]domainindex.FileState{},
 				WorkdirState: map[string]domainindex.FileState{},
@@ -758,7 +757,7 @@ func TestService_FinalizeLiveSnapshots(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, snapshotRepo)
 
 		input := &FinalizeInput{
-			ScanResult: &scanworktree.Output{
+			ScanResult: &domainindex.WorkspaceState{
 				HeadState: map[string]domainindex.FileState{
 					"file.go": {Content: []byte("content"), ContentHash: "hash1"},
 				},
@@ -789,7 +788,7 @@ func TestService_FinalizeLiveSnapshots(t *testing.T) {
 		service, _ := NewService(&mockIndexRepository{}, snapshotRepo)
 
 		input := &FinalizeInput{
-			ScanResult: &scanworktree.Output{
+			ScanResult: &domainindex.WorkspaceState{
 				HeadState: map[string]domainindex.FileState{
 					"head.go": {Content: []byte("h"), ContentHash: "hash_h"},
 				},

@@ -1,0 +1,65 @@
+# Copyright 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# EditorConfig helps maintain consistent coding styles across different editors and IDEs
+# Visit https://editorconfig.org for more information
+
+root = true
+
+# Default settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Go files
+[*.go]
+indent_style = tab
+indent_size = 4
+
+# YAML files
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# JSON files
+[*.json]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = 120
+
+# Starlark files
+[*.star]
+indent_style = space
+indent_size = 4
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Makefile and Taskfile
+[{Makefile,Taskfile.yaml,Taskfile.yml}]
+indent_style = tab
+
+# TOML files
+[*.toml]
+indent_style = space
+indent_size = 2
+
+# GitHub Actions workflows
+[.github/workflows/*.{yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# Git configuration files
+[.git{ignore,attributes}]
+indent_style = space
+indent_size = 2
