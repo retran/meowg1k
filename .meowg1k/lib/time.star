@@ -367,7 +367,7 @@ def is_business_hours(ctx):
 def current_time_handler(ctx):
     """Get current system time."""
     format = ctx.params.get("format", "2006-01-02 15:04:05")
-    now = ctx.time.now()
+    now = ctx.time.now(format=format)
     return now
 
 # ==============================================================================

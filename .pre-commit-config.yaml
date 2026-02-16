@@ -65,14 +65,14 @@ repos:
 
       - id: gofumpt
         name: gofumpt (stricter gofmt)
-        entry: bash -c 'gofumpt -l -w . || true'
+        entry: bash -c 'gofumpt -l -w .'
         language: system
         files: \.go$
         pass_filenames: false
 
       - id: goimports
         name: goimports (organize imports)
-        entry: bash -c 'goimports -local github.com/retran/meowg1k -w . || true'
+        entry: bash -c 'goimports -local github.com/retran/meowg1k -w .'
         language: system
         files: \.go$
         pass_filenames: false
