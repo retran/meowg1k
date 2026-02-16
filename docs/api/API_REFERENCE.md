@@ -934,15 +934,15 @@ output = ctx.yaml.stringify({"key": "value", "list": [1, 2, 3]})
 ### xml (XML Handling)
 
 **`xml.parse(string)`** -> `any`
-Parse XML string into Starlark values. Supports elements, attributes, text content, and nested structures.
-- Attributes are prefixed with `@` (e.g., `@id`, `@name`)
-- Text content is stored as `#text` for elements with attributes or children
-- Simple text-only elements return just the text value
+Parse XML string into Starlark values using the mxj library. Supports elements, attributes, text content, and nested structures.
+- Attributes are prefixed with `-` (e.g., `-id`, `-name`)
+- Text content is stored with `#text` key for elements with attributes or mixed content
+- Simple text-only elements return just the text value as a string
 - Multiple child elements with the same name are returned as a list
 
 **`xml.stringify(value, indent=False, root="")`** -> `string`
-Convert Starlark value to XML string with proper escaping.
-- `indent` (bool): Enable pretty-printing with indentation
+Convert Starlark value to XML string.
+- `indent` (bool): Enable pretty-printing with 2-space indentation
 - `root` (string): Root element name (required if value is not a single-key dict)
 
 **Example:**
@@ -955,11 +955,11 @@ xml_str = '''
 </user>
 '''
 data = ctx.xml.parse(xml_str)
-# Result: {"user": {"@id": "123", "@role": "admin", "name": "Alice", "age": "30"}}
+# Result: {"user": {"-id": "123", "-role": "admin", "name": "Alice", "age": "30"}}
 
 # Access parsed data
 user = data["user"]
-print(user["@id"])      # "123"
+print(user["-id"])      # "123" (note the - prefix for attributes)
 print(user["name"])     # "Alice"
 
 # Generate XML with indentation
