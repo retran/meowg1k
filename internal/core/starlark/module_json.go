@@ -59,35 +59,3 @@ func jsonStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.T
 
 	return starlark.String(string(data)), nil
 }
-
-// goToStarlark converts Go values to Starlark values
-func goToStarlark(v interface{}) starlark.Value {
-	switch val := v.(type) {
-	case nil:
-		return starlark.None
-	case bool:
-		return starlark.Bool(val)
-	case int:
-		return starlark.MakeInt(val)
-	case int64:
-		return starlark.MakeInt64(val)
-	case float64:
-		return starlark.Float(val)
-	case string:
-		return starlark.String(val)
-	case []interface{}:
-		items := make([]starlark.Value, len(val))
-		for i, item := range val {
-			items[i] = goToStarlark(item)
-		}
-		return starlark.NewList(items)
-	case map[string]interface{}:
-		dict := starlark.NewDict(len(val))
-		for k, v := range val {
-			dict.SetKey(starlark.String(k), goToStarlark(v))
-		}
-		return dict
-	default:
-		return starlark.None
-	}
-}
