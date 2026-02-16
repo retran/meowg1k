@@ -100,25 +100,7 @@ load("//commands/orchestrator-agent.star", orch_handler = "orchestrator_handler"
 load("//commands/extract.star", extract_setup = "setup")
 extract_setup()
 
-load("//commands/test-parsers.star", parsers_setup = "setup")
-parsers_setup()
-
 # ==============================================================================
 # SESSION MANAGEMENT COMMANDS
 # ==============================================================================
 load("//commands/sessions.star", sessions_list_handler = "sessions_handler")
-
-# ==============================================================================
-# TEST COMMANDS
-# ==============================================================================
-# Load test command for session testing
-load("//commands/test-session.star", test_handler = "handler")
-load("//commands/test-child-session.star", child_test_handler = "handler")
-load("//commands/test-llm-events.star", llm_test_handler = "handler")
-load("//commands/test-persistence.star", persistence_handler = "handler")
-load("//commands/test-event-flow.star", flow_handler = "handler")
-load("//commands/test-agentic-simple.star", agentic_simple_handler = "test_agentic_simple_handler")
-load("//commands/test-agentic-tools.star", agentic_tools_handler = "test_agentic_tools_handler")
-load("//commands/test-system-message.star", system_msg_handler = "handler")
-load("//commands/test-tool-value-run.star", tool_value_run_handler = "test_handler")
-load("//commands/test-tool-objects.star", tool_objects_handler = "test_agentic_with_tool_objects")
