@@ -68,11 +68,19 @@ meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provide
 │   │   └── search.star      # Semantic search
 │   └── lib/                 # Shared Starlark libraries
 ├── docs/                    # Documentation
+│   ├── api/                 # API references
+│   │   └── API_REFERENCE.md # Complete Starlark API documentation
+│   └── guides/              # Development guides
+│       ├── agentic-system.md
+│       ├── architecture.md
+│       ├── go-conventions.md
+│       ├── starlark-system.md
+│       ├── testing-standards.md
+│       └── ui-patterns.md
 ├── Taskfile.yaml            # Task build system configuration
 ├── go.mod                   # Go module definition
 ├── .golangci.yaml           # golangci-lint configuration
-├── .goreleaser.yaml         # GoReleaser configuration
-└── API_REFERENCE.md         # Complete Starlark API documentation
+└── .goreleaser.yaml         # GoReleaser configuration
 
 ```
 
@@ -225,11 +233,11 @@ meow.preset("fast", model="gemini-flash", temperature=0.2)
 
 ### User-Defined Commands
 
-Users can create custom commands in `.meowg1k/commands/*.star`. See API_REFERENCE.md for details on the tool system, handler context, and available modules.
+Users can create custom commands in `.meowg1k/commands/*.star`. See docs/api/API_REFERENCE.md for details on the tool system, handler context, and available modules.
 
 ## Important Files
 
-- **API_REFERENCE.md**: Complete Starlark API reference
+- **docs/api/API_REFERENCE.md**: Complete Starlark API reference
 - **Taskfile.yaml**: Build commands and automation
 - **.golangci.yaml**: Linter configuration
 - **.meowg1k/init.star**: User configuration entry point
@@ -265,43 +273,43 @@ Key external dependencies:
 
 For detailed information on specific topics, see the modular instruction files:
 
-- **docs/agents/architecture.md** - Deep dive into hexagonal architecture
-- **docs/agents/starlark-system.md** - Starlark extension system guide
-- **docs/agents/agentic-system.md** - Agentic system and autonomous agents guide
-- **docs/agents/testing-standards.md** - Testing patterns and best practices
-- **docs/agents/go-conventions.md** - Go-specific coding standards
-- **docs/agents/ui-patterns.md** - Bubble Tea UI component patterns
-- **API_REFERENCE.md** - Complete Starlark API documentation
+- **docs/guides/architecture.md** - Deep dive into hexagonal architecture
+- **docs/guides/starlark-system.md** - Starlark extension system guide
+- **docs/guides/agentic-system.md** - Agentic system and autonomous agents guide
+- **docs/guides/testing-standards.md** - Testing patterns and best practices
+- **docs/guides/go-conventions.md** - Go-specific coding standards
+- **docs/guides/ui-patterns.md** - Bubble Tea UI component patterns
+- **docs/api/API_REFERENCE.md** - Complete Starlark API documentation
 
 ## OpenCode Configuration Maintenance
 
-**IMPORTANT**: The OpenCode configuration (AGENTS.md, opencode.json, and docs/agents/*.md files) is part of this project and should be maintained as the project evolves.
+**IMPORTANT**: The OpenCode configuration (AGENTS.md, opencode.json, and docs/guides/*.md files) is part of this project and should be maintained as the project evolves.
 
 When making significant changes to the project, **always consider updating the OpenCode configuration**:
 
 ### When to Update OpenCode Configuration
 
 1. **New Architecture Patterns**: Adding new layers, services, or architectural patterns
-   - Update `docs/agents/architecture.md` with new patterns
+   - Update `docs/guides/architecture.md` with new patterns
    - Document new dependency injection patterns in `app/container.go`
 
 2. **New Starlark Modules or Commands**: Adding functionality to the Starlark extension system
-   - Update `docs/agents/starlark-system.md` with new modules or APIs
+   - Update `docs/guides/starlark-system.md` with new modules or APIs
    - Document new standard library functions
    - Add examples of new command patterns
 
 3. **Testing Changes**: New testing patterns, tools, or coverage requirements
-   - Update `docs/agents/testing-standards.md` with new patterns
+   - Update `docs/guides/testing-standards.md` with new patterns
    - Document new mock patterns or testing utilities
    - Update coverage thresholds if changed
 
 4. **Code Standards Changes**: New Go conventions or style guidelines
-   - Update `docs/agents/go-conventions.md` with new standards
+   - Update `docs/guides/go-conventions.md` with new standards
    - Document new linter rules or formatting requirements
    - Add examples of preferred patterns
 
 5. **UI Component Additions**: New Bubble Tea components or UI patterns
-   - Update `docs/agents/ui-patterns.md` with new widgets
+   - Update `docs/guides/ui-patterns.md` with new widgets
    - Document theming conventions for new components
    - Add examples of interactive component patterns
 
@@ -317,7 +325,7 @@ When making significant changes to the project, **always consider updating the O
 
 ### How to Update
 
-- **Small Changes**: Directly edit the relevant `docs/agents/*.md` file
+- **Small Changes**: Directly edit the relevant `docs/guides/*.md` file
 - **Structural Changes**: Update AGENTS.md and relevant instruction files
 - **Build Changes**: Update both AGENTS.md and `opencode.json`
 - **New Patterns**: Add examples to the appropriate instruction file
@@ -339,4 +347,4 @@ After updating OpenCode configuration:
 - **GitHub Repository**: https://github.com/retran/meowg1k
 - **Issues**: Report bugs and request features on GitHub Issues
 - **Documentation**: See `docs/` directory for user guides
-- **API Reference**: See API_REFERENCE.md for Starlark API details
+- **API Reference**: See docs/api/API_REFERENCE.md for Starlark API details
