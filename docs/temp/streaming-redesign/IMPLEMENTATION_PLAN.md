@@ -42,8 +42,93 @@ ctx.output.is_tty() → bool
 ### Tasks
 - [x] Create ADR-001 (`docs/temp/streaming-redesign/ADR-001-streaming-api.md`)
 - [x] Fix API parameter ordering (prompt, preset, tools, optional params)
-- [x] Add `stream` parameter to `agentic()`
+- [x] Add `stream` parameter to `agent_turn()`
 - [x] Remove default values from `preset` parameter
+- [ ] **Finalize output API redesign** (see Phase 0.5)
+
+## Phase 0.5: Output API Redesign (8-12h) 🆕
+
+**Goal**: Clean up confusing output system before adding streaming
+
+### Current State Analysis
+
+**Problem**: Two separate output modules with overlapping functionality:
+
+```python
+# ctx.ui.* - Rich terminal UI (writes directly to stderr)
+ctx.ui.info("message")
+ctx.ui.success("message")  
+ctx.ui.error("message")
+ctx.ui.markdown("# Title")
+
+# ctx.output.* - Buffered output (buffers, flushes later)
+ctx.output.write("text")
+ctx.output.writeline("text")
+ctx.output.markdown("# Title")
+ctx.output.stream_markdown("delta", done=False)
+```
+
+**Question**: How should users handle streaming LLM output?
+
+### Proposed Design Options
+
+**Option 1: Keep both, clarify usage**
+- `ctx.ui.*` = User feedback (errors, progress, tool calls)
+- `ctx.output.*` = LLM output (streaming text)
+- Pro: No breaking changes
+- Con: Still confusing, users must learn two APIs
+
+**Option 2: Merge into single `ctx.output` with modes**
+```python
+# User feedback
+ctx.output.info("message")
+ctx.output.success("message")
+ctx.output.error("message")
+
+# LLM output streaming
+ctx.output.write("text")  # Buffered
+ctx.output.stream("delta")  # Live streaming
+ctx.output.markdown("# content")  # Rendered markdown
+```
+- Pro: Single consistent API
+- Con: Breaking change, migration needed
+
+**Option 3: Add streaming helper to output**
+```python
+# Keep ctx.ui.* for user feedback
+ctx.ui.info("Calling tool...")
+
+# Add simpler streaming to ctx.output
+ctx.output.stream(delta)  # Auto-handles markdown/plain
+ctx.output.flush()  # End stream
+```
+- Pro: Minimal changes
+- Con: Still two APIs
+
+**Option 4: New ctx.stream module**
+```python
+# Keep existing ui/output unchanged
+ctx.ui.info("message")
+ctx.output.write("text")
+
+# Add new streaming module
+ctx.stream.write(delta)
+ctx.stream.markdown(delta)
+ctx.stream.flush()
+```
+- Pro: Clear separation
+- Con: Yet another module
+
+### Decision Needed
+
+**STOP**: Need user input on which option to pursue before continuing implementation.
+
+Tasks pending decision:
+- [ ] Choose output API design (Option 1-4)
+- [ ] Update ADR with chosen approach
+- [ ] Implement redesign if needed
+- [ ] Update all example code
+- [ ] Migrate existing commands if breaking change
 
 ## Phase 1: Gateway Streaming Foundation (8-12h)
 
