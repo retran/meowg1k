@@ -56,9 +56,21 @@ func (r *Runtime) createLLMModule(currentSession *session.Session) starlark.Valu
 
 // llmGenerate implements llm.generate().
 func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var prompt, system, presetName string = "", "", "smart"
+	var (
+		prompt         string
+		system         string = ""
+		presetName     string = "smart"
+		responseFormat string = ""
+		responseSchema *starlark.Dict
+	)
 
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "prompt", &prompt, "system?", &system, "preset?", &presetName); err != nil {
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"prompt", &prompt,
+		"system?", &system,
+		"preset?", &presetName,
+		"response_format?", &responseFormat,
+		"response_schema?", &responseSchema,
+	); err != nil {
 		return nil, err
 	}
 
@@ -100,6 +112,22 @@ func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, ar
 		prompt,
 		presetObj.MaxOutputTokens,
 	)
+
+	// Apply response format/schema if provided (overrides preset)
+	if responseFormat != "" {
+		request.WithResponseFormat(&responseFormat)
+	}
+	if responseSchema != nil {
+		schema := starlarkToGo(responseSchema)
+		if schemaMap, ok := schema.(map[string]interface{}); ok {
+			request.WithResponseSchema(schemaMap)
+		} else {
+			return nil, fmt.Errorf("response_schema must be a dict")
+		}
+	}
+
+	// Apply preset parameters (temperature, etc.) - but don't override response format/schema if already set
+	applyPresetParameters(request, presetObj)
 
 	response, err := llmGateway.GenerateContent(ctx, request)
 	if err != nil {
@@ -201,12 +229,102 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 	return starlark.NewList(result), nil
 }
 
+// applyPresetParameters applies all preset parameters to a gateway request.
+func applyPresetParameters(request *gateway.GenerateContentRequest, preset *domainpreset.ResolvedPreset) {
+	if preset == nil {
+		return
+	}
+
+	// Sampling parameters
+	if preset.Temperature != nil {
+		request.WithTemperature(preset.Temperature)
+	}
+	if preset.TopP != nil {
+		request.WithTopP(preset.TopP)
+	}
+	if preset.TopK != nil {
+		request.WithTopK(preset.TopK)
+	}
+	if preset.FrequencyPenalty != nil {
+		request.WithFrequencyPenalty(preset.FrequencyPenalty)
+	}
+	if preset.PresencePenalty != nil {
+		request.WithPresencePenalty(preset.PresencePenalty)
+	}
+	if preset.Seed != nil {
+		request.WithSeed(preset.Seed)
+	}
+
+	// Stop sequences
+	if len(preset.Stop) > 0 {
+		request.WithStop(preset.Stop)
+	}
+
+	// Candidate configuration
+	if preset.CandidateCount != nil {
+		request.WithCandidateCount(preset.CandidateCount)
+	}
+
+	// Log probabilities
+	if preset.LogProbs != nil {
+		request.WithLogProbs(preset.LogProbs)
+	}
+	if preset.TopLogProbs != nil {
+		request.WithTopLogProbs(preset.TopLogProbs)
+	}
+
+	// Logit bias
+	if len(preset.LogitBias) > 0 {
+		request.WithLogitBias(preset.LogitBias)
+	}
+
+	// System parameters
+	if preset.ServiceTier != nil {
+		request.WithServiceTier(preset.ServiceTier)
+	}
+	if preset.User != nil {
+		request.WithUser(preset.User)
+	}
+
+	// Advanced sampling parameters
+	if preset.RepetitionPenalty != nil {
+		request.WithRepetitionPenalty(preset.RepetitionPenalty)
+	}
+	if preset.MinP != nil {
+		request.WithMinP(preset.MinP)
+	}
+	if preset.TopA != nil {
+		request.WithTopA(preset.TopA)
+	}
+	if preset.TypicalP != nil {
+		request.WithTypicalP(preset.TypicalP)
+	}
+	if preset.Mirostat != nil {
+		request.WithMirostat(preset.Mirostat)
+	}
+	if preset.MirostatTau != nil {
+		request.WithMirostatTau(preset.MirostatTau)
+	}
+	if preset.MirostatEta != nil {
+		request.WithMirostatEta(preset.MirostatEta)
+	}
+	if preset.Grammar != nil {
+		request.WithGrammar(preset.Grammar)
+	}
+}
+
 // llmAgentic implements llm.agentic() - an agentic loop with native tool calling.
 func (m *LLMModule) llmAgentic(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var toolsList *starlark.List
-	var prompt, system, presetName string = "", "", "smart"
-	var onToolError string = "return"
-	var maxIterations int = 50
+	var (
+		toolsList      *starlark.List
+		prompt         string
+		system         string = ""
+		presetName     string = "smart"
+		onToolError    string = "return"
+		maxIterations  int    = 50
+		responseFormat string = ""
+		responseSchema *starlark.Dict
+	)
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"tools", &toolsList,
@@ -215,6 +333,8 @@ func (m *LLMModule) llmAgentic(thread *starlark.Thread, b *starlark.Builtin, arg
 		"preset?", &presetName,
 		"on_tool_error?", &onToolError,
 		"max_iterations?", &maxIterations,
+		"response_format?", &responseFormat,
+		"response_schema?", &responseSchema,
 	); err != nil {
 		return nil, err
 	}
@@ -291,6 +411,22 @@ func (m *LLMModule) llmAgentic(thread *starlark.Thread, b *starlark.Builtin, arg
 			presetObj.MaxOutputTokens,
 		)
 		request.WithMessages(messages).WithTools(toolDefinitions)
+
+		// Apply response format/schema if provided (overrides preset)
+		if responseFormat != "" {
+			request.WithResponseFormat(&responseFormat)
+		}
+		if responseSchema != nil {
+			schema := starlarkToGo(responseSchema)
+			if schemaMap, ok := schema.(map[string]interface{}); ok {
+				request.WithResponseSchema(schemaMap)
+			} else {
+				return nil, fmt.Errorf("response_schema must be a dict")
+			}
+		}
+
+		// Apply preset parameters (temperature, response format, etc.)
+		applyPresetParameters(request, presetObj)
 
 		// Call LLM
 		startTime := time.Now()
@@ -466,6 +602,10 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 		"output":    m.runtime.CreateOutputModuleForCtx(),
 		"session":   m.runtime.CreateSessionModuleForCtx(m.currentSession),
 		"json":      NewJSONModule(),
+		"yaml":      NewYAMLModule(),
+		"xml":       NewXMLModule(),
+		"toml":      NewTOMLModule(),
+		"csv":       NewCSVModule(),
 		"env":       NewEnvModule(),
 		"ui":        NewIndentedUIModule(0),
 		"path":      NewPathModule(),

@@ -20,14 +20,14 @@ def run(ctx, args):
     
     # Check if directory exists
     if not ctx.fs.exists(target_dir):
-        return ctx.result(error=f"Directory '{target_dir}' does not exist")
+        return ctx.result(error="Directory '{}' does not exist".format(target_dir))
     
     # Get directory metadata
     dir_info = ctx.fs.stat(target_dir)
     if not dir_info.is_dir:
-        return ctx.result(error=f"'{target_dir}' is not a directory")
+        return ctx.result(error="'{}' is not a directory".format(target_dir))
     
-    ctx.ui.info(f"Analyzing directory: {target_dir}")
+    ctx.ui.info("Analyzing directory: {}".format(target_dir))
     ctx.ui.print("")
     
     # Walk directory to find all files
@@ -37,13 +37,14 @@ def run(ctx, args):
         ctx.ui.warning("No files found in directory")
         return ctx.result()
     
+    # Get current time for recent file detection
+    current_time = ctx.time.now()
+    
     # Collect statistics
     total_size = 0
     file_types = {}
     largest_files = []
     recent_files = []
-    import time
-    current_time = time.time()
     
     for file_path in all_files:
         try:

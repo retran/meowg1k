@@ -360,12 +360,18 @@ func executeStarlarkHandler(runtime *starlarkpkg.Runtime, registry *starlarkpkg.
 		"output":    runtime.CreateOutputModuleForCtx(),             // Buffered output API
 		"session":   runtime.CreateSessionModuleForCtx(rootSession), // Root session for this command execution
 		"json":      starlarkpkg.NewJSONModule(),
+		"yaml":      starlarkpkg.NewYAMLModule(),
+		"xml":       starlarkpkg.NewXMLModule(),
+		"toml":      starlarkpkg.NewTOMLModule(),
+		"csv":       starlarkpkg.NewCSVModule(),
 		"env":       starlarkpkg.NewEnvModule(),
 		"ui":        starlarkpkg.NewUIModule(),
 		"path":      starlarkpkg.NewPathModule(),
 		"crypto":    starlarkpkg.NewCryptoModule(),
 		"time":      starlarkpkg.NewTimeModule(),
 		"regexp":    starlarkpkg.NewRegexpModule(),
+		"http":      starlarkpkg.NewHTTPModule(),
+		"template":  starlarkpkg.NewTemplateModule(runtime.WorkingDir()),
 		"stdin":     runtime.CreateStdinModuleForCtx(),
 		"workspace": starlark.String(runtime.WorkingDir()),
 		"run":       starlarkpkg.CreateRunFunction(registry, runtime, rootSession, 0), // Enable command chaining
