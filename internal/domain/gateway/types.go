@@ -599,3 +599,42 @@ func (g *ComputeDistanceMixin) ComputeDistance(a, b Embedding) (float64, error) 
 
 	return dotProduct / (math.Sqrt(aMagnitude) * math.Sqrt(bMagnitude)), nil
 }
+
+// StreamEventKind represents the type of streaming event.
+type StreamEventKind int
+
+const (
+	// StreamEventText represents a text delta from the LLM.
+	StreamEventText StreamEventKind = iota
+	// StreamEventThinking represents a thinking/reasoning delta (provider-specific).
+	StreamEventThinking
+	// StreamEventUsage represents token usage information.
+	StreamEventUsage
+	// StreamEventDone signals completion of the stream.
+	StreamEventDone
+	// StreamEventError represents an error during streaming.
+	StreamEventError
+	// StreamEventToolCallStart signals the beginning of a tool call.
+	StreamEventToolCallStart
+	// StreamEventToolCallEnd signals successful completion of a tool call.
+	StreamEventToolCallEnd
+	// StreamEventToolCallError represents an error during tool execution.
+	StreamEventToolCallError
+)
+
+// StreamEvent represents a single event in a streaming LLM response.
+type StreamEvent struct {
+	Kind        StreamEventKind `json:"kind"`
+	Delta       string          `json:"delta,omitempty"`
+	Usage       *UsageMetadata  `json:"usage,omitempty"`
+	Error       string          `json:"error,omitempty"`
+	Recoverable bool            `json:"recoverable,omitempty"`
+	ToolName    string          `json:"tool_name,omitempty"`
+	ToolID      string          `json:"tool_id,omitempty"`
+	Arguments   map[string]any  `json:"arguments,omitempty"`
+	DurationMS  int64           `json:"duration_ms,omitempty"`
+}
+
+// StreamCallback is called for each streaming event.
+// Return an error to abort the stream.
+type StreamCallback func(event StreamEvent) error
