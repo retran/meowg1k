@@ -16,6 +16,12 @@ import (
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
+// Helper functions for testing
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
 // Mock implementations for testing
 
 var errModelNotFound = fmt.Errorf("model not found")
@@ -53,16 +59,48 @@ func (m *mockModelService) GetInstanceKey(resolved *model.ResolvedModel) string 
 }
 
 func TestNewService(t *testing.T) {
-	configReader := &mockConfigResolver{}
-	modelService := &mockModelService{}
+	t.Run("successful creation", func(t *testing.T) {
+		configReader := &mockConfigResolver{}
+		modelService := &mockModelService{}
 
-	service, err := NewService(configReader, modelService)
-	if err != nil {
-		t.Fatalf("NewService returned error: %v", err)
-	}
-	if service == nil {
-		t.Fatal("Service should not be nil")
-	}
+		service, err := NewService(configReader, modelService)
+		if err != nil {
+			t.Fatalf("NewService returned error: %v", err)
+		}
+		if service == nil {
+			t.Fatal("Service should not be nil")
+		}
+	})
+
+	t.Run("nil config resolver", func(t *testing.T) {
+		modelService := &mockModelService{}
+
+		service, err := NewService(nil, modelService)
+		if err == nil {
+			t.Fatal("Expected error for nil config resolver")
+		}
+		if service != nil {
+			t.Fatal("Service should be nil on error")
+		}
+		if !strings.Contains(err.Error(), "config resolver is nil") {
+			t.Errorf("Expected error about config resolver, got: %v", err)
+		}
+	})
+
+	t.Run("nil model resolver", func(t *testing.T) {
+		configReader := &mockConfigResolver{}
+
+		service, err := NewService(configReader, nil)
+		if err == nil {
+			t.Fatal("Expected error for nil model resolver")
+		}
+		if service != nil {
+			t.Fatal("Service should be nil on error")
+		}
+		if !strings.Contains(err.Error(), "preset resolver is nil") {
+			t.Errorf("Expected error about preset resolver, got: %v", err)
+		}
+	})
 }
 
 func TestGetPresetSuccess(t *testing.T) {
@@ -498,7 +536,7 @@ func TestResolvePresetInheritance(t *testing.T) {
 				Model:   "gpt4",
 				Timeout: 2 * time.Minute,
 				Cache: &config.CacheConfig{
-					Enabled: true,
+					Enabled: boolPtr(true),
 					TTL:     10 * time.Minute,
 				},
 				Request: &config.RequestConfig{
@@ -509,7 +547,7 @@ func TestResolvePresetInheritance(t *testing.T) {
 				Extends: "base",
 				Model:   "gpt4-turbo",
 				Cache: &config.CacheConfig{
-					Enabled: false,
+					Enabled: boolPtr(false),
 				},
 				Request: &config.RequestConfig{
 					TopK: &topK,
@@ -526,7 +564,10 @@ func TestResolvePresetInheritance(t *testing.T) {
 	if resolved.Model != "gpt4-turbo" {
 		t.Errorf("expected model override, got %s", resolved.Model)
 	}
-	if resolved.Cache == nil || resolved.Cache.Enabled {
+	if resolved.Cache == nil {
+		t.Fatal("expected cache config to be set")
+	}
+	if resolved.Cache.Enabled == nil || *resolved.Cache.Enabled {
 		t.Fatal("expected child cache to override parent and be disabled")
 	}
 	if resolved.Request == nil || resolved.Request.Temperature == nil || resolved.Request.TopK == nil {
@@ -608,4 +649,302 @@ func TestResolvePresetInternalNilService(t *testing.T) {
 	if _, err := service.resolvePresetInternal("preset", &config.Config{}); err == nil {
 		t.Fatal("expected error when service is nil")
 	}
+}
+
+// Test merge functions for all parameter types
+
+func TestMergePenaltyParams(t *testing.T) {
+	freq := 0.5
+	pres := 0.3
+	rep := 1.2
+
+	src := &config.RequestConfig{
+		FrequencyPenalty:  &freq,
+		PresencePenalty:   &pres,
+		RepetitionPenalty: &rep,
+	}
+
+	dst := &config.RequestConfig{}
+	mergePenaltyParams(dst, src)
+
+	if dst.FrequencyPenalty == nil || *dst.FrequencyPenalty != freq {
+		t.Errorf("expected FrequencyPenalty %f, got %v", freq, dst.FrequencyPenalty)
+	}
+	if dst.PresencePenalty == nil || *dst.PresencePenalty != pres {
+		t.Errorf("expected PresencePenalty %f, got %v", pres, dst.PresencePenalty)
+	}
+	if dst.RepetitionPenalty == nil || *dst.RepetitionPenalty != rep {
+		t.Errorf("expected RepetitionPenalty %f, got %v", rep, dst.RepetitionPenalty)
+	}
+}
+
+func TestMergeResponseParams(t *testing.T) {
+	format := "json"
+	schema := map[string]interface{}{"type": "object"}
+	logProbs := true
+	topLogProbs := 5
+
+	src := &config.RequestConfig{
+		ResponseFormat: &format,
+		ResponseSchema: schema,
+		LogProbs:       &logProbs,
+		TopLogProbs:    &topLogProbs,
+	}
+
+	dst := &config.RequestConfig{}
+	mergeResponseParams(dst, src)
+
+	if dst.ResponseFormat == nil || *dst.ResponseFormat != format {
+		t.Errorf("expected ResponseFormat %s, got %v", format, dst.ResponseFormat)
+	}
+	if dst.ResponseSchema == nil {
+		t.Error("expected ResponseSchema to be set")
+	}
+	if dst.LogProbs == nil || *dst.LogProbs != logProbs {
+		t.Errorf("expected LogProbs %v, got %v", logProbs, dst.LogProbs)
+	}
+	if dst.TopLogProbs == nil || *dst.TopLogProbs != topLogProbs {
+		t.Errorf("expected TopLogProbs %d, got %v", topLogProbs, dst.TopLogProbs)
+	}
+}
+
+func TestMergeAdvancedParams(t *testing.T) {
+	minP := 0.1
+	topA := 0.9
+	typicalP := 0.8
+	mirostat := 2
+	mirostatTau := 5.0
+	mirostatEta := 0.1
+
+	src := &config.RequestConfig{
+		MinP:        &minP,
+		TopA:        &topA,
+		TypicalP:    &typicalP,
+		Mirostat:    &mirostat,
+		MirostatTau: &mirostatTau,
+		MirostatEta: &mirostatEta,
+	}
+
+	dst := &config.RequestConfig{}
+	mergeAdvancedParams(dst, src)
+
+	if dst.MinP == nil || *dst.MinP != minP {
+		t.Errorf("expected MinP %f, got %v", minP, dst.MinP)
+	}
+	if dst.TopA == nil || *dst.TopA != topA {
+		t.Errorf("expected TopA %f, got %v", topA, dst.TopA)
+	}
+	if dst.TypicalP == nil || *dst.TypicalP != typicalP {
+		t.Errorf("expected TypicalP %f, got %v", typicalP, dst.TypicalP)
+	}
+	if dst.Mirostat == nil || *dst.Mirostat != mirostat {
+		t.Errorf("expected Mirostat %d, got %v", mirostat, dst.Mirostat)
+	}
+	if dst.MirostatTau == nil || *dst.MirostatTau != mirostatTau {
+		t.Errorf("expected MirostatTau %f, got %v", mirostatTau, dst.MirostatTau)
+	}
+	if dst.MirostatEta == nil || *dst.MirostatEta != mirostatEta {
+		t.Errorf("expected MirostatEta %f, got %v", mirostatEta, dst.MirostatEta)
+	}
+}
+
+func TestMergeOtherParams(t *testing.T) {
+	seed := 12345
+	grammar := "test-grammar"
+	logitBias := map[string]int{"token1": 1}
+	serviceTier := "premium"
+	user := "test-user"
+	stop := []string{"stop1", "stop2"}
+
+	src := &config.RequestConfig{
+		Seed:        &seed,
+		Grammar:     &grammar,
+		LogitBias:   logitBias,
+		ServiceTier: &serviceTier,
+		User:        &user,
+		Stop:        stop,
+	}
+
+	dst := &config.RequestConfig{}
+	mergeOtherParams(dst, src)
+
+	if dst.Seed == nil || *dst.Seed != seed {
+		t.Errorf("expected Seed %d, got %v", seed, dst.Seed)
+	}
+	if dst.Grammar == nil || *dst.Grammar != grammar {
+		t.Errorf("expected Grammar %s, got %v", grammar, dst.Grammar)
+	}
+	if dst.LogitBias == nil {
+		t.Error("expected LogitBias to be set")
+	}
+	if dst.ServiceTier == nil || *dst.ServiceTier != serviceTier {
+		t.Errorf("expected ServiceTier %s, got %v", serviceTier, dst.ServiceTier)
+	}
+	if dst.User == nil || *dst.User != user {
+		t.Errorf("expected User %s, got %v", user, dst.User)
+	}
+	if dst.Stop == nil {
+		t.Error("expected Stop to be set")
+	}
+}
+
+// Test clone functions
+
+func TestClonePreset(t *testing.T) {
+	t.Run("clone non-nil preset", func(t *testing.T) {
+		enabled := true
+		temp := 0.7
+
+		original := &config.PresetConfig{
+			Extends: "base",
+			Model:   "gpt4",
+			Timeout: 5 * time.Minute,
+			Cache: &config.CacheConfig{
+				Enabled: &enabled,
+				TTL:     10 * time.Minute,
+			},
+			Request: &config.RequestConfig{
+				Temperature: &temp,
+			},
+			Labels: map[string]any{"env": "prod"},
+		}
+
+		cloned := clonePreset(original)
+		if cloned == nil {
+			t.Fatal("expected non-nil cloned preset")
+		}
+		if cloned.Model != original.Model {
+			t.Errorf("expected model %s, got %s", original.Model, cloned.Model)
+		}
+		if cloned.Timeout != original.Timeout {
+			t.Errorf("expected timeout %v, got %v", original.Timeout, cloned.Timeout)
+		}
+		// Verify it's a deep clone by modifying original
+		if cloned.Cache == original.Cache {
+			t.Error("expected cache to be cloned, not same instance")
+		}
+	})
+
+	t.Run("clone nil preset", func(t *testing.T) {
+		cloned := clonePreset(nil)
+		if cloned == nil {
+			t.Fatal("expected non-nil result for nil preset")
+		}
+		if cloned.Request == nil {
+			t.Fatal("expected request to be initialized")
+		}
+	})
+}
+
+func TestCloneCache(t *testing.T) {
+	t.Run("clone non-nil cache", func(t *testing.T) {
+		enabled := true
+		original := &config.CacheConfig{
+			Enabled: &enabled,
+			TTL:     10 * time.Minute,
+		}
+
+		cloned := cloneCache(original)
+		if cloned == nil {
+			t.Fatal("expected non-nil cloned cache")
+		}
+		if cloned.Enabled == nil || *cloned.Enabled != *original.Enabled {
+			t.Error("expected enabled to be cloned")
+		}
+		if cloned.TTL != original.TTL {
+			t.Errorf("expected TTL %v, got %v", original.TTL, cloned.TTL)
+		}
+		// Verify it's a separate instance
+		if cloned == original {
+			t.Error("expected different cache instance")
+		}
+	})
+
+	t.Run("clone nil cache", func(t *testing.T) {
+		cloned := cloneCache(nil)
+		if cloned != nil {
+			t.Error("expected nil result for nil cache")
+		}
+	})
+}
+
+func TestCloneRequest(t *testing.T) {
+	t.Run("clone non-nil request", func(t *testing.T) {
+		temp := 0.8
+		original := &config.RequestConfig{
+			Temperature: &temp,
+		}
+
+		cloned := cloneRequest(original)
+		if cloned == nil {
+			t.Fatal("expected non-nil cloned request")
+		}
+		if cloned.Temperature == nil || *cloned.Temperature != temp {
+			t.Errorf("expected temperature %f, got %v", temp, cloned.Temperature)
+		}
+	})
+
+	t.Run("clone nil request", func(t *testing.T) {
+		cloned := cloneRequest(nil)
+		if cloned == nil {
+			t.Fatal("expected non-nil result for nil request")
+		}
+	})
+}
+
+// Test applyPreset edge cases
+
+func TestApplyPreset(t *testing.T) {
+	t.Run("apply with both nil", func(t *testing.T) {
+		applyPreset(nil, nil) // Should not panic
+	})
+
+	t.Run("apply with nil dst", func(t *testing.T) {
+		src := &config.PresetConfig{Model: "gpt4"}
+		applyPreset(nil, src) // Should not panic
+	})
+
+	t.Run("apply with nil src", func(t *testing.T) {
+		dst := &config.PresetConfig{Model: "gpt3"}
+		applyPreset(dst, nil) // Should not panic
+		if dst.Model != "gpt3" {
+			t.Error("dst should not be modified")
+		}
+	})
+
+	t.Run("apply full config", func(t *testing.T) {
+		enabled := true
+		temp := 0.5
+
+		dst := &config.PresetConfig{
+			Model: "gpt3",
+		}
+
+		src := &config.PresetConfig{
+			Model:   "gpt4",
+			Timeout: 3 * time.Minute,
+			Cache: &config.CacheConfig{
+				Enabled: &enabled,
+				TTL:     5 * time.Minute,
+			},
+			Request: &config.RequestConfig{
+				Temperature: &temp,
+			},
+		}
+
+		applyPreset(dst, src)
+
+		if dst.Model != "gpt4" {
+			t.Errorf("expected model to be overridden to gpt4, got %s", dst.Model)
+		}
+		if dst.Timeout != 3*time.Minute {
+			t.Errorf("expected timeout to be set to 3m, got %v", dst.Timeout)
+		}
+		if dst.Cache == nil {
+			t.Fatal("expected cache to be set")
+		}
+		if dst.Request == nil || dst.Request.Temperature == nil {
+			t.Fatal("expected request with temperature to be set")
+		}
+	})
 }

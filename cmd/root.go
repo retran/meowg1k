@@ -16,10 +16,35 @@ import (
 
 // Execute runs the root command.
 func Execute() error {
+	// Load Starlark commands before executing
+	if err := loadStarlarkCommands(); err != nil {
+		// Log error but don't fail - Starlark scripts are optional
+		fmt.Fprintf(rootCmd.ErrOrStderr(), "Warning: Failed to load Starlark scripts: %v\n", err)
+	}
+
 	err := rootCmd.Execute()
 	if err != nil {
 		return fmt.Errorf("failed to execute root command: %w", err)
 	}
+	return nil
+}
+
+// loadStarlarkCommands loads user-defined commands from Starlark scripts.
+// This is called once during application startup, before Execute().
+func loadStarlarkCommands() error {
+	// Create a container for loading Starlark scripts
+	// We don't use rootCmd here to avoid flag parsing issues
+	container, workspaceRoot, err := app.NewAppContainerForStarlark()
+	if err != nil {
+		return fmt.Errorf("failed to create container: %w", err)
+	}
+	defer container.ShutdownService.Shutdown()
+
+	// Load Starlark commands with workspace root
+	if err := BuildStarlarkCommands(container, workspaceRoot); err != nil {
+		return fmt.Errorf("failed to build Starlark commands: %w", err)
+	}
+
 	return nil
 }
 
@@ -72,9 +97,10 @@ const (
 )
 
 func init() {
-	rootCmd.PersistentFlags().String("config", "", "config file path (overrides project/user configs when specified)")
 	rootCmd.PersistentFlags().String("workspace", "", "workspace root directory (overrides auto-detection)")
 	rootCmd.PersistentFlags().Bool("silent", false, "silent mode - only output the result without progress indicators")
 	rootCmd.PersistentFlags().Bool("no-cache", false, "disable LLM response caching")
 	rootCmd.PersistentFlags().Bool("update-cache", false, "force cache refresh by making fresh requests and updating cache entries")
+	rootCmd.PersistentFlags().Bool("plain", false, "plain output - disable markdown formatting")
+	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output")
 }

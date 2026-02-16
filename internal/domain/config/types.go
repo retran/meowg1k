@@ -13,14 +13,13 @@ type Config struct {
 	Models        map[string]*ModelConfig    `yaml:"models" mapstructure:"models"`
 	Presets       map[string]*PresetConfig   `yaml:"presets" mapstructure:"presets"`
 	Activities    *ActivitiesConfig          `yaml:"activities" mapstructure:"activities"`
-	Agent         *AgentConfig               `yaml:"agent" mapstructure:"agent"`
 	Flows         *FlowsConfig               `yaml:"flows" mapstructure:"flows"`
 	SchemaVersion int                        `yaml:"schema_version" mapstructure:"schema_version"`
 }
 
 // CacheConfig defines configuration for LLM response caching.
 type CacheConfig struct {
-	Enabled bool          `yaml:"enabled" mapstructure:"enabled"`
+	Enabled *bool         `yaml:"enabled" mapstructure:"enabled"`
 	TTL     time.Duration `yaml:"ttl" mapstructure:"ttl"`
 }
 
@@ -35,7 +34,7 @@ type ProviderConfig struct {
 	RateLimit  *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Type       string           `yaml:"type" mapstructure:"type"`
 	BaseURL    string           `yaml:"base_url" mapstructure:"base_url"`
-	APIKeyEnv  string           `yaml:"api_key_env" mapstructure:"api_key_env"`
+	APIKey     string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
 	Tokenizer  string           `yaml:"tokenizer" mapstructure:"tokenizer"`
 	RetryCount int              `yaml:"retry_count" mapstructure:"retry_count"`
 }
@@ -48,7 +47,7 @@ type ModelConfig struct {
 	Provider  string           `yaml:"provider" mapstructure:"provider"`
 	Model     string           `yaml:"model" mapstructure:"model"`
 	BaseURL   string           `yaml:"base_url" mapstructure:"base_url"`
-	APIKeyEnv string           `yaml:"api_key_env" mapstructure:"api_key_env"`
+	APIKey    string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
 	Tokenizer string           `yaml:"tokenizer" mapstructure:"tokenizer"`
 }
 
@@ -104,7 +103,7 @@ type RequestConfig struct {
 	Stop              []string               `yaml:"stop" mapstructure:"stop"`
 }
 
-// FlowsConfig groups user-facing workflows.
+// FlowsConfig groups user-facing workflows (legacy, will be deprecated).
 type FlowsConfig struct {
 	Write  *WriteFlowConfig  `yaml:"write" mapstructure:"write"`
 	Index  *IndexFlowConfig  `yaml:"index" mapstructure:"index"`

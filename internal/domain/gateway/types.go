@@ -107,9 +107,18 @@ type ContentBlock struct {
 	Text     string           `json:"text,omitempty"`
 }
 
+// UsageMetadata contains token usage information from the model response.
+type UsageMetadata struct {
+	PromptTokens     int `json:"prompt_tokens,omitempty"`
+	CompletionTokens int `json:"completion_tokens,omitempty"`
+	TotalTokens      int `json:"total_tokens,omitempty"`
+}
+
 // GenerateContentResponse represents an ordered model response.
 type GenerateContentResponse struct {
-	Blocks []ContentBlock `json:"blocks,omitempty"`
+	Blocks     []ContentBlock `json:"blocks,omitempty"`
+	TokenCount int            `json:"token_count,omitempty"` // Deprecated: use Usage.TotalTokens
+	Usage      *UsageMetadata `json:"usage,omitempty"`
 }
 
 // Text returns all text content blocks concatenated.

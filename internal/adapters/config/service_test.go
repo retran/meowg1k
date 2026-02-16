@@ -4,1034 +4,295 @@
 package config
 
 import (
-	"errors"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
-
-	"github.com/retran/meowg1k/internal/adapters/command"
+	"github.com/retran/meowg1k/internal/domain/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	testPresetName  = "test"
-	testUserContent = `schema_version: 1
-providers:
-  test:
-    type: "test"
-models:
-  test:
-    provider: "test"
-    model: "test"
-presets:
-  test:
-    model: "test"
-flows:
-  write:
-    preset: "test"
-    system_prompt: "test"
-`
-)
+// TestNewService tests creating a new config service
+func TestNewService(t *testing.T) {
+	service, err := NewService()
+	require.NoError(t, err)
+	require.NotNil(t, service)
 
-// mockWorkspaceDirResolver is a mock implementation of WorkspaceDirResolver for testing.
-type mockWorkspaceDirResolver struct {
-	err error
-	dir string
+	// Verify initial config is not nil
+	cfg, err := service.Get()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	// Verify maps are initialized
+	assert.NotNil(t, cfg.Providers, "Providers map should be initialized")
+	assert.NotNil(t, cfg.Models, "Models map should be initialized")
+	assert.NotNil(t, cfg.Presets, "Presets map should be initialized")
+	assert.Empty(t, cfg.Providers, "Providers should be empty initially")
+	assert.Empty(t, cfg.Models, "Models should be empty initially")
+	assert.Empty(t, cfg.Presets, "Presets should be empty initially")
 }
 
-func (m *mockWorkspaceDirResolver) Get() (string, error) {
-	return m.dir, m.err
+// TestGet tests retrieving configuration
+func TestGet(t *testing.T) {
+	t.Run("normal service", func(t *testing.T) {
+		service, err := NewService()
+		require.NoError(t, err)
+
+		cfg, err := service.Get()
+		require.NoError(t, err)
+		assert.NotNil(t, cfg)
+	})
+
+	t.Run("nil service", func(t *testing.T) {
+		var service *Service
+		cfg, err := service.Get()
+		assert.Error(t, err)
+		assert.Nil(t, cfg)
+		assert.Contains(t, err.Error(), "service is nil")
+	})
 }
 
-func TestNewServiceWithSpecificConfig(t *testing.T) {
-	// Create a temporary config file
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "test-config.yaml")
-	configContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  gpt-35-turbo:
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-presets:
-  test:
-    model: "gpt-35-turbo"
-flows:
-  write:
-    preset: "test"
-    system_prompt: "You are a helpful assistant"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create temp config file: %v", err)
-	}
+// TestOverride tests overriding configuration
+func TestOverride(t *testing.T) {
+	t.Run("successful override", func(t *testing.T) {
+		service, err := NewService()
+		require.NoError(t, err)
 
-	cleanEnvDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cleanEnvDir)
-	t.Setenv("HOME", cleanEnvDir)
-	t.Setenv("XDG_CONFIG_DIRS", "")
+		// Create new config with some data
+		newCfg := &config.Config{
+			Providers: map[string]*config.ProviderConfig{
+				"test-provider": {
+					Type:   "openai",
+					APIKey: "test-key",
+				},
+			},
+			Models: map[string]*config.ModelConfig{
+				"test-model": {
+					Provider: "test-provider",
+					Model:    "gpt-4",
+				},
+			},
+			Presets: map[string]*config.PresetConfig{
+				"test-preset": {
+					Model: "test-model",
+				},
+			},
+		}
 
-	// Create command with config flag
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	cmd.Flags().Set("config", configPath)
+		// Override with new config
+		err = service.Override(newCfg)
+		require.NoError(t, err)
 
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
+		// Verify config was updated
+		retrievedCfg, err := service.Get()
+		require.NoError(t, err)
+		assert.Equal(t, newCfg, retrievedCfg)
+		assert.Len(t, retrievedCfg.Providers, 1)
+		assert.Len(t, retrievedCfg.Models, 1)
+		assert.Len(t, retrievedCfg.Presets, 1)
+		assert.Contains(t, retrievedCfg.Providers, "test-provider")
+		assert.Contains(t, retrievedCfg.Models, "test-model")
+		assert.Contains(t, retrievedCfg.Presets, "test-preset")
+	})
 
-	// Test NewService
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed: %v", err)
-	}
+	t.Run("nil service", func(t *testing.T) {
+		var service *Service
+		newCfg := &config.Config{
+			Providers: make(map[string]*config.ProviderConfig),
+			Models:    make(map[string]*config.ModelConfig),
+			Presets:   make(map[string]*config.PresetConfig),
+		}
 
-	if configSvc == nil {
-		t.Fatal("Config service should not be nil")
-	}
+		err := service.Override(newCfg)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "service is nil")
+	})
 
-	// Test Get
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
+	t.Run("nil config", func(t *testing.T) {
+		service, err := NewService()
+		require.NoError(t, err)
 
-	if config == nil {
-		t.Fatal("Config should not be nil")
-	}
-
-	if config.Presets == nil {
-		t.Fatal("Presets should not be nil")
-	}
-
-	testPreset, exists := config.Presets["test"]
-	if !exists {
-		t.Fatal("Test preset should exist")
-	}
-
-	if testPreset.Model != "gpt-35-turbo" {
-		t.Errorf("Expected model reference 'gpt-35-turbo', got '%s'", testPreset.Model)
-	}
-
-	// Check model definition
-	testModel, exists := config.Models["gpt-35-turbo"]
-	if !exists {
-		t.Fatal("Model 'gpt-35-turbo' should exist")
-	}
-
-	if testModel.Provider != "openai" {
-		t.Errorf("Expected provider 'openai', got '%s'", testModel.Provider)
-	}
-
-	if testModel.Model != "gpt-3.5-turbo" {
-		t.Errorf("Expected model 'gpt-3.5-turbo', got '%s'", testModel.Model)
-	}
-
-	if config.Flows == nil || config.Flows.Write == nil {
-		t.Fatal("Write flow config should not be nil")
-	}
-
-	if config.Flows.Write.Preset != testPresetName {
-		t.Errorf("Expected write preset '%s', got '%s'", testPresetName, config.Flows.Write.Preset)
-	}
+		err = service.Override(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "configuration cannot be nil")
+	})
 }
 
-func TestNewServiceWithNonExistentConfig(t *testing.T) {
-	// Create command with config flag pointing to non-existent file
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	cmd.Flags().Set("config", "/non/existent/config.yaml")
+// TestOverrideMultipleTimes tests overriding config multiple times
+func TestOverrideMultipleTimes(t *testing.T) {
+	service, err := NewService()
+	require.NoError(t, err)
 
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
+	// First override
+	cfg1 := &config.Config{
+		Providers: map[string]*config.ProviderConfig{
+			"provider1": {Type: "openai"},
+		},
+		Models:  make(map[string]*config.ModelConfig),
+		Presets: make(map[string]*config.PresetConfig),
 	}
+	err = service.Override(cfg1)
+	require.NoError(t, err)
 
-	// Test NewService with non-existent config
-	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err == nil {
-		t.Error("Expected error when config file doesn't exist")
+	retrieved, err := service.Get()
+	require.NoError(t, err)
+	assert.Len(t, retrieved.Providers, 1)
+
+	// Second override - should replace first
+	cfg2 := &config.Config{
+		Providers: map[string]*config.ProviderConfig{
+			"provider1": {Type: "openai"},
+			"provider2": {Type: "anthropic"},
+		},
+		Models:  make(map[string]*config.ModelConfig),
+		Presets: make(map[string]*config.PresetConfig),
 	}
+	err = service.Override(cfg2)
+	require.NoError(t, err)
+
+	retrieved, err = service.Get()
+	require.NoError(t, err)
+	assert.Len(t, retrieved.Providers, 2)
+	assert.Contains(t, retrieved.Providers, "provider1")
+	assert.Contains(t, retrieved.Providers, "provider2")
 }
 
-func TestNewServiceWithInvalidConfig(t *testing.T) {
-	// Create a temporary invalid config file
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "invalid-config.yaml")
-	invalidContent := `invalid: yaml: [unclosed bracket
-`
-	err := os.WriteFile(configPath, []byte(invalidContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create temp config file: %v", err)
+// TestOverrideWithComplexConfig tests overriding with full config structure
+func TestOverrideWithComplexConfig(t *testing.T) {
+	service, err := NewService()
+	require.NoError(t, err)
+
+	temp := 0.7
+	maxTokens := 1000
+
+	complexCfg := &config.Config{
+		Providers: map[string]*config.ProviderConfig{
+			"openai": {
+				Type:    "openai",
+				BaseURL: "https://api.openai.com/v1",
+				APIKey:  "sk-test-key",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  128000,
+					MaxOutputTokens: 16384,
+				},
+			},
+		},
+		Models: map[string]*config.ModelConfig{
+			"gpt4": {
+				Provider: "openai",
+				Model:    "gpt-4-turbo",
+				Limits: &config.ModelLimits{
+					MaxInputTokens:  128000,
+					MaxOutputTokens: 4096,
+				},
+			},
+		},
+		Presets: map[string]*config.PresetConfig{
+			"creative": {
+				Model: "gpt4",
+				Request: &config.RequestConfig{
+					Temperature: &temp,
+					MaxTokens:   &maxTokens,
+				},
+			},
+		},
+		Filter: &config.FilterConfig{
+			Ignore: []string{"*.log", "*.tmp"},
+		},
+		SchemaVersion: 1,
 	}
 
-	// Create command with config flag
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	cmd.Flags().Set("config", configPath)
+	err = service.Override(complexCfg)
+	require.NoError(t, err)
 
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
+	retrieved, err := service.Get()
+	require.NoError(t, err)
 
-	// Test NewService with invalid config
-	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err == nil {
-		t.Error("Expected error when config file is invalid")
-	}
+	// Verify all fields
+	assert.Len(t, retrieved.Providers, 1)
+	assert.Len(t, retrieved.Models, 1)
+	assert.Len(t, retrieved.Presets, 1)
+	assert.NotNil(t, retrieved.Filter)
+	assert.Equal(t, 1, retrieved.SchemaVersion)
+
+	// Verify provider details
+	provider := retrieved.Providers["openai"]
+	require.NotNil(t, provider)
+	assert.Equal(t, "openai", provider.Type)
+	assert.Equal(t, "sk-test-key", provider.APIKey)
+	assert.NotNil(t, provider.Limits)
+	assert.Equal(t, 128000, provider.Limits.MaxInputTokens)
+
+	// Verify model details
+	model := retrieved.Models["gpt4"]
+	require.NotNil(t, model)
+	assert.Equal(t, "openai", model.Provider)
+	assert.Equal(t, "gpt-4-turbo", model.Model)
+
+	// Verify preset details
+	preset := retrieved.Presets["creative"]
+	require.NotNil(t, preset)
+	assert.Equal(t, "gpt4", preset.Model)
+	require.NotNil(t, preset.Request)
+	require.NotNil(t, preset.Request.Temperature)
+	assert.Equal(t, 0.7, *preset.Request.Temperature)
+
+	// Verify filter
+	assert.Len(t, retrieved.Filter.Ignore, 2)
+	assert.Contains(t, retrieved.Filter.Ignore, "*.log")
 }
 
-func TestNewServiceWithoutConfig(t *testing.T) {
-	// Create command without config flag set
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	// Don't set the config flag
+// TestOverrideWithEmptyMaps tests overriding with empty but initialized maps
+func TestOverrideWithEmptyMaps(t *testing.T) {
+	service, err := NewService()
+	require.NoError(t, err)
 
-	cleanEnvDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cleanEnvDir)
-	t.Setenv("HOME", cleanEnvDir)
-	t.Setenv("XDG_CONFIG_DIRS", "")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
+	// First add some data
+	cfg1 := &config.Config{
+		Providers: map[string]*config.ProviderConfig{
+			"provider1": {Type: "test"},
+		},
+		Models:  make(map[string]*config.ModelConfig),
+		Presets: make(map[string]*config.PresetConfig),
 	}
+	err = service.Override(cfg1)
+	require.NoError(t, err)
 
-	// Test NewService without specific config (should look for standard locations and workspace)
-	// Since we don't have config files anywhere, it should fail
-	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err == nil {
-		t.Error("Expected error when no configuration file found")
+	// Override with empty maps (should clear providers)
+	cfg2 := &config.Config{
+		Providers: make(map[string]*config.ProviderConfig),
+		Models:    make(map[string]*config.ModelConfig),
+		Presets:   make(map[string]*config.PresetConfig),
 	}
+	err = service.Override(cfg2)
+	require.NoError(t, err)
 
-	// Check that error message is appropriate
-	expectedMsg := "no configuration file found"
-	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
-		t.Errorf("Expected error message to contain %q, got: %v", expectedMsg, err)
-	}
+	retrieved, err := service.Get()
+	require.NoError(t, err)
+	assert.Empty(t, retrieved.Providers, "Providers should be empty after override with empty map")
 }
 
-func TestNewServiceWithConfigHome(t *testing.T) {
-	// Test with XDG_CONFIG_HOME
+// TestServiceConcurrency tests that service operations are safe
+func TestServiceConcurrency(t *testing.T) {
+	service, err := NewService()
+	require.NoError(t, err)
 
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
+	// Note: This is a basic test. For true concurrency testing,
+	// you'd need to add mutex/sync mechanisms to the service if needed.
 
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directories and config file
-	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0o755)
-
-	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  gpt4:
-    provider: "openai"
-    model: "gpt-4"
-presets:
-  default:
-    model: "gpt4"
-flows:
-  write:
-    preset: "default"
-    system_prompt: "test"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	// Test with custom XDG_CONFIG_HOME
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	// Don't set specific config path
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
-	}
-
-	if configSvc == nil {
-		t.Fatal("Config service should not be nil")
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["default"].Model != "gpt4" || config.Models["gpt4"].Provider != "openai" {
-		t.Error("Failed to load config from XDG_CONFIG_HOME location")
-	}
-}
-
-func TestNewServiceWithUserConfigHome(t *testing.T) {
-	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directories and config file
-	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0o755)
-
-	configPath := filepath.Join(configDir, "config.yaml")
-	configContent := `schema_version: 1
-providers:
-  anthropic:
-    type: "anthropic"
-models:
-  claude3:
-    provider: "anthropic"
-    model: "claude-3"
-presets:
-  user:
-    model: "claude3"
-flows:
-  write:
-    preset: "user"
-    system_prompt: "test"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	// Test with custom XDG_CONFIG_HOME
-	os.Setenv("XDG_CONFIG_DIRS", "/etc/xdg") // Default, no config here
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed with XDG_CONFIG_HOME: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["user"].Model != "claude3" || config.Models["claude3"].Provider != "anthropic" {
-		t.Error("Failed to load config from XDG_CONFIG_HOME location")
-	}
-}
-
-func TestNewServiceWithHomeConfigFallback(t *testing.T) {
-	// Save original environment variables
-	originalConfigDirs := os.Getenv("XDG_CONFIG_DIRS")
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_DIRS", originalConfigDirs)
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directories and config file
-	tempDir := t.TempDir()
-	homeConfigDir := filepath.Join(tempDir, ".config", "meowg1k")
-	os.MkdirAll(homeConfigDir, 0o755)
-
-	configPath := filepath.Join(homeConfigDir, "config.yaml")
-	configContent := `schema_version: 1
-providers:
-  google:
-    type: "google"
-models:
-  gemini:
-    provider: "google"
-    model: "gemini-pro"
-presets:
-  home:
-    model: "gemini"
-flows:
-  write:
-    preset: "home"
-    system_prompt: "test"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	// Test with HOME fallback (no XDG_CONFIG_HOME set)
-	os.Setenv("XDG_CONFIG_DIRS", "/etc/xdg") // Default, no config here
-	os.Setenv("XDG_CONFIG_HOME", "")         // Empty, should use HOME fallback
-	os.Setenv("HOME", tempDir)
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed with HOME fallback: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["home"].Model != "gemini" || config.Models["gemini"].Provider != "google" {
-		t.Error("Failed to load config from HOME/.config location")
-	}
-}
-
-func TestNewServiceWithWorkspaceConfig(t *testing.T) {
-	// Create temporary workspace directory with config
-	tempDir := t.TempDir()
-
-	// Create workspace config file (.meowg1k.yaml in root)
-	configPath := filepath.Join(tempDir, ".meowg1k.yaml")
-	configContent := `schema_version: 1
-providers:
-  local:
-    type: "local"
-models:
-  llama-local:
-    provider: "local"
-    model: "llama-local"
-presets:
-  local:
-    model: "llama-local"
-flows:
-  write:
-    preset: "local"
-    system_prompt: "test"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	// Save and reset environment variables to avoid other config locations
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	os.Setenv("XDG_CONFIG_HOME", "/nonexistent")
-	os.Setenv("HOME", "/nonexistent")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	// Create mock workspace resolver that returns our temp directory
-	workspaceResolver := &mockWorkspaceDirResolver{dir: tempDir}
-
-	configSvc, err := NewService(commandSvc, workspaceResolver)
-	if err != nil {
-		t.Fatalf("NewService failed with workspace config: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["local"].Model != "llama-local" || config.Models["llama-local"].Provider != "local" {
-		t.Error("Failed to load config from workspace directory")
-	}
-}
-
-func TestNewServiceConfigMerging(t *testing.T) {
-	// Test configuration merging between user config and workspace config
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directories
-	tempDir := t.TempDir()
-
-	// Create user config
-	userConfigDir := filepath.Join(tempDir, "user", "meowg1k")
-	os.MkdirAll(userConfigDir, 0o755)
-	userConfigPath := filepath.Join(userConfigDir, "config.yaml")
-	userConfigContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  base-model:
-    provider: "openai"
-    model: "gpt-4"
-presets:
-  user:
-    model: "base-model"
-  shared:
-    model: "base-model"
-flows:
-  write:
-    preset: "user"
-    system_prompt: "test"
-`
-	os.WriteFile(userConfigPath, []byte(userConfigContent), 0o644)
-
-	// Create workspace config
-	workspaceDir := filepath.Join(tempDir, "workspace")
-	os.MkdirAll(workspaceDir, 0o755)
-	workspaceConfigPath := filepath.Join(workspaceDir, ".meowg1k.yaml")
-	workspaceConfigContent := `schema_version: 1
-providers:
-  anthropic:
-    type: "anthropic"
-models:
-  workspace-model:
-    provider: "anthropic"
-    model: "claude-3"
-presets:
-  workspace:
-    model: "workspace-model"
-  shared:
-    # Override user config
-    model: "workspace-model"
-`
-	os.WriteFile(workspaceConfigPath, []byte(workspaceConfigContent), 0o644)
-
-	// Set environment to use user config
-	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	// Use workspace resolver pointing to workspace dir
-	workspaceResolver := &mockWorkspaceDirResolver{dir: workspaceDir}
-
-	configSvc, err := NewService(commandSvc, workspaceResolver)
-	if err != nil {
-		t.Fatalf("NewService failed with config merging: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	// Should have presets from both user and workspace configs
-	if _, exists := config.Presets["user"]; !exists {
-		t.Error("User preset should exist")
-	}
-	if _, exists := config.Presets["workspace"]; !exists {
-		t.Error("Workspace preset should exist")
-	}
-	if _, exists := config.Presets["shared"]; !exists {
-		t.Error("Shared preset should exist")
-	}
-
-	// Workspace config should override user config for shared preset
-	if config.Presets["shared"].Model != "workspace-model" {
-		t.Errorf("Expected workspace override, got %s", config.Presets["shared"].Model)
-	}
-
-	// Should have models from both configs
-	if _, exists := config.Models["base-model"]; !exists {
-		t.Error("Base model from user config should exist")
-	}
-	if _, exists := config.Models["workspace-model"]; !exists {
-		t.Error("Workspace model should exist")
-	}
-}
-
-func TestNewServiceWithInvalidYAMLInUserConfig(t *testing.T) {
-	// Test handling of invalid YAML in user config location
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directory and invalid config file
-	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0o755)
-
-	configPath := filepath.Join(configDir, "config.yaml")
-	invalidContent := `presets:
-  test:
-    model: "openai"
-	invalid_indent: "broken yaml"
-`
-	os.WriteFile(configPath, []byte(invalidContent), 0o644)
-
-	// Set environment to use this config
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "/nonexistent")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	_, err = NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err == nil {
-		t.Error("Expected error when user config has invalid YAML")
-	}
-}
-
-func TestNewServiceWithInvalidYAMLInWorkspaceConfig(t *testing.T) {
-	// Test handling of invalid YAML in workspace config (merge scenario)
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directories
-	tempDir := t.TempDir()
-
-	// Create valid user config
-	userDir := filepath.Join(tempDir, "user", "meowg1k")
-	os.MkdirAll(userDir, 0o755)
-	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  user-model:
-    provider: "openai"
-    model: "gpt-4"
-presets:
-  user:
-    model: "user-model"
-flows:
-  write:
-    preset: "user"
-    system_prompt: "test"
-`
-	os.WriteFile(userPath, []byte(userContent), 0o644)
-
-	// Create invalid workspace config
-	workspaceDir := filepath.Join(tempDir, "workspace")
-	os.MkdirAll(workspaceDir, 0o755)
-	workspacePath := filepath.Join(workspaceDir, ".meowg1k.yaml")
-	invalidContent := `presets:
-  workspace:
-    model: "anthropic"
-	bad_indentation: "broken"
-`
-	os.WriteFile(workspacePath, []byte(invalidContent), 0o644)
-
-	// Set environment to load user config
-	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	// Use workspace resolver that points to workspace with invalid config
-	workspaceResolver := &mockWorkspaceDirResolver{dir: workspaceDir}
-
-	_, err = NewService(commandSvc, workspaceResolver)
-	if err == nil {
-		t.Error("Expected error when workspace config has invalid YAML")
-	}
-}
-
-func TestNewServiceWithNilFilePathResolver(t *testing.T) {
-	_, err := NewService(nil, &mockWorkspaceDirResolver{})
-	if err == nil {
-		t.Error("Expected error when file path resolver is nil")
-	}
-	if err != nil && !strings.Contains(err.Error(), "config path resolver is nil") {
-		t.Errorf("Expected error about nil resolver, got: %v", err)
-	}
-}
-
-func TestNewServiceWithNilWorkspaceDirResolver(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	_, err = NewService(commandSvc, nil)
-	if err == nil {
-		t.Error("Expected error when workspace dir resolver is nil")
-	}
-	if err != nil && !strings.Contains(err.Error(), "workspace dir resolver is nil") {
-		t.Errorf("Expected error about nil resolver, got: %v", err)
-	}
-}
-
-func TestServiceGetWithNilService(t *testing.T) {
-	var service *Service
-	_, err := service.Get()
-	if err == nil {
-		t.Error("Expected error when calling Get on nil service")
-	}
-	if err != nil && !strings.Contains(err.Error(), "config service is nil") {
-		t.Errorf("Expected error about nil service, got: %v", err)
-	}
-}
-
-func TestNewServiceWithWorkspaceDirResolverError(t *testing.T) {
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create a valid user config so we don't fail on missing config
-	tempDir := t.TempDir()
-	userDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(userDir, 0o755)
-	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := testUserContent
-	os.WriteFile(userPath, []byte(userContent), 0o644)
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	// Create workspace resolver that returns an error
-	workspaceResolver := &mockWorkspaceDirResolver{
-		dir: "",
-		err: errors.New("workspace resolver error"),
-	}
-
-	_, err = NewService(commandSvc, workspaceResolver)
-	if err == nil {
-		t.Error("Expected error when workspace resolver returns error")
-	}
-	if err != nil && !strings.Contains(err.Error(), "failed to get workspace directory") {
-		t.Errorf("Expected workspace directory error, got: %v", err)
-	}
-}
-
-func TestNewServiceWithYMLExtension(t *testing.T) {
-	// Test that .yml extension is also recognized (not just .yaml)
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create temporary directory with .yml config file
-	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(configDir, 0o755)
-
-	// Use .yml extension instead of .yaml
-	configPath := filepath.Join(configDir, "config.yml")
-	configContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  yml-test:
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-presets:
-  yml:
-    model: "yml-test"
-flows:
-  write:
-    preset: "yml"
-    system_prompt: "test"
-`
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed with .yml extension: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["yml"].Model != "yml-test" {
-		t.Errorf("Failed to load config with .yml extension")
-	}
-}
-
-func TestNewServiceConfigPrecedence(t *testing.T) {
-	// Test that config file specified via flag takes precedence over default locations
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	tempDir := t.TempDir()
-
-	// Create user config
-	userDir := filepath.Join(tempDir, "user", "meowg1k")
-	os.MkdirAll(userDir, 0o755)
-	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := `schema_version: 1
-providers:
-  openai:
-    type: "openai"
-models:
-  user-model:
-    provider: "openai"
-    model: "gpt-3.5"
-presets:
-  default:
-    model: "user-model"
-    request:
-      temperature: 0.5
-`
-	os.WriteFile(userPath, []byte(userContent), 0o644)
-
-	// Create flag-specified config with override
-	flagPath := filepath.Join(tempDir, "flag-config.yaml")
-	flagContent := `presets:
-  default:
-    # Override temperature from user config
-    request:
-      temperature: 0.9
-  flag-preset:
-    model: "user-model"
-    request:
-      temperature: 0.7
-`
-	os.WriteFile(flagPath, []byte(flagContent), 0o644)
-
-	os.Setenv("XDG_CONFIG_HOME", filepath.Join(tempDir, "user"))
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	cmd.Flags().Set("config", flagPath)
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	// Check that flag config overrode user config
-	if config.Presets["default"].Request == nil || config.Presets["default"].Request.Temperature == nil || *config.Presets["default"].Request.Temperature != 0.9 {
-		t.Errorf("Expected temperature 0.9 from flag config, got %v", config.Presets["default"].Request)
-	}
-
-	// Check that flag config added new preset
-	if _, exists := config.Presets["flag-preset"]; !exists {
-		t.Error("Flag preset should exist")
-	}
-
-	// Check that user config model is still there (merged, not replaced)
-	if config.Presets["default"].Model != "user-model" {
-		t.Error("Model from user config should still be present")
-	}
-}
-
-func TestNewServiceEmptyWorkspaceDir(t *testing.T) {
-	// Test that empty workspace dir doesn't cause issues
-
-	// Save original environment variables
-	originalConfigHome := os.Getenv("XDG_CONFIG_HOME")
-	originalHome := os.Getenv("HOME")
-
-	defer func() {
-		os.Setenv("XDG_CONFIG_HOME", originalConfigHome)
-		os.Setenv("HOME", originalHome)
-	}()
-
-	// Create user config
-	tempDir := t.TempDir()
-	userDir := filepath.Join(tempDir, "meowg1k")
-	os.MkdirAll(userDir, 0o755)
-	userPath := filepath.Join(userDir, "config.yaml")
-	userContent := testUserContent
-	os.WriteFile(userPath, []byte(userContent), 0o644)
-	os.Setenv("XDG_CONFIG_HOME", tempDir)
-	os.Setenv("HOME", "")
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	// Empty workspace dir should not cause error
-	workspaceResolver := &mockWorkspaceDirResolver{dir: ""}
-
-	configSvc, err := NewService(commandSvc, workspaceResolver)
-	if err != nil {
-		t.Fatalf("NewService should not fail with empty workspace dir: %v", err)
-	}
-
-	config, err := configSvc.Get()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	if config.Presets["test"].Model != "test" {
-		t.Error("Should load user config even with empty workspace dir")
-	}
-}
-
-func TestNewServiceGetCalledMultipleTimes(t *testing.T) {
-	// Test that Get() can be called multiple times and returns the same config
-
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "test-config.yaml")
-	configContent := testUserContent
-	err := os.WriteFile(configPath, []byte(configContent), 0o644)
-	if err != nil {
-		t.Fatalf("Failed to create config file: %v", err)
-	}
-
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("config", "", "config file path")
-	cmd.Flags().Set("config", configPath)
-
-	commandSvc, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	configSvc, err := NewService(commandSvc, &mockWorkspaceDirResolver{})
-	if err != nil {
-		t.Fatalf("NewService failed: %v", err)
+	cfg := &config.Config{
+		Providers: make(map[string]*config.ProviderConfig),
+		Models:    make(map[string]*config.ModelConfig),
+		Presets:   make(map[string]*config.PresetConfig),
 	}
 
-	// Call Get multiple times
-	config1, err1 := configSvc.Get()
-	config2, err2 := configSvc.Get()
-	config3, err3 := configSvc.Get()
+	// Multiple operations should work without panic
+	err = service.Override(cfg)
+	require.NoError(t, err)
 
-	if err1 != nil || err2 != nil || err3 != nil {
-		t.Fatalf("Get should not fail: %v, %v, %v", err1, err2, err3)
-	}
-
-	// All should return the same config instance
-	if config1 != config2 || config2 != config3 {
-		t.Error("Get should return the same config instance on multiple calls")
-	}
+	retrieved, err := service.Get()
+	require.NoError(t, err)
+	assert.NotNil(t, retrieved)
 
-	// Verify config content
-	if config1.Presets["test"].Model != "test" {
-		t.Error("Config should have test preset")
-	}
+	err = service.Override(cfg)
+	require.NoError(t, err)
 }

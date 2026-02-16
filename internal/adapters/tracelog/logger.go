@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	logsSubDir = ".meowg1k/logs"
+	logsSubDir = ".meowg1k/.logs"
 )
 
 // WorkspaceResolver resolves the workspace root directory.

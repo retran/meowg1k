@@ -69,69 +69,83 @@ func (g *anthropicGateway) GenerateContent(
 		return nil, fmt.Errorf("model is required for anthropic content generation")
 	}
 
-	messages := g.mapMessages(request)
-	if len(messages) == 0 {
-		messages = []anthropic.MessageParam{
-			anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
+
+		messages := g.mapMessages(request)
+		if len(messages) == 0 {
+			messages = []anthropic.MessageParam{
+				anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
+			}
 		}
-	}
 
-	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model(model),
-		Messages:  messages,
-		MaxTokens: int64(request.MaxOutputTokens()),
-	}
-	if tools := request.Tools(); len(tools) > 0 {
-		params.Tools = buildAnthropicTools(tools)
-		params.ToolChoice = anthropic.ToolChoiceUnionParam{
-			OfAuto: &anthropic.ToolChoiceAutoParam{Type: "auto"},
+		params := anthropic.MessageNewParams{
+			Model:     anthropic.Model(model),
+			Messages:  messages,
+			MaxTokens: int64(request.MaxOutputTokens()),
 		}
-	}
-
-	if systemPrompt := request.SystemPrompt(); systemPrompt != "" {
-		params.System = []anthropic.TextBlockParam{
-			{Text: systemPrompt},
+		if tools := request.Tools(); len(tools) > 0 {
+			params.Tools = buildAnthropicTools(tools)
+			params.ToolChoice = anthropic.ToolChoiceUnionParam{
+				OfAuto: &anthropic.ToolChoiceAutoParam{Type: "auto"},
+			}
 		}
-	}
 
-	// Set generation parameters if provided
-	if temperature := request.Temperature(); temperature != nil {
-		params.Temperature = anthropic.Float(*temperature)
-	}
+		if systemPrompt := request.SystemPrompt(); systemPrompt != "" {
+			params.System = []anthropic.TextBlockParam{
+				{Text: systemPrompt},
+			}
+		}
 
-	if topP := request.TopP(); topP != nil {
-		params.TopP = anthropic.Float(*topP)
-	}
+		// Set generation parameters if provided
+		if temperature := request.Temperature(); temperature != nil {
+			params.Temperature = anthropic.Float(*temperature)
+		}
 
-	if topK := request.TopK(); topK != nil {
-		params.TopK = anthropic.Int(int64(*topK))
-	}
+		if topP := request.TopP(); topP != nil {
+			params.TopP = anthropic.Float(*topP)
+		}
 
-	if stop := request.Stop(); len(stop) > 0 {
-		params.StopSequences = stop
-	}
+		if topK := request.TopK(); topK != nil {
+			params.TopK = anthropic.Int(int64(*topK))
+		}
 
-	// Anthropic doesn't directly support all parameters like logprobs, logit_bias, etc.
-	// They are primarily OpenAI-specific features
-	// However, we can document which parameters are not supported
+		if stop := request.Stop(); len(stop) > 0 {
+			params.StopSequences = stop
+		}
 
-	// User identifier (not directly supported by Anthropic Messages API as of current version)
-	// ServiceTier (OpenAI-specific)
-	// LogitBias (OpenAI-specific)
-	// CandidateCount/N (OpenAI-specific, Anthropic returns single response)
-	// LogProbs (OpenAI/Gemini-specific)
+		// Anthropic doesn't directly support all parameters like logprobs, logit_bias, etc.
+		// They are primarily OpenAI-specific features
+		// However, we can document which parameters are not supported
 
-	response, err := g.client.Messages.New(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write content from Anthropic for model %q: %w", model, err)
-	}
+		// User identifier (not directly supported by Anthropic Messages API as of current version)
+		// ServiceTier (OpenAI-specific)
+		// LogitBias (OpenAI-specific)
+		// CandidateCount/N (OpenAI-specific, Anthropic returns single response)
+		// LogProbs (OpenAI/Gemini-specific)
 
-	if len(response.Content) == 0 {
-		return nil, fmt.Errorf("no content in response from Anthropic for model %q", model)
-	}
+		response, err := g.client.Messages.New(ctx, params)
+		if err != nil {
+			return nil, err
+		}
 
-	blocks := parseAnthropicBlocksOrdered(response.Content)
-	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+		if len(response.Content) == 0 {
+			return nil, fmt.Errorf("no content in response from Anthropic for model %q", model)
+		}
+
+		blocks := parseAnthropicBlocksOrdered(response.Content)
+
+		// Extract usage information
+		var usage *gateway.UsageMetadata
+		if response.Usage.InputTokens > 0 || response.Usage.OutputTokens > 0 {
+			usage = &gateway.UsageMetadata{
+				PromptTokens:     int(response.Usage.InputTokens),
+				CompletionTokens: int(response.Usage.OutputTokens),
+				TotalTokens:      int(response.Usage.InputTokens + response.Usage.OutputTokens),
+			}
+		}
+
+		return &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}, nil
+	}, fmt.Sprintf("Anthropic GenerateContent for model %q", model))
 }
 
 func (g *anthropicGateway) mapMessages(request *gateway.GenerateContentRequest) []anthropic.MessageParam {
@@ -293,4 +307,40 @@ func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) []gateway
 		}
 	}
 	return result
+}
+
+// CountTokens counts tokens using Anthropic's token counting API.
+// For embeddings, Anthropic doesn't provide embeddings, so this returns an error.
+// For generation, it calls the count_tokens endpoint with the messages.
+func (g *anthropicGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+	if g == nil {
+		return 0, fmt.Errorf("anthropic gateway is nil")
+	}
+
+	if len(texts) == 0 {
+		return 0, nil
+	}
+
+	// Build messages from texts
+	messages := make([]anthropic.MessageParam, 0, len(texts))
+	for _, text := range texts {
+		if text != "" {
+			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(text)))
+		}
+	}
+
+	if len(messages) == 0 {
+		return 0, nil
+	}
+
+	// Call the count tokens API
+	result, err := g.client.Messages.CountTokens(ctx, anthropic.MessageCountTokensParams{
+		Model:    anthropic.Model(model),
+		Messages: messages,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count tokens with Anthropic API: %w", err)
+	}
+
+	return int(result.InputTokens), nil
 }

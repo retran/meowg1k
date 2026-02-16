@@ -27,6 +27,23 @@ func NewService(workspacePathResolver PathResolver) *Service {
 	}
 }
 
+// NewServiceWithPath creates a workspace service with a fixed path.
+// This is used during Starlark initialization when command flags are not available.
+func NewServiceWithPath(path string) *Service {
+	return &Service{
+		workspacePathResolver: &fixedPathResolver{path: path},
+	}
+}
+
+// fixedPathResolver always returns a fixed workspace path
+type fixedPathResolver struct {
+	path string
+}
+
+func (f *fixedPathResolver) GetWorkspacePath() (string, error) {
+	return f.path, nil
+}
+
 // Get returns the workspace root directory.
 // If --workspace flag is set, returns that path.
 // Otherwise, walks up from the current directory looking for .meowg1k.yaml, .meowg1k.yml, or .git directory.

@@ -5,7 +5,9 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
@@ -71,24 +73,72 @@ func (g *loggingGenerationGateway) GenerateContent(
 			MaxOutputTokens: request.MaxOutputTokens(),
 		},
 		Response: tracelog.ResponseData{
-			Content: responseTextOrEmpty(response),
+			Content: formatResponseContent(response),
 		},
 		DurationMs: duration.Milliseconds(),
+	}
+
+	// Add usage information if available
+	if response != nil && response.Usage != nil {
+		entry.Usage = tracelog.UsageData{
+			PromptTokens:     response.Usage.PromptTokens,
+			CompletionTokens: response.Usage.CompletionTokens,
+			TotalTokens:      response.Usage.TotalTokens,
+		}
 	}
 
 	if err != nil {
 		entry.Response.Error = err.Error()
 	}
 
-	// Log in the background to avoid blocking (ignore errors).
-	go func() {
-		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
-	}()
+	// Log synchronously - logging errors are not critical but should be fast
+	if logErr := g.logger.LogAPIInteraction(entry); logErr != nil {
+		// Ignore logging errors, but they're visible in debug mode
+		_ = logErr
+	}
 
 	if err != nil {
 		return response, fmt.Errorf("content generation failed: %w", err)
 	}
 	return response, nil
+}
+
+// formatResponseContent formats the full response including all content blocks.
+func formatResponseContent(response *gateway.GenerateContentResponse) string {
+	if response == nil {
+		return ""
+	}
+
+	if len(response.Blocks) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+
+	for i, block := range response.Blocks {
+		if i > 0 {
+			result.WriteString("\n---\n")
+		}
+
+		switch block.Kind {
+		case gateway.ContentBlockText:
+			result.WriteString(block.Text)
+		case gateway.ContentBlockReasoning:
+			result.WriteString("[REASONING]\n")
+			result.WriteString(block.Text)
+		case gateway.ContentBlockToolCall:
+			if block.ToolCall != nil {
+				result.WriteString(fmt.Sprintf("[TOOL_CALL: %s]\n", block.ToolCall.Name))
+				if len(block.ToolCall.Arguments) > 0 {
+					if args, err := json.Marshal(block.ToolCall.Arguments); err == nil {
+						result.WriteString(string(args))
+					}
+				}
+			}
+		}
+	}
+
+	return result.String()
 }
 
 func responseTextOrEmpty(response *gateway.GenerateContentResponse) string {
@@ -160,10 +210,11 @@ func (g *loggingEmbeddingsGateway) ComputeEmbeddings(
 		entry.Response.Error = err.Error()
 	}
 
-	// Log in the background to avoid blocking (ignore errors).
-	go func() {
-		_ = g.logger.LogAPIInteraction(entry) //nolint:errcheck // Async logging errors are not critical
-	}()
+	// Log synchronously - logging errors are not critical but should be fast
+	if logErr := g.logger.LogAPIInteraction(entry); logErr != nil {
+		// Ignore logging errors, but they're visible in debug mode
+		_ = logErr
+	}
 
 	if err != nil {
 		return embeddings, fmt.Errorf("embeddings computation failed: %w", err)

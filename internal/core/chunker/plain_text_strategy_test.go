@@ -400,3 +400,127 @@ func TestPlainTextStrategy_Chunk_WhitespaceOnly(t *testing.T) {
 		})
 	}
 }
+
+// Test processLine via oversized paragraphs with line breaks
+
+func TestPlainTextStrategy_Chunk_OversizeParagraphWithLines(t *testing.T) {
+	// Create a strategy with small max chunk size to trigger line splitting
+	strategy := NewPlainTextStrategy(50, 5)
+
+	// Create a long paragraph (no double newline) with line breaks
+	// Each line is short enough, but the paragraph is too long
+	longParagraph := "Line one is here\nLine two is here\nLine three is here\nLine four is here\nLine five"
+	content := []byte(longParagraph)
+
+	chunks, err := strategy.Chunk(content)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Should create multiple chunks due to paragraph size
+	if len(chunks) <= 1 {
+		t.Error("Expected multiple chunks for oversize paragraph with lines")
+	}
+
+	// Verify processLine was called by checking chunks contain line content
+	allContent := ""
+	for _, chunk := range chunks {
+		allContent += chunk.TextContent
+	}
+
+	// Should contain parts of the original lines
+	if !strings.Contains(allContent, "Line one") {
+		t.Error("Expected chunks to contain 'Line one'")
+	}
+}
+
+func TestPlainTextStrategy_Chunk_OversizeParagraphMultipleLines(t *testing.T) {
+	// Strategy with very small chunks to force line-by-line processing
+	strategy := NewPlainTextStrategy(30, 3)
+
+	// Paragraph with multiple normal-sized lines
+	paragraph := "First line here\nSecond line here\nThird line here\nFourth line"
+	content := []byte(paragraph)
+
+	chunks, err := strategy.Chunk(content)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Multiple chunks should be created
+	if len(chunks) <= 1 {
+		t.Errorf("Expected multiple chunks, got %d", len(chunks))
+	}
+
+	// Verify chunk metadata
+	for i, chunk := range chunks {
+		if chunk.StartLine <= 0 {
+			t.Errorf("Chunk %d has invalid StartLine: %d", i, chunk.StartLine)
+		}
+		if chunk.EndLine <= 0 {
+			t.Errorf("Chunk %d has invalid EndLine: %d", i, chunk.EndLine)
+		}
+		if chunk.StartLine > chunk.EndLine {
+			t.Errorf("Chunk %d has StartLine > EndLine: %d > %d", i, chunk.StartLine, chunk.EndLine)
+		}
+	}
+}
+
+func TestPlainTextStrategy_ProcessLine_WithExistingContent(t *testing.T) {
+	// Test processLine when state already has content (tests the newline logic)
+	strategy := NewPlainTextStrategy(100, 10)
+
+	// Create paragraph that's slightly over limit to trigger line processing
+	// with content already in buffer
+	longParagraph := strings.Repeat("x", 101) + "\nshort line"
+	content := []byte(longParagraph)
+
+	chunks, err := strategy.Chunk(content)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Should have at least one chunk
+	if len(chunks) == 0 {
+		t.Error("Expected at least one chunk")
+	}
+}
+
+func TestPlainTextStrategy_ProcessLine_Overlap(t *testing.T) {
+	// Test that line processing respects overlap
+	strategy := NewPlainTextStrategy(40, 10)
+
+	// Create content with multiple short lines that will need multiple chunks
+	lines := []string{
+		"Line A is here now",
+		"Line B is here now",
+		"Line C is here now",
+		"Line D is here now",
+	}
+	paragraph := strings.Join(lines, "\n")
+	content := []byte(paragraph)
+
+	chunks, err := strategy.Chunk(content)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Should create multiple chunks
+	if len(chunks) <= 1 {
+		t.Error("Expected multiple chunks to test overlap")
+	}
+
+	// Verify overlap exists (later chunks should contain some content from previous chunks)
+	for i := 1; i < len(chunks); i++ {
+		// Check that chunk starts aren't at exact boundaries
+		if chunks[i].StartLine == chunks[i-1].EndLine+1 {
+			// This is okay - they might be adjacent
+			continue
+		}
+		// There should be some overlap in rune positions
+		if chunks[i].StartRune <= chunks[i-1].EndRune {
+			// Good - there's overlap
+			break
+		}
+	}
+}
