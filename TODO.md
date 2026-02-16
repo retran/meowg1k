@@ -35,7 +35,7 @@ We deleted the old man pages. Generate new ones from Starlark commands.
 
 Use `cobra` or write a custom generator.
 
-### 4. Clean up test commands (1 week)
+### 4. Clean up test commands (1 week) ✅
 
 11 test commands live in `.meowg1k/commands/test-*.star`. Each needs a decision:
 
@@ -100,7 +100,7 @@ examples/
     └── memory-example.star
 ```
 
-### 8. Delete leftover files (30 min)
+### 8. Delete leftover files (30 min) ✅
 
 Merge artifacts and debug code:
 
