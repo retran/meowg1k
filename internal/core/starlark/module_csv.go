@@ -115,7 +115,11 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 	if headers != nil {
 		headerRow := make([]string, 0, headers.Len())
 		for i := 0; i < headers.Len(); i++ {
-			headerRow = append(headerRow, headers.Index(i).String())
+			val, ok := starlark.AsString(headers.Index(i))
+			if !ok {
+				val = headers.Index(i).String()
+			}
+			headerRow = append(headerRow, val)
 		}
 		if err := writer.Write(headerRow); err != nil {
 			return nil, fmt.Errorf("csv.stringify: failed to write headers: %w", err)
@@ -132,7 +136,18 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 			row := make([]string, 0, v.Len())
 			for j := 0; j < v.Len(); j++ {
 				cell := v.Index(j)
-				row = append(row, cell.String())
+				val, ok := starlark.AsString(cell)
+				if !ok {
+					// Try to convert to string for non-string types
+					if intVal, err := starlark.AsInt32(cell); err == nil {
+						val = fmt.Sprintf("%d", intVal)
+					} else if floatVal, ok := starlark.AsFloat(cell); ok {
+						val = fmt.Sprintf("%g", floatVal)
+					} else {
+						val = cell.String()
+					}
+				}
+				row = append(row, val)
 			}
 			if err := writer.Write(row); err != nil {
 				return nil, fmt.Errorf("csv.stringify: failed to write row %d: %w", i, err)
@@ -154,7 +169,18 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 				if !found {
 					row = append(row, "")
 				} else {
-					row = append(row, cellValue.String())
+					val, ok := starlark.AsString(cellValue)
+					if !ok {
+						// Try to convert to string for non-string types
+						if intVal, err := starlark.AsInt32(cellValue); err == nil {
+							val = fmt.Sprintf("%d", intVal)
+						} else if floatVal, ok := starlark.AsFloat(cellValue); ok {
+							val = fmt.Sprintf("%g", floatVal)
+						} else {
+							val = cellValue.String()
+						}
+					}
+					row = append(row, val)
 				}
 			}
 			if err := writer.Write(row); err != nil {

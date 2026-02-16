@@ -113,6 +113,28 @@ func (g *anthropicGateway) GenerateContent(
 			params.StopSequences = stop
 		}
 
+		// Apply response schema if provided (Anthropic supports structured outputs)
+		if responseSchema := request.ResponseSchema(); responseSchema != nil {
+			// Convert schema to tool use pattern for Anthropic
+			inputSchema := buildToolInputSchema(responseSchema)
+
+			toolDef := &anthropic.ToolParam{
+				Name:        "output",
+				Description: anthropic.String("Generated structured output"),
+				InputSchema: inputSchema,
+			}
+
+			params.Tools = []anthropic.ToolUnionParam{
+				{OfTool: toolDef},
+			}
+			params.ToolChoice = anthropic.ToolChoiceUnionParam{
+				OfTool: &anthropic.ToolChoiceToolParam{
+					Type: "tool",
+					Name: "output",
+				},
+			}
+		}
+
 		// Anthropic doesn't directly support all parameters like logprobs, logit_bias, etc.
 		// They are primarily OpenAI-specific features
 		// However, we can document which parameters are not supported

@@ -67,6 +67,10 @@ func goToStarlark(v interface{}) starlark.Value {
 		return starlark.None
 	case bool:
 		return starlark.Bool(val)
+	case int:
+		return starlark.MakeInt(val)
+	case int64:
+		return starlark.MakeInt64(val)
 	case float64:
 		return starlark.Float(val)
 	case string:
