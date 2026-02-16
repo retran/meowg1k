@@ -66,7 +66,7 @@ func (g *Service) runGitCommand(args ...string) (string, error) {
 }
 
 // ReadStagedFiles returns a list of files that are currently staged.
-// For renamed files, returns the new filename.
+// For renamed files, returns the new filename. Excludes deleted files.
 func (g *Service) ReadStagedFiles() ([]string, error) {
 	if g == nil {
 		return nil, fmt.Errorf("git service is nil")
@@ -75,7 +75,7 @@ func (g *Service) ReadStagedFiles() ([]string, error) {
 	g.semaphore <- struct{}{}
 	defer func() { <-g.semaphore }()
 
-	out, err := g.runGitCommand("diff", "--cached", "--name-status", "-M")
+	out, err := g.runGitCommand("diff", "--cached", "--name-status", "-M", "--diff-filter=d")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read staged files: %w", err)
 	}

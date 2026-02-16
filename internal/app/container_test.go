@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,9 +24,9 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
-	"github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
 	"github.com/retran/meowg1k/internal/core/shutdown"
+	domainConfig "github.com/retran/meowg1k/internal/domain/config"
 	domainOutput "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -74,9 +75,9 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	workspaceService := workspace.NewService(commandService)
+	_ = workspace.NewService(commandService) // workspace service not needed for this test
 
-	configService, err := config.NewService(commandService, workspaceService)
+	configService, err := config.NewService()
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +89,6 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 		return nil, err
 	}
 
-	rateLimitRepo := ratelimit.NewRepository(dbHost)
 	cacheRepo := cache.NewRepository(dbHost)
 
 	if err := shutdownService.Register(func(ctx context.Context) error {
@@ -118,7 +118,6 @@ func NewTestAppContainer(cmd *cobra.Command, dbHost ports.Host) (*Container, err
 	container.OutputService = outputService
 	container.httpClientService = httpClientService
 	container.dbHost = dbHost
-	container.rateLimitRepo = rateLimitRepo
 	container.cacheRepo = cacheRepo
 
 	shutdownCtx := context.WithValue(shutdownService.Context(), AppContainerKey, container)
@@ -338,11 +337,15 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				cmd.Flags().String("task", "", "task name")
 				cmd.Flags().String("user-prompt", "", "user prompt")
 				cmd.Flags().Bool("silent", false, "silent mode")
+				cmd.Flags().Bool("no-cache", false, "disable cache")
+				cmd.Flags().Bool("update-cache", false, "update cache")
+				cmd.Flags().Bool("plain", false, "plain output")
+				cmd.Flags().Bool("no-color", false, "no color")
 				cmd.Flags().Set("config", "/nonexistent/path/config.yaml")
 				return cmd
 			},
-			expectError: true,
-			errorMsg:    "failed to merge specified config file",
+			expectError: false, // Config service no longer fails if config file doesn't exist
+			errorMsg:    "",
 		},
 		{
 			name: "Config service creation error - no config found",
@@ -377,11 +380,15 @@ func TestNewAppContainerWithErrors(t *testing.T) {
 				cmd.Flags().String("task", "", "task name")
 				cmd.Flags().String("user-prompt", "", "user prompt")
 				cmd.Flags().Bool("silent", false, "silent mode")
-				// Don't set config path, should fail to find any config
+				cmd.Flags().Bool("no-cache", false, "disable cache")
+				cmd.Flags().Bool("update-cache", false, "update cache")
+				cmd.Flags().Bool("plain", false, "plain output")
+				cmd.Flags().Bool("no-color", false, "no color")
+				// Don't set config path
 				return cmd
 			},
-			expectError: true,
-			errorMsg:    "no configuration file found",
+			expectError: false, // Config service no longer fails if no config found
+			errorMsg:    "",
 		},
 	}
 
@@ -498,6 +505,9 @@ func TestGetLogDirFallbacks(t *testing.T) {
 }
 
 func TestNewAppContainerServicesCreation(t *testing.T) {
+	t.Skip("This test is for deprecated YAML-based config system. " +
+		"The application now uses Starlark-based configuration loaded during CLI initialization.")
+
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `schema_version: 1
@@ -578,6 +588,11 @@ flows:
 	if err != nil {
 		t.Fatalf("Failed to get config: %v", err)
 	}
+
+	t.Logf("Config loaded: Presets=%d, Models=%d, Providers=%d",
+		len(cfg.Presets), len(cfg.Models), len(cfg.Providers))
+	t.Logf("Presets: %+v", cfg.Presets)
+	t.Logf("Flows: %+v", cfg.Flows)
 
 	if len(cfg.Presets) != 2 {
 		t.Errorf("Expected 2 presets, got %d", len(cfg.Presets))
@@ -842,4 +857,172 @@ func newAppContainerWithRecovery(t *testing.T, expectError bool) (*Container, er
 
 	container, err = NewAppContainer(nil)
 	return container, err
+}
+
+func TestGetHTTPClientService(t *testing.T) {
+	container := &Container{
+		httpClientService: &mockHTTPClientService{},
+	}
+
+	service := container.GetHTTPClientService()
+	if service == nil {
+		t.Error("Expected HTTP client service but got nil")
+	}
+}
+
+func TestMaxPresetCacheTTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *domainConfig.Config
+		expected time.Duration
+	}{
+		{
+			name:     "nil config",
+			cfg:      nil,
+			expected: 0,
+		},
+		{
+			name: "no presets",
+			cfg: &domainConfig.Config{
+				Presets: map[string]*domainConfig.PresetConfig{},
+			},
+			expected: 0,
+		},
+		{
+			name: "preset with no cache",
+			cfg: &domainConfig.Config{
+				Presets: map[string]*domainConfig.PresetConfig{
+					"test": {},
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "preset with disabled cache",
+			cfg: &domainConfig.Config{
+				Presets: map[string]*domainConfig.PresetConfig{
+					"test": {
+						Cache: &domainConfig.CacheConfig{
+							Enabled: boolPtr(false),
+							TTL:     time.Hour,
+						},
+					},
+				},
+			},
+			expected: 0,
+		},
+		{
+			name: "preset with enabled cache",
+			cfg: &domainConfig.Config{
+				Presets: map[string]*domainConfig.PresetConfig{
+					"test": {
+						Cache: &domainConfig.CacheConfig{
+							Enabled: boolPtr(true),
+							TTL:     time.Hour,
+						},
+					},
+				},
+			},
+			expected: time.Hour,
+		},
+		{
+			name: "multiple presets, return max TTL",
+			cfg: &domainConfig.Config{
+				Presets: map[string]*domainConfig.PresetConfig{
+					"short": {
+						Cache: &domainConfig.CacheConfig{
+							Enabled: boolPtr(true),
+							TTL:     time.Minute,
+						},
+					},
+					"long": {
+						Cache: &domainConfig.CacheConfig{
+							Enabled: boolPtr(true),
+							TTL:     time.Hour * 24,
+						},
+					},
+				},
+			},
+			expected: time.Hour * 24,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := maxPresetCacheTTL(tt.cfg)
+			if result != tt.expected {
+				t.Errorf("Expected %v but got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func TestGetDBHost(t *testing.T) {
+	dbHost := &testMockDBHost{}
+	container := &Container{
+		dbHost: dbHost,
+	}
+
+	result := container.GetDBHost()
+	if result != dbHost {
+		t.Error("Expected dbHost to be returned")
+	}
+}
+
+func TestGetSilentFlag(t *testing.T) {
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().Bool("silent", true, "silent mode")
+	cmd.Flags().Set("silent", "true")
+
+	commandService, err := command.NewService(cmd)
+	if err != nil {
+		t.Fatalf("Failed to create command service: %v", err)
+	}
+
+	container := &Container{
+		CommandService: commandService,
+	}
+
+	silent, err := container.GetSilentFlag()
+	if err != nil {
+		t.Errorf("GetSilentFlag returned error: %v", err)
+	}
+	if !silent {
+		t.Error("Expected silent to be true")
+	}
+}
+
+func TestGetCacheRepo(t *testing.T) {
+	mockRepo := cache.NewRepository(&testMockDBHost{})
+	container := &Container{
+		cacheRepo: mockRepo,
+	}
+
+	result := container.GetCacheRepo()
+	if result != mockRepo {
+		t.Error("Expected cacheRepo to be returned")
+	}
+}
+
+// Mock HTTP client service for testing
+type mockHTTPClientService struct{}
+
+func (m *mockHTTPClientService) Get() *http.Client {
+	return &http.Client{}
+}
+
+func (m *mockHTTPClientService) GetWithTimeout(timeout time.Duration) *http.Client {
+	return &http.Client{Timeout: timeout}
+}
+
+func (m *mockHTTPClientService) Close() error {
+	return nil
+}
+
+func (m *mockHTTPClientService) Validate() error {
+	return nil
 }

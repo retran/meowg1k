@@ -1,16 +1,13 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package gateway provides adapters for LLM providers (OpenAI, Anthropic, Gemini, etc.) with caching, rate limiting, and logging.
+// Package gateway provides adapters for LLM providers (OpenAI, Anthropic, Gemini, etc.) with caching and logging.
 package gateway
 
 import (
 	"context"
 	"fmt"
-	"sync"
 
-	ratelimit2 "github.com/retran/meowg1k/internal/adapters/sqlite/ratelimit"
-	"github.com/retran/meowg1k/internal/core/ratelimit"
 	"github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/provider"
 	"github.com/retran/meowg1k/internal/ports"
@@ -23,23 +20,16 @@ type Factory struct {
 	traceLogger       TraceLogger
 	commandNameReader ports.CommandNameReader
 	httpClientService ports.HTTPClientService
-	limiters          map[string]ratelimit.Limiter
-	rateLimitRepo     *ratelimit2.Repository
-	mu                sync.Mutex
 }
 
 // NewFactory creates a new gateway factory with dependencies.
 func NewFactory(
-	rateLimitRepo *ratelimit2.Repository,
 	cacheRepo ports.CacheRepository,
 	flagReader ports.FlagReader,
 	traceLogger TraceLogger,
 	commandNameReader ports.CommandNameReader,
 	httpClientService ports.HTTPClientService,
 ) (*Factory, error) {
-	if rateLimitRepo == nil {
-		return nil, fmt.Errorf("rate limit repository is nil")
-	}
 	if cacheRepo == nil {
 		return nil, fmt.Errorf("cache repository is nil")
 	}
@@ -57,60 +47,12 @@ func NewFactory(
 	}
 
 	return &Factory{
-		limiters:          make(map[string]ratelimit.Limiter),
-		rateLimitRepo:     rateLimitRepo,
 		cacheRepo:         cacheRepo,
 		flagReader:        flagReader,
 		traceLogger:       traceLogger,
 		commandNameReader: commandNameReader,
 		httpClientService: httpClientService,
 	}, nil
-}
-
-// getRateLimiter returns or creates a rate limiter for the given preset.
-// This method is thread-safe. Each unique model instance gets its own rate limiter.
-// The key is based on provider:baseURL:model:apiKeyEnv to ensure different API keys
-// or endpoints get separate rate limiters.
-func (f *Factory) getRateLimiter(resolvedPreset *preset.ResolvedPreset) (ratelimit.Limiter, error) {
-	if resolvedPreset == nil {
-		return nil, fmt.Errorf("preset cannot be nil")
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	// Generate key based on model instance characteristics
-	// IMPORTANT: Use APIKeyEnv (environment variable name), never the actual API key
-	// TODO use centralized method to generate keys
-	key := string(resolvedPreset.Provider) + ":" + resolvedPreset.BaseURL + ":" + resolvedPreset.Model + ":" + resolvedPreset.APIKeyEnv
-
-	if limiter, exists := f.limiters[key]; exists {
-		return limiter, nil
-	}
-
-	config := ratelimit.Config{
-		ID:                key,
-		RequestsPerMinute: resolvedPreset.RateLimit.RequestsPerMinute,
-		TokensPerMinute:   resolvedPreset.RateLimit.TokensPerMinute,
-		RequestsPerDay:    resolvedPreset.RateLimit.RequestsPerDay,
-	}
-
-	var limiter ratelimit.Limiter
-
-	if config.RequestsPerMinute == 0 && config.TokensPerMinute == 0 && config.RequestsPerDay == 0 {
-		limiter = ratelimit.NewNoOpLimiter()
-	} else {
-		var err error
-		// TODO proper context
-		limiter, err = ratelimit.NewLimiter(context.Background(), config, f.rateLimitRepo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create rate limiter: %w", err)
-		}
-	}
-
-	f.limiters[key] = limiter
-
-	return limiter, nil
 }
 
 // shouldEnableCache determines whether caching should be enabled based on preset config and flags.
@@ -128,7 +70,11 @@ func (f *Factory) shouldEnableCache(resolvedPreset *preset.ResolvedPreset) bool 
 	}
 
 	// Check if caching is enabled for this preset
-	return resolvedPreset.CacheEnabled
+	if !resolvedPreset.CacheEnabled {
+		return false
+	}
+
+	return true
 }
 
 // shouldUpdateCache determines whether cache should be forcefully updated based on flags.
@@ -159,24 +105,7 @@ func (f *Factory) NewGenerationGateway(
 		return nil, err
 	}
 
-	// Determine max concurrency based on rate limits
-	// Use RPM (requests per minute) as a guide for concurrency
-	// TODO review this logic
-	maxConcurrency := resolvedPreset.RateLimit.RequestsPerMinute
-	if maxConcurrency == 0 {
-		maxConcurrency = 10 // Default to 10 requests if unlimited.
-	}
-
-	gateway = newWorkerPoolGateway(gateway, maxConcurrency)
-
-	limiter, err := f.getRateLimiter(resolvedPreset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
-	}
-
-	gateway = newRateLimitedGenerationGateway(gateway, limiter)
-
-	// Conditionally wrap with caching
+	// Wrap with caching if enabled
 	if f.shouldEnableCache(resolvedPreset) {
 		updateCache := f.shouldUpdateCache()
 		gateway = newCachingGenerationGateway(gateway, f.cacheRepo, updateCache)
@@ -210,14 +139,7 @@ func (f *Factory) NewEmbeddingsGateway(
 		return nil, err
 	}
 
-	limiter, err := f.getRateLimiter(resolvedPreset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get rate limiter: %w", err)
-	}
-
-	gateway = newRateLimitedEmbeddingsGateway(gateway, limiter)
-
-	// Conditionally wrap with caching
+	// Wrap with caching if enabled
 	if f.shouldEnableCache(resolvedPreset) {
 		updateCache := f.shouldUpdateCache()
 		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)

@@ -2,28 +2,52 @@
 # SPDX-License-Identifier: Apache-2.0
 
 repos:
+  # ============================================================
+  # General File Checks
+  # ============================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        name: Trim trailing whitespace
       - id: end-of-file-fixer
+        name: Fix end of files
       - id: check-yaml
+        name: Check YAML syntax
         args: ["--unsafe"]
       - id: check-json
+        name: Check JSON syntax
       - id: check-toml
+        name: Check TOML syntax
       - id: check-added-large-files
+        name: Check for large files
         args: ["--maxkb=5000"]
       - id: check-case-conflict
+        name: Check for case conflicts
       - id: check-merge-conflict
+        name: Check for merge conflicts
       - id: check-symlinks
+        name: Check for broken symlinks
       - id: mixed-line-ending
+        name: Fix line endings
         args: ["--fix=lf"]
+      - id: check-executables-have-shebangs
+        name: Check executable shebangs
+      - id: check-shebang-scripts-are-executable
+        name: Check shebang executables
+      - id: detect-private-key
+        name: Detect private keys
+      - id: fix-byte-order-marker
+        name: Remove UTF-8 BOM
 
+  # ============================================================
+  # Go Language Checks
+  # ============================================================
   - repo: https://github.com/golangci/golangci-lint
     rev: v1.62.2
     hooks:
       - id: golangci-lint
-        name: golangci-lint
+        name: golangci-lint (full check)
         entry: golangci-lint run --fix
         pass_filenames: false
         types: [go]
@@ -31,6 +55,7 @@ repos:
 
   - repo: local
     hooks:
+      # Go formatting
       - id: go-fmt
         name: go fmt
         entry: go fmt ./...
@@ -38,6 +63,21 @@ repos:
         files: \.go$
         pass_filenames: false
 
+      - id: gofumpt
+        name: gofumpt (stricter gofmt)
+        entry: bash -c 'gofumpt -l -w . || true'
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+      - id: goimports
+        name: goimports (organize imports)
+        entry: bash -c 'goimports -local github.com/retran/meowg1k -w . || true'
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+      # Go dependencies
       - id: go-mod-tidy
         name: go mod tidy
         entry: go mod tidy
@@ -45,26 +85,107 @@ repos:
         files: (go\.mod|go\.sum)$
         pass_filenames: false
 
-      - id: go-test
-        name: go test
-        entry: go test -v ./...
+      - id: go-mod-verify
+        name: go mod verify
+        entry: go mod verify
+        language: system
+        files: (go\.mod|go\.sum)$
+        pass_filenames: false
+
+      # Go building & testing
+      - id: go-build
+        name: go build (check compilation)
+        entry: go build ./...
         language: system
         files: \.go$
         pass_filenames: false
 
+      - id: go-test-short
+        name: go test (short mode)
+        entry: go test -short ./...
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+      # Go security
+      - id: go-vet
+        name: go vet
+        entry: go vet ./...
+        language: system
+        files: \.go$
+        pass_filenames: false
+
+  # ============================================================
+  # Security Scanning
+  # ============================================================
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.21.2
     hooks:
       - id: gitleaks
-        name: Detect hardcoded secrets
+        name: Detect hardcoded secrets (gitleaks)
 
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: Detect secrets (detect-secrets)
+        args: ['--baseline', '.secrets.baseline']
+        exclude: (go\.sum|package-lock\.json)$
+
+  # ============================================================
+  # Documentation Linting
+  # ============================================================
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.43.0
     hooks:
       - id: markdownlint
         name: Markdown lint
-        args: ["--fix"]
+        args: ["--fix", "--config", ".markdownlint.yaml"]
 
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: YAML lint
+        args: ["-c", ".yamllint.yaml"]
+        types: [yaml]
+
+  # ============================================================
+  # Commit Message Validation
+  # ============================================================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Check commit message format
+        stages: [commit-msg]
+        args: []
+
+  # ============================================================
+  # License Header Checking
+  # ============================================================
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: insert-license
+        name: Insert license header (Go)
+        files: \.go$
+        args:
+          - --license-filepath
+          - LICENSE_HEADER.txt
+          - --comment-style
+          - //
+
+      - id: insert-license
+        name: Insert license header (YAML)
+        files: \.(yaml|yml)$
+        args:
+          - --license-filepath
+          - LICENSE_HEADER.txt
+          - --comment-style
+          - "#"
+
+# CI Configuration
 ci:
   autofix_commit_msg: |
     ci(pre-commit): auto fixes from hooks

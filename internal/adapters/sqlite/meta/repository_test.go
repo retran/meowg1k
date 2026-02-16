@@ -203,3 +203,167 @@ func TestRepository_LargeValueStoredExternally(t *testing.T) {
 		t.Fatalf("expected blob directory to be empty after delete, found %d files", len(entries))
 	}
 }
+
+func TestRepository_SmallValueStoredInline(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "project.db")
+
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath))
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	host := &mockHost{
+		GetProjectDBFunc: func() (*sql.DB, error) {
+			return db, nil
+		},
+	}
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// Test storing a small value that should be stored inline
+	smallValue := []byte("This is a small value that fits inline")
+	if err := repo.SetValue(ctx, "small-key", smallValue); err != nil {
+		t.Fatalf("SetValue failed: %v", err)
+	}
+
+	// Verify the value can be retrieved
+	readBack, err := repo.GetValue(ctx, "small-key")
+	if err != nil {
+		t.Fatalf("GetValue failed: %v", err)
+	}
+
+	if !bytes.Equal(readBack, smallValue) {
+		t.Fatal("retrieved value does not match original small value")
+	}
+
+	// Verify no blob directory was created for small values
+	metaBlobDir := filepath.Join(tempDir, "meta_blobs")
+	if _, err := os.Stat(metaBlobDir); err == nil {
+		// If directory exists, it should be empty
+		entries, err := os.ReadDir(metaBlobDir)
+		if err != nil {
+			t.Fatalf("failed to read blob directory: %v", err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("expected no blob files for small value, found %d", len(entries))
+		}
+	}
+}
+
+func TestRepository_UpdateLargeValueWithSmallValue(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "project.db")
+
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath))
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	host := &mockHost{
+		GetProjectDBFunc: func() (*sql.DB, error) {
+			return db, nil
+		},
+	}
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// First, store a large value that will be stored as a blob
+	largeValue := bytes.Repeat([]byte{0x2A}, maxInlineValueSize+1024)
+	if err := repo.SetValue(ctx, "test-key", largeValue); err != nil {
+		t.Fatalf("SetValue (large) failed: %v", err)
+	}
+
+	// Verify blob was created
+	metaBlobDir := filepath.Join(tempDir, "meta_blobs")
+	entries, err := os.ReadDir(metaBlobDir)
+	if err != nil {
+		t.Fatalf("failed to read blob directory: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 blob file after large value, found %d", len(entries))
+	}
+
+	// Now update with a small value - this should trigger setInlineValue with existingRef cleanup
+	smallValue := []byte("small replacement value")
+	if err := repo.SetValue(ctx, "test-key", smallValue); err != nil {
+		t.Fatalf("SetValue (small) failed: %v", err)
+	}
+
+	// Verify the blob was cleaned up
+	entries, err = os.ReadDir(metaBlobDir)
+	if err != nil {
+		t.Fatalf("failed to read blob directory after update: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected blob to be cleaned up after replacing with small value, found %d files", len(entries))
+	}
+
+	// Verify the small value can be retrieved correctly
+	readBack, err := repo.GetValue(ctx, "test-key")
+	if err != nil {
+		t.Fatalf("GetValue failed: %v", err)
+	}
+
+	if !bytes.Equal(readBack, smallValue) {
+		t.Fatal("retrieved value does not match the small replacement value")
+	}
+}
+
+func TestRepository_UpdateSmallValueWithSmallValue(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "project.db")
+
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath))
+	if err != nil {
+		t.Fatalf("failed to open sqlite database: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.ExecContext(context.Background(), `CREATE TABLE meta_kv (key TEXT PRIMARY KEY, value BLOB NOT NULL);`); err != nil {
+		t.Fatalf("failed to create table: %v", err)
+	}
+
+	host := &mockHost{
+		GetProjectDBFunc: func() (*sql.DB, error) {
+			return db, nil
+		},
+	}
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// Store a small value
+	smallValue1 := []byte("first small value")
+	if err := repo.SetValue(ctx, "test-key", smallValue1); err != nil {
+		t.Fatalf("SetValue (first) failed: %v", err)
+	}
+
+	// Update with another small value - tests setInlineValue with empty existingRef
+	smallValue2 := []byte("second small value")
+	if err := repo.SetValue(ctx, "test-key", smallValue2); err != nil {
+		t.Fatalf("SetValue (second) failed: %v", err)
+	}
+
+	// Verify the second value can be retrieved
+	readBack, err := repo.GetValue(ctx, "test-key")
+	if err != nil {
+		t.Fatalf("GetValue failed: %v", err)
+	}
+
+	if !bytes.Equal(readBack, smallValue2) {
+		t.Fatal("retrieved value does not match the second small value")
+	}
+}

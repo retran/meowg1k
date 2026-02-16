@@ -19,9 +19,9 @@ var versionCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("meow version %s\n", version.Version)
-		fmt.Printf("Build Date: %s\n", version.BuildDate)
-		fmt.Printf("Git Commit: %s\n", version.GitCommit)
+		fmt.Fprintf(cmd.OutOrStdout(), "meow version %s\n", version.Version)
+		fmt.Fprintf(cmd.OutOrStdout(), "Build Date: %s\n", version.BuildDate)
+		fmt.Fprintf(cmd.OutOrStdout(), "Git Commit: %s\n", version.GitCommit)
 	},
 }
 

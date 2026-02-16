@@ -1,27 +1,40 @@
-# Documentation Index
+# Documentation
 
-This page provides a complete index of the `meowg1k` documentation.
+Two folders, two purposes:
 
-[Back to the main project README](../README.md)
+```
+docs/
+├── api/          # Starlark API - what you can call
+└── guides/       # How to build meowg1k
+```
 
-## Getting Started
+## Pick your path
 
-- [01 - Installation Guide](./01-INSTALLATION.md) — Install meowg1k on your system
-- [02 - Configuration Guide](./02-CONFIGURATION.md) — Configure models, presets, and features
-- [03 - Command Reference](./03-COMMAND-REFERENCE.md) — Complete reference for all commands
+**Want to use meowg1k?**
+- [API Reference](api/API_REFERENCE.md) - All Starlark functions with examples
+- [Starlark Guide](guides/starlark-system.md) - Write custom commands
 
-## Core Features
+**Want to contribute?**
+- [Architecture](guides/architecture.md) - Why we built it this way
+- [Go Conventions](guides/go-conventions.md) - Code style rules
+- [Testing](guides/testing-standards.md) - How to test your changes
+- [UI Patterns](guides/ui-patterns.md) - Build terminal interfaces
 
-- [04 - Code Generation and Automated Workflows](./04-GENERATION-AND-WORKFLOWS.md) — Generate code, commit messages, and PR descriptions with AI
-- [05 - RAG and Code Search](./05-RAG-AND-CODE-SEARCH.md) — Semantic search and question answering with Retrieval-Augmented Generation
-- [06 - Examples & Recipes](./06-EXAMPLES.md) — Practical examples and workflows
+**Building autonomous agents?**
+- [Agentic System](guides/agentic-system.md) - Multi-step workflows
 
-## Advanced Topics
+## First steps
 
-- [07 - Integrations Guide](./07-INTEGRATIONS.md) — Integrate meowg1k with your tools and workflows
-- [08 - Project Philosophy & Core Principles](./08-PRINCIPLES.md) — Design philosophy and architectural decisions
+1. Install meowg1k (see root README.md)
+2. Create `.meowg1k/init.star` ([Starlark Guide](guides/starlark-system.md) shows how)
+3. Browse the [API](api/API_REFERENCE.md) to see what you can do
+4. Copy examples from `.meowg1k/commands/`
 
-## Reference & Help
+## Updating docs
 
-- [09 - Frequently Asked Questions (FAQ)](./09-FAQ.md) — Common questions and answers
-- [10 - Troubleshooting Guide](./10-TROUBLESHOOTING.md) — Solutions for common issues
+Changed the code? Update the docs:
+- **Code changes** → update API_REFERENCE.md
+- **New patterns** → update relevant guide
+- **Complex features** → add examples
+
+Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you start.

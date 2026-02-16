@@ -6,10 +6,11 @@ package index
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 
-	"github.com/retran/meowg1k/internal/activities/scanworktree"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
@@ -51,7 +52,7 @@ type PrepareOutput struct {
 
 // PrepareForProcessing normalizes workspace state for indexing.
 func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error) {
-	wsState, ok := workspaceState.(*scanworktree.Output)
+	wsState, ok := workspaceState.(*domainindex.WorkspaceState)
 	if !ok {
 		return nil, fmt.Errorf("invalid workspaceState type")
 	}
@@ -60,7 +61,7 @@ func (s *Service) PrepareForProcessing(ctx context.Context, workspaceState inter
 
 func (s *Service) prepareForProcessingImpl(
 	ctx context.Context,
-	workspaceState *scanworktree.Output,
+	workspaceState *domainindex.WorkspaceState,
 ) (*PrepareOutput, error) {
 	if workspaceState == nil {
 		return nil, fmt.Errorf("workspaceState cannot be nil")
@@ -201,7 +202,7 @@ func (s *Service) saveNewVersionImpl(
 
 // FinalizeInput defines the payload for snapshot finalization.
 type FinalizeInput struct {
-	ScanResult       *scanworktree.Output
+	ScanResult       *domainindex.WorkspaceState
 	ExistingVersions map[string]int64
 	NewVersions      map[string]int64
 }
@@ -304,4 +305,10 @@ func (s *Service) FinalizeLiveSnapshots(ctx context.Context, input interface{}) 
 		return fmt.Errorf("invalid input type")
 	}
 	return s.finalizeLiveSnapshotsImpl(ctx, finalizeInput)
+}
+
+// computeContentHash computes SHA-256 hash of content.
+func computeContentHash(content []byte) string {
+	hash := sha256.Sum256(content)
+	return hex.EncodeToString(hash[:])
 }
