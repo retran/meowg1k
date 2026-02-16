@@ -115,6 +115,11 @@ type openrouterResponse struct {
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
 	Choices []openrouterChoice `json:"choices"`
+	Usage   *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+		TotalTokens      int `json:"total_tokens"`
+	} `json:"usage,omitempty"`
 }
 
 // GenerateContent sends a content generation request to OpenRouter API.
@@ -130,47 +135,45 @@ func (g *openrouterGateway) GenerateContent(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	messages := buildOpenRouterMessages(request)
-	reqBody := buildOpenRouterRequest(request, messages)
-	if tools := request.Tools(); len(tools) > 0 {
-		toolList := buildOpenRouterTools(tools)
-		if len(toolList) > 0 {
-			reqBody.Tools = &toolList
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
+		messages := buildOpenRouterMessages(request)
+		reqBody := buildOpenRouterRequest(request, messages)
+		if tools := request.Tools(); len(tools) > 0 {
+			toolList := buildOpenRouterTools(tools)
+			if len(toolList) > 0 {
+				reqBody.Tools = &toolList
+			}
+			reqBody.ToolChoice = stringPtr("auto")
 		}
-		reqBody.ToolChoice = stringPtr("auto")
-	}
 
-	// Marshal request
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
+		jsonData, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request: %w", err)
+		}
 
-	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		g.baseURL+"/chat/completions",
-		bytes.NewBuffer(jsonData),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
+		httpReq, err := http.NewRequestWithContext(
+			ctx,
+			"POST",
+			g.baseURL+"/chat/completions",
+			bytes.NewBuffer(jsonData),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		}
 
-	// Set headers
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+g.apiKey)
-	httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
-	httpReq.Header.Set("X-Title", "meowg1k")
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Authorization", "Bearer "+g.apiKey)
+		httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
+		httpReq.Header.Set("X-Title", "meowg1k")
 
-	// Send request
-	resp, err := g.client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request to OpenRouter: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
+		resp, err := g.client.Do(httpReq)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
-	return parseOpenRouterResponse(resp)
+		return parseOpenRouterResponse(resp)
+	}, fmt.Sprintf("OpenRouter GenerateContent for model %q", request.Model()))
 }
 
 func buildOpenRouterMessages(request *gateway.GenerateContentRequest) []openrouterMessage {
@@ -352,7 +355,18 @@ func parseOpenRouterResponse(resp *http.Response) (*gateway.GenerateContentRespo
 		call := toolCalls[i]
 		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
 	}
-	return &gateway.GenerateContentResponse{Blocks: blocks}, nil
+
+	// Extract usage information
+	var usage *gateway.UsageMetadata
+	if openrouterResp.Usage != nil {
+		usage = &gateway.UsageMetadata{
+			PromptTokens:     openrouterResp.Usage.PromptTokens,
+			CompletionTokens: openrouterResp.Usage.CompletionTokens,
+			TotalTokens:      openrouterResp.Usage.TotalTokens,
+		}
+	}
+
+	return &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}, nil
 }
 
 func parseOpenRouterToolCalls(calls []openrouterToolCall) ([]gateway.ToolCall, error) {
@@ -387,4 +401,28 @@ func parseOpenRouterArguments(raw string) (map[string]any, error) {
 	}
 
 	return args, nil
+}
+
+// CountTokens estimates token count for OpenRouter models.
+// Since OpenRouter is a proxy to various providers, we use character-based estimation:
+// approximately (chars + 2) / 3 for better accuracy.
+func (g *openrouterGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+	if g == nil {
+		return 0, fmt.Errorf("openrouter gateway is nil")
+	}
+
+	if len(texts) == 0 {
+		return 0, nil
+	}
+
+	// Count total characters across all texts
+	totalChars := 0
+	for _, text := range texts {
+		totalChars += len(text)
+	}
+
+	// Estimate tokens: approximately (chars + 2) / 3
+	estimatedTokens := (totalChars + 2) / 3
+
+	return estimatedTokens, nil
 }

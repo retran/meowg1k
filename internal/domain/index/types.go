@@ -20,6 +20,13 @@ type ResolvedConfig struct {
 	BatchSize           int
 }
 
+// WorkspaceState contains file states for workdir, stage, and head snapshots.
+type WorkspaceState struct {
+	HeadState    map[string]FileState
+	StageState   map[string]FileState
+	WorkdirState map[string]FileState
+}
+
 // ContentBlob represents a content blob stored in the database.
 type ContentBlob struct {
 	ContentHash string `db:"content_hash"`

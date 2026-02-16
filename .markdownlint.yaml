@@ -1,0 +1,47 @@
+# Markdown Linting Configuration
+# https://github.com/DavidAnson/markdownlint
+
+# Default state for all rules
+default: true
+
+# MD013: Line length
+MD013:
+  line_length: 120
+  heading_line_length: 120
+  code_block_line_length: 120
+  code_blocks: true
+  tables: false
+  headings: true
+  strict: false
+  stern: false
+
+# MD024: Multiple headings with the same content
+MD024:
+  siblings_only: true
+
+# MD033: Inline HTML
+MD033:
+  allowed_elements:
+    - br
+    - details
+    - summary
+    - img
+    - kbd
+
+# MD034: Bare URL used
+MD034: false
+
+# MD041: First line in file should be a top level heading
+MD041: false
+
+# MD046: Code block style
+MD046:
+  style: fenced
+
+# MD049: Emphasis style
+MD049:
+  style: underscore
+
+# MD050: Strong style
+MD050:
+  style: asterisk

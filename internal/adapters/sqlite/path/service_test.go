@@ -192,7 +192,7 @@ func TestGetProjectDBPath(t *testing.T) {
 		t.Fatalf("GetProjectDBPath failed: %v", err)
 	}
 
-	expectedPath := filepath.Join(tempDir, ".meowg1k", "project.db")
+	expectedPath := filepath.Join(tempDir, ".meowg1k", ".data", "project.db")
 	if path != expectedPath {
 		t.Errorf("Expected path %s, got %s", expectedPath, path)
 	}

@@ -85,10 +85,10 @@ func TestService_Get_Success(t *testing.T) {
 	cfg := &config.Config{
 		Models: map[string]*config.ModelConfig{
 			"test-model": {
-				Provider:  "openai",
-				Model:     "gpt-4",
-				BaseURL:   "https://api.openai.com/v1",
-				APIKeyEnv: "TEST_API_KEY",
+				Provider: "openai",
+				Model:    "gpt-4",
+				BaseURL:  "https://api.openai.com/v1",
+				APIKey:   "test-key",
 				Limits: &config.ModelLimits{
 					MaxInputTokens:  8000,
 					MaxOutputTokens: 2000,
@@ -424,49 +424,205 @@ func TestService_ResolveModelInternal_NilModels(t *testing.T) {
 	}
 }
 
-func TestService_ResolveModelInternal_APIKeyFromEnv(t *testing.T) {
-	os.Setenv("CUSTOM_API_KEY", "my-secret-key")
-	defer os.Unsetenv("CUSTOM_API_KEY")
+// Test mergeProviderConfig
 
-	cfg := &config.Config{
-		Models: map[string]*config.ModelConfig{
-			"test-model": {
-				Provider:  "openai",
-				Model:     "gpt-4",
-				APIKeyEnv: "CUSTOM_API_KEY",
-				Limits: &config.ModelLimits{
-					MaxInputTokens:  8000,
-					MaxOutputTokens: 2000,
-				},
-			},
-		},
-	}
-
-	configResolver := &mockServiceConfigResolver{config: cfg}
-	providerResolver := &mockServiceProviderResolver{
-		providers: map[provider.Provider]provider.Definition{
-			"openai": {
-				Type:            "openai",
-				MaxInputTokens:  8000,
-				MaxOutputTokens: 2000,
-			},
-		},
-	}
-
-	service, err := NewService(configResolver, providerResolver)
+func TestService_MergeProviderConfig_NilProvider(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
 	if err != nil {
 		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	resolved, err := service.Get("test-model")
+	resolved := &model.ResolvedModel{}
+	service.mergeProviderConfig(resolved, nil)
+	// Should not panic, resolved should be unchanged
+}
+
+func TestService_MergeProviderConfig_WithBaseURL(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
 	if err != nil {
-		t.Fatalf("Get returned error: %v", err)
+		t.Fatalf("NewService returned error: %v", err)
 	}
 
-	if resolved.APIKey != "my-secret-key" {
-		t.Errorf("Expected API key 'my-secret-key', got '%s'", resolved.APIKey)
+	resolved := &model.ResolvedModel{
+		BaseURL: "", // Empty, should be filled from provider
 	}
-	if resolved.APIKeyEnv != "CUSTOM_API_KEY" {
-		t.Errorf("Expected API key env 'CUSTOM_API_KEY', got '%s'", resolved.APIKeyEnv)
+
+	providerCfg := &config.ProviderConfig{
+		BaseURL: "https://api.example.com",
+	}
+
+	service.mergeProviderConfig(resolved, providerCfg)
+
+	if resolved.BaseURL != "https://api.example.com" {
+		t.Errorf("Expected BaseURL to be set, got %s", resolved.BaseURL)
+	}
+}
+
+func TestService_MergeProviderConfig_WithTokenizer(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+
+	resolved := &model.ResolvedModel{
+		Tokenizer: "", // Empty, should be filled from provider
+	}
+
+	providerCfg := &config.ProviderConfig{
+		Tokenizer: "cl100k",
+	}
+
+	service.mergeProviderConfig(resolved, providerCfg)
+
+	if resolved.Tokenizer != "cl100k" {
+		t.Errorf("Expected Tokenizer to be set, got %s", resolved.Tokenizer)
+	}
+}
+
+func TestService_MergeProviderConfig_WithLimits(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+
+	resolved := &model.ResolvedModel{}
+
+	providerCfg := &config.ProviderConfig{
+		Limits: &config.ModelLimits{
+			MaxInputTokens:  100000,
+			MaxOutputTokens: 4000,
+		},
+	}
+
+	service.mergeProviderConfig(resolved, providerCfg)
+
+	if resolved.MaxInputTokens != 100000 {
+		t.Errorf("Expected MaxInputTokens 100000, got %d", resolved.MaxInputTokens)
+	}
+	if resolved.MaxOutputTokens != 4000 {
+		t.Errorf("Expected MaxOutputTokens 4000, got %d", resolved.MaxOutputTokens)
+	}
+}
+
+func TestService_MergeProviderConfig_WithRateLimit(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+
+	resolved := &model.ResolvedModel{}
+
+	providerCfg := &config.ProviderConfig{
+		RateLimit: &config.RateLimitConfig{
+			RequestsPerMinute: 10,
+			TokensPerMinute:   100000,
+			RequestsPerDay:    1000,
+		},
+	}
+
+	service.mergeProviderConfig(resolved, providerCfg)
+
+	if resolved.RateLimit.RequestsPerMinute != 10 {
+		t.Errorf("Expected RequestsPerMinute 10, got %d", resolved.RateLimit.RequestsPerMinute)
+	}
+	if resolved.RateLimit.TokensPerMinute != 100000 {
+		t.Errorf("Expected TokensPerMinute 100000, got %d", resolved.RateLimit.TokensPerMinute)
+	}
+	if resolved.RateLimit.RequestsPerDay != 1000 {
+		t.Errorf("Expected RequestsPerDay 1000, got %d", resolved.RateLimit.RequestsPerDay)
+	}
+}
+
+func TestService_MergeProviderConfig_DoesNotOverrideExisting(t *testing.T) {
+	service, err := NewService(
+		&mockServiceConfigResolver{config: &config.Config{}},
+		&mockServiceProviderResolver{providers: make(map[provider.Provider]provider.Definition)},
+	)
+	if err != nil {
+		t.Fatalf("NewService returned error: %v", err)
+	}
+
+	resolved := &model.ResolvedModel{
+		BaseURL:   "https://existing.com",
+		Tokenizer: "existing-tokenizer",
+	}
+
+	providerCfg := &config.ProviderConfig{
+		BaseURL:   "https://new.com",
+		Tokenizer: "new-tokenizer",
+	}
+
+	service.mergeProviderConfig(resolved, providerCfg)
+
+	// Should not override existing values
+	if resolved.BaseURL != "https://existing.com" {
+		t.Errorf("Expected BaseURL to remain unchanged, got %s", resolved.BaseURL)
+	}
+	if resolved.Tokenizer != "existing-tokenizer" {
+		t.Errorf("Expected Tokenizer to remain unchanged, got %s", resolved.Tokenizer)
+	}
+}
+
+// Test registry methods
+
+func TestRegistry_Get_WithNilRegistry(t *testing.T) {
+	var reg *Registry
+	info := reg.Get("test-model")
+	if info.Provider != "unknown" {
+		t.Errorf("Expected unknown provider for nil registry, got %s", info.Provider)
+	}
+}
+
+func TestRegistry_ListKnownModels_WithNilRegistry(t *testing.T) {
+	var reg *Registry
+	models := reg.ListKnownModels()
+	if models != nil {
+		t.Error("Expected nil for nil registry")
+	}
+}
+
+func TestRegistry_ListKnownModels_WithModels(t *testing.T) {
+	reg := &Registry{
+		models: map[string]model.Info{
+			"gpt-4": {
+				Provider:         "openai",
+				MaxContextTokens: 8192,
+				MaxOutputTokens:  4096,
+			},
+			"claude": {
+				Provider:         "anthropic",
+				MaxContextTokens: 100000,
+				MaxOutputTokens:  4096,
+			},
+		},
+	}
+
+	modelList := reg.ListKnownModels()
+	if len(modelList) != 2 {
+		t.Errorf("Expected 2 models, got %d", len(modelList))
+	}
+
+	// Check that both models are present
+	found := make(map[string]bool)
+	for _, m := range modelList {
+		found[m] = true
+	}
+	if !found["gpt-4"] || !found["claude"] {
+		t.Error("Expected both gpt-4 and claude in list")
 	}
 }

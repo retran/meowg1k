@@ -532,3 +532,249 @@ func TestRepository_GetVersionsByIDs(t *testing.T) {
 		t.Errorf("GetVersionsByIDs() with empty slice returned %d versions, want 0", len(emptyVersions))
 	}
 }
+
+func TestRepository_AddDocumentVersionWithChunks(t *testing.T) {
+	db, host := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	doc := domainindex.DocumentVersion{
+		FilePath:               "main.go",
+		GitCommitHashFirstSeen: sql.NullString{String: "abc123", Valid: true},
+		ContentHash:            "hash1",
+	}
+	content := []byte("package main\n\nfunc main() {}")
+
+	chunks := []domainindex.Chunk{
+		{
+			StartLine: 1,
+			EndLine:   1,
+			Embedding: gateway.Embedding{0.1, 0.2, 0.3},
+		},
+		{
+			StartLine: 3,
+			EndLine:   3,
+			Embedding: gateway.Embedding{0.4, 0.5, 0.6},
+		},
+	}
+
+	// Test with chunks
+	id, err := repo.AddDocumentVersionWithChunks(ctx, &doc, content, chunks)
+	if err != nil {
+		t.Fatalf("AddDocumentVersionWithChunks() error = %v", err)
+	}
+
+	if id <= 0 {
+		t.Errorf("AddDocumentVersionWithChunks() returned invalid ID: %d", id)
+	}
+
+	// Verify content blob was created
+	exists, err := repo.FindContentBlob(ctx, "hash1")
+	if err != nil {
+		t.Fatalf("FindContentBlob() error = %v", err)
+	}
+	if !exists {
+		t.Error("Content blob was not created")
+	}
+
+	// Verify chunks were created
+	retrievedChunks, err := repo.GetChunksByVersionID(ctx, id)
+	if err != nil {
+		t.Fatalf("GetChunksByVersionID() error = %v", err)
+	}
+	if len(retrievedChunks) != 2 {
+		t.Errorf("Expected 2 chunks, got %d", len(retrievedChunks))
+	}
+
+	// Test with empty chunks
+	doc2 := domainindex.DocumentVersion{
+		FilePath:    "empty.go",
+		ContentHash: "hash2",
+	}
+	id2, err := repo.AddDocumentVersionWithChunks(ctx, &doc2, []byte("empty"), []domainindex.Chunk{})
+	if err != nil {
+		t.Fatalf("AddDocumentVersionWithChunks() with no chunks error = %v", err)
+	}
+	if id2 <= 0 {
+		t.Errorf("AddDocumentVersionWithChunks() with no chunks returned invalid ID: %d", id2)
+	}
+
+	// Test with nil doc
+	_, err = repo.AddDocumentVersionWithChunks(ctx, nil, content, chunks)
+	if err == nil {
+		t.Error("AddDocumentVersionWithChunks() with nil doc should return error")
+	}
+}
+
+func TestRepository_FindVersionsByContentHashes(t *testing.T) {
+	db, host := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// Add multiple versions with different content hashes
+	doc1 := domainindex.DocumentVersion{
+		FilePath:    "file1.go",
+		ContentHash: "hash1",
+	}
+	doc2 := domainindex.DocumentVersion{
+		FilePath:    "file2.go",
+		ContentHash: "hash2",
+	}
+	doc3 := domainindex.DocumentVersion{
+		FilePath:    "file3.go",
+		ContentHash: "hash3",
+	}
+
+	_, err := repo.AddDocumentVersion(ctx, &doc1, []byte("content1"))
+	if err != nil {
+		t.Fatalf("AddDocumentVersion() error = %v", err)
+	}
+	_, err = repo.AddDocumentVersion(ctx, &doc2, []byte("content2"))
+	if err != nil {
+		t.Fatalf("AddDocumentVersion() error = %v", err)
+	}
+	_, err = repo.AddDocumentVersion(ctx, &doc3, []byte("content3"))
+	if err != nil {
+		t.Fatalf("AddDocumentVersion() error = %v", err)
+	}
+
+	// Test finding by multiple hashes
+	hashes := []string{"hash1", "hash2", "nonexistent"}
+	result, err := repo.FindVersionsByContentHashes(ctx, hashes)
+	if err != nil {
+		t.Fatalf("FindVersionsByContentHashes() error = %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Errorf("Expected 2 versions, got %d", len(result))
+	}
+
+	if result["hash1"] == nil {
+		t.Error("Expected to find version with hash1")
+	}
+	if result["hash2"] == nil {
+		t.Error("Expected to find version with hash2")
+	}
+	if result["nonexistent"] != nil {
+		t.Error("Should not find version with nonexistent hash")
+	}
+
+	// Test with empty slice
+	emptyResult, err := repo.FindVersionsByContentHashes(ctx, []string{})
+	if err != nil {
+		t.Fatalf("FindVersionsByContentHashes() with empty slice error = %v", err)
+	}
+	if len(emptyResult) != 0 {
+		t.Errorf("Expected empty result, got %d entries", len(emptyResult))
+	}
+}
+
+func TestRepository_GetChunksByIDs(t *testing.T) {
+	db, host := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// Add a version with chunks
+	doc := domainindex.DocumentVersion{
+		FilePath:    "test.go",
+		ContentHash: "hash1",
+	}
+	versionID, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
+	if err != nil {
+		t.Fatalf("AddDocumentVersion() error = %v", err)
+	}
+
+	chunks := []domainindex.Chunk{
+		{
+			DocumentVersionID: versionID,
+			StartLine:         1,
+			EndLine:           1,
+			Embedding:         gateway.Embedding{0.1, 0.2, 0.3},
+		},
+		{
+			DocumentVersionID: versionID,
+			StartLine:         2,
+			EndLine:           2,
+			Embedding:         gateway.Embedding{0.4, 0.5, 0.6},
+		},
+		{
+			DocumentVersionID: versionID,
+			StartLine:         3,
+			EndLine:           3,
+			Embedding:         gateway.Embedding{0.7, 0.8, 0.9},
+		},
+	}
+
+	err = repo.AddChunks(ctx, chunks)
+	if err != nil {
+		t.Fatalf("AddChunks() error = %v", err)
+	}
+
+	// Get all chunks to get their IDs
+	allChunks, err := repo.GetChunksByVersionID(ctx, versionID)
+	if err != nil {
+		t.Fatalf("GetChunksByVersionID() error = %v", err)
+	}
+	if len(allChunks) != 3 {
+		t.Fatalf("Expected 3 chunks, got %d", len(allChunks))
+	}
+
+	// Test getting chunks by IDs
+	chunkIDs := []int64{allChunks[0].ID, allChunks[2].ID}
+	retrievedChunks, err := repo.GetChunksByIDs(ctx, chunkIDs)
+	if err != nil {
+		t.Fatalf("GetChunksByIDs() error = %v", err)
+	}
+
+	if len(retrievedChunks) != 2 {
+		t.Errorf("Expected 2 chunks, got %d", len(retrievedChunks))
+	}
+
+	// Test with empty slice
+	emptyChunks, err := repo.GetChunksByIDs(ctx, []int64{})
+	if err != nil {
+		t.Fatalf("GetChunksByIDs() with empty slice error = %v", err)
+	}
+	if len(emptyChunks) != 0 {
+		t.Errorf("Expected empty result, got %d chunks", len(emptyChunks))
+	}
+
+	// Test with nonexistent ID
+	nonexistentChunks, err := repo.GetChunksByIDs(ctx, []int64{999999})
+	if err != nil {
+		t.Fatalf("GetChunksByIDs() with nonexistent ID error = %v", err)
+	}
+	if len(nonexistentChunks) != 0 {
+		t.Errorf("Expected no chunks for nonexistent ID, got %d", len(nonexistentChunks))
+	}
+}
+
+func TestRepository_Checkpoint(t *testing.T) {
+	db, host := setupTestDB(t)
+	defer db.Close()
+
+	repo := NewRepository(host)
+	ctx := context.Background()
+
+	// Add some data
+	doc := domainindex.DocumentVersion{
+		FilePath:    "test.go",
+		ContentHash: "hash1",
+	}
+	_, err := repo.AddDocumentVersion(ctx, &doc, []byte("content"))
+	if err != nil {
+		t.Fatalf("AddDocumentVersion() error = %v", err)
+	}
+
+	// Test checkpoint
+	err = repo.Checkpoint(ctx)
+	if err != nil {
+		t.Fatalf("Checkpoint() error = %v", err)
+	}
+}

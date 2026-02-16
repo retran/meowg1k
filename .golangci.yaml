@@ -11,38 +11,62 @@ run:
 
 linters:
   enable:
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - bodyclose
-    - copyloopvar
-    - errorlint
-    - gosec
-    - nilerr
-    - noctx
-    - rowserrcheck
-    - sqlclosecheck
-    - unconvert
-    - wrapcheck
-    - godot
-    - misspell
-    - revive
-    - whitespace
-    - dupl
-    - funlen
-    - gocognit
-    - gocyclo
-    - nestif
-    - prealloc
-    - exhaustive
-    - goconst
-    - gocritic
-    - nolintlint
-    - predeclared
-    - thelper
-    - unparam
+    # ============================================================
+    # Error Checking & Security
+    # ============================================================
+    - errcheck          # Check for unchecked errors
+    - gosec             # Security issues
+    - nilerr            # Check nil error returns
+    - errorlint         # Error wrapping and comparisons
+    - wrapcheck         # Check error wrapping
+
+    # ============================================================
+    # Code Quality & Maintainability
+    # ============================================================
+    - govet             # Go vet checks
+    - staticcheck       # Static analysis
+    - unused            # Detect unused code
+    - ineffassign       # Detect ineffectual assignments
+    - gocyclo           # Cyclomatic complexity
+    - gocognit          # Cognitive complexity
+    - funlen            # Function length
+    - nestif            # Nesting depth
+    - dupl              # Duplicate code detection
+    - maintidx          # Maintainability index
+    
+    # ============================================================
+    # Best Practices
+    # ============================================================
+    - gocritic          # Go best practices
+    - revive            # Drop-in replacement for golint
+    - goconst           # Repeated strings
+    - unconvert         # Unnecessary type conversions
+    - predeclared       # Detect usage of predeclared identifiers
+    - nolintlint        # Linter directive best practices
+    - thelper           # Test helper detection
+    - unparam           # Unused function parameters
+
+    # ============================================================
+    # Performance
+    # ============================================================
+    - prealloc          # Slice preallocation
+    - bodyclose         # HTTP response body close
+    - noctx             # HTTP requests without context
+    - rowserrcheck      # SQL row errors
+    - sqlclosecheck     # SQL resource close
+
+    # ============================================================
+    # Style & Formatting
+    # ============================================================
+    - whitespace        # Whitespace issues
+    - godot             # Comment punctuation
+    - misspell          # Spelling errors
+    
+    # ============================================================
+    # Loop & Copy Safety
+    # ============================================================
+    - copyloopvar       # Loop variable capture (Go 1.22+)
+    - exhaustive        # Exhaustiveness of enum switch
 
   settings:
     errcheck:
@@ -52,20 +76,20 @@ linters:
     govet:
       enable-all: true
       disable:
-        - shadow
+        - shadow        # Often too noisy in production code
 
     gocritic:
       enabled-tags:
-        - diagnostic
-        - style
-        - performance
+        - diagnostic    # Detect potential bugs
+        - style         # Code style issues
+        - performance   # Performance issues
       disabled-checks:
-        - paramTypeCombine
-        - typeDefFirst
+        - paramTypeCombine  # Often too pedantic
+        - typeDefFirst      # Not always desirable
 
     gosec:
       excludes:
-        - G104
+        - G104          # Unhandled errors (covered by errcheck)
 
     revive:
       severity: warning
@@ -95,27 +119,32 @@ linters:
         - name: var-declaration
         - name: var-naming
 
+    # Complexity thresholds
     funlen:
-      lines: 100
-      statements: 50
+      lines: 100         # Maximum function length in lines
+      statements: 50      # Maximum number of statements
 
     gocognit:
-      min-complexity: 15
+      min-complexity: 15  # Cognitive complexity threshold
 
     gocyclo:
-      min-complexity: 15
+      min-complexity: 15  # Cyclomatic complexity threshold
 
     nestif:
-      min-complexity: 4
+      min-complexity: 4   # Nesting depth threshold
 
     dupl:
-      threshold: 100
+      threshold: 100      # Duplicate code threshold (tokens)
 
     unparam:
-      check-exported: false
+      check-exported: false  # Don't check exported functions
+
+    maintidx:
+      under: 20          # Maintainability index threshold
 
   exclusions:
     rules:
+      # Relax linting for test files
       - path: _test\.go
         linters:
           - gocyclo
@@ -128,10 +157,20 @@ linters:
           - revive
           - wrapcheck
           - thelper
+          - maintidx
+      
+      # Relax linting for generated code
       - path: "zz_generated.*\\.go"
         linters:
           - dupl
           - gocyclo
+          - maintidx
+      
+      # Relax linting for main.go files
+      - path: "cmd/.*/main\\.go"
+        linters:
+          - gocyclo
+          - funlen
 
 formatters:
   enable:

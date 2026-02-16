@@ -1,0 +1,401 @@
+# Copyright 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Run at 2 AM UTC daily
+  workflow_dispatch:  # Allow manual trigger
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  checks: write
+
+jobs:
+  # ============================================================
+  # Job 1: Race Detection Tests (~10 min)
+  # ============================================================
+  race-tests:
+    name: Tests with Race Detector
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests with race detector
+        run: task test:race
+
+  # ============================================================
+  # Job 2: Memory Sanitizer Tests (Linux only, ~10 min)
+  # ============================================================
+  msan-tests:
+    name: Tests with Memory Sanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Clang and MSan dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15 libc++-15-dev libc++abi-15-dev
+
+      - name: Run tests with memory sanitizer
+        run: task test:msan
+        env:
+          CC: clang-15
+
+  # ============================================================
+  # Job 3: Benchmark Comparison (~5 min)
+  # ============================================================
+  benchmarks:
+    name: Benchmark Comparison
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          fetch-depth: 0  # Fetch all history for comparison
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      - name: Run current benchmarks
+        run: task bench | tee current.bench
+
+      - name: Checkout previous commit
+        run: git checkout HEAD~1
+
+      - name: Run previous benchmarks
+        run: task bench | tee previous.bench || echo "Previous benchmarks failed"
+
+      - name: Compare benchmarks
+        run: |
+          if [ -f previous.bench ]; then
+            benchstat previous.bench current.bench | tee bench-comparison.txt
+          else
+            echo "No previous benchmarks to compare"
+          fi
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-comparison
+          path: |
+            current.bench
+            previous.bench
+            bench-comparison.txt
+          retention-days: 30
+
+  # ============================================================
+  # Job 4: Dependency Updates Check (~3 min)
+  # ============================================================
+  dependency-check:
+    name: Dependency Update Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "=== Checking for available updates ==="
+          go list -u -m all > dependencies.txt
+          cat dependencies.txt
+
+          echo ""
+          echo "=== Modules with available updates ==="
+          grep '\[' dependencies.txt || echo "All dependencies are up to date!"
+
+      - name: Check vulnerability database
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || echo "Vulnerability check completed"
+
+      - name: Upload dependency report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-report
+          path: dependencies.txt
+          retention-days: 30
+
+  # ============================================================
+  # Job 5: Comprehensive Security Audit (~5 min)
+  # ============================================================
+  comprehensive-security:
+    name: Comprehensive Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          fetch-depth: 0  # Full history for gitleaks
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run gosec with verbose output
+        uses: securego/gosec@424fc4cd9c82ea0fd6bee9cd49c2db2c3cc0c93f # v2.22.11
+        with:
+          args: "-verbose -fmt sarif -out gosec-detailed.sarif ./..."
+
+      - name: Upload gosec SARIF
+        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        with:
+          sarif_file: gosec-detailed.sarif
+          category: gosec-nightly
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -show verbose ./...
+
+      - name: Gitleaks full scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Nancy dependency vulnerability scan
+        run: |
+          go install github.com/sonatype-nexus-community/nancy@latest
+          go list -json -deps ./... | nancy sleuth || echo "Nancy scan completed"
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.32.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-nightly
+
+  # ============================================================
+  # Job 6: Coverage Report with Analysis (~5 min)
+  # ============================================================
+  coverage-report:
+    name: Detailed Coverage Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install bc
+        run: sudo apt-get update && sudo apt-get install -y bc
+
+      - name: Run tests with coverage
+        run: task check:test
+
+      - name: Generate HTML coverage report
+        run: task coverage:html
+
+      - name: Generate function coverage report
+        run: task coverage:func | tee coverage-func.txt
+
+      - name: Generate coverage badge
+        run: task coverage:badge
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
+        with:
+          files: coverage.out
+          fail_ci_if_error: true
+          flags: nightly
+          verbose: true
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            coverage.out
+            coverage.html
+            coverage-func.txt
+            coverage-badge.svg
+          retention-days: 30
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 75" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below 75% threshold"
+            exit 1
+          else
+            echo "✅ Coverage ${COVERAGE}% meets 75% threshold"
+          fi
+
+  # ============================================================
+  # Job 7: Extended Platform Tests (macOS + Windows, ~15 min)
+  # ============================================================
+  extended-platform-tests:
+    name: Extended Platform Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-13, macos-latest, windows-2019, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run full test suite
+        run: task test:unit
+
+      - name: Run integration tests
+        run: task test:integration
+
+  # ============================================================
+  # Job 8: Go Version Compatibility (~10 min)
+  # ============================================================
+  go-version-compatibility:
+    name: Go Version Compatibility (Go ${{ matrix.go-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ['1.24', '1.25', '1.26']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run tests
+        run: task test:unit
+
+      - name: Build binary
+        run: task build
+
+  # ============================================================
+  # Final: Nightly Success Summary
+  # ============================================================
+  nightly-success:
+    name: Nightly Success
+    runs-on: ubuntu-latest
+    needs:
+      - race-tests
+      - msan-tests
+      - benchmarks
+      - dependency-check
+      - comprehensive-security
+      - coverage-report
+      - extended-platform-tests
+      - go-version-compatibility
+    if: always()
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          if [[ "${{ needs.race-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.msan-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.benchmarks.result }}" != "success" ]] || \
+             [[ "${{ needs.dependency-check.result }}" != "success" ]] || \
+             [[ "${{ needs.comprehensive-security.result }}" != "success" ]] || \
+             [[ "${{ needs.coverage-report.result }}" != "success" ]] || \
+             [[ "${{ needs.extended-platform-tests.result }}" != "success" ]] || \
+             [[ "${{ needs.go-version-compatibility.result }}" != "success" ]]; then
+            echo "❌ One or more nightly jobs failed"
+            exit 1
+          fi
+          echo "✅ All nightly checks passed!"
+
+      - name: Create summary
+        run: |
+          echo "## Nightly Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Race detection tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Memory sanitizer tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Benchmark comparison completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dependency checks completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Comprehensive security audit passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Coverage analysis completed (75%+ threshold)" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Extended platform tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Go version compatibility verified" >> $GITHUB_STEP_SUMMARY

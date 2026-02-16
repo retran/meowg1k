@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/retran/meowg1k/internal/adapters/voyage"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/voyage"
 )
 
 var _ ports.EmbeddingsGateway = (*voyageGateway)(nil)
@@ -86,28 +86,58 @@ func (g *voyageGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
-	inputType := mapTaskTypeToInputType(request.TaskType())
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
+		inputType := mapTaskTypeToInputType(request.TaskType())
 
-	req := voyage.EmbeddingRequest{
-		Input:     request.Chunks(),
-		Model:     request.Model(),
-		InputType: inputType,
+		req := voyage.EmbeddingRequest{
+			Input:     request.Chunks(),
+			Model:     request.Model(),
+			InputType: inputType,
+		}
+
+		// Set output dimension if specified
+		if request.Dimensions() > 0 {
+			req.OutputDimension = request.Dimensions()
+		}
+
+		response, err := g.client.CreateEmbeddings(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		embeddings := make([]gateway.Embedding, 0, len(response.Data))
+		for _, data := range response.Data {
+			embeddings = append(embeddings, data.Embedding)
+		}
+
+		return embeddings, nil
+	}, fmt.Sprintf("Voyage ComputeEmbeddings for model %q", request.Model()))
+}
+
+// CountTokens estimates token count by calling the Voyage AI embeddings API.
+// Voyage returns total_tokens in the response, so we make a dry-run embedding call
+// to get the accurate token count.
+func (g *voyageGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+	if g == nil {
+		return 0, fmt.Errorf("voyage gateway is nil")
 	}
 
-	// Set output dimension if specified
-	if request.Dimensions() > 0 {
-		req.OutputDimension = request.Dimensions()
+	if len(texts) == 0 {
+		return 0, nil
+	}
+
+	// Make a request to get the token count
+	// Voyage returns total_tokens in the Usage field
+	req := voyage.EmbeddingRequest{
+		Input:     texts,
+		Model:     model,
+		InputType: "document", // Use document as default
 	}
 
 	response, err := g.client.CreateEmbeddings(ctx, req)
 	if err != nil {
-		return []gateway.Embedding{}, fmt.Errorf("failed to compute embeddings from Voyage AI for model %q: %w", request.Model(), err)
+		return 0, fmt.Errorf("failed to count tokens with Voyage AI: %w", err)
 	}
 
-	embeddings := make([]gateway.Embedding, 0, len(response.Data))
-	for _, data := range response.Data {
-		embeddings = append(embeddings, data.Embedding)
-	}
-
-	return embeddings, nil
+	return response.Usage.TotalTokens, nil
 }

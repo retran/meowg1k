@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/retran/meowg1k/internal/adapters/llama"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
-	"github.com/retran/meowg1k/pkg/llama"
 )
 
 var (
@@ -73,17 +73,30 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 		return nil, gateway.ErrToolCallingNotSupported
 	}
 
-	prompt := buildLlamaPrompt(request)
-	req := newLlamaCompletionRequest(prompt, request)
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
+		prompt := buildLlamaPrompt(request)
+		req := newLlamaCompletionRequest(prompt, request)
 
-	response, err := g.client.Complete(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write content from local LLM API: %w", err)
-	}
+		response, err := g.client.Complete(ctx, req)
+		if err != nil {
+			return nil, err
+		}
 
-	return &gateway.GenerateContentResponse{
-		Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: response.Content}},
-	}, nil
+		// Extract usage information from Llama response
+		var usage *gateway.UsageMetadata
+		if response.TokensEvaluated > 0 || response.TokensCached > 0 {
+			// Llama doesn't separate prompt/completion tokens clearly
+			// TokensEvaluated is typically the total processed
+			usage = &gateway.UsageMetadata{
+				TotalTokens: response.TokensEvaluated,
+			}
+		}
+
+		return &gateway.GenerateContentResponse{
+			Blocks: []gateway.ContentBlock{{Kind: gateway.ContentBlockText, Text: response.Content}},
+			Usage:  usage,
+		}, nil
+	}, fmt.Sprintf("Llama GenerateContent for model %q", request.Model()))
 }
 
 func buildLlamaPrompt(request *gateway.GenerateContentRequest) string {
@@ -308,21 +321,48 @@ func (g *llamaGateway) ComputeEmbeddings(ctx context.Context, request *gateway.C
 		return []gateway.Embedding{}, nil
 	}
 
-	// Use batch API to process all chunks at once
-	rawEmbeddings, err := g.client.EmbeddingBatch(ctx, chunks, true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute embeddings from llama.cpp API for model %q: %w", request.Model(), err)
+	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
+		// Use batch API to process all chunks at once
+		rawEmbeddings, err := g.client.EmbeddingBatch(ctx, chunks, true)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(rawEmbeddings) != len(chunks) {
+			return nil, fmt.Errorf("expected %d embeddings but got %d from llama.cpp API", len(chunks), len(rawEmbeddings))
+		}
+
+		// Convert [][]float64 to []gateway.Embedding
+		embeddings := make([]gateway.Embedding, len(rawEmbeddings))
+		for i, emb := range rawEmbeddings {
+			embeddings[i] = gateway.Embedding(emb)
+		}
+
+		return embeddings, nil
+	}, fmt.Sprintf("Llama ComputeEmbeddings for model %q", request.Model()))
+}
+
+// CountTokens estimates token count for Llama models using character-based approximation.
+// Since llama.cpp doesn't provide a built-in tokenization API, we use an estimation:
+// approximately 1 token per 4 characters (similar to GPT models).
+func (g *llamaGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+	if g == nil {
+		return 0, fmt.Errorf("llama gateway is nil")
 	}
 
-	if len(rawEmbeddings) != len(chunks) {
-		return nil, fmt.Errorf("expected %d embeddings but got %d from llama.cpp API", len(chunks), len(rawEmbeddings))
+	if len(texts) == 0 {
+		return 0, nil
 	}
 
-	// Convert [][]float64 to []gateway.Embedding
-	embeddings := make([]gateway.Embedding, len(rawEmbeddings))
-	for i, emb := range rawEmbeddings {
-		embeddings[i] = gateway.Embedding(emb)
+	// Count total characters across all texts
+	totalChars := 0
+	for _, text := range texts {
+		totalChars += len(text)
 	}
 
-	return embeddings, nil
+	// Estimate tokens: approximately 1 token per 4 characters
+	// Using the improved formula: (chars + 2) / 3 for better accuracy
+	estimatedTokens := (totalChars + 2) / 3
+
+	return estimatedTokens, nil
 }

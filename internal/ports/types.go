@@ -14,7 +14,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/domain/preset"
-	"github.com/retran/meowg1k/internal/domain/ratelimit"
+	"github.com/retran/meowg1k/internal/domain/session"
 )
 
 // OutputWriter writes output to the user (used in flows).
@@ -102,18 +102,6 @@ type HTTPClientService interface {
 
 	// Validate checks if the service is properly initialized.
 	Validate() error
-}
-
-// RateLimitRepository defines the interface for rate limit data storage.
-type RateLimitRepository interface {
-	// AcquireTokens attempts to acquire tokens from the specified buckets.
-	AcquireTokens(ctx context.Context, configs []ratelimit.BucketConfig, requests []ratelimit.AcquisitionRequest) error
-
-	// InitializeBuckets initializes the rate limit buckets in the database.
-	InitializeBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error
-
-	// ResetBuckets resets the tokens in the specified buckets to their full capacity.
-	ResetBuckets(ctx context.Context, configs []ratelimit.BucketConfig) error
 }
 
 // MetaRepository defines the interface for metadata key-value storage.
@@ -228,12 +216,6 @@ type GitToolingService interface {
 	HeadHash() (string, error)
 }
 
-// FilterService defines the interface for file filtering operations.
-type FilterService interface {
-	// IsIgnoredFile checks if a file should be ignored (e.g., based on .gitignore).
-	IsIgnoredFile(filePath string) bool
-}
-
 // ChunkerService defines the interface for text chunking.
 type ChunkerService interface {
 	Chunk(content []byte, filePath string) ([]domainindex.ChunkData, error)
@@ -266,4 +248,70 @@ type IndexService interface {
 	SaveNewVersion(ctx context.Context, input interface{}) (interface{}, error)
 	// FinalizeLiveSnapshots finalizes the live snapshots with version mappings.
 	FinalizeLiveSnapshots(ctx context.Context, input interface{}) error
+}
+
+// SessionRepository defines the interface for session persistence operations.
+type SessionRepository interface {
+	// CreateSession inserts a new session.
+	CreateSession(ctx context.Context, s *session.Session) error
+	// GetSession retrieves a session by ID.
+	GetSession(ctx context.Context, id string) (*session.Session, error)
+	// UpdateSession updates an existing session's status and timestamp.
+	UpdateSession(ctx context.Context, s *session.Session) error
+	// ListSessions retrieves sessions with optional filters.
+	ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error)
+	// AddEvent inserts a new event into a session.
+	AddEvent(ctx context.Context, e *session.Event) error
+	// GetEvents retrieves events for a session with pagination.
+	GetEvents(ctx context.Context, sessionID string, limit, offset int) ([]*session.Event, error)
+	// MarkEventsObsolete marks events as obsolete (soft delete for compaction).
+	MarkEventsObsolete(ctx context.Context, eventIDs []string) error
+	// InsertSummary inserts a system summary event after a specific event.
+	InsertSummary(ctx context.Context, sessionID, afterEventID, summaryContent string) error
+	// SetMetadata sets a metadata key-value pair for a session.
+	SetMetadata(ctx context.Context, sessionID, key, value string) error
+	// GetMetadata retrieves a metadata value for a session.
+	GetMetadata(ctx context.Context, sessionID, key string) (string, error)
+	// GetAllMetadata retrieves all metadata for a session.
+	GetAllMetadata(ctx context.Context, sessionID string) (map[string]string, error)
+}
+
+// SessionService defines the interface for session management operations.
+type SessionService interface {
+	// CreateSession creates a new session with auto-generated UUID.
+	CreateSession(ctx context.Context, parentID *string, toolName string) (*session.Session, error)
+	// GetSession retrieves a session by ID.
+	GetSession(ctx context.Context, id string) (*session.Session, error)
+	// ListSessions retrieves sessions with optional filters.
+	ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error)
+	// GetChildSessions retrieves all child sessions for a parent session.
+	GetChildSessions(ctx context.Context, parentID string) ([]*session.Session, error)
+	// CompleteSession marks a session as completed.
+	CompleteSession(ctx context.Context, id string) error
+	// FailSession marks a session as failed.
+	FailSession(ctx context.Context, id string) error
+	// AddUserMessage adds a user message event to the session.
+	AddUserMessage(ctx context.Context, sessionID, content string) error
+	// AddAssistantMessage adds an assistant message event to the session.
+	AddAssistantMessage(ctx context.Context, sessionID, content string, toolCalls []session.ToolCall) error
+	// AddToolResult adds a tool result event to the session.
+	AddToolResult(ctx context.Context, sessionID, toolCallID, content string) error
+	// AddSystemMessage adds a system message event to the session.
+	AddSystemMessage(ctx context.Context, sessionID, content string) error
+	// GetEvents retrieves events for a session with pagination.
+	GetEvents(ctx context.Context, sessionID string, limit, offset int) ([]*session.Event, error)
+	// GetAllEvents retrieves all non-obsolete events for a session.
+	GetAllEvents(ctx context.Context, sessionID string) ([]*session.Event, error)
+	// MarkEventsObsolete marks events as obsolete for compaction.
+	MarkEventsObsolete(ctx context.Context, eventIDs []string) error
+	// InsertSummary inserts a summary event after a specific event.
+	InsertSummary(ctx context.Context, sessionID, afterEventID, summaryContent string) error
+	// SetMetadata sets session metadata.
+	SetMetadata(ctx context.Context, sessionID, key, value string) error
+	// GetMetadata retrieves session metadata.
+	GetMetadata(ctx context.Context, sessionID, key string) (string, error)
+	// GetAllMetadata retrieves all session metadata.
+	GetAllMetadata(ctx context.Context, sessionID string) (map[string]string, error)
+	// GetChildMetadata retrieves metadata from a child session.
+	GetChildMetadata(ctx context.Context, sessionID, childID, key string) (string, error)
 }
