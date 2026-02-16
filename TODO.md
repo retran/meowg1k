@@ -142,21 +142,49 @@ load("@utils//lib:helpers.star", "format_code")
 Show words as they arrive, not after completion.
 
 **Build**:
-- Render text as tokens stream in
-- Progressive markdown rendering
-- Syntax highlighting during stream
-- Show tokens/second metrics
-- Handle Ctrl+C gracefully
+- Add streaming support to ALL provider gateways:
+  - ✅ OpenAI (via SSE)
+  - ✅ Anthropic (via SSE)  
+  - ✅ Gemini (via gRPC streaming)
+  - ✅ OpenRouter (via SSE)
+  - ❌ Ollama/Llama (needs implementation)
+  - ❌ Voyage (embeddings only, N/A)
+- Implement streaming UI renderer with Bubble Tea:
+  - Progressive markdown rendering
+  - Syntax highlighting during stream
+  - Show tokens/second metrics
+  - Handle Ctrl+C gracefully
+  - Real-time progress indicators
+- Add `stream=True` parameter to `llm.generate()` and `llm.agentic()`
+- Buffer management for incomplete tokens
+- Error handling mid-stream
 
 **Example**:
 ```python
-load("//lib/llm.star", "llm")
-load("//lib/ui.star", "ui")
+# Streaming in commands
+result = ctx.llm.generate(
+    prompt="Write a story...",
+    stream=True,  # Enable streaming
+)
+# Text appears progressively in terminal
 
-for chunk in llm.stream("Write a story..."):
-    ui.append(chunk.text)  # Render immediately
-    ui.show_speed(chunk.tokens_per_sec)
+# Streaming with callback
+def on_chunk(chunk):
+    ctx.ui.append(chunk.text)
+    ctx.ui.show_speed(chunk.tokens_per_sec)
+
+ctx.llm.generate(
+    prompt="Explain quantum computing...",
+    stream=True,
+    on_chunk=on_chunk
+)
 ```
+
+**UI Features**:
+- Animated spinner while waiting for first token
+- Character-by-character or word-by-word rendering
+- Syntax highlighting updates in real-time for code blocks
+- Final cleanup pass for complete markdown rendering
 
 ### 11. Plugin system (2-3 weeks)
 
@@ -277,6 +305,49 @@ tests = test_agent.request("generate_tests", {"code": review.code})
 **Resources**:
 - Research existing agent communication protocols
 - Design meowg1k-specific ACP extensions
+
+### 20. Session compaction and summarization (2-3 weeks)
+
+Automatically compress long conversation histories to fit within context windows.
+
+**Build**:
+- Detect when session approaches token limit
+- Summarize older messages while preserving key information
+- Keep recent messages verbatim for coherence
+- Preserve critical context (function definitions, schemas, errors)
+- Make compaction configurable (auto/manual, compression ratio)
+- Store original uncompacted session for replay
+
+**Example**:
+```python
+# Automatic compaction when approaching limit
+session.compact(
+    strategy="auto",
+    keep_recent=10,  # Keep last 10 messages verbatim
+    max_tokens=100000,  # Target total tokens
+    preserve=["system", "tool_results"]  # Always keep these
+)
+
+# Manual summarization with LLM
+summary = session.summarize(
+    prompt="Summarize this conversation focusing on decisions made",
+    max_length=500
+)
+session.replace_range(start=0, end=50, summary=summary)
+```
+
+**Features**:
+- Token counting per message
+- Intelligent message merging (combine related messages)
+- Preserve code snippets and structured data
+- Track compaction history
+- Allow recovery of original messages
+
+**Use cases**:
+- Long debugging sessions
+- Multi-step agent workflows
+- Code review with many iterations
+- Research tasks with extensive context
 
 ---
 
