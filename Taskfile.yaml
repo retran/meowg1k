@@ -13,7 +13,7 @@ vars:
     -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
     -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
   GOFLAGS: -trimpath -buildvcs=false
-  COVERAGE_THRESHOLD: 60.0
+  COVERAGE_THRESHOLD: 65.0
   # Colors
   GREEN: \033[0;32m
   BLUE: \033[0;34m

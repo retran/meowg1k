@@ -95,6 +95,15 @@ load("//commands/review-agent.star", review_handler = "review_agent_handler")
 load("//commands/orchestrator-agent.star", orch_handler = "orchestrator_handler")
 
 # ==============================================================================
+# EXAMPLE COMMANDS (Structured Outputs)
+# ==============================================================================
+load("//commands/extract.star", extract_setup = "setup")
+extract_setup()
+
+load("//commands/test-parsers.star", parsers_setup = "setup")
+parsers_setup()
+
+# ==============================================================================
 # SESSION MANAGEMENT COMMANDS
 # ==============================================================================
 load("//commands/sessions.star", sessions_list_handler = "sessions_handler")

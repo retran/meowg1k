@@ -24,38 +24,6 @@ func (r *Runtime) createMeowModule() starlark.Value {
 	})
 }
 
-// meowRegisterCommand implements meow.register_command().
-// starlarkToGo converts Starlark value to Go value.
-func starlarkToGo(val starlark.Value) any {
-	switch v := val.(type) {
-	case starlark.String:
-		return string(v)
-	case starlark.Int:
-		i, _ := v.Int64()
-		return int(i)
-	case starlark.Bool:
-		return bool(v)
-	case starlark.Float:
-		return float64(v)
-	case *starlark.List:
-		result := make([]any, v.Len())
-		for i := 0; i < v.Len(); i++ {
-			result[i] = starlarkToGo(v.Index(i))
-		}
-		return result
-	case *starlark.Dict:
-		result := make(map[string]any)
-		for _, item := range v.Items() {
-			if key, ok := item[0].(starlark.String); ok {
-				result[string(key)] = starlarkToGo(item[1])
-			}
-		}
-		return result
-	default:
-		return nil
-	}
-}
-
 // meowProvider registers a provider configuration.
 func (r *Runtime) meowProvider(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if args.Len() != 1 {

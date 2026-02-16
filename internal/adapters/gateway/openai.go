@@ -204,15 +204,51 @@ func applyOpenAISamplingParams(params *openai.ChatCompletionNewParams, request *
 	}
 }
 
-func applyOpenAIResponseParams(_ *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
-	if responseFormat := request.ResponseFormat(); responseFormat != nil {
-		// TODO: Implement ResponseFormat based on OpenAI SDK version.
-		_ = responseFormat
+func applyOpenAIResponseParams(params *openai.ChatCompletionNewParams, request *gateway.GenerateContentRequest) {
+	// Handle response schema (structured outputs)
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		// Extract schema name if provided, otherwise use default
+		schemaName := "response"
+		if name, ok := responseSchema["name"].(string); ok && name != "" {
+			schemaName = name
+		}
+
+		// Extract description if provided
+		var description string
+		if desc, ok := responseSchema["description"].(string); ok {
+			description = desc
+		}
+
+		params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
+			OfJSONSchema: &shared.ResponseFormatJSONSchemaParam{
+				Type: constant.JSONSchema("json_schema"),
+				JSONSchema: shared.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:        schemaName,
+					Description: openai.String(description),
+					Schema:      responseSchema,
+					Strict:      openai.Bool(true),
+				},
+			},
+		}
+		return
 	}
 
-	if responseSchema := request.ResponseSchema(); responseSchema != nil {
-		// TODO: Implement ResponseSchema integration with ResponseFormat.
-		_ = responseSchema
+	// Handle simple response format (json_object or text)
+	if responseFormat := request.ResponseFormat(); responseFormat != nil {
+		switch *responseFormat {
+		case "json_object", "json":
+			params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
+				OfJSONObject: &shared.ResponseFormatJSONObjectParam{
+					Type: constant.JSONObject("json_object"),
+				},
+			}
+		case "text":
+			params.ResponseFormat = openai.ChatCompletionNewParamsResponseFormatUnion{
+				OfText: &shared.ResponseFormatTextParam{
+					Type: constant.Text("text"),
+				},
+			}
+		}
 	}
 }
 
