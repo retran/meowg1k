@@ -76,6 +76,7 @@ type openrouterRequest struct {
 	Seed              *int                 `json:"seed,omitempty"`
 	TopK              *int                 `json:"top_k,omitempty"`
 	MaxTokens         int                  `json:"max_tokens,omitempty"`
+	ResponseFormat    map[string]any       `json:"response_format,omitempty"`
 }
 
 type openrouterTool struct {
@@ -242,6 +243,7 @@ func buildOpenRouterRequest(request *gateway.GenerateContentRequest, messages []
 	applyOpenRouterSampling(&reqBody, request)
 	applyOpenRouterPenalties(&reqBody, request)
 	applyOpenRouterControlParams(&reqBody, request)
+	applyOpenRouterResponseFormat(&reqBody, request)
 
 	return reqBody
 }
@@ -308,6 +310,41 @@ func applyOpenRouterControlParams(reqBody *openrouterRequest, request *gateway.G
 	}
 	if n := request.CandidateCount(); n != nil {
 		reqBody.N = n
+	}
+}
+
+func applyOpenRouterResponseFormat(reqBody *openrouterRequest, request *gateway.GenerateContentRequest) {
+	responseSchema := request.ResponseSchema()
+	responseFormat := request.ResponseFormat()
+
+	// OpenRouter supports OpenAI-compatible response format
+	if responseSchema != nil {
+		// Extract schema name and description if present
+		name := "response"
+		if schemaName, ok := responseSchema["name"].(string); ok {
+			name = schemaName
+		}
+
+		description := ""
+		if schemaDesc, ok := responseSchema["description"].(string); ok {
+			description = schemaDesc
+		}
+
+		// Build JSON schema response format (OpenAI-compatible)
+		reqBody.ResponseFormat = map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name":        name,
+				"description": description,
+				"schema":      responseSchema,
+				"strict":      true,
+			},
+		}
+	} else if responseFormat != nil && *responseFormat != "" {
+		// Simple response format (json_object or text)
+		reqBody.ResponseFormat = map[string]any{
+			"type": *responseFormat,
+		}
 	}
 }
 

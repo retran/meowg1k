@@ -284,19 +284,136 @@ func applyGeminiPenaltyConfig(config *genai.GenerateContentConfig, request *gate
 }
 
 func applyGeminiResponseConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		// Convert map[string]interface{} to *genai.Schema
+		schema := convertToGeminiSchema(responseSchema)
+		config.ResponseMIMEType = "application/json"
+		config.ResponseSchema = schema
+		return
+	}
+
 	if responseFormat := request.ResponseFormat(); responseFormat != nil {
 		switch *responseFormat {
-		case "json_object", "json_schema":
+		case "json_object", "json", "json_schema":
 			config.ResponseMIMEType = "application/json"
 		case "text":
 			config.ResponseMIMEType = "text/plain"
 		}
 	}
+}
 
-	if responseSchema := request.ResponseSchema(); responseSchema != nil {
-		// TODO: Convert map[string]interface{} to *genai.Schema
-		_ = responseSchema
+// convertToGeminiSchema converts a map[string]interface{} JSON schema to a *genai.Schema.
+func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
+	if schemaMap == nil {
+		return nil
 	}
+
+	schema := &genai.Schema{}
+
+	if t, ok := schemaMap["type"].(string); ok {
+		schema.Type = genai.Type(t)
+	}
+
+	if desc, ok := schemaMap["description"].(string); ok {
+		schema.Description = desc
+	}
+
+	if title, ok := schemaMap["title"].(string); ok {
+		schema.Title = title
+	}
+
+	if enum, ok := schemaMap["enum"].([]interface{}); ok {
+		enumStrings := make([]string, 0, len(enum))
+		for _, v := range enum {
+			if s, ok := v.(string); ok {
+				enumStrings = append(enumStrings, s)
+			}
+		}
+		schema.Enum = enumStrings
+	}
+
+	if format, ok := schemaMap["format"].(string); ok {
+		schema.Format = format
+	}
+
+	if required, ok := schemaMap["required"].([]interface{}); ok {
+		reqStrings := make([]string, 0, len(required))
+		for _, v := range required {
+			if s, ok := v.(string); ok {
+				reqStrings = append(reqStrings, s)
+			}
+		}
+		schema.Required = reqStrings
+	}
+
+	if properties, ok := schemaMap["properties"].(map[string]interface{}); ok {
+		schema.Properties = make(map[string]*genai.Schema)
+		for key, value := range properties {
+			if propMap, ok := value.(map[string]interface{}); ok {
+				schema.Properties[key] = convertToGeminiSchema(propMap)
+			}
+		}
+	}
+
+	if items, ok := schemaMap["items"].(map[string]interface{}); ok {
+		schema.Items = convertToGeminiSchema(items)
+	}
+
+	if nullable, ok := schemaMap["nullable"].(bool); ok {
+		schema.Nullable = &nullable
+	}
+
+	if minLength, ok := schemaMap["minLength"].(float64); ok {
+		minLengthInt := int64(minLength)
+		schema.MinLength = &minLengthInt
+	}
+
+	if maxLength, ok := schemaMap["maxLength"].(float64); ok {
+		maxLengthInt := int64(maxLength)
+		schema.MaxLength = &maxLengthInt
+	}
+
+	if minimum, ok := schemaMap["minimum"].(float64); ok {
+		schema.Minimum = &minimum
+	}
+
+	if maximum, ok := schemaMap["maximum"].(float64); ok {
+		schema.Maximum = &maximum
+	}
+
+	if minItems, ok := schemaMap["minItems"].(float64); ok {
+		minItemsInt := int64(minItems)
+		schema.MinItems = &minItemsInt
+	}
+
+	if maxItems, ok := schemaMap["maxItems"].(float64); ok {
+		maxItemsInt := int64(maxItems)
+		schema.MaxItems = &maxItemsInt
+	}
+
+	if pattern, ok := schemaMap["pattern"].(string); ok {
+		schema.Pattern = pattern
+	}
+
+	if defaultVal, ok := schemaMap["default"]; ok {
+		schema.Default = defaultVal
+	}
+
+	if example, ok := schemaMap["example"]; ok {
+		schema.Example = example
+	}
+
+	if anyOf, ok := schemaMap["anyOf"].([]interface{}); ok {
+		anyOfSchemas := make([]*genai.Schema, 0, len(anyOf))
+		for _, v := range anyOf {
+			if subSchema, ok := v.(map[string]interface{}); ok {
+				anyOfSchemas = append(anyOfSchemas, convertToGeminiSchema(subSchema))
+			}
+		}
+		schema.AnyOf = anyOfSchemas
+	}
+
+	return schema
 }
 
 func applyGeminiCandidateConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {

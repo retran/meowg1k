@@ -679,27 +679,17 @@ func TestMergePenaltyParams(t *testing.T) {
 }
 
 func TestMergeResponseParams(t *testing.T) {
-	format := "json"
-	schema := map[string]interface{}{"type": "object"}
 	logProbs := true
 	topLogProbs := 5
 
 	src := &config.RequestConfig{
-		ResponseFormat: &format,
-		ResponseSchema: schema,
-		LogProbs:       &logProbs,
-		TopLogProbs:    &topLogProbs,
+		LogProbs:    &logProbs,
+		TopLogProbs: &topLogProbs,
 	}
 
 	dst := &config.RequestConfig{}
 	mergeResponseParams(dst, src)
 
-	if dst.ResponseFormat == nil || *dst.ResponseFormat != format {
-		t.Errorf("expected ResponseFormat %s, got %v", format, dst.ResponseFormat)
-	}
-	if dst.ResponseSchema == nil {
-		t.Error("expected ResponseSchema to be set")
-	}
 	if dst.LogProbs == nil || *dst.LogProbs != logProbs {
 		t.Errorf("expected LogProbs %v, got %v", logProbs, dst.LogProbs)
 	}

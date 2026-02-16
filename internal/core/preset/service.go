@@ -136,8 +136,6 @@ func (s *Service) resolvePresetInternal(
 		PresencePenalty:   preset.Request.PresencePenalty,
 		Seed:              preset.Request.Seed,
 		Stop:              preset.Request.Stop,
-		ResponseFormat:    preset.Request.ResponseFormat,
-		ResponseSchema:    preset.Request.ResponseSchema,
 		CandidateCount:    preset.Request.CandidateCount,
 		LogProbs:          preset.Request.LogProbs,
 		TopLogProbs:       preset.Request.TopLogProbs,
@@ -349,12 +347,6 @@ func mergePenaltyParams(dst, src *config.RequestConfig) {
 }
 
 func mergeResponseParams(dst, src *config.RequestConfig) {
-	if src.ResponseFormat != nil {
-		dst.ResponseFormat = src.ResponseFormat
-	}
-	if src.ResponseSchema != nil {
-		dst.ResponseSchema = src.ResponseSchema
-	}
 	if src.LogProbs != nil {
 		dst.LogProbs = src.LogProbs
 	}

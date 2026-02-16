@@ -35,8 +35,6 @@ type ResolvedPreset struct {
 	PresencePenalty   *float64
 	Seed              *int
 	TopLogProbs       *int
-	ResponseFormat    *string
-	ResponseSchema    map[string]interface{}
 	CandidateCount    *int
 	TokenizerType     model.Tokenizer
 	BaseURL           string
