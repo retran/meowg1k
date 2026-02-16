@@ -171,6 +171,10 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			"output":    runtime.CreateOutputModuleForCtx(),              // Shared output buffer
 			"session":   runtime.CreateSessionModuleForCtx(childSession), // Pass child session
 			"json":      NewJSONModule(),
+			"yaml":      NewYAMLModule(),
+			"xml":       NewXMLModule(),
+			"toml":      NewTOMLModule(),
+			"csv":       NewCSVModule(),
 			"env":       NewEnvModule(),
 			"ui":        NewIndentedUIModule(depth + 1), // Indent child output
 			"path":      NewPathModule(),
