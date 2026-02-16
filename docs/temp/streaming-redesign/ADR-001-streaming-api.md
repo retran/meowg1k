@@ -47,6 +47,17 @@ ctx.llm.chat(
 - Returns final aggregated text (not trace/intermediate state)
 - Callback receives normalized stream events
 
+**Session Behavior** (`use_session=True`):
+- Reads conversation history from session database
+- Includes session history in LLM request context
+- Appends user prompt and assistant response to session after completion
+- System prompt retrieved from session metadata (`__system_prompt__`)
+
+**Session Disabled** (`use_session=False`):
+- Single-turn request (no history context)
+- Response not persisted to session database
+- Useful for one-off queries or stateless operations
+
 ### 2. Agentic API - Autonomous Tool Execution
 
 ```python
@@ -69,6 +80,16 @@ ctx.llm.agentic(
 - Explicit tool list (no implicit access)
 - Iteration limit prevents infinite loops
 - Emits tool-specific events (start/end/error) in addition to LLM events
+
+**Session Behavior** (`use_session=True`):
+- Same as `chat()`: reads history, includes in context, persists after completion
+- Tool calls and results are also added to session history
+- Enables multi-turn agentic conversations with memory
+
+**Session Disabled** (`use_session=False`):
+- Single autonomous execution (no history context)
+- Tool calls not persisted to session
+- Useful for isolated tasks
 
 ### 3. Embed API - Unchanged
 
@@ -134,6 +155,82 @@ All stream events follow a consistent structure:
 - Emitted as part of tool event structure
 
 **Fallback**: Providers without thinking support never emit `"thinking"` events.
+
+## Session Management
+
+### How `use_session` Works
+
+**Default**: `use_session=True` - All LLM calls use session history by default.
+
+When `use_session=True` (DEFAULT):
+
+1. **Before LLM Request**:
+   - Load conversation history from session database
+   - Retrieve system prompt from session metadata (`__system_prompt__`)
+   - Build message array: `[system] + [history messages] + [user prompt]`
+   - Send complete context to LLM provider
+
+2. **During Streaming**:
+   - Stream events are ephemeral (not persisted)
+   - Only used for real-time UI feedback
+
+3. **After Completion**:
+   - Persist user message to session database
+   - Persist final assistant response (aggregated text) to session database
+   - For `agentic()`: also persist tool call messages and results
+   - Update session metadata if needed
+
+When `use_session=False`:
+
+1. **Before LLM Request**:
+   - No history loaded from session
+   - Build message array: `[system (if provided)] + [user prompt]`
+   - Send single-turn context to LLM provider
+
+2. **During Streaming**:
+   - Same ephemeral behavior (events not persisted)
+
+3. **After Completion**:
+   - **Nothing persisted** to session database
+   - Response returned to caller only
+
+### System Prompt Storage
+
+System prompts are stored in session metadata with key `"__system_prompt__"`:
+
+```python
+# Set system prompt (typically in command initialization)
+ctx.session.set_system("You are a helpful coding assistant")
+
+# Later, chat() automatically uses it
+result = ctx.llm.chat(
+    prompt="Write a function",
+    preset="smart",
+    use_session=True  # Reads system prompt from session
+)
+
+# Override system prompt for one request
+result = ctx.llm.chat(
+    prompt="Write a function",
+    preset="smart",
+    system="You are a senior architect",  # Overrides session system
+    use_session=True  # Still uses history, but different system prompt
+)
+```
+
+### Message History Structure
+
+Session database stores messages in order:
+
+```
+Message 1: role=system, content="You are a helpful assistant"
+Message 2: role=user, content="What is 2+2?"
+Message 3: role=assistant, content="2+2 equals 4."
+Message 4: role=user, content="What about 3+3?"
+Message 5: role=assistant, content="3+3 equals 6."
+```
+
+When `chat()` is called with `use_session=True`, all messages are included in the LLM request context for continuity.
 
 ## Consequences
 
