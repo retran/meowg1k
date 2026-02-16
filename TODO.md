@@ -1,493 +1,291 @@
-# TODO - Post-Starlark Refactoring Tasks
+# What's Left to Do
 
-This document tracks tasks that were identified during the major Starlark refactoring (PR #80) but were not completed in this branch.
-
-**Branch**: `retran/simplify`  
-**Base Version**: v0.2.0 (commit d4f7539)  
-**Last Updated**: 2026-02-16
+**Branch**: `retran/simplify` (PR #80)  
+**Started from**: v0.2.0
 
 ---
 
-## High Priority
+## Critical for users
 
-### 1. User-Facing Documentation
-**Status**: Not Started  
-**Complexity**: Medium  
-**Estimated Effort**: 2-3 days
+### 1. Write user docs (2-3 days)
 
-The current documentation in `docs/` is focused on development and architecture. We need user-facing documentation:
+Developers can read the code. Users need guides.
 
-- [ ] Create user installation guide (replacing deleted docs/01-INSTALLATION.md)
-- [ ] Create user configuration guide (how to set up `.meowg1k/init.star`)
-- [ ] Create command reference guide (replacing deleted docs/03-COMMAND-REFERENCE.md)
-- [ ] Create examples guide with common use cases (replacing deleted docs/06-EXAMPLES.md)
-- [ ] Create FAQ for common questions
-- [ ] Create troubleshooting guide
+**Create**:
+- `docs/user/install.md` - How to install
+- `docs/user/setup.md` - How to configure `.meowg1k/init.star`
+- `docs/user/commands.md` - What commands exist
+- `docs/user/examples.md` - Common use cases
+- `docs/user/faq.md` - "How do I..." answers
+- `docs/user/troubleshoot.md` - When things break
 
-**Files to Create**:
-- `docs/user/installation.md`
-- `docs/user/configuration.md`
-- `docs/user/commands.md`
-- `docs/user/examples.md`
-- `docs/user/faq.md`
-- `docs/user/troubleshooting.md`
+### 2. Write README.md (1 day)
 
-**Related**: This was mentioned in the old documentation but removed during cleanup.
+The project has no front page. We deleted the old one during cleanup.
 
----
+**Include**:
+- What is meowg1k - one paragraph
+- Install instructions
+- Quick example
+- Link to docs
 
-### 2. Man Pages
-**Status**: Not Started  
-**Complexity**: Low  
-**Estimated Effort**: 1 day
+### 3. Generate man pages (1 day)
 
-Man pages were deleted during refactoring (`docs/man/*.1`, `docs/man/*.5`, `docs/man/*.7`). These should be regenerated for the new Starlark-based commands:
+We deleted the old man pages. Generate new ones from Starlark commands.
 
-- [ ] Generate man pages from new command definitions
-- [ ] Update man page generation in build process
-- [ ] Add man page installation to Taskfile.yaml
+Use `cobra` or write a custom generator.
 
-**Files Deleted**:
-- `docs/man/meow.1`
-- `docs/man/meow-*.1` (various subcommands)
-- `docs/man/meow-config.5`
-- `docs/man/meow-security.7`
+### 4. Clean up test commands (1 week)
 
-**Related Tools**: Could use `cobra` built-in man page generation or a custom generator.
+11 test commands live in `.meowg1k/commands/test-*.star`. Each needs a decision:
 
----
+- **Keep** → rename, document, make official
+- **Delete** → move to examples or remove
 
-### 3. README.md
-**Status**: Missing  
-**Complexity**: Medium  
-**Estimated Effort**: 1 day
-
-The main README.md was deleted and needs to be recreated with:
-
-- [ ] Project overview and value proposition
-- [ ] Quick start guide
-- [ ] Installation instructions
-- [ ] Basic usage examples
-- [ ] Links to comprehensive documentation
-- [ ] Contributing guidelines
-- [ ] License information
-
-**File to Create**: `README.md` (root level)
+**Test commands**:
+```
+test-agentic-simple.star
+test-agentic-tools.star
+test-agentic.star
+test-child-session.star
+test-event-flow.star
+test-llm-events.star
+test-persistence.star
+test-session.star
+test-system-message.star
+test-tool-objects.star
+test-tool-value-run.star
+```
 
 ---
 
-### 4. Command Implementation Gaps
-**Status**: Identified  
-**Complexity**: High  
-**Estimated Effort**: 5-7 days
+## Good to have
 
-Several Starlark test commands exist that should be promoted to production commands or removed:
+### 5. Add examples to libraries (2-3 days)
 
-**Test Commands to Review**:
-- `.meowg1k/commands/test-agentic-simple.star`
-- `.meowg1k/commands/test-agentic-tools.star`
-- `.meowg1k/commands/test-agentic.star`
-- `.meowg1k/commands/test-child-session.star`
-- `.meowg1k/commands/test-event-flow.star`
-- `.meowg1k/commands/test-llm-events.star`
-- `.meowg1k/commands/test-persistence.star`
-- `.meowg1k/commands/test-session.star`
-- `.meowg1k/commands/test-system-message.star`
-- `.meowg1k/commands/test-tool-objects.star`
-- `.meowg1k/commands/test-tool-value-run.star`
+`planning.star` and `memory.star` have 10+ examples each. Other libraries don't.
 
-**Actions**:
-- [ ] Review each test command for production readiness
-- [ ] Either promote to production command or move to `examples/` or `tests/`
-- [ ] Document decision for each command
+**Add examples to**:
+- `file_ops.star`
+- `shell.star`
+- `git.star`
+- `http.star`
+- `diff.star`
+- `validators.star`
 
----
+### 6. Write integration tests (3-4 days)
 
-## Medium Priority
+Coverage jumped from 44% to 65%. Go higher:
 
-### 5. Library Documentation Improvements
-**Status**: Partially Complete  
-**Complexity**: Medium  
-**Estimated Effort**: 2-3 days
+- Test all production commands end-to-end (write, code, commit, pr, search)
+- Test session persistence across restarts
+- Test parent-child sessions
+- Test tool execution and errors
+- Benchmark RAG search speed
 
-While `planning.star` and `memory.star` have comprehensive documentation (10+ examples each), other libraries could be improved:
+### 7. Create examples/ folder (1-2 days)
 
-- [ ] Add more examples to `file_ops.star` (currently basic)
-- [ ] Add examples to `shell.star`
-- [ ] Add examples to `git.star`
-- [ ] Add examples to `http.star`
-- [ ] Add examples to `diff.star`
-- [ ] Add examples to `validators.star`
+Show users what's possible:
 
-**Goal**: Match the quality of `planning.star` and `memory.star` documentation.
-
----
-
-### 6. Integration Tests
-**Status**: Partially Complete  
-**Complexity**: High  
-**Estimated Effort**: 3-4 days
-
-Coverage improved from 44.2% → 64.9%, but integration tests could be expanded:
-
-- [ ] End-to-end tests for all production commands (write, code, commit, pr, search)
-- [ ] Integration tests for session persistence across restarts
-- [ ] Integration tests for parent-child session hierarchies
-- [ ] Integration tests for tool execution and error handling
-- [ ] Performance benchmarks for RAG search
-
-**Related Files**: 
-- `internal/core/starlark/*_test.go`
-- `internal/adapters/sqlite/session/repository_test.go`
-
----
-
-### 7. Starlark Library Examples
-**Status**: Not Started  
-**Complexity**: Low  
-**Estimated Effort**: 1-2 days
-
-Create an `examples/` directory with real-world Starlark library usage:
-
-- [ ] Create `examples/commands/` with sample commands
-- [ ] Create `examples/libraries/` with sample library usage
-- [ ] Create `examples/workflows/` with multi-step agentic workflows
-- [ ] Add examples to documentation
-
-**Structure**:
 ```
 examples/
-├── commands/
-│   ├── custom-write.star
-│   ├── custom-review.star
-│   └── custom-analysis.star
-├── libraries/
-│   ├── using-planning.star
-│   ├── using-memory.star
-│   └── using-file-ops.star
-└── workflows/
-    ├── research-workflow.star
-    └── refactor-workflow.star
+├── commands/         # Custom commands
+│   ├── analyze.star
+│   └── review.star
+├── workflows/        # Multi-step agents
+│   ├── research.star
+│   └── refactor.star
+└── libraries/        # How to use each library
+    ├── planning-example.star
+    └── memory-example.star
 ```
 
----
+### 8. Delete leftover files (30 min)
 
-### 8. Cleanup Residual Files
-**Status**: Identified  
-**Complexity**: Low  
-**Estimated Effort**: 30 minutes
+Merge artifacts and debug code:
 
-Some files appear to be merge artifacts or leftovers:
-
-- [ ] Review and delete `internal/adapters/gateway/factory_test.go.orig`
-- [ ] Review and delete `internal/adapters/gateway/factory_test.go.rej`
-- [ ] Review and delete `debug_ui.go` (appears to be debug code)
-
-**Files**:
 - `internal/adapters/gateway/factory_test.go.orig`
 - `internal/adapters/gateway/factory_test.go.rej`
 - `debug_ui.go`
 
 ---
 
-## Low Priority
+## Future ideas
 
-### 9. Performance Optimization
-**Status**: Not Started  
-**Complexity**: High  
-**Estimated Effort**: Ongoing
+### 9. Import Starlark libs from GitHub (3-4 weeks)
 
-Opportunities for performance improvements:
+Like Bazel's `load("@repo//lib:file.star")`.
 
-- [ ] Profile Starlark execution performance
-- [ ] Optimize session query performance (SQLite)
-- [ ] Add caching for frequently accessed Starlark modules
-- [ ] Benchmark vector search performance (HNSW)
-- [ ] Optimize chunking strategies for large files
-
----
-
-### 10. Enhanced Error Messages
-**Status**: Partial  
-**Complexity**: Medium  
-**Estimated Effort**: 2-3 days
-
-Improve user-facing error messages:
-
-- [ ] Better error messages for Starlark syntax errors
-- [ ] Contextual help when tool parameters are invalid
-- [ ] Friendly errors when configuration is missing
-- [ ] Add "did you mean?" suggestions for command typos
-
----
-
-### 11. GitHub Issue Templates
-**Status**: Partially Complete  
-**Complexity**: Low  
-**Estimated Effort**: 1 hour
-
-Update issue templates to reflect new architecture:
-
-- [ ] Review existing issue templates (`.github/ISSUE_TEMPLATE/`)
-- [ ] Update templates to mention Starlark configuration
-- [ ] Add template for "Starlark API request"
-- [ ] Add template for "New tool library request"
-
----
-
-### 12. CI/CD Improvements
-**Status**: Working  
-**Complexity**: Medium  
-**Estimated Effort**: 1-2 days
-
-Enhance continuous integration:
-
-- [ ] Add nightly builds (nightly.yaml already exists, verify it works)
-- [ ] Add integration test suite to CI
-- [ ] Add performance regression tests
-- [ ] Add Starlark linting/validation to CI
-- [ ] Add documentation link checking
-
----
-
-## Future Enhancements
-
-### 13. Library Import System (Bazel-style)
-**Status**: Idea  
-**Complexity**: Very High  
-**Estimated Effort**: 3-4 weeks
-
-Implement a Bazel-style library import system for downloading and managing Starlark dependencies from GitHub:
-
-- [ ] Design `load()` syntax for remote libraries (e.g., `load("@github.com/user/repo//lib:foo.star", "func")`)
-- [ ] Implement dependency resolution and version pinning
-- [ ] Add caching mechanism for downloaded libraries
-- [ ] Implement integrity checking (SHA256 hashes)
-- [ ] Create lock file format (similar to `go.sum` or `package-lock.json`)
-- [ ] Add `meow deps update` command for dependency management
-- [ ] Support private GitHub repositories via authentication
-- [ ] Add dependency graph visualization
-- [ ] Implement workspace concept (similar to Bazel `WORKSPACE` file)
+**Build**:
+- Parse remote URLs in `load()` statements
+- Download and cache libraries
+- Pin versions (like `go.mod`)
+- Check file integrity (SHA256)
+- Support private repos
 
 **Example**:
 ```python
-# .meowg1k/deps.star (workspace file)
-github_archive(
-    name = "awesome_lib",
-    repo = "github.com/user/awesome-meow-lib",
-    ref = "v1.2.3",
+# .meowg1k/workspace.star
+github_library(
+    name = "utils",
+    repo = "github.com/user/meow-utils",
+    version = "v1.2.3",
     sha256 = "abc123...",
 )
 
 # .meowg1k/commands/mycommand.star
-load("@awesome_lib//lib:util.star", "helper_func")
+load("@utils//lib:helpers.star", "format_code")
 ```
 
----
+### 10. Parse YAML/XML/TOML/CSV (1-2 weeks)
 
-### 14. Structured Data Libraries
-**Status**: Idea  
-**Complexity**: Medium  
-**Estimated Effort**: 1-2 weeks
+JSON works. Add other formats.
 
-Expand data format support beyond JSON:
-
-**YAML Support**:
-- [ ] Add `yaml` Starlark module for parsing and serialization
-- [ ] Support YAML anchors and references
-- [ ] Add YAML validation helpers
-
-**XML Support**:
-- [ ] Add `xml` Starlark module for parsing and serialization
-- [ ] Support XPath queries
-- [ ] Add XML schema validation
-
-**TOML Support**:
-- [ ] Add `toml` Starlark module for parsing and serialization
-- [ ] Support TOML v1.0 specification
-- [ ] Add TOML validation helpers
-
-**CSV Support**:
-- [ ] Add `csv` Starlark module for parsing and writing
-- [ ] Support custom delimiters and quoting
-- [ ] Add CSV to JSON/dict conversion helpers
+**New modules**:
+- `yaml` - Parse and write YAML
+- `xml` - Parse with XPath support
+- `toml` - Parse and write TOML v1.0
+- `csv` - Read/write with custom delimiters
 
 **Example**:
 ```python
 load("//lib/yaml.star", "yaml")
 load("//lib/xml.star", "xml")
-load("//lib/toml.star", "toml")
 
-# Parse YAML
 config = yaml.parse(fs.read("config.yaml"))
-
-# Convert to XML
-xml_str = xml.encode(config, root="config")
-
-# Write as TOML
-fs.write("config.toml", toml.encode(config))
+xml_output = xml.encode(config, root="config")
 ```
 
----
+### 11. Validate LLM responses (2-3 weeks)
 
-### 15. Structured LLM Responses
-**Status**: Idea  
-**Complexity**: High  
-**Estimated Effort**: 2-3 weeks
+Force LLMs to return structured data.
 
-Add support for structured/typed LLM responses with schema validation:
-
-- [ ] Implement JSON Schema-based response validation
-- [ ] Add `response_format` parameter to `llm.generate()`
-- [ ] Support OpenAI structured outputs API
-- [ ] Support Anthropic tool use for structured data
-- [ ] Support Gemini function calling for structured responses
-- [ ] Add Pydantic-style schema definitions in Starlark
-- [ ] Implement automatic retry on schema validation failure
-- [ ] Add response streaming for structured data
-- [ ] Support partial structured responses
+**Add**:
+- JSON Schema validation
+- `response_format` parameter in `llm.generate()`
+- Auto-retry on validation errors
+- Support for OpenAI/Anthropic/Gemini structured outputs
 
 **Example**:
 ```python
 load("//lib/llm.star", "llm")
 load("//lib/schema.star", "schema")
 
-# Define response schema
 ReviewSchema = schema.object({
     "score": schema.integer(min=1, max=10),
     "summary": schema.string(max_length=200),
-    "issues": schema.array(schema.string()),
     "approved": schema.boolean(),
 })
 
-# Request structured response
-response = llm.generate(
-    prompt="Review this code: ...",
+review = llm.generate(
+    prompt="Review this code...",
     response_format=ReviewSchema,
-    validate=True,  # Auto-retry on validation failure
+    validate=True,  # Retry on invalid JSON
 )
 
-# response is guaranteed to match schema
-print(response.score)  # 8
-print(response.approved)  # True
+print(review.score)  # Guaranteed to exist
 ```
 
----
+### 12. Stream LLM output in terminal (2-3 weeks)
 
-### 16. UI Streaming Support
-**Status**: Idea  
-**Complexity**: High  
-**Estimated Effort**: 2-3 weeks
+Show words as they arrive, not after completion.
 
-Enhance terminal UI to support real-time streaming of LLM responses:
-
-- [ ] Implement streaming text rendering with word wrapping
-- [ ] Add progress indicators for streaming responses
-- [ ] Support partial markdown rendering (render as tokens arrive)
-- [ ] Add syntax highlighting for streamed code blocks
-- [ ] Implement cancellation support (Ctrl+C during streaming)
-- [ ] Add visual indicators for thinking/processing state
-- [ ] Support multi-column streaming (side-by-side comparisons)
-- [ ] Add streaming diff visualization
-- [ ] Implement token-per-second metrics display
-- [ ] Add buffer management for very long responses
+**Build**:
+- Render text as tokens stream in
+- Progressive markdown rendering
+- Syntax highlighting during stream
+- Show tokens/second metrics
+- Handle Ctrl+C gracefully
 
 **Example**:
 ```python
 load("//lib/llm.star", "llm")
 load("//lib/ui.star", "ui")
 
-# Stream response with live UI updates
-for chunk in llm.stream(prompt="Write a story..."):
-    ui.append(chunk.content)  # Live rendering
-    ui.update_metrics(tokens=chunk.tokens, tps=chunk.tps)
+for chunk in llm.stream("Write a story..."):
+    ui.append(chunk.text)  # Render immediately
+    ui.show_speed(chunk.tokens_per_sec)
 ```
 
-**UI Features**:
-- Live word-wrapping as content streams
-- Progressive markdown rendering
-- Spinner/progress for long pauses
-- Token count and speed metrics
-- Graceful handling of interruption
+### 13. Plugin system (2-3 weeks)
+
+Let users share Starlark libraries safely.
+
+**Build**:
+- Sandbox plugins (restrict file access)
+- Plugin registry/marketplace
+- Signature verification
+- `meow plugin install` command
+
+Works with #9 (import system).
+
+### 14. Web UI for sessions (4-6 weeks)
+
+View sessions in a browser:
+
+- List all sessions
+- Watch sessions run live
+- Replay past sessions
+- Share sessions with team
+
+### 15. LSP for Starlark (3-4 weeks)
+
+Make IDEs understand meowg1k code:
+
+- Autocomplete for standard library
+- Hover to see function docs
+- Jump to definition
+- Inline errors for schema validation
+
+### 16. Speed up queries (ongoing)
+
+**Profile and optimize**:
+- Starlark execution time
+- SQLite query speed
+- Vector search (HNSW)
+- File chunking strategies
+
+### 17. Better error messages (2-3 days)
+
+Make errors useful:
+
+- "Syntax error line 42" → "Missing closing quote on line 42: `name = "foo`"
+- "Invalid parameter" → "Expected string, got number. Try: `count="5"` instead of `count=5`"
+- "Config not found" → "Create `.meowg1k/init.star` first. See docs/user/setup.md"
+- Add "Did you mean?" for typos
+
+### 18. Update GitHub templates (1 hour)
+
+Change issue templates:
+
+- Mention Starlark (not YAML)
+- Add "Request Starlark API" template
+- Add "Request new library" template
+
+### 19. Improve CI/CD (1-2 days)
+
+- Verify nightly builds work
+- Run integration tests on CI
+- Check for performance regressions
+- Lint Starlark files
+- Validate documentation links
 
 ---
 
-### 17. Plugin System
-**Status**: Idea  
-**Complexity**: Very High  
-**Estimated Effort**: 2-3 weeks
+## How to use this file
 
-Allow third-party Starlark libraries with sandboxing and security:
+**Priority order**:
+1. Write user docs (#1, #2, #3) - users can't learn without docs
+2. Clean up commands (#4) - confusing to have test-* in production
+3. Everything else when we have time
 
-- [ ] Design plugin discovery mechanism
-- [ ] Implement plugin sandboxing (restrict file system access)
-- [ ] Create plugin registry/marketplace
-- [ ] Add plugin management commands (`meow plugin install`, etc.)
-- [ ] Implement plugin signing and verification
-- [ ] Add plugin dependency resolution
-- [ ] Support plugin configuration
-- [ ] Add plugin lifecycle hooks (install, uninstall, update)
-
-**Related**: Works well with Library Import System (#13)
+**Before you start a task**:
+- Check if it breaks existing code
+- Update LIBRARY_INDEX.md if you change the API
+- Keep test coverage above 65%
+- Write a CHANGELOG entry for user-facing changes
 
 ---
 
-### 18. Web UI
-**Status**: Idea  
-**Complexity**: Very High  
-**Estimated Effort**: 4-6 weeks
-
-Optional web interface for session management:
-
-- [ ] Design web UI architecture
-- [ ] Implement session viewer
-- [ ] Implement live session monitoring
-- [ ] Add session replay functionality
-- [ ] Support real-time streaming in browser
-- [ ] Add collaborative session sharing
-
----
-
-### 19. Language Server Protocol (LSP)
-**Status**: Idea  
-**Complexity**: Very High  
-**Estimated Effort**: 3-4 weeks
-
-IDE support for Starlark commands:
-
-- [ ] Implement Starlark LSP server
-- [ ] Add autocomplete for meowg1k standard library
-- [ ] Add hover documentation
-- [ ] Add go-to-definition for library functions
-- [ ] Support remote library imports (from #13)
-- [ ] Add inline diagnostics for schema validation
-
----
-
-## Notes
-
-### Migration Strategy
-
-When implementing these tasks:
-1. **User Documentation**: Should be the top priority for adoption
-2. **README.md**: Critical for first impressions
-3. **Command Cleanup**: Important for clarity and maintenance
-4. **Examples**: Help users understand the Starlark system
-
-### Breaking Changes Tracking
-
-Any tasks that introduce breaking changes should:
-1. Update LIBRARY_INDEX.md migration guide
-2. Add deprecation warnings before removal
-3. Update version number appropriately
-4. Document in CHANGELOG.md (to be created)
-
-### Testing Requirements
-
-All new features should maintain or improve the 64.9% test coverage threshold.
-
----
-
-**Last Updated**: 2026-02-16  
-**Maintainer**: retran  
-**Related PR**: #80
+**Updated**: 2026-02-16  
+**PR**: #80
