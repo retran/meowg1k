@@ -137,56 +137,7 @@ github_library(
 load("@utils//lib:helpers.star", "format_code")
 ```
 
-### 10. Parse YAML/XML/TOML/CSV (1-2 weeks)
-
-JSON works. Add other formats.
-
-**New modules**:
-- `yaml` - Parse and write YAML
-- `xml` - Parse with XPath support
-- `toml` - Parse and write TOML v1.0
-- `csv` - Read/write with custom delimiters
-
-**Example**:
-```python
-load("//lib/yaml.star", "yaml")
-load("//lib/xml.star", "xml")
-
-config = yaml.parse(fs.read("config.yaml"))
-xml_output = xml.encode(config, root="config")
-```
-
-### 11. Validate LLM responses (2-3 weeks)
-
-Force LLMs to return structured data.
-
-**Add**:
-- JSON Schema validation
-- `response_format` parameter in `llm.generate()`
-- Auto-retry on validation errors
-- Support for OpenAI/Anthropic/Gemini structured outputs
-
-**Example**:
-```python
-load("//lib/llm.star", "llm")
-load("//lib/schema.star", "schema")
-
-ReviewSchema = schema.object({
-    "score": schema.integer(min=1, max=10),
-    "summary": schema.string(max_length=200),
-    "approved": schema.boolean(),
-})
-
-review = llm.generate(
-    prompt="Review this code...",
-    response_format=ReviewSchema,
-    validate=True,  # Retry on invalid JSON
-)
-
-print(review.score)  # Guaranteed to exist
-```
-
-### 12. Stream LLM output in terminal (2-3 weeks)
+### 10. Stream LLM output in terminal (2-3 weeks)
 
 Show words as they arrive, not after completion.
 
@@ -207,7 +158,7 @@ for chunk in llm.stream("Write a story..."):
     ui.show_speed(chunk.tokens_per_sec)
 ```
 
-### 13. Plugin system (2-3 weeks)
+### 11. Plugin system (2-3 weeks)
 
 Let users share Starlark libraries safely.
 
@@ -219,7 +170,7 @@ Let users share Starlark libraries safely.
 
 Works with #9 (import system).
 
-### 14. Web UI for sessions (4-6 weeks)
+### 12. Web UI for sessions (4-6 weeks)
 
 View sessions in a browser:
 
@@ -228,7 +179,7 @@ View sessions in a browser:
 - Replay past sessions
 - Share sessions with team
 
-### 15. LSP for Starlark (3-4 weeks)
+### 13. LSP for Starlark (3-4 weeks)
 
 Make IDEs understand meowg1k code:
 
@@ -237,7 +188,7 @@ Make IDEs understand meowg1k code:
 - Jump to definition
 - Inline errors for schema validation
 
-### 16. Speed up queries (ongoing)
+### 14. Speed up queries (ongoing)
 
 **Profile and optimize**:
 - Starlark execution time
@@ -245,7 +196,7 @@ Make IDEs understand meowg1k code:
 - Vector search (HNSW)
 - File chunking strategies
 
-### 17. Better error messages (2-3 days)
+### 15. Better error messages (2-3 days)
 
 Make errors useful:
 
@@ -254,7 +205,7 @@ Make errors useful:
 - "Config not found" → "Create `.meowg1k/init.star` first. See docs/user/setup.md"
 - Add "Did you mean?" for typos
 
-### 18. Update GitHub templates (1 hour)
+### 16. Update GitHub templates (1 hour)
 
 Change issue templates:
 
@@ -262,13 +213,70 @@ Change issue templates:
 - Add "Request Starlark API" template
 - Add "Request new library" template
 
-### 19. Improve CI/CD (1-2 days)
+### 17. Improve CI/CD (1-2 days)
 
 - Verify nightly builds work
 - Run integration tests on CI
 - Check for performance regressions
 - Lint Starlark files
 - Validate documentation links
+
+### 18. Support MCP (Model Context Protocol) (3-4 weeks)
+
+Add support for Anthropic's Model Context Protocol to integrate external tools and resources.
+
+**Build**:
+- MCP client implementation in Go
+- Connect to MCP servers via stdio, HTTP, or SSE
+- Expose MCP tools to Starlark as `ctx.mcp.call()`
+- Support resource listing and reading
+- Support prompts from MCP servers
+- Handle tool discovery and schema conversion
+
+**Example**:
+```python
+# .meowg1k/init.star
+meow.mcp_server("filesystem",
+    transport="stdio",
+    command="npx",
+    args=["-y", "@modelcontextprotocol/server-filesystem", "/Users/me/projects"]
+)
+
+# In a command
+files = ctx.mcp.call("filesystem", "list_directory", {"path": "."})
+content = ctx.mcp.call("filesystem", "read_file", {"path": "README.md"})
+```
+
+**Resources**:
+- https://modelcontextprotocol.io/
+- https://github.com/modelcontextprotocol
+
+### 19. Support ACP (Agent Communication Protocol) (4-5 weeks)
+
+Implement ACP for multi-agent orchestration and collaboration.
+
+**Build**:
+- ACP protocol implementation
+- Agent-to-agent communication
+- Task delegation and result aggregation
+- Shared context and memory
+- Agent lifecycle management
+- Protocol negotiation
+
+**Example**:
+```python
+# Define agents that communicate via ACP
+code_agent = ctx.acp.spawn("code-reviewer", capabilities=["review", "suggest"])
+test_agent = ctx.acp.spawn("test-writer", capabilities=["generate_tests"])
+
+# Agents collaborate on a task
+review = code_agent.request("review", {"file": "main.go"})
+tests = test_agent.request("generate_tests", {"code": review.code})
+```
+
+**Resources**:
+- Research existing agent communication protocols
+- Design meowg1k-specific ACP extensions
 
 ---
 

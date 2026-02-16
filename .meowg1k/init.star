@@ -100,6 +100,9 @@ load("//commands/orchestrator-agent.star", orch_handler = "orchestrator_handler"
 load("//commands/extract.star", extract_setup = "setup")
 extract_setup()
 
+load("//commands/test-parsers.star", parsers_setup = "setup")
+parsers_setup()
+
 # ==============================================================================
 # SESSION MANAGEMENT COMMANDS
 # ==============================================================================

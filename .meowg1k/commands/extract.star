@@ -65,7 +65,7 @@ def extract_structured_data(ctx):
     
     schema = schemas.get(schema_type)
     if not schema:
-        return ctx.error("Invalid schema_type. Choose: person, product, or event")
+        fail("Invalid schema_type '{}'. Choose: person, product, or event".format(schema_type))
     
     # Generate structured output using LLM with response schema
     prompt = "Extract structured information from the following text:\n\n" + text
