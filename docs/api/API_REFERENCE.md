@@ -41,6 +41,10 @@ The meowg1k Starlark runtime provides a rich set of modules for configuration, a
     - [index (RAG / Search)](#index-rag--search)
     - [ui (User Interface)](#ui-user-interface)
     - [json (JSON Handling)](#json-json-handling)
+    - [yaml (YAML Handling)](#yaml-yaml-handling)
+    - [xml (XML Handling)](#xml-xml-handling)
+    - [toml (TOML Handling)](#toml-toml-handling)
+    - [csv (CSV Handling)](#csv-csv-handling)
     - [path (Path Manipulation)](#path-path-manipulation)
     - [crypto (Cryptography)](#crypto-cryptography)
     - [time (Time \& Date)](#time-time--date)
@@ -929,25 +933,41 @@ output = ctx.yaml.stringify({"key": "value", "list": [1, 2, 3]})
 
 ### xml (XML Handling)
 
-⚠️ **Note:** The XML module has known limitations with parsing and complex structures. Use with caution for simple XML documents only.
-
 **`xml.parse(string)`** -> `any`
-Parse XML string into Starlark values (limited functionality).
+Parse XML string into Starlark values. Supports elements, attributes, text content, and nested structures.
+- Attributes are prefixed with `@` (e.g., `@id`, `@name`)
+- Text content is stored as `#text` for elements with attributes or children
+- Simple text-only elements return just the text value
+- Multiple child elements with the same name are returned as a list
 
 **`xml.stringify(value, indent=False, root="")`** -> `string`
-Convert Starlark value to XML string.
+Convert Starlark value to XML string with proper escaping.
 - `indent` (bool): Enable pretty-printing with indentation
-- `root` (string): Optional root element name to wrap the value
+- `root` (string): Root element name (required if value is not a single-key dict)
 
 **Example:**
 ```python
-# Simple XML parsing (limited support)
-xml_str = '<root><item>value</item></root>'
+# Parse XML with attributes and nested elements
+xml_str = '''
+<user id="123" role="admin">
+  <name>Alice</name>
+  <age>30</age>
+</user>
+'''
 data = ctx.xml.parse(xml_str)
+# Result: {"user": {"@id": "123", "@role": "admin", "name": "Alice", "age": "30"}}
 
-# Generate XML (basic functionality)
-data = {"item": "value"}
-xml_output = ctx.xml.stringify(data, indent=True, root="root")
+# Access parsed data
+user = data["user"]
+print(user["@id"])      # "123"
+print(user["name"])     # "Alice"
+
+# Generate XML with indentation
+output = ctx.xml.stringify(
+    {"name": "Alice", "age": 30},
+    indent=True,
+    root="user"
+)
 ```
 
 ---
