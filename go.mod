@@ -7,17 +7,17 @@ require (
 	github.com/alecthomas/chroma/v2 v2.23.1
 	github.com/anthropics/anthropic-sdk-go v1.19.0
 	github.com/bmatcuk/doublestar/v4 v4.9.2
-	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/charmbracelet/bubbles/v2 v2.0.0
+	github.com/charmbracelet/bubbletea/v2 v2.0.0
 	github.com/charmbracelet/glamour v0.10.0
-	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/charmbracelet/lipgloss/v2 v2.0.0
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/coder/hnsw v0.6.1
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/mattn/go-runewidth v0.0.16
 	github.com/ncruces/go-sqlite3 v0.30.4
-	github.com/openai/openai-go/v2 v2.7.1
+	github.com/openai/openai-go/v3 v3.24.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
