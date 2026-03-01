@@ -495,3 +495,5 @@ func (m *mockOutputWriter) StreamMarkdown(content string, done bool) error {
 	m.printed = append(m.printed, content)
 	return nil
 }
+
+func (m *mockOutputWriter) IsTTY() bool { return false }

@@ -393,7 +393,7 @@ Please provide a comprehensive answer based on the code context above. Reference
             question, context
         )
 
-        answer = ctx.llm.generate(
+        answer = ctx.llm.chat(
             preset=preset,
             system=_SYSTEM_PROMPT_ASK,
             prompt=prompt

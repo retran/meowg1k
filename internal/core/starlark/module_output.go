@@ -17,6 +17,7 @@ type OutputWriter interface {
 	Printf(format string, args ...any) error
 	PrintMarkdown(content string) error
 	StreamMarkdown(content string, done bool) error
+	IsTTY() bool
 }
 
 // NewOutputModule creates the output module for buffered writing
@@ -29,6 +30,7 @@ func NewOutputModule(writer OutputWriter) *starlarkstruct.Module {
 			"writef":          starlark.NewBuiltin("output.writef", makeOutputWritef(writer)),
 			"markdown":        starlark.NewBuiltin("output.markdown", makeOutputMarkdown(writer)),
 			"stream_markdown": starlark.NewBuiltin("output.stream_markdown", makeOutputStreamMarkdown(writer)),
+			"is_tty":          starlark.NewBuiltin("output.is_tty", makeOutputIsTTY(writer)),
 		},
 	}
 }
@@ -119,5 +121,12 @@ func makeOutputStreamMarkdown(writer OutputWriter) func(*starlark.Thread, *starl
 		}
 
 		return starlark.None, nil
+	}
+}
+
+// makeOutputIsTTY creates the output.is_tty function
+func makeOutputIsTTY(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		return starlark.Bool(writer.IsTTY()), nil
 	}
 }

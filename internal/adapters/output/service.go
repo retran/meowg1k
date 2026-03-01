@@ -17,14 +17,14 @@ import (
 
 // Service is the concrete implementation of the Writer interface.
 type Service struct {
-	destination   io.Writer
-	buffer        strings.Builder
-	liveWriter    *uilive.Writer
-	liveBuffer    strings.Builder
-	liveActive    bool
-	plainOutput   bool
-	noColor       bool
-	isTerminal    bool
+	destination io.Writer
+	buffer      strings.Builder
+	liveWriter  *uilive.Writer
+	liveBuffer  strings.Builder
+	liveActive  bool
+	plainOutput bool
+	noColor     bool
+	isTerminal  bool
 }
 
 // NewService creates a new instance of the buffered output service.
@@ -36,7 +36,7 @@ func NewService(destination output.Destination) *Service {
 func NewServiceWithOptions(destination output.Destination, plainOutput, noColor bool) *Service {
 	var destWriter io.Writer
 	var isTerminal bool
-	
+
 	switch destination {
 	case output.Stdout:
 		destWriter = os.Stdout
@@ -55,10 +55,10 @@ func NewServiceWithOptions(destination output.Destination, plainOutput, noColor 
 	}
 
 	return &Service{
-		destination:   destWriter,
-		plainOutput:   plainOutput,
-		noColor:       noColor,
-		isTerminal:    isTerminal,
+		destination: destWriter,
+		plainOutput: plainOutput,
+		noColor:     noColor,
+		isTerminal:  isTerminal,
 	}
 }
 
@@ -158,6 +158,14 @@ func (s *Service) StreamMarkdown(content string, done bool) error {
 	}
 
 	return nil
+}
+
+// IsTTY returns true if the output destination is a terminal.
+func (s *Service) IsTTY() bool {
+	if s == nil {
+		return false
+	}
+	return s.isTerminal
 }
 
 // Flush writes all accumulated content from the buffer to the destination

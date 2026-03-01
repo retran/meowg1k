@@ -130,7 +130,7 @@ def handle_commit(ctx):
     prompt += "\nDiff:\n{}".format(diff.raw)
     
     # Generate message
-    msg = llm.generate(
+    msg = ctx.llm.chat(
         preset="smart",
         system="Generate a concise, conventional commit message following the format: <type>(<scope>): <subject>",
         prompt=prompt

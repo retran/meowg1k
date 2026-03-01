@@ -103,6 +103,56 @@ func (g *loggingGenerationGateway) GenerateContent(
 	return response, nil
 }
 
+// GenerateContentStream wraps the inner gateway's GenerateContentStream and logs the interaction.
+func (g *loggingGenerationGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	startTime := time.Now()
+
+	response, err := g.inner.GenerateContentStream(ctx, request, callback)
+
+	duration := time.Since(startTime)
+
+	entry := &tracelog.APIInteractionEntry{
+		Command:  g.command,
+		Preset:   g.preset,
+		Provider: g.provider,
+		Model:    request.Model(),
+		Request: tracelog.RequestData{
+			SystemPrompt:    request.SystemPrompt(),
+			UserPrompt:      request.UserPrompt(),
+			MaxOutputTokens: request.MaxOutputTokens(),
+		},
+		Response: tracelog.ResponseData{
+			Content: formatResponseContent(response),
+		},
+		DurationMs: duration.Milliseconds(),
+	}
+
+	if response != nil && response.Usage != nil {
+		entry.Usage = tracelog.UsageData{
+			PromptTokens:     response.Usage.PromptTokens,
+			CompletionTokens: response.Usage.CompletionTokens,
+			TotalTokens:      response.Usage.TotalTokens,
+		}
+	}
+
+	if err != nil {
+		entry.Response.Error = err.Error()
+	}
+
+	if logErr := g.logger.LogAPIInteraction(entry); logErr != nil {
+		_ = logErr
+	}
+
+	if err != nil {
+		return response, fmt.Errorf("content streaming failed: %w", err)
+	}
+	return response, nil
+}
+
 // formatResponseContent formats the full response including all content blocks.
 func formatResponseContent(response *gateway.GenerateContentResponse) string {
 	if response == nil {
@@ -139,13 +189,6 @@ func formatResponseContent(response *gateway.GenerateContentResponse) string {
 	}
 
 	return result.String()
-}
-
-func responseTextOrEmpty(response *gateway.GenerateContentResponse) string {
-	if response == nil {
-		return ""
-	}
-	return response.Text()
 }
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.

@@ -270,3 +270,4 @@ func (n *noopOutputWriter) PrintMarkdown(content string) error { return nil }
 func (n *noopOutputWriter) StreamMarkdown(content string, done bool) error {
 	return nil
 }
+func (n *noopOutputWriter) IsTTY() bool { return false }

@@ -197,7 +197,7 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
         system = build_system_prompt(tone, format, custom_tone)
         activity = ctx.ui.activity("Generating...")
 
-        result = ctx.llm.generate(
+        result = ctx.llm.chat(
             preset=preset,
             system=system,
             prompt=full_prompt

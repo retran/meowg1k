@@ -472,6 +472,24 @@ func validateGeminiResponse(result *genai.GenerateContentResponse, model string)
 	return nil
 }
 
+// GenerateContentStream implements streaming for Gemini by delegating to GenerateContent
+// and synthesizing stream events from the aggregated response.
+// Full native streaming via the Gemini streaming API will be added in a future phase.
+func (g *geminiGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	resp, err := g.GenerateContent(ctx, request)
+	if err != nil {
+		if callback != nil {
+			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+		}
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // CountTokens counts tokens for the given content chunks using the Gemini API.
 func (g *geminiGateway) CountTokens(
 	ctx context.Context,

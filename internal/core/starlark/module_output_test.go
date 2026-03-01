@@ -74,6 +74,10 @@ func (m *MockOutputWriter) StreamMarkdown(content string, done bool) error {
 	return nil
 }
 
+func (m *MockOutputWriter) IsTTY() bool {
+	return false
+}
+
 func TestOutputModuleWrite(t *testing.T) {
 	t.Run("writes content", func(t *testing.T) {
 		mock := &MockOutputWriter{}
@@ -389,6 +393,7 @@ func TestOutputModuleFunctions(t *testing.T) {
 		"writef",
 		"markdown",
 		"stream_markdown",
+		"is_tty",
 	}
 
 	for _, funcName := range expectedFunctions {
@@ -436,7 +441,42 @@ func TestOutputModuleUnicode(t *testing.T) {
 	assert.Equal(t, []string{"Hello 世界 🌍"}, mock.printCalls)
 }
 
-// TestOutputModuleLongContent tests handling of long content
+// TestOutputModuleIsTTY tests the is_tty function
+func TestOutputModuleIsTTY(t *testing.T) {
+	t.Run("returns false when not a tty", func(t *testing.T) {
+		mock := &MockOutputWriter{} // IsTTY() returns false
+		outputModule := NewOutputModule(mock)
+
+		isTTYFunc := outputModule.Members["is_tty"]
+		thread := &starlark.Thread{Name: "test"}
+
+		result, err := starlark.Call(thread, isTTYFunc, starlark.Tuple{}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, starlark.Bool(false), result)
+	})
+
+	t.Run("returns true when is a tty", func(t *testing.T) {
+		mock := &ttyOutputWriter{}
+		outputModule := NewOutputModule(mock)
+
+		isTTYFunc := outputModule.Members["is_tty"]
+		thread := &starlark.Thread{Name: "test"}
+
+		result, err := starlark.Call(thread, isTTYFunc, starlark.Tuple{}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, starlark.Bool(true), result)
+	})
+}
+
+// ttyOutputWriter is a mock OutputWriter that reports IsTTY() = true.
+type ttyOutputWriter struct{}
+
+func (t *ttyOutputWriter) Print(_ string) error                  { return nil }
+func (t *ttyOutputWriter) PrintLine(_ string) error              { return nil }
+func (t *ttyOutputWriter) Printf(_ string, _ ...any) error       { return nil }
+func (t *ttyOutputWriter) PrintMarkdown(_ string) error          { return nil }
+func (t *ttyOutputWriter) StreamMarkdown(_ string, _ bool) error { return nil }
+func (t *ttyOutputWriter) IsTTY() bool                           { return true }
 func TestOutputModuleLongContent(t *testing.T) {
 	mock := &MockOutputWriter{}
 	outputModule := NewOutputModule(mock)

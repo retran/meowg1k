@@ -16,7 +16,7 @@ meowg1k provides a powerful agentic system where:
 
 1. **Tool** - A callable unit with typed parameters and a handler function
 2. **Session** - An execution context that tracks events, metadata, and relationships
-3. **Agentic Loop** - LLM-driven autonomous tool execution with `ctx.llm.agentic()`
+3. **Agentic Loop** - LLM-driven autonomous tool execution with `ctx.llm.agent_turn()`
 4. **Context APIs** - Session, memory, and planning utilities for agent state management
 
 ### Session Hierarchy
@@ -48,12 +48,12 @@ def my_agent_handler(ctx):
     goal = ctx.params.get("goal", "")
     
     # 2. Execute agentic loop
-    result = ctx.llm.agentic(
-        tools=[file_reader, code_search],
+    result = ctx.llm.agent_turn(
         prompt="Achieve this goal: " + goal,
-        system="You are a helpful agent...",
         preset="smart",
-        max_iterations=50
+        tools=[file_reader, code_search],
+        system="You are a helpful agent...",
+        max_iterations=50,
     )
     
     # 3. Return or display results
@@ -76,16 +76,18 @@ meow.command(my_agent)
 
 ### Agentic Loop API
 
-The `ctx.llm.agentic()` method enables autonomous multi-turn LLM interactions:
+The `ctx.llm.agent_turn()` method enables autonomous multi-turn LLM interactions:
 
 ```python
-result = ctx.llm.agentic(
-    tools=[tool1, tool2, ...],        # List of available tools (ToolValue objects)
-    prompt="User goal or query",       # Initial user prompt
-    system="Agent instructions",       # System prompt defining agent behavior
-    preset="smart",                    # LLM preset to use
-    max_iterations=50,                 # Maximum number of turns
-    on_tool_error="return"             # Error handling: "return" | "retry" | "abort"
+result = ctx.llm.agent_turn(
+    prompt="User goal or query",           # Initial user prompt (required)
+    preset="smart",                        # LLM preset (required, no default)
+    tools=[tool1, tool2, ...],             # List of available tools (required)
+    system="Agent instructions",           # System prompt defining agent behavior
+    max_iterations=50,                     # Maximum number of turns
+    on_tool_error="return",                # Error handling: "return" | "abort"
+    stream=False,                          # Enable streaming
+    on_event=None,                         # Stream event callback
 )
 ```
 
@@ -98,7 +100,6 @@ result = ctx.llm.agentic(
 
 **Error Handling:**
 - `return` - Return tool error message to LLM, continue loop
-- `retry` - Retry failed tool call once, then return error if still fails
 - `abort` - Stop execution immediately on tool error
 
 ### Tool Libraries
@@ -334,10 +335,10 @@ remember(ctx, "checkpoint", ctx.json.encode({
 ```python
 # Good: Specific tool set for the task
 code_analysis_tools = [file_reader, code_search, list_directory]
-result = ctx.llm.agentic(tools=code_analysis_tools, ...)
+result = ctx.llm.agent_turn(tools=code_analysis_tools, ...)
 
 # Avoid: All tools when only few needed
-result = ctx.llm.agentic(tools=all_tools, ...)  # 18 tools = large schema
+result = ctx.llm.agent_turn(tools=all_tools, ...)  # 18 tools = large schema
 ```
 
 ### 2. System Prompts
@@ -370,14 +371,14 @@ Output format:
 
 ```python
 # Exploratory tasks: Continue on errors
-result = ctx.llm.agentic(
+result = ctx.llm.agent_turn(
     tools=[...],
     on_tool_error="return",  # LLM sees error, adapts strategy
     ...
 )
 
 # Critical tasks: Abort on errors
-result = ctx.llm.agentic(
+result = ctx.llm.agent_turn(
     tools=[...],
     on_tool_error="abort",   # Stop immediately on failure
     ...
@@ -390,10 +391,10 @@ result = ctx.llm.agentic(
 
 ```python
 # Simple tasks: Low limit
-result = ctx.llm.agentic(max_iterations=10, ...)
+result = ctx.llm.agent_turn(max_iterations=10, ...)
 
 # Complex multi-step: Higher limit
-result = ctx.llm.agentic(max_iterations=100, ...)
+result = ctx.llm.agent_turn(max_iterations=100, ...)
 ```
 
 ### 5. Session Metadata
@@ -421,8 +422,9 @@ def multi_stage_agent_handler(ctx):
     ctx.ui.info("Stage 1: Planning...")
     remember(ctx, "stage", "planning")
     
-    plan = ctx.llm.generate(
+    plan = ctx.llm.chat(
         prompt="Create a plan for: " + goal,
+        preset="smart",
         system="You are a planning expert..."
     )
     remember(ctx, "plan", plan)
@@ -431,9 +433,10 @@ def multi_stage_agent_handler(ctx):
     ctx.ui.info("Stage 2: Gathering context...")
     remember(ctx, "stage", "gathering")
     
-    context = ctx.llm.agentic(
+    context = ctx.llm.agent_turn(
         tools=[file_reader, code_search, list_directory],
         prompt="Gather context for: " + plan,
+        preset="smart",
         max_iterations=20
     )
     remember(ctx, "context", context)
@@ -442,9 +445,10 @@ def multi_stage_agent_handler(ctx):
     ctx.ui.info("Stage 3: Executing...")
     remember(ctx, "stage", "executing")
     
-    result = ctx.llm.agentic(
+    result = ctx.llm.agent_turn(
         tools=[file_writer, shell_exec],
         prompt="Execute plan with context: " + plan + "\n\n" + context,
+        preset="smart",
         max_iterations=50
     )
     
@@ -470,8 +474,9 @@ def smart_search_handler(ctx):
     for result in results:
         content = ctx.fs.read(result["path"])
         # Use LLM to check relevance
-        is_relevant = ctx.llm.generate(
+        is_relevant = ctx.llm.chat(
             prompt="Is this relevant to '" + query + "'?\n\n" + content,
+            preset="smart",
             system="Answer only 'yes' or 'no'"
         )
         if "yes" in is_relevant.lower():
@@ -490,8 +495,9 @@ def coordinator_handler(ctx):
     task = ctx.params["task"]
     
     # Analyze what needs to be done
-    analysis = ctx.llm.generate(
+    analysis = ctx.llm.chat(
         prompt="What agents are needed for: " + task,
+        preset="smart",
         system="Available: code-review, search, refactor"
     )
     

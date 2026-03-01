@@ -331,6 +331,24 @@ func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) []gateway
 	return result
 }
 
+// GenerateContentStream implements streaming for Anthropic by delegating to GenerateContent
+// and synthesizing stream events from the aggregated response.
+// Full native streaming via the Anthropic SSE API will be added in a future phase.
+func (g *anthropicGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	resp, err := g.GenerateContent(ctx, request)
+	if err != nil {
+		if callback != nil {
+			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+		}
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // CountTokens counts tokens using Anthropic's token counting API.
 // For embeddings, Anthropic doesn't provide embeddings, so this returns an error.
 // For generation, it calls the count_tokens endpoint with the messages.

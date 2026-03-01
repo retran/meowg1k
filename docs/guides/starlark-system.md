@@ -346,23 +346,32 @@ head = git.head_hash()
 
 ### `llm` Module
 
-LLM operations (typically accessed via `ctx.run_llm()` in handlers).
+LLM operations accessible via `ctx.llm.*` in handlers.
 
 ```python
-# Generate content
-response = llm.generate(
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Explain quantum computing."}
-    ],
+# Generate content (non-streaming)
+response = ctx.llm.chat(
+    prompt="Explain quantum computing.",
     preset="smart",
-    temperature=0.7,
-    max_tokens=1024
+    system="You are a helpful assistant.",
 )
 
-# Stream response
-for chunk in llm.generate_stream(messages=messages, preset="fast"):
-    output.print(chunk)
+# Stream response with on_event callback
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
+
+response = ctx.llm.chat(
+    prompt="Explain quantum computing.",
+    preset="fast",
+    stream=True,
+    on_event=make_markdown_stream_handler(ctx),
+)
+
+# Agentic turn with tools
+response = ctx.llm.agent_turn(
+    prompt="Read config.json and summarise the settings.",
+    preset="smart",
+    tools=[file_reader],
+)
 ```
 
 ### `shell` Module

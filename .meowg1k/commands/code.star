@@ -141,7 +141,7 @@ def setup(languages=None, default_lang=None, preset=None):
         system = build_system_prompt(lang, custom_style)
         activity = ctx.ui.activity("Generating...")
 
-        result = ctx.llm.generate(
+        result = ctx.llm.chat(
             preset=preset,
             system=system,
             prompt=full_prompt

@@ -287,7 +287,7 @@ Infer the commit message style from the patterns above and generate a message th
         gen_step = ctx.ui.step("Generating Commit Message")
         ctx.ui.info("Style: {}".format(style))
         activity = ctx.ui.activity("Writing...")
-        commit_message = ctx.llm.generate(preset=preset_arg, system=_SYSTEM_PROMPT, prompt=prompt)
+        commit_message = ctx.llm.chat(preset=preset_arg, system=_SYSTEM_PROMPT, prompt=prompt)
         activity.done()
         gen_step.done("Message ready")
 

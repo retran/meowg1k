@@ -53,6 +53,7 @@ type Writer interface {
 	Printf(format string, args ...any) error
 	PrintMarkdown(content string) error
 	StreamMarkdown(content string, done bool) error
+	IsTTY() bool
 	Flush() error
 }
 

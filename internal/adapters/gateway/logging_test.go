@@ -49,6 +49,14 @@ func (m *mockLoggingGenerationGateway) GenerateContent(ctx context.Context, requ
 	}, nil
 }
 
+func (m *mockLoggingGenerationGateway) GenerateContentStream(ctx context.Context, request *gateway.GenerateContentRequest, callback gateway.StreamCallback) (*gateway.GenerateContentResponse, error) {
+	resp, err := m.GenerateContent(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // mockLoggingEmbeddingsGateway implements ports.EmbeddingsGateway for testing.
 type mockLoggingEmbeddingsGateway struct {
 	err        error

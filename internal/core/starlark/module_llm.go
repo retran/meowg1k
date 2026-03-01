@@ -5,7 +5,10 @@ package starlark
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -14,7 +17,6 @@ import (
 
 	gatewayimpl "github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/core/model"
-	"github.com/retran/meowg1k/internal/core/preset"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainpreset "github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/session"
@@ -23,7 +25,7 @@ import (
 
 // LLMServices holds references to LLM-related services.
 type LLMServices struct {
-	PresetService     *preset.Service
+	PresetService     ports.PresetResolver
 	ModelService      *model.Service
 	GatewayFactory    ports.GenerationGatewayFactory
 	EmbeddingsFactory *gatewayimpl.Factory
@@ -48,30 +50,172 @@ func (r *Runtime) createLLMModule(currentSession *session.Session) starlark.Valu
 		currentSession: currentSession,
 	}
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
-		"generate": starlark.NewBuiltin("generate", module.llmGenerate),
-		"embed":    starlark.NewBuiltin("embed", module.llmEmbed),
-		"agentic":  starlark.NewBuiltin("agentic", module.llmAgentic),
+		"chat":       starlark.NewBuiltin("chat", module.llmChat),
+		"agent_turn": starlark.NewBuiltin("agent_turn", module.llmAgentTurn),
+		"embed":      starlark.NewBuiltin("embed", module.llmEmbed),
 	})
 }
 
-// llmGenerate implements llm.generate().
-func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// loadSessionHistory loads all non-obsolete events for the current session and converts
+// them to gateway.Message for use as conversation history.
+func (m *LLMModule) loadSessionHistory(ctx context.Context) ([]gateway.Message, error) {
+	if m.runtime.sessionService == nil || m.currentSession == nil {
+		return nil, nil
+	}
+
+	events, err := m.runtime.sessionService.GetAllEvents(ctx, m.currentSession.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load session history: %w", err)
+	}
+
+	messages := make([]gateway.Message, 0, len(events))
+	for _, e := range events {
+		switch e.Type {
+		case session.EventTypeUserMessage:
+			messages = append(messages, gateway.Message{
+				Role:    gateway.MessageRoleUser,
+				Content: e.Content,
+			})
+		case session.EventTypeAssistantMessage:
+			// Convert session tool calls to gateway tool calls
+			var gatewayToolCalls []gateway.ToolCall
+			for _, tc := range e.ToolCalls {
+				gatewayToolCalls = append(gatewayToolCalls, gateway.ToolCall{
+					ID:        tc.ID,
+					Name:      tc.Name,
+					Arguments: tc.Params,
+				})
+			}
+			messages = append(messages, gateway.Message{
+				Role:      gateway.MessageRoleAssistant,
+				Content:   e.Content,
+				ToolCalls: gatewayToolCalls,
+			})
+		case session.EventTypeToolResult:
+			toolCallID := ""
+			if e.ToolCallID != nil {
+				toolCallID = *e.ToolCallID
+			}
+			messages = append(messages, gateway.Message{
+				Role:       gateway.MessageRoleTool,
+				Content:    e.Content,
+				ToolCallID: toolCallID,
+			})
+		case session.EventTypeSystem:
+			// System events are not replayed as messages
+		}
+	}
+
+	return messages, nil
+}
+
+// streamEventToStarlark converts a gateway.StreamEvent to a Starlark dict.
+func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict {
+	d := starlark.NewDict(4)
+
+	var kindStr string
+	switch event.Kind {
+	case gateway.StreamEventText:
+		kindStr = "text"
+	case gateway.StreamEventThinking:
+		kindStr = "thinking"
+	case gateway.StreamEventUsage:
+		kindStr = "usage"
+	case gateway.StreamEventDone:
+		kindStr = "done"
+	case gateway.StreamEventError:
+		kindStr = "error"
+	case gateway.StreamEventToolCallStart:
+		kindStr = "tool_call_start"
+	case gateway.StreamEventToolCallEnd:
+		kindStr = "tool_call_end"
+	case gateway.StreamEventToolCallError:
+		kindStr = "tool_call_error"
+	default:
+		kindStr = "unknown"
+	}
+
+	d.SetKey(starlark.String("kind"), starlark.String(kindStr)) //nolint:errcheck
+
+	switch event.Kind {
+	case gateway.StreamEventText, gateway.StreamEventThinking:
+		d.SetKey(starlark.String("delta"), starlark.String(event.Delta)) //nolint:errcheck
+	case gateway.StreamEventUsage, gateway.StreamEventDone:
+		if event.Usage != nil {
+			usageDict := starlark.NewDict(3)
+			usageDict.SetKey(starlark.String("prompt"), starlark.MakeInt(event.Usage.PromptTokens))         //nolint:errcheck
+			usageDict.SetKey(starlark.String("completion"), starlark.MakeInt(event.Usage.CompletionTokens)) //nolint:errcheck
+			usageDict.SetKey(starlark.String("total"), starlark.MakeInt(event.Usage.TotalTokens))           //nolint:errcheck
+			d.SetKey(starlark.String("usage"), usageDict)                                                   //nolint:errcheck
+		}
+	case gateway.StreamEventError:
+		d.SetKey(starlark.String("error"), starlark.String(event.Error))           //nolint:errcheck
+		d.SetKey(starlark.String("recoverable"), starlark.Bool(event.Recoverable)) //nolint:errcheck
+	case gateway.StreamEventToolCallStart, gateway.StreamEventToolCallEnd, gateway.StreamEventToolCallError:
+		d.SetKey(starlark.String("tool_name"), starlark.String(event.ToolName)) //nolint:errcheck
+		d.SetKey(starlark.String("tool_id"), starlark.String(event.ToolID))     //nolint:errcheck
+		if event.Arguments != nil {
+			argsDict := starlark.NewDict(len(event.Arguments))
+			for k, v := range event.Arguments {
+				argsDict.SetKey(starlark.String(k), goToStarlark(v)) //nolint:errcheck
+			}
+			d.SetKey(starlark.String("arguments"), argsDict) //nolint:errcheck
+		}
+		if event.Kind != gateway.StreamEventToolCallStart {
+			d.SetKey(starlark.String("duration_ms"), starlark.MakeInt64(event.DurationMS)) //nolint:errcheck
+		}
+		if event.Kind == gateway.StreamEventToolCallError {
+			d.SetKey(starlark.String("error"), starlark.String(event.Error)) //nolint:errcheck
+		}
+	}
+
+	return d
+}
+
+// responseToStarlark converts the final response text to a Starlark value.
+// If responseFormat is "json_object", parses the text as JSON and returns a dict.
+func responseToStarlark(text, responseFormat string) (starlark.Value, error) {
+	if responseFormat == "json_object" {
+		var raw interface{}
+		if err := json.Unmarshal([]byte(text), &raw); err != nil {
+			return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+		}
+		return goToStarlark(raw), nil
+	}
+	return starlark.String(text), nil
+}
+
+// llmChat implements ctx.llm.chat().
+//
+//	chat(prompt, preset, system=None, use_session=True, stream=False,
+//	     on_event=None, response_format=None, response_schema=None) → str | dict
+func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		prompt         string
-		system         string = ""
-		presetName     string = "smart"
-		responseFormat string = ""
+		presetName     string
+		system         string
+		useSession     bool = true
+		stream         bool = false
+		onEventFn      starlark.Callable
+		responseFormat string
 		responseSchema *starlark.Dict
 	)
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
 		"prompt", &prompt,
+		"preset", &presetName,
 		"system?", &system,
-		"preset?", &presetName,
+		"use_session?", &useSession,
+		"stream?", &stream,
+		"on_event?", &onEventFn,
 		"response_format?", &responseFormat,
 		"response_schema?", &responseSchema,
 	); err != nil {
 		return nil, err
+	}
+
+	if presetName == "" {
+		return nil, fmt.Errorf("chat: preset must be explicitly provided")
 	}
 
 	if m.runtime.llmServices == nil {
@@ -80,24 +224,11 @@ func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, ar
 
 	ctx := context.Background()
 
-	// Track start time for performance metrics
-	startTime := time.Now()
-
-	// Track system and user messages in session (if session exists)
-	if m.runtime.sessionService != nil && m.currentSession != nil {
-		if system != "" {
-			_ = m.runtime.sessionService.AddSystemMessage(ctx, m.currentSession.ID, system)
-		}
-		_ = m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt)
-	}
-
 	// Resolve preset
 	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve preset %s: %w", presetName, err)
 	}
-
-	// Note: preset already contains resolved model info, no need to resolve again
 
 	// Create gateway
 	llmGateway, err := m.runtime.llmServices.GatewayFactory.NewGenerationGateway(ctx, presetObj)
@@ -105,15 +236,29 @@ func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, ar
 		return nil, fmt.Errorf("failed to create LLM gateway for preset '%s': %w", presetName, err)
 	}
 
-	// Generate
+	// Build conversation history if use_session=True
+	var history []gateway.Message
+	if useSession {
+		history, err = m.loadSessionHistory(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Build request
 	request := gateway.NewGenerateContentRequest(
-		presetObj.Model, // Use actual model ID (e.g., "gemini-3-pro-preview"), not registered name
+		presetObj.Model,
 		system,
 		prompt,
 		presetObj.MaxOutputTokens,
 	)
 
-	// Apply response format/schema if provided (overrides preset)
+	// Attach history (minus the current user prompt, which is in request already)
+	if len(history) > 0 {
+		request.WithMessages(history)
+	}
+
+	// Apply response format/schema
 	if responseFormat != "" {
 		request.WithResponseFormat(&responseFormat)
 	}
@@ -126,46 +271,355 @@ func (m *LLMModule) llmGenerate(thread *starlark.Thread, b *starlark.Builtin, ar
 		}
 	}
 
-	// Apply preset parameters (temperature, etc.) - but don't override response format/schema if already set
 	applyPresetParameters(request, presetObj)
 
-	response, err := llmGateway.GenerateContent(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("LLM generation failed with preset '%s': %w", presetName, err)
+	// Execute: streaming or non-streaming
+	var responseText string
+	var usage *gateway.UsageMetadata
+
+	startTime := time.Now()
+
+	if stream && onEventFn != nil {
+		resp, streamErr := llmGateway.GenerateContentStream(ctx, request, func(event gateway.StreamEvent) error {
+			eventDict := streamEventToStarlark(event)
+			_, callErr := starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil)
+			return callErr
+		})
+		if streamErr != nil {
+			return nil, fmt.Errorf("LLM streaming failed with preset '%s': %w", presetName, streamErr)
+		}
+		responseText = resp.Text()
+		usage = resp.Usage
+	} else if stream {
+		// stream=True but no on_event: still stream under the hood, discard events
+		resp, streamErr := llmGateway.GenerateContentStream(ctx, request, func(_ gateway.StreamEvent) error {
+			return nil
+		})
+		if streamErr != nil {
+			return nil, fmt.Errorf("LLM streaming failed with preset '%s': %w", presetName, streamErr)
+		}
+		responseText = resp.Text()
+		usage = resp.Usage
+	} else {
+		resp, genErr := llmGateway.GenerateContent(ctx, request)
+		if genErr != nil {
+			return nil, fmt.Errorf("LLM generation failed with preset '%s': %w", presetName, genErr)
+		}
+		responseText = resp.Text()
+		usage = resp.Usage
 	}
 
-	// Calculate duration
 	duration := time.Since(startTime)
 
-	// Track assistant message in session (if session exists)
-	if m.runtime.sessionService != nil && m.currentSession != nil {
-		_ = m.runtime.sessionService.AddAssistantMessage(ctx, m.currentSession.ID, response.Text(), nil)
+	// Persist user message and assistant response in session (only after successful response)
+	if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+		if err := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); err != nil {
+			log.Printf("session: failed to write user message: %v", err)
+		}
+		if err := m.runtime.sessionService.AddAssistantMessage(ctx, m.currentSession.ID, responseText, nil); err != nil {
+			log.Printf("session: failed to write assistant message: %v", err)
+		}
 
-		// Store timing and token usage as metadata
-		_ = m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
-			fmt.Sprintf("llm_duration_ms_%d", time.Now().Unix()),
-			fmt.Sprintf("%d", duration.Milliseconds()))
+		ts := time.Now().UnixNano()
+		if err := m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
+			fmt.Sprintf("llm_duration_ms_%d", ts),
+			fmt.Sprintf("%d", duration.Milliseconds())); err != nil {
+			log.Printf("session: failed to write duration metadata: %v", err)
+		}
 
-		if response.Usage != nil {
-			_ = m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
-				fmt.Sprintf("llm_tokens_%d", time.Now().Unix()),
+		if usage != nil {
+			if err := m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
+				fmt.Sprintf("llm_tokens_%d", ts),
 				fmt.Sprintf("prompt=%d,completion=%d,total=%d",
-					response.Usage.PromptTokens,
-					response.Usage.CompletionTokens,
-					response.Usage.TotalTokens))
+					usage.PromptTokens,
+					usage.CompletionTokens,
+					usage.TotalTokens)); err != nil {
+				log.Printf("session: failed to write token metadata: %v", err)
+			}
 		}
 	}
 
-	return starlark.String(response.Text()), nil
+	return responseToStarlark(responseText, responseFormat)
+}
+
+// llmAgentTurn implements ctx.llm.agent_turn().
+//
+//	agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False,
+//	           on_event=None, max_iterations=50, on_tool_error="return",
+//	           response_format=None, response_schema=None) → str | dict
+func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var (
+		prompt         string
+		presetName     string
+		toolsList      *starlark.List
+		system         string
+		useSession     bool = true
+		stream         bool = false
+		onEventFn      starlark.Callable
+		maxIterations  int    = 50
+		onToolError    string = "return"
+		responseFormat string
+		responseSchema *starlark.Dict
+	)
+
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"prompt", &prompt,
+		"preset", &presetName,
+		"tools", &toolsList,
+		"system?", &system,
+		"use_session?", &useSession,
+		"stream?", &stream,
+		"on_event?", &onEventFn,
+		"max_iterations?", &maxIterations,
+		"on_tool_error?", &onToolError,
+		"response_format?", &responseFormat,
+		"response_schema?", &responseSchema,
+	); err != nil {
+		return nil, err
+	}
+
+	if presetName == "" {
+		return nil, fmt.Errorf("agent_turn: preset must be explicitly provided")
+	}
+
+	// Validate on_tool_error
+	if onToolError != "return" && onToolError != "abort" {
+		return nil, fmt.Errorf("on_tool_error must be 'return' or 'abort', got '%s'", onToolError)
+	}
+
+	if m.runtime.llmServices == nil {
+		return nil, fmt.Errorf("llm services not configured")
+	}
+
+	ctx := context.Background()
+
+	// Build tool definitions
+	toolDefinitions := make([]gateway.ToolDefinition, 0, toolsList.Len())
+	toolsByName := make(map[string]*Tool)
+	for i := 0; i < toolsList.Len(); i++ {
+		toolValue, ok := toolsList.Index(i).(*ToolValue)
+		if !ok {
+			return nil, fmt.Errorf("tools[%d] is not a tool object", i)
+		}
+		tool := toolValue.Tool
+		toolsByName[tool.Name] = tool
+		schema := tool.GenerateToolSchema()
+		toolDefinitions = append(toolDefinitions, gateway.ToolDefinition{
+			Name:        schema.Name,
+			Description: schema.Description,
+			Parameters:  schema.Parameters,
+		})
+	}
+
+	// Resolve preset
+	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve preset %s: %w", presetName, err)
+	}
+
+	// Create gateway
+	llmGateway, err := m.runtime.llmServices.GatewayFactory.NewGenerationGateway(ctx, presetObj)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LLM gateway for preset '%s': %w", presetName, err)
+	}
+
+	// Load session history if use_session=True
+	var history []gateway.Message
+	if useSession {
+		history, err = m.loadSessionHistory(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Build the working messages slice: history + current user prompt
+	messages := make([]gateway.Message, 0, len(history)+1)
+	messages = append(messages, history...)
+	messages = append(messages, gateway.Message{
+		Role:    gateway.MessageRoleUser,
+		Content: prompt,
+	})
+
+	// makeCallback builds a StreamCallback that forwards events to on_event if provided.
+	makeCallback := func() gateway.StreamCallback {
+		if !stream || onEventFn == nil {
+			return func(_ gateway.StreamEvent) error { return nil }
+		}
+		return func(event gateway.StreamEvent) error {
+			eventDict := streamEventToStarlark(event)
+			_, callErr := starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil)
+			return callErr
+		}
+	}
+
+	// Agentic loop
+	var finalResponse string
+	userMessageWritten := false
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		// Build request
+		request := gateway.NewGenerateContentRequest(
+			presetObj.Model,
+			system,
+			"", // Prompt is in messages
+			presetObj.MaxOutputTokens,
+		)
+		request.WithMessages(messages).WithTools(toolDefinitions)
+
+		if responseFormat != "" {
+			request.WithResponseFormat(&responseFormat)
+		}
+		if responseSchema != nil {
+			schema := starlarkToGo(responseSchema)
+			if schemaMap, ok := schema.(map[string]interface{}); ok {
+				request.WithResponseSchema(schemaMap)
+			} else {
+				return nil, fmt.Errorf("response_schema must be a dict")
+			}
+		}
+		applyPresetParameters(request, presetObj)
+
+		// Call LLM
+		startTime := time.Now()
+		var resp *gateway.GenerateContentResponse
+		var callErr error
+
+		if stream {
+			resp, callErr = llmGateway.GenerateContentStream(ctx, request, makeCallback())
+		} else {
+			resp, callErr = llmGateway.GenerateContent(ctx, request)
+		}
+
+		if callErr != nil {
+			if errors.Is(callErr, gateway.ErrToolCallingNotSupported) {
+				return nil, fmt.Errorf("agent_turn requires tool calling support, but gateway does not support it")
+			}
+			return nil, fmt.Errorf("LLM generation failed: %w", callErr)
+		}
+
+		duration := time.Since(startTime)
+		toolCalls := resp.ToolCalls()
+		responseText := resp.Text()
+
+		// Persist messages in session (user message written once, after first successful LLM call)
+		if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+			if !userMessageWritten {
+				if wErr := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); wErr != nil {
+					log.Printf("session: failed to write user message: %v", wErr)
+				}
+				userMessageWritten = true
+			}
+
+			sessionToolCalls := make([]session.ToolCall, 0, len(toolCalls))
+			for _, tc := range toolCalls {
+				sessionToolCalls = append(sessionToolCalls, session.ToolCall{
+					ID:     tc.ID,
+					Name:   tc.Name,
+					Params: tc.Arguments,
+				})
+			}
+			if wErr := m.runtime.sessionService.AddAssistantMessage(ctx, m.currentSession.ID, responseText, sessionToolCalls); wErr != nil {
+				log.Printf("session: failed to write assistant message: %v", wErr)
+			}
+
+			ts := fmt.Sprintf("%d_%d", iteration, time.Now().UnixNano())
+			if wErr := m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
+				fmt.Sprintf("llm_duration_ms_%s", ts),
+				fmt.Sprintf("%d", duration.Milliseconds())); wErr != nil {
+				log.Printf("session: failed to write duration metadata: %v", wErr)
+			}
+
+			if resp.Usage != nil {
+				if wErr := m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
+					fmt.Sprintf("llm_tokens_%s", ts),
+					fmt.Sprintf("prompt=%d,completion=%d,total=%d",
+						resp.Usage.PromptTokens,
+						resp.Usage.CompletionTokens,
+						resp.Usage.TotalTokens)); wErr != nil {
+					log.Printf("session: failed to write token metadata: %v", wErr)
+				}
+			}
+		}
+
+		// No tool calls means we're done
+		if len(toolCalls) == 0 {
+			finalResponse = responseText
+			break
+		}
+
+		// Add assistant turn with tool calls to working messages
+		messages = append(messages, gateway.Message{
+			Role:      gateway.MessageRoleAssistant,
+			Content:   responseText,
+			ToolCalls: toolCalls,
+		})
+
+		// Execute each tool call
+		for _, toolCall := range toolCalls {
+			tool, exists := toolsByName[toolCall.Name]
+			if !exists {
+				errorMsg := fmt.Sprintf("Tool '%s' not found", toolCall.Name)
+				if onToolError == "abort" {
+					return nil, fmt.Errorf("tool '%s' not found", toolCall.Name)
+				}
+				if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+					if wErr := m.runtime.sessionService.AddToolResult(ctx, m.currentSession.ID, toolCall.ID, errorMsg); wErr != nil {
+						log.Printf("session: failed to write tool result: %v", wErr)
+					}
+				}
+				messages = append(messages, gateway.Message{
+					Role:       gateway.MessageRoleTool,
+					Content:    errorMsg,
+					ToolCallID: toolCall.ID,
+					ToolName:   toolCall.Name,
+				})
+				continue
+			}
+
+			result, toolErr := m.executeToolForAgentic(thread, tool, toolCall.Arguments)
+
+			var resultContent string
+			if toolErr != nil {
+				resultContent = fmt.Sprintf("Error: %s", toolErr.Error())
+				if onToolError == "abort" {
+					return nil, fmt.Errorf("tool '%s' failed: %w", toolCall.Name, toolErr)
+				}
+			} else {
+				resultContent = result.String()
+			}
+
+			if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+				if wErr := m.runtime.sessionService.AddToolResult(ctx, m.currentSession.ID, toolCall.ID, resultContent); wErr != nil {
+					log.Printf("session: failed to write tool result: %v", wErr)
+				}
+			}
+
+			messages = append(messages, gateway.Message{
+				Role:       gateway.MessageRoleTool,
+				Content:    resultContent,
+				ToolCallID: toolCall.ID,
+				ToolName:   toolCall.Name,
+			})
+		}
+	}
+
+	if finalResponse == "" {
+		return nil, fmt.Errorf("agent_turn: maximum iterations (%d) reached without final response", maxIterations)
+	}
+
+	return responseToStarlark(finalResponse, responseFormat)
 }
 
 // llmEmbed implements llm.embed().
 func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var texts *starlark.List
-	var presetName string = "embeddings"
+	var presetName string
 
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "texts", &texts, "preset?", &presetName); err != nil {
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "texts", &texts, "preset", &presetName); err != nil {
 		return nil, err
+	}
+
+	if presetName == "" {
+		return nil, fmt.Errorf("embed: preset must be explicitly provided")
 	}
 
 	if m.runtime.llmServices == nil {
@@ -205,9 +659,7 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 	// If single batch exceeds rate limit capacity, recursively split it
 	if err != nil && len(textSlice) > 1 {
 		errMsg := err.Error()
-		// Check if error is about exceeding capacity (not just temporarily exhausted)
 		if strings.Contains(errMsg, "exceeds rate limit capacity") {
-			// Recursively split batch until each piece fits within capacity
 			return m.splitAndComputeEmbeddings(ctx, embGateway, presetObj.Model, textSlice)
 		}
 	}
@@ -313,243 +765,6 @@ func applyPresetParameters(request *gateway.GenerateContentRequest, preset *doma
 	}
 }
 
-// llmAgentic implements llm.agentic() - an agentic loop with native tool calling.
-func (m *LLMModule) llmAgentic(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var (
-		toolsList      *starlark.List
-		prompt         string
-		system         string = ""
-		presetName     string = "smart"
-		onToolError    string = "return"
-		maxIterations  int    = 50
-		responseFormat string = ""
-		responseSchema *starlark.Dict
-	)
-
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
-		"tools", &toolsList,
-		"prompt", &prompt,
-		"system?", &system,
-		"preset?", &presetName,
-		"on_tool_error?", &onToolError,
-		"max_iterations?", &maxIterations,
-		"response_format?", &responseFormat,
-		"response_schema?", &responseSchema,
-	); err != nil {
-		return nil, err
-	}
-
-	// Validate on_tool_error
-	if onToolError != "return" && onToolError != "retry" && onToolError != "abort" {
-		return nil, fmt.Errorf("on_tool_error must be 'return', 'retry', or 'abort', got '%s'", onToolError)
-	}
-
-	if m.runtime.llmServices == nil {
-		return nil, fmt.Errorf("llm services not configured")
-	}
-
-	ctx := context.Background()
-
-	// Convert Starlark tools list to gateway.ToolDefinition
-	toolDefinitions := make([]gateway.ToolDefinition, 0, toolsList.Len())
-	toolsByName := make(map[string]*Tool)
-
-	for i := 0; i < toolsList.Len(); i++ {
-		toolValue, ok := toolsList.Index(i).(*ToolValue)
-		if !ok {
-			return nil, fmt.Errorf("tools[%d] is not a tool object", i)
-		}
-
-		tool := toolValue.Tool
-		toolsByName[tool.Name] = tool
-
-		// Generate tool schema using existing method
-		schema := tool.GenerateToolSchema()
-
-		// Convert to gateway.ToolDefinition
-		toolDef := gateway.ToolDefinition{
-			Name:        schema.Name,
-			Description: schema.Description,
-			Parameters:  schema.Parameters,
-		}
-		toolDefinitions = append(toolDefinitions, toolDef)
-	}
-
-	// Resolve preset
-	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve preset %s: %w", presetName, err)
-	}
-
-	// Create gateway
-	llmGateway, err := m.runtime.llmServices.GatewayFactory.NewGenerationGateway(ctx, presetObj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create LLM gateway for preset '%s': %w", presetName, err)
-	}
-
-	// Track initial system and user messages
-	if m.runtime.sessionService != nil && m.currentSession != nil {
-		if system != "" {
-			_ = m.runtime.sessionService.AddSystemMessage(ctx, m.currentSession.ID, system)
-		}
-		_ = m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt)
-	}
-
-	// Build messages array for multi-turn conversation
-	messages := []gateway.Message{
-		{Role: gateway.MessageRoleUser, Content: prompt},
-	}
-
-	// Agentic loop
-	var finalResponse string
-	for iteration := 0; iteration < maxIterations; iteration++ {
-		// Create request with tools
-		request := gateway.NewGenerateContentRequest(
-			presetObj.Model,
-			system,
-			"", // Empty user prompt since we use messages
-			presetObj.MaxOutputTokens,
-		)
-		request.WithMessages(messages).WithTools(toolDefinitions)
-
-		// Apply response format/schema if provided (overrides preset)
-		if responseFormat != "" {
-			request.WithResponseFormat(&responseFormat)
-		}
-		if responseSchema != nil {
-			schema := starlarkToGo(responseSchema)
-			if schemaMap, ok := schema.(map[string]interface{}); ok {
-				request.WithResponseSchema(schemaMap)
-			} else {
-				return nil, fmt.Errorf("response_schema must be a dict")
-			}
-		}
-
-		// Apply preset parameters (temperature, response format, etc.)
-		applyPresetParameters(request, presetObj)
-
-		// Call LLM
-		startTime := time.Now()
-		response, err := llmGateway.GenerateContent(ctx, request)
-		if err != nil {
-			// Check if tool calling is not supported
-			if err == gateway.ErrToolCallingNotSupported {
-				return nil, fmt.Errorf("agentic loop requires tool calling support, but gateway does not support it")
-			}
-			return nil, fmt.Errorf("LLM generation failed: %w", err)
-		}
-		duration := time.Since(startTime)
-
-		// Extract tool calls from response
-		toolCalls := response.ToolCalls()
-		responseText := response.Text()
-
-		// Track assistant message with tool calls (if any)
-		if m.runtime.sessionService != nil && m.currentSession != nil {
-			// Convert gateway.ToolCall to session.ToolCall
-			sessionToolCalls := make([]session.ToolCall, 0, len(toolCalls))
-			for _, tc := range toolCalls {
-				sessionToolCalls = append(sessionToolCalls, session.ToolCall{
-					ID:     tc.ID,
-					Name:   tc.Name,
-					Params: tc.Arguments,
-				})
-			}
-
-			_ = m.runtime.sessionService.AddAssistantMessage(ctx, m.currentSession.ID, responseText, sessionToolCalls)
-
-			// Store timing and token usage
-			_ = m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
-				fmt.Sprintf("llm_duration_ms_%d", time.Now().Unix()),
-				fmt.Sprintf("%d", duration.Milliseconds()))
-
-			if response.Usage != nil {
-				_ = m.runtime.sessionService.SetMetadata(ctx, m.currentSession.ID,
-					fmt.Sprintf("llm_tokens_%d", time.Now().Unix()),
-					fmt.Sprintf("prompt=%d,completion=%d,total=%d",
-						response.Usage.PromptTokens,
-						response.Usage.CompletionTokens,
-						response.Usage.TotalTokens))
-			}
-		}
-
-		// If no tool calls, we're done
-		if len(toolCalls) == 0 {
-			finalResponse = responseText
-			break
-		}
-
-		// Add assistant message with tool calls to conversation
-		assistantMsg := gateway.Message{
-			Role:      gateway.MessageRoleAssistant,
-			Content:   responseText,
-			ToolCalls: toolCalls,
-		}
-		messages = append(messages, assistantMsg)
-
-		// Execute each tool call
-		for _, toolCall := range toolCalls {
-			tool, exists := toolsByName[toolCall.Name]
-			if !exists {
-				errorMsg := fmt.Sprintf("Tool '%s' not found", toolCall.Name)
-				if onToolError == "abort" {
-					return nil, fmt.Errorf("tool '%s' not found", toolCall.Name)
-				}
-				// Track error as tool result
-				if m.runtime.sessionService != nil && m.currentSession != nil {
-					_ = m.runtime.sessionService.AddToolResult(ctx, m.currentSession.ID, toolCall.ID, errorMsg)
-				}
-				// Add error to messages
-				messages = append(messages, gateway.Message{
-					Role:       gateway.MessageRoleTool,
-					Content:    errorMsg,
-					ToolCallID: toolCall.ID,
-					ToolName:   toolCall.Name,
-				})
-				continue
-			}
-
-			// Execute tool
-			result, toolErr := m.executeToolForAgentic(thread, tool, toolCall.Arguments)
-
-			var resultContent string
-			if toolErr != nil {
-				resultContent = fmt.Sprintf("Error: %s", toolErr.Error())
-				if onToolError == "abort" {
-					return nil, fmt.Errorf("tool '%s' failed: %w", toolCall.Name, toolErr)
-				}
-				// For "retry" mode, we'll just continue and let LLM try again
-				// For "return" mode, we return the error as tool result
-			} else {
-				// Convert result to string
-				resultContent = result.String()
-			}
-
-			// Track tool result
-			if m.runtime.sessionService != nil && m.currentSession != nil {
-				_ = m.runtime.sessionService.AddToolResult(ctx, m.currentSession.ID, toolCall.ID, resultContent)
-			}
-
-			// Add tool result to messages
-			messages = append(messages, gateway.Message{
-				Role:       gateway.MessageRoleTool,
-				Content:    resultContent,
-				ToolCallID: toolCall.ID,
-				ToolName:   toolCall.Name,
-			})
-		}
-
-		// Continue loop to let LLM process tool results
-	}
-
-	// If we exhausted iterations, return what we have
-	if finalResponse == "" {
-		finalResponse = "Maximum iterations reached without final response"
-	}
-
-	return starlark.String(finalResponse), nil
-}
-
 // executeToolForAgentic executes a tool with given parameters in the agentic loop context.
 func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, params map[string]any) (starlark.Value, error) {
 	// Convert params map to Starlark values
@@ -585,7 +800,6 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 	}
 
 	// Create context for tool execution
-	// Note: We create a minimal context since tools called by LLM shouldn't have full CLI context
 	flagsMembers := make(starlark.StringDict)
 	for k, v := range paramsMembers {
 		flagsMembers[k] = v
@@ -643,7 +857,6 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 	}
 
 	if len(texts) == 1 {
-		// Can't split further - this single text exceeds capacity
 		return nil, fmt.Errorf("single text exceeds rate limit capacity - text is too large to embed")
 	}
 
@@ -654,7 +867,6 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 	firstReq := gateway.NewComputeEmbeddingsRequest(model, texts[:mid], gateway.RetrievalDocument)
 	firstEmbs, err := embGateway.ComputeEmbeddings(ctx, firstReq)
 	if err != nil {
-		// If first half still exceeds capacity, recursively split it
 		if strings.Contains(err.Error(), "exceeds rate limit capacity") {
 			return m.splitAndComputeEmbeddings(ctx, embGateway, model, texts[:mid])
 		}
@@ -665,7 +877,6 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 	secondReq := gateway.NewComputeEmbeddingsRequest(model, texts[mid:], gateway.RetrievalDocument)
 	secondEmbs, err := embGateway.ComputeEmbeddings(ctx, secondReq)
 	if err != nil {
-		// If second half still exceeds capacity, recursively split it
 		if strings.Contains(err.Error(), "exceeds rate limit capacity") {
 			return m.splitAndComputeEmbeddings(ctx, embGateway, model, texts[mid:])
 		}

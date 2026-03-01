@@ -43,7 +43,7 @@ def _summarize_file_changes(ctx, file_path, diff_content, preset=""):
         file_path=file_path,
         diff_content=_smart_truncate(diff_content, _MAX_FILE_DIFF_CHARS)
     )
-    return ctx.llm.generate(preset=preset, prompt=prompt)
+    return ctx.llm.chat(preset=preset, prompt=prompt)
 
 def _should_use_map_reduce(file_count, total_chars):
     """Decide whether to use map-reduce based on size metrics."""

@@ -111,7 +111,7 @@ Use the available tools to gather context as needed."""
     # Execute agentic review
     tools = [file_reader, code_search, list_directory, search_text, git_status]
     
-    result = ctx.llm.agentic(
+    result = ctx.llm.agent_turn(
         tools=tools,
         prompt=user_prompt,
         system=system_prompt,

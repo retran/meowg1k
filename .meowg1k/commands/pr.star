@@ -266,7 +266,7 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
         ctx.ui.info("Style: {}".format(style))
         activity = ctx.ui.activity("Writing...")
 
-        pr_description = ctx.llm.generate(
+        pr_description = ctx.llm.chat(
             preset=preset_arg,
             system=_SYSTEM_PROMPT,
             prompt=prompt

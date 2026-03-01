@@ -79,7 +79,7 @@ Return a JSON structure with:
   "estimated_complexity": "low|medium|high"
 }"""
     
-    decomposition = ctx.llm.generate(
+    decomposition = ctx.llm.chat(
         prompt=decomposition_prompt,
         system="You are a task planning expert. Break down tasks into clear, executable steps.",
         preset="smart"
@@ -182,7 +182,7 @@ After completing all steps, provide a comprehensive final report."""
     ]
     
     # Execute with agentic loop
-    result = ctx.llm.agentic(
+    result = ctx.llm.agent_turn(
         tools=all_tools,
         prompt=user_prompt,
         system=system_prompt,

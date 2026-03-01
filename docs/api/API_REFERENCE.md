@@ -265,7 +265,7 @@ result = ctx.fs.read("missing.txt")
 result = ctx.git.commit("message")
 # Error: "git commit failed: nothing to commit, working tree clean"
 
-result = ctx.llm.generate("prompt", preset="invalid")
+result = ctx.llm.chat(prompt="prompt", preset="invalid")
 # Error: "failed to resolve preset 'invalid': preset not found"
 ```
 
@@ -567,44 +567,119 @@ else:
 
 ### llm (Language Models)
 
-**`llm.generate(prompt, system="", preset="smart")`** -> `string`
-Generate text using a configured preset.
-- `prompt`: The user prompt.
-- `system`: System instruction (optional).
-- `preset`: Name of the preset to use (default: "smart").
+> **v0.3.0 Breaking Change**: `llm.generate()` and `llm.agentic()` have been removed.
+> Use `llm.chat()` and `llm.agent_turn()` respectively.
 
-**`llm.agentic(tools, prompt, system="", preset="smart", on_tool_error="return", max_iterations=50)`** -> `string`
-Run an agentic loop with native tool calling support. The LLM can autonomously call tools, receive results, and continue processing until it provides a final answer.
+**`llm.chat(prompt, preset, system=None, use_session=True, stream=False, on_event=None, response_format=None, response_schema=None)`** -> `string | dict`
 
-- `tools`: List of tool objects (created with `meow.tool()` or loaded from libraries like `//lib/tools.star`).
-- `prompt`: Initial user prompt.
+Generate a single LLM response. Returns a string by default, or a parsed dict when `response_format="json_object"`.
+
+- `prompt` (required): The user prompt.
+- `preset` (required): Name of the preset to use. No default — must be provided.
 - `system`: System instruction (optional).
-- `preset`: Name of the preset to use (default: "smart").
+- `use_session`: If `True` (default), previous messages from the current session are included in the context.
+- `stream`: If `True`, call `GenerateContentStream` on the gateway and emit events via `on_event`.
+- `on_event`: Callable invoked with each stream event dict (see Stream Events below). Required when `stream=True` to observe deltas; optional otherwise.
+- `response_format`: `"json_object"` to parse the response as JSON and return a dict.
+- `response_schema`: Reserved for structured output schemas (future use).
+
+**Example:**
+```python
+def handler(ctx):
+    # Non-streaming
+    result = ctx.llm.chat(
+        prompt="Explain Go interfaces",
+        preset="smart",
+        system="You are a Go expert.",
+    )
+    ctx.output.markdown(result)
+
+    # Streaming with markdown rendering
+    load("//lib/ui_helpers.star", "make_markdown_stream_handler")
+    result = ctx.llm.chat(
+        prompt="Write a detailed explanation",
+        preset="smart",
+        stream=True,
+        on_event=make_markdown_stream_handler(ctx),
+    )
+
+    # JSON output
+    data = ctx.llm.chat(
+        prompt="Extract name and age from: Alice is 30 years old",
+        preset="fast",
+        response_format="json_object",
+    )
+    ctx.ui.info("Name: " + data["name"])
+```
+
+---
+
+**`llm.agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False, on_event=None, max_iterations=50, on_tool_error="return", response_format=None, response_schema=None)`** -> `string | dict`
+
+Run one turn of an agentic loop with native tool calling support. The LLM can call tools, receive results, and continue processing until it provides a final text answer or `max_iterations` is reached.
+
+- `prompt` (required): The user prompt.
+- `preset` (required): Name of the preset to use. No default — must be provided.
+- `tools` (required): List of tool objects created with `meow.tool()`.
+- `system`: System instruction (optional).
+- `use_session`: If `True` (default), previous session messages are included.
+- `stream`: If `True`, stream events are emitted via `on_event`.
+- `on_event`: Callable for stream events (tool call progress, text deltas, etc.).
+- `max_iterations`: Maximum LLM→tool→LLM cycles before returning (default: 50).
 - `on_tool_error`: Error handling strategy:
-  - `"return"`: Return error as tool result, let LLM see it (default)
-  - `"retry"`: Continue loop, let LLM retry
-  - `"abort"`: Stop immediately on tool error
-- `max_iterations`: Maximum number of LLM→tool→LLM cycles (default: 50).
+  - `"return"` (default): Return error as tool result so the LLM can see it.
+  - `"abort"`: Stop immediately and return an error.
+- `response_format`: `"json_object"` to parse final response as JSON.
+- `response_schema`: Reserved for structured output schemas (future use).
 
 **Example:**
 ```python
 load("//lib/tools.star", "calculator", "file_reader")
+load("//lib/ui_helpers.star", "make_agentic_stream_handler")
 
 def handler(ctx):
-    result = ctx.llm.agentic(
-        tools=[calculator, file_reader],
+    result = ctx.llm.agent_turn(
         prompt="Read config.json and calculate the sum of all numeric values",
-        system="You are a helpful assistant with access to file and calculation tools",
         preset="smart",
-        max_iterations=10
+        tools=[calculator, file_reader],
+        system="You are a helpful assistant with access to file and calculation tools.",
+        max_iterations=10,
+        stream=True,
+        on_event=make_agentic_stream_handler(ctx),
     )
     ctx.output.writeline(result)
 ```
 
-**`llm.embed(texts, preset="embeddings")`** -> `list[list[float]]`
+---
+
+#### Stream Events
+
+When `stream=True`, the `on_event` callback receives dicts with the following shapes:
+
+| `kind`            | Additional fields                                                        |
+| ----------------- | ------------------------------------------------------------------------ |
+| `text`            | `delta` (str) — incremental text token                                   |
+| `thinking`        | `delta` (str) — reasoning token (Anthropic extended thinking, etc.)      |
+| `usage`           | `usage` dict: `{prompt, completion, total}`                              |
+| `done`            | `usage` dict (optional) — signals stream completion                      |
+| `error`           | `error` (str), `recoverable` (bool)                                      |
+| `tool_call_start` | `tool_name`, `tool_id`, `arguments` (dict)                               |
+| `tool_call_end`   | `tool_name`, `tool_id`, `duration_ms` (int), `arguments` (dict)         |
+| `tool_call_error` | `tool_name`, `tool_id`, `error` (str), `duration_ms` (int), `arguments` |
+
+Stream events are **ephemeral** — they are not stored in the session database. Only the final aggregated messages are persisted.
+
+Use `//lib/ui_helpers.star` for pre-built handlers:
+- `make_markdown_stream_handler(ctx)` — renders text deltas as markdown
+- `make_plain_stream_handler(ctx)` — writes text deltas as plain text
+- `make_agentic_stream_handler(ctx, abort_on_error, max_errors)` — full agent handler
+
+---
+
+**`llm.embed(texts, preset)`** -> `list[list[float]]`
 Generate embeddings for a list of texts.
-- `texts`: List of strings to embed.
-- `preset`: Name of the embeddings preset to use (default: "embeddings").
+- `texts` (required): List of strings to embed.
+- `preset` (required): Name of the embeddings preset. No default — must be provided.
 - Returns: List of embedding vectors (each a list of floats).
 
 ---
@@ -637,6 +712,12 @@ Get all metadata for the current session.
 **`session.get_children()`** -> `list[dict]`
 Get information about child sessions created by this session.
 Returns list of `{id, tool_name, status, created_at, updated_at}`.
+
+**`session.set_system(prompt)`** -> `None`
+Store a system prompt for the current session. This prompt is used by `ctx.llm.chat()` and `ctx.llm.agent_turn()` when no explicit `system` parameter is provided.
+
+**`session.get_system()`** -> `string`
+Retrieve the system prompt stored for the current session. Returns `""` if none has been set.
 
 **`session.get_events(limit=0, offset=0)`** -> `list[dict]`
 Get events (messages, tool calls, results) for this session.
@@ -1405,6 +1486,15 @@ Write text to stdout with newline.
 **`output.writef(format, *args)`**
 Formatted write (like `printf`).
 
+**`output.markdown(content)`**
+Render and write a complete markdown string to stdout.
+
+**`output.stream_markdown(delta, done=False)`**
+Incrementally render markdown deltas for streaming output. Call with each text delta as it arrives, and set `done=True` on the final call to flush the renderer.
+
+**`output.is_tty()`** -> `bool`
+Returns `True` if stdout is an interactive terminal (TTY), `False` when piped or redirected. Use to conditionally enable rich output, progress indicators, or colour.
+
 ---
 
 ## Complete Example
@@ -1424,7 +1514,7 @@ def review_handler(ctx):
     # 2. Analyze with LLM
     ctx.ui.info("Analyzing changes...")
     prompt = "Review these changes:\n" + diff.raw
-    review = ctx.llm.generate(prompt, preset="coding")
+    review = ctx.llm.chat(prompt=prompt, preset="coding")
 
     # 3. Output result
     ctx.ui.success("Review Complete:")
@@ -2637,7 +2727,17 @@ git.create_branch(name: string, should_checkout?: bool) -> GitCreateBranchResult
 
 #### llm module
 ```python
-llm.generate(prompt: string, system?: string, preset?: string) -> string
+llm.chat(prompt: string, preset: string, system?: string, use_session?: bool,
+         stream?: bool, on_event?: callable, response_format?: string,
+         response_schema?: any) -> string | dict
+
+llm.agent_turn(prompt: string, preset: string, tools: list,
+               system?: string, use_session?: bool, stream?: bool,
+               on_event?: callable, max_iterations?: int,
+               on_tool_error?: string, response_format?: string,
+               response_schema?: any) -> string | dict
+
+llm.embed(texts: list[string], preset: string) -> list[list[float]]
 ```
 
 #### shell module
@@ -2772,7 +2872,7 @@ def generate_commit():
 
 Just return the summary, nothing else."""
     
-    summary = ctx.llm.generate(prompt, preset="fast").strip()
+    summary = ctx.llm.chat(prompt=prompt, preset="fast").strip()
     
     # Generate detailed body
     body_prompt = f"""Analyze this diff and list the key changes as bullet points:
@@ -2784,7 +2884,7 @@ Format as:
 - Change 2
 etc."""
     
-    body = ctx.llm.generate(body_prompt, preset="fast").strip()
+    body = ctx.llm.chat(prompt=body_prompt, preset="fast").strip()
     
     # Compose message
     message = f"{commit_type}: {summary}\n\n{body}"
@@ -2838,7 +2938,7 @@ Generate a PR description with:
 3. ## Testing (how to test)
 """
     
-    description = ctx.llm.generate(prompt, preset="smart")
+    description = ctx.llm.chat(prompt=prompt, preset="smart")
     
     ctx.ui.markdown(description, title="PR Description")
     
@@ -2918,7 +3018,7 @@ New question: {question}
 
 Answer concisely, reference specific code when relevant."""
         
-        answer = ctx.llm.generate(prompt, preset="smart")
+        answer = ctx.llm.chat(prompt=prompt, preset="smart")
         
         ctx.ui.markdown(answer)
         conversation.append((question, answer))
@@ -2934,7 +3034,7 @@ def generate_with_fallback(prompt):
     for preset in presets:
         try:
             ctx.ui.info(f"Trying preset: {preset}")
-            result = ctx.llm.generate(prompt, preset=preset)
+            result = ctx.llm.chat(prompt=prompt, preset=preset)
             ctx.ui.success(f"Success with {preset}")
             return result
         except Exception as e:
@@ -3130,7 +3230,7 @@ def search_and_explain(query):
 
 Explain how '{query}' is implemented in this codebase."""
     
-    explanation = ctx.llm.generate(prompt, preset="smart")
+    explanation = ctx.llm.chat(prompt=prompt, preset="smart")
     ctx.ui.markdown(explanation, title="Explanation")
 ```
 

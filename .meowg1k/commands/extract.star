@@ -70,15 +70,15 @@ def extract_structured_data(ctx):
     # Generate structured output using LLM with response schema
     prompt = "Extract structured information from the following text:\n\n" + text
     
-    result = ctx.llm.generate(
+    result = ctx.llm.chat(
         preset="fast",
         prompt=prompt,
         response_format="json_object",
         response_schema=schema,
     )
     
-    # Parse the JSON response
-    data = ctx.json.parse(result)
+    # Result is already a dict when response_format="json_object"
+    data = result
     
     # Build formatted output
     output_lines = []

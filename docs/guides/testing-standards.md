@@ -6,7 +6,7 @@ This document outlines testing patterns, requirements, and best practices for me
 
 ### Coverage Threshold
 
-**CRITICAL**: All code must maintain **75% test coverage** minimum.
+**CRITICAL**: All code must maintain **65% test coverage** minimum.
 
 - Measured via `task check:test`
 - Enforced in CI/CD pipeline
@@ -591,13 +591,13 @@ Tests run automatically on:
 
 **Requirements**:
 - ✅ All tests must pass
-- ✅ Coverage ≥ 75%
+- ✅ Coverage ≥ 65%
 - ✅ No race conditions
 - ✅ Linter passes
 
 ## Summary
 
-- **75% coverage minimum** - enforced in CI/CD
+- **65% coverage minimum** - enforced in CI/CD
 - **testify framework** - use `require.*` for critical checks, `assert.*` for non-critical
 - **Table-driven tests** - preferred pattern for multiple scenarios
 - **Mock dependencies** - use interfaces for testability

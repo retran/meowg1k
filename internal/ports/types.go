@@ -35,6 +35,9 @@ type PresetResolver interface {
 // GenerationGateway defines the contract for a client that generates content using an LLM.
 type GenerationGateway interface {
 	GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error)
+	// GenerateContentStream calls callback for each streaming event and returns the aggregated response.
+	// Returning an error from callback aborts the stream.
+	GenerateContentStream(ctx context.Context, request *gateway.GenerateContentRequest, callback gateway.StreamCallback) (*gateway.GenerateContentResponse, error)
 }
 
 // EmbeddingsGateway defines the contract for a client that computes text embeddings
