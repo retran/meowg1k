@@ -439,19 +439,11 @@ func TestNoopOutputWriter(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("PrintMarkdown returns no error", func(t *testing.T) {
+	t.Run("StreamToken is a no-op", func(t *testing.T) {
 		writer := &noopOutputWriter{}
-		err := writer.PrintMarkdown("# Markdown\n**bold**")
-		assert.NoError(t, err)
-	})
-
-	t.Run("StreamMarkdown returns no error", func(t *testing.T) {
-		writer := &noopOutputWriter{}
-		err := writer.StreamMarkdown("streaming content", false)
-		assert.NoError(t, err)
-
-		err = writer.StreamMarkdown("final content", true)
-		assert.NoError(t, err)
+		// Should not panic
+		writer.StreamToken("delta", false)
+		writer.StreamToken("final", true)
 	})
 
 	t.Run("all methods can be called multiple times", func(t *testing.T) {
@@ -461,8 +453,7 @@ func TestNoopOutputWriter(t *testing.T) {
 			assert.NoError(t, writer.Print("test"))
 			assert.NoError(t, writer.PrintLine("test"))
 			assert.NoError(t, writer.Printf("test %d", i))
-			assert.NoError(t, writer.PrintMarkdown("test"))
-			assert.NoError(t, writer.StreamMarkdown("test", i%2 == 0))
+			writer.StreamToken("test", i%2 == 0)
 		}
 	})
 }
@@ -486,14 +477,4 @@ func (m *mockOutputWriter) Printf(format string, args ...any) error {
 	return nil
 }
 
-func (m *mockOutputWriter) PrintMarkdown(content string) error {
-	m.printed = append(m.printed, content)
-	return nil
-}
-
-func (m *mockOutputWriter) StreamMarkdown(content string, done bool) error {
-	m.printed = append(m.printed, content)
-	return nil
-}
-
-func (m *mockOutputWriter) IsTTY() bool { return false }
+func (m *mockOutputWriter) StreamToken(delta string, done bool) {}

@@ -38,17 +38,17 @@ Files changed:
 
 def setup():
     """Register the template-commit command."""
-    
+
     def handler(ctx):
         """Generate commit message using templates."""
-        
+
         # Get parameters
-        commit_type = ctx.params.type
-        scope = ctx.params.scope
-        description = ctx.params.desc
-        body = ctx.params.body or ""
-        breaking = ctx.params.breaking or ""
-        
+        commit_type = ctx.type
+        scope = ctx.scope
+        description = ctx.desc
+        body = ctx.body or ""
+        breaking = ctx.breaking or ""
+
         # Validate required fields
         if not commit_type:
             ctx.ui.error("Commit type is required (use --type)")
@@ -59,15 +59,15 @@ def setup():
         if not description:
             ctx.ui.error("Description is required (use --desc)")
             return
-        
+
         # Get list of changed files
         diff = ctx.git.diff(target="staged")
-        files_changed = [f.path for f in diff.files] if diff and diff.files else []
-        
+        files_changed = list(diff.files) if diff and diff.files else []
+
         # Parse template
         ctx.ui.info("Generating commit message from template...")
         tmpl = ctx.template.parse(_COMMIT_TEMPLATE, name="commit")
-        
+
         # Prepare template data
         data = {
             "Type": commit_type,
@@ -77,67 +77,35 @@ def setup():
             "Breaking": breaking,
             "FilesChanged": files_changed,
         }
-        
+
         # Render template
         message = tmpl.render(data)
-        
+
         # Display result
         ctx.ui.divider("thick")
         ctx.ui.success("Generated Commit Message:")
         ctx.ui.divider("thin")
         ctx.output.writeline(message)
         ctx.ui.divider("thick")
-        
+
         # Show metadata
         ctx.ui.info("Type: " + commit_type)
         ctx.ui.info("Scope: " + scope)
         ctx.ui.info("Files: " + str(len(files_changed)))
-        
+
         return message
-    
+
     tool = meow.tool(
         name="template-commit",
         handler=handler,
         description="Generate commit message using templates",
+        params={
+            "type": meow.param("string", desc="Commit type (feat, fix, docs, refactor, test, chore)", required=True, short="t"),
+            "scope": meow.param("string", desc="Component or module scope", required=True, short="s"),
+            "desc": meow.param("string", desc="Short description of changes", required=True, short="d"),
+            "body": meow.param("string", desc="Detailed explanation (optional)", default="", short="b"),
+            "breaking": meow.param("string", desc="Breaking change description (optional)", default=""),
+        },
     )
-    
-    tool.param(
-        name="type",
-        type="string",
-        description="Commit type (feat, fix, docs, refactor, test, chore)",
-        required=True,
-        short="t",
-    )
-    
-    tool.param(
-        name="scope",
-        type="string",
-        description="Component or module scope",
-        required=True,
-        short="s",
-    )
-    
-    tool.param(
-        name="desc",
-        type="string",
-        description="Short description of changes",
-        required=True,
-        short="d",
-    )
-    
-    tool.param(
-        name="body",
-        type="string",
-        description="Detailed explanation (optional)",
-        default="",
-        short="b",
-    )
-    
-    tool.param(
-        name="breaking",
-        type="string",
-        description="Breaking change description (optional)",
-        default="",
-    )
-    
+
     meow.command(tool)

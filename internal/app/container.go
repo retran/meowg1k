@@ -8,6 +8,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -51,10 +52,10 @@ type Writer interface {
 	Print(content string) error
 	PrintLine(content string) error
 	Printf(format string, args ...any) error
-	PrintMarkdown(content string) error
-	StreamMarkdown(content string, done bool) error
 	IsTTY() bool
 	Flush() error
+	LogWriter() io.Writer
+	StreamToken(delta string, done bool)
 }
 
 // Container is the main application struct that holds all cross-cutting adapters.

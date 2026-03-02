@@ -126,10 +126,11 @@ def extract_structured_data(ctx):
     # Add raw JSON
     output_lines.append("\n---\n**Raw JSON:**")
     output_lines.append("```json")
-    output_lines.append(ctx.json.stringify(data, indent=2))
+    output_lines.append(ctx.json.encode(data))
     output_lines.append("```")
     
     # Join and output
     output = "\n".join(output_lines)
-    ctx.output.markdown(output)
+    ctx.ui.markdown(output)
+    ctx.output.writeline(output)
     return output

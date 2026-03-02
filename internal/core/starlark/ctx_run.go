@@ -176,7 +176,7 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			"toml":      NewTOMLModule(),
 			"csv":       NewCSVModule(),
 			"env":       NewEnvModule(),
-			"ui":        NewIndentedUIModule(depth + 1), // Indent child output
+			"ui":        runtime.CreateUIModuleForCtx(depth + 1), // Indent child output
 			"path":      NewPathModule(),
 			"crypto":    NewCryptoModule(),
 			"time":      NewTimeModule(),

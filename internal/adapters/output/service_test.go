@@ -40,15 +40,19 @@ func TestNewServiceDefault(t *testing.T) {
 	}
 }
 
+// newTestService creates a non-TTY service backed by a buffer for unit tests.
+func newTestService(buf *bytes.Buffer) *Service {
+	return &Service{destination: buf, isTerminal: false}
+}
+
 func TestPrint(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	service.Print("hello")
-	service.Print(" world")
+	_ = service.Print("hello")
+	_ = service.Print(" world")
 
-	err := service.Flush()
-	if err != nil {
+	if err := service.Flush(); err != nil {
 		t.Errorf("Flush failed: %v", err)
 	}
 
@@ -59,31 +63,29 @@ func TestPrint(t *testing.T) {
 
 func TestPrintLine(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	service.PrintLine("hello")
-	service.PrintLine("world")
+	_ = service.PrintLine("hello")
+	_ = service.PrintLine("world")
 
-	err := service.Flush()
-	if err != nil {
+	if err := service.Flush(); err != nil {
 		t.Errorf("Flush failed: %v", err)
 	}
 
 	expected := "hello\nworld\n"
 	if buf.String() != expected {
-		t.Errorf("Expected '%s', got '%s'", expected, buf.String())
+		t.Errorf("Expected %q, got %q", expected, buf.String())
 	}
 }
 
 func TestPrintf(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	service.Printf("count: %d", 42)
-	service.Printf(" name: %s", "test")
+	_ = service.Printf("count: %d", 42)
+	_ = service.Printf(" name: %s", "test")
 
-	err := service.Flush()
-	if err != nil {
+	if err := service.Flush(); err != nil {
 		t.Errorf("Flush failed: %v", err)
 	}
 
@@ -92,52 +94,31 @@ func TestPrintf(t *testing.T) {
 	}
 }
 
-func TestPrintMarkdown(t *testing.T) {
+// TestStreamToken_NonTerminal verifies that StreamToken is a no-op on non-TTY
+// (isTerminal=false), so the buffer stays empty and no panic occurs.
+func TestStreamToken_NonTerminal(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	err := service.PrintMarkdown("# Title\n\nBody")
-	if err != nil {
-		t.Fatalf("PrintMarkdown failed: %v", err)
-	}
+	// Should be a no-op on non-TTY
+	service.StreamToken("Hello", false)
+	service.StreamToken(" world", true)
 
-	err = service.Flush()
-	if err != nil {
+	if err := service.Flush(); err != nil {
 		t.Fatalf("Flush failed: %v", err)
 	}
 
-	if buf.Len() == 0 {
-		t.Error("Expected rendered markdown output, got empty buffer")
-	}
-}
-
-func TestStreamMarkdown(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		isTerminal:  true, // Emulate terminal for this test
-	}
-
-	err := service.StreamMarkdown("Hello", false)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-	err = service.StreamMarkdown(" world", true)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	if buf.Len() == 0 {
-		t.Error("Expected streamed markdown output, got empty buffer")
+	// Non-TTY: StreamToken is a no-op, nothing written to buf
+	if buf.Len() != 0 {
+		t.Errorf("Expected empty buffer on non-TTY, got %q", buf.String())
 	}
 }
 
 func TestFlushEmpty(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	err := service.Flush()
-	if err != nil {
+	if err := service.Flush(); err != nil {
 		t.Errorf("Flush failed: %v", err)
 	}
 
@@ -148,17 +129,15 @@ func TestFlushEmpty(t *testing.T) {
 
 func TestFlushMultipleTimes(t *testing.T) {
 	var buf bytes.Buffer
-	service := &Service{destination: &buf}
+	service := newTestService(&buf)
 
-	service.Print("first")
-	err := service.Flush()
-	if err != nil {
+	_ = service.Print("first")
+	if err := service.Flush(); err != nil {
 		t.Errorf("First flush failed: %v", err)
 	}
 
-	service.Print("second")
-	err = service.Flush()
-	if err != nil {
+	_ = service.Print("second")
+	if err := service.Flush(); err != nil {
 		t.Errorf("Second flush failed: %v", err)
 	}
 
@@ -173,9 +152,8 @@ func TestPrint_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	if err.Error() != outputServiceNilMessage {
+		t.Errorf("expected %q, got %q", outputServiceNilMessage, err.Error())
 	}
 }
 
@@ -185,9 +163,8 @@ func TestPrintLine_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	if err.Error() != outputServiceNilMessage {
+		t.Errorf("expected %q, got %q", outputServiceNilMessage, err.Error())
 	}
 }
 
@@ -197,33 +174,8 @@ func TestPrintf_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
-	}
-}
-
-func TestPrintMarkdown_NilService(t *testing.T) {
-	var service *Service
-	err := service.PrintMarkdown("test")
-	if err == nil {
-		t.Fatal("expected error for nil service, got nil")
-	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
-	}
-}
-
-func TestStreamMarkdown_NilService(t *testing.T) {
-	var service *Service
-	err := service.StreamMarkdown("test", true)
-	if err == nil {
-		t.Fatal("expected error for nil service, got nil")
-	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	if err.Error() != outputServiceNilMessage {
+		t.Errorf("expected %q, got %q", outputServiceNilMessage, err.Error())
 	}
 }
 
@@ -233,14 +185,12 @@ func TestFlush_NilService(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nil service, got nil")
 	}
-	expectedMsg := outputServiceNilMessage
-	if err.Error() != expectedMsg {
-		t.Errorf("expected error message %q, got %q", expectedMsg, err.Error())
+	if err.Error() != outputServiceNilMessage {
+		t.Errorf("expected %q, got %q", outputServiceNilMessage, err.Error())
 	}
 }
 
-// Test NewServiceWithOptions
-
+// TestNewServiceWithOptions
 func TestNewServiceWithOptions(t *testing.T) {
 	t.Run("stdout with plain output", func(t *testing.T) {
 		service := NewServiceWithOptions(output.Stdout, true, false)
@@ -286,164 +236,5 @@ func TestNewServiceWithOptions(t *testing.T) {
 		if service == nil {
 			t.Fatal("Expected non-nil service")
 		}
-		// Should use io.Discard as destination
 	})
-}
-
-// Test PrintMarkdown with different modes
-
-func TestPrintMarkdown_PlainOutput(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		plainOutput: true,
-		isTerminal:  true,
-	}
-
-	content := "# Title\n\nBody"
-	err := service.PrintMarkdown(content)
-	if err != nil {
-		t.Fatalf("PrintMarkdown failed: %v", err)
-	}
-
-	err = service.Flush()
-	if err != nil {
-		t.Fatalf("Flush failed: %v", err)
-	}
-
-	// In plain mode, content should be passed through unrendered
-	if buf.String() != content {
-		t.Errorf("Expected plain content %q, got %q", content, buf.String())
-	}
-}
-
-func TestPrintMarkdown_NonTerminal(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		plainOutput: false,
-		isTerminal:  false,
-	}
-
-	content := "# Title\n\nBody"
-	err := service.PrintMarkdown(content)
-	if err != nil {
-		t.Fatalf("PrintMarkdown failed: %v", err)
-	}
-
-	err = service.Flush()
-	if err != nil {
-		t.Fatalf("Flush failed: %v", err)
-	}
-
-	// Non-terminal output should be plain
-	if buf.String() != content {
-		t.Errorf("Expected plain content %q, got %q", content, buf.String())
-	}
-}
-
-// Test StreamMarkdown with different modes
-
-func TestStreamMarkdown_PlainOutput(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		plainOutput: true,
-		isTerminal:  true,
-	}
-
-	err := service.StreamMarkdown("Hello", false)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	err = service.StreamMarkdown(" world", true)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	// In plain mode, content should be buffered and not written until done
-	// After done=true, it should be in buffer ready to flush
-	err = service.Flush()
-	if err != nil {
-		t.Fatalf("Flush failed: %v", err)
-	}
-
-	expected := "Hello world"
-	if buf.String() != expected {
-		t.Errorf("Expected %q, got %q", expected, buf.String())
-	}
-}
-
-func TestStreamMarkdown_NonTerminal(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		plainOutput: false,
-		isTerminal:  false,
-	}
-
-	err := service.StreamMarkdown("Hello", false)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	err = service.StreamMarkdown(" world", true)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	err = service.Flush()
-	if err != nil {
-		t.Fatalf("Flush failed: %v", err)
-	}
-
-	expected := "Hello world"
-	if buf.String() != expected {
-		t.Errorf("Expected %q, got %q", expected, buf.String())
-	}
-}
-
-// Test Flush with active live writer
-
-func TestFlush_WithActiveLiveWriter(t *testing.T) {
-	var buf bytes.Buffer
-	service := &Service{
-		destination: &buf,
-		isTerminal:  true,
-		liveActive:  false,
-	}
-
-	// Start streaming to activate live writer
-	err := service.StreamMarkdown("Hello", false)
-	if err != nil {
-		t.Fatalf("StreamMarkdown failed: %v", err)
-	}
-
-	// Verify live writer is active
-	if !service.liveActive {
-		t.Error("Expected liveActive to be true after StreamMarkdown")
-	}
-
-	// Add regular content to buffer
-	err = service.Print("buffered content")
-	if err != nil {
-		t.Fatalf("Print failed: %v", err)
-	}
-
-	// Flush should stop live writer and write buffered content
-	err = service.Flush()
-	if err != nil {
-		t.Fatalf("Flush failed: %v", err)
-	}
-
-	// Live writer should be stopped
-	if service.liveActive {
-		t.Error("Expected liveActive to be false after Flush")
-	}
-
-	// Buffer should contain the regular buffered content
-	if !bytes.Contains(buf.Bytes(), []byte("buffered content")) {
-		t.Error("Expected buffer to contain 'buffered content'")
-	}
 }

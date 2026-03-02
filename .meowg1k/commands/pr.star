@@ -77,6 +77,7 @@ DEPENDENCIES:
 
 load("//lib/diff.star", "build_analysis_prompt")
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 _SYSTEM_PROMPT = """You are an expert software engineer writing Pull Request descriptions.
 Goal: Write clear, comprehensive PR descriptions that explain the WHY and enable efficient code review.
@@ -264,20 +265,18 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
         # Final stage: Generate PR description
         gen_step = ctx.ui.step("Generating PR Description")
         ctx.ui.info("Style: {}".format(style))
-        activity = ctx.ui.activity("Writing...")
 
+        on_event = make_markdown_stream_handler(ctx)
+        gen_step.done("Description ready")
+        ctx.ui.divider("thick")
         pr_description = ctx.llm.chat(
             preset=preset_arg,
             system=_SYSTEM_PROMPT,
-            prompt=prompt
+            prompt=prompt,
+            stream=True,
+            on_event=on_event,
         )
-
-        activity.done()
-        gen_step.done("Description ready")
-
-        ctx.ui.divider("thick")
-        ctx.output.markdown(pr_description)
-
+        ctx.output.writeline(pr_description)
         return pr_description
 
     def handle_pr(ctx):

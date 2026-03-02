@@ -105,6 +105,7 @@ NOTES:
 # ==============================================================================
 
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 # ==============================================================================
 # Constants
@@ -309,7 +310,7 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         step.done()
 
         if format == "json":
-            ctx.output.writeline(ctx.json.stringify(results))
+            ctx.output.writeline(ctx.json.encode(results))
         else:
             for r in results:
                 ctx.output.writef("%s:%d-%d [%.2f]\n", r.file_path, r.start_line, r.end_line, r.score)
@@ -326,7 +327,7 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
                         "Lines": "{}-{}".format(r.start_line, r.end_line),
                         "Score": "{}%".format(int(r.score*100))
                     })
-                ctx.ui.table(table_data, title="Results for '{}'".format(query))
+                ctx.ui.table(table_data, columns=["File", "Lines", "Score"], title="Results for '{}'".format(query))
 
         return results
 
@@ -379,11 +380,6 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
 
         rag_step.done()
 
-        ans_step = ctx.ui.step("Generating Answer")
-        ctx.ui.info("{} snippets from {} files".format(len(results), len(seen_files)))
-
-        activity = ctx.ui.activity("Generating...")
-
         prompt = """Question: {}
 
 Retrieved Code Context:
@@ -393,17 +389,20 @@ Please provide a comprehensive answer based on the code context above. Reference
             question, context
         )
 
+        ans_step = ctx.ui.step("Generating Answer")
+        ctx.ui.info("{} snippets from {} files".format(len(results), len(seen_files)))
+
+        on_event = make_markdown_stream_handler(ctx)
+        ans_step.done()
+        ctx.ui.divider("thick")
         answer = ctx.llm.chat(
             preset=preset,
             system=_SYSTEM_PROMPT_ASK,
-            prompt=prompt
+            prompt=prompt,
+            stream=True,
+            on_event=on_event,
         )
-
-        activity.success("Complete")
-        ans_step.done()
-
-        ctx.ui.divider("thick")
-        ctx.output.markdown(answer)
+        ctx.output.writeline(answer)
 
         ctx.ui.divider()
         source_rows = []
@@ -413,7 +412,7 @@ Please provide a comprehensive answer based on the code context above. Reference
                 "Lines": "{}-{}".format(r.start_line, r.end_line),
                 "Relevance": "{}%".format(int(r.score*100))
             })
-        ctx.ui.table(source_rows, title="References")
+        ctx.ui.table(source_rows, columns=["File", "Lines", "Relevance"], title="References")
 
         return {"answer": answer, "sources": results}
 

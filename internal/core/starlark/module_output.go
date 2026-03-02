@@ -10,27 +10,26 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// OutputWriter interface for buffered output
+// OutputWriter is the interface for buffered plain-text output.
+// It is a simple write buffer; no markdown rendering or streaming preview.
+// StreamToken is used by the ui module (ui.stream) for live TUI preview.
 type OutputWriter interface {
 	Print(content string) error
 	PrintLine(content string) error
 	Printf(format string, args ...any) error
-	PrintMarkdown(content string) error
-	StreamMarkdown(content string, done bool) error
-	IsTTY() bool
+	// StreamToken forwards a token delta to the TUI StreamBlock on TTY.
+	// On non-TTY implementations this is a no-op.
+	StreamToken(delta string, done bool)
 }
 
-// NewOutputModule creates the output module for buffered writing
+// NewOutputModule creates the output module for buffered writing.
 func NewOutputModule(writer OutputWriter) *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "output",
 		Members: starlark.StringDict{
-			"write":           starlark.NewBuiltin("output.write", makeOutputWrite(writer)),
-			"writeline":       starlark.NewBuiltin("output.writeline", makeOutputWriteLine(writer)),
-			"writef":          starlark.NewBuiltin("output.writef", makeOutputWritef(writer)),
-			"markdown":        starlark.NewBuiltin("output.markdown", makeOutputMarkdown(writer)),
-			"stream_markdown": starlark.NewBuiltin("output.stream_markdown", makeOutputStreamMarkdown(writer)),
-			"is_tty":          starlark.NewBuiltin("output.is_tty", makeOutputIsTTY(writer)),
+			"write":     starlark.NewBuiltin("output.write", makeOutputWrite(writer)),
+			"writeline": starlark.NewBuiltin("output.writeline", makeOutputWriteLine(writer)),
+			"writef":    starlark.NewBuiltin("output.writef", makeOutputWritef(writer)),
 		},
 	}
 }
@@ -90,43 +89,5 @@ func makeOutputWritef(writer OutputWriter) func(*starlark.Thread, *starlark.Buil
 		}
 
 		return starlark.None, nil
-	}
-}
-
-func makeOutputMarkdown(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var content string
-		if err := starlark.UnpackPositionalArgs("output.markdown", args, kwargs, 1, &content); err != nil {
-			return nil, err
-		}
-
-		if err := writer.PrintMarkdown(content); err != nil {
-			return nil, fmt.Errorf("output.markdown failed: %w", err)
-		}
-
-		return starlark.None, nil
-	}
-}
-
-func makeOutputStreamMarkdown(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var content string
-		var done bool
-		if err := starlark.UnpackArgs("output.stream_markdown", args, kwargs, "content", &content, "done?", &done); err != nil {
-			return nil, err
-		}
-
-		if err := writer.StreamMarkdown(content, done); err != nil {
-			return nil, fmt.Errorf("output.stream_markdown failed: %w", err)
-		}
-
-		return starlark.None, nil
-	}
-}
-
-// makeOutputIsTTY creates the output.is_tty function
-func makeOutputIsTTY(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		return starlark.Bool(writer.IsTTY()), nil
 	}
 }

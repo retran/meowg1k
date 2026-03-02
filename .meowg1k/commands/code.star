@@ -59,6 +59,7 @@ DEPENDENCIES:
 # ==============================================================================
 
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_plain_stream_handler")
 
 # =============================================================================
 # Constants
@@ -139,25 +140,33 @@ def setup(languages=None, default_lang=None, preset=None):
             full_prompt = "{}\n\n### Existing Code/Context:\n```\n{}\n```".format(full_prompt, context)
 
         system = build_system_prompt(lang, custom_style)
-        activity = ctx.ui.activity("Generating...")
-
-        result = ctx.llm.chat(
-            preset=preset,
-            system=system,
-            prompt=full_prompt
-        )
-
-        activity.success("Generated")
-        step.done()
 
         if output:
+            # Writing to file: need full result, no streaming
+            activity = ctx.ui.activity("Generating...")
+            result = ctx.llm.chat(
+                preset=preset,
+                system=system,
+                prompt=full_prompt,
+            )
+            activity.success("Generated")
+            step.done()
             write_step = ctx.ui.step("Writing File")
             ctx.fs.write(output, result)
             write_step.done()
             ctx.ui.success("Wrote to {}".format(output))
         else:
+            on_event = make_plain_stream_handler(ctx)
+            step.done()
             ctx.ui.divider()
-            ctx.output.code(result, lang=lang or "text")
+            result = ctx.llm.chat(
+                preset=preset,
+                system=system,
+                prompt=full_prompt,
+                stream=True,
+                on_event=on_event,
+            )
+            ctx.output.writeline("")
 
         return result
 

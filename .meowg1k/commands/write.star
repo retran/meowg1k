@@ -76,6 +76,7 @@ DEPENDENCIES:
 # ==============================================================================
 
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 # =============================================================================
 # Constants
@@ -195,18 +196,18 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
             full_prompt = "{}\n\n### Context:\n{}".format(prompt, context)
 
         system = build_system_prompt(tone, format, custom_tone)
-        activity = ctx.ui.activity("Generating...")
 
+        on_event = make_markdown_stream_handler(ctx)
+        step.done()
+        ctx.ui.divider()
         result = ctx.llm.chat(
             preset=preset,
             system=system,
-            prompt=full_prompt
+            prompt=full_prompt,
+            stream=True,
+            on_event=on_event,
         )
-
-        activity.success("Generated")
-        step.done()
-        ctx.ui.divider()
-        ctx.output.markdown(result)
+        ctx.output.writeline(result)
         return result
 
     def handle_write(ctx):

@@ -7,11 +7,13 @@ package starlark
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 
 	"github.com/retran/meowg1k/internal/domain/session"
 	"github.com/retran/meowg1k/internal/ports"
@@ -241,6 +243,27 @@ func (r *Runtime) CreateOutputModuleForCtx() starlark.Value {
 	return NewOutputModule(r.outputService)
 }
 
+// CreateUIModuleForCtx returns a ui module wired to the output service.
+// On TTY, chrome writes go through LogWriter() and stream tokens go through
+// StreamToken() so everything is routed through the same BubbleTea program.
+// On non-TTY, all ui functions are no-ops.
+func (r *Runtime) CreateUIModuleForCtx(depth int) *starlarkstruct.Module {
+	if r.outputService == nil {
+		return NewUIModuleWithWriter(depth, false, io.Discard, &noopOutputWriter{})
+	}
+	// OutputWriter also satisfies StreamSender (has StreamToken method).
+	isTTY := false
+	var logWriter io.Writer = io.Discard
+	if svc, ok := r.outputService.(interface {
+		IsTTY() bool
+		LogWriter() io.Writer
+	}); ok {
+		isTTY = svc.IsTTY()
+		logWriter = svc.LogWriter()
+	}
+	return NewUIModuleWithWriter(depth, isTTY, logWriter, r.outputService)
+}
+
 // SetSessionService sets the session service for the runtime.
 func (r *Runtime) SetSessionService(service ports.SessionService) {
 	r.sessionService = service
@@ -261,13 +284,7 @@ func (r *Runtime) CreateSessionModuleForCtx(currentSession *session.Session) sta
 // noopOutputWriter is a no-op implementation for when outputService is not set
 type noopOutputWriter struct{}
 
-func (n *noopOutputWriter) Print(content string) error     { return nil }
-func (n *noopOutputWriter) PrintLine(content string) error { return nil }
-func (n *noopOutputWriter) Printf(format string, args ...any) error {
-	return nil
-}
-func (n *noopOutputWriter) PrintMarkdown(content string) error { return nil }
-func (n *noopOutputWriter) StreamMarkdown(content string, done bool) error {
-	return nil
-}
-func (n *noopOutputWriter) IsTTY() bool { return false }
+func (n *noopOutputWriter) Print(content string) error              { return nil }
+func (n *noopOutputWriter) PrintLine(content string) error          { return nil }
+func (n *noopOutputWriter) Printf(format string, args ...any) error { return nil }
+func (n *noopOutputWriter) StreamToken(delta string, done bool)     {}

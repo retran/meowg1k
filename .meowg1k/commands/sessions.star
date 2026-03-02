@@ -11,9 +11,9 @@ Commands:
 def sessions_handler(ctx):
     """List all sessions with optional filters"""
     # Parameters are injected directly into ctx
-    tool_name = getattr(ctx, "tool", "")
-    status = getattr(ctx, "status", "")
-    limit = getattr(ctx, "limit", 20)
+    tool_name = ctx.tool
+    status = ctx.status
+    limit = ctx.limit
     
     # Query sessions
     sessions = ctx.session.list_all(tool_name=tool_name, status=status, limit=limit)
@@ -51,9 +51,9 @@ def sessions_handler(ctx):
 
 def show_session_handler(ctx):
     """Show detailed information about a specific session"""
-    session_id = getattr(ctx, "id", "")
-    show_events = getattr(ctx, "events", False)
-    event_limit = getattr(ctx, "event_limit", 10)
+    session_id = ctx.id
+    show_events = ctx.events
+    event_limit = ctx.event_limit
     
     # If no ID provided, show current session
     if session_id == "":
@@ -160,9 +160,9 @@ sessions_tool = meow.tool(
     name="sessions",
     description="List all sessions with optional filters",
     params={
-        "tool": meow.param("string", description="Filter by tool name", default=""),
-        "status": meow.param("string", description="Filter by status (running, completed, failed)", default=""),
-        "limit": meow.param("int", description="Maximum number of sessions to show", default=20),
+        "tool": meow.param("string", desc="Filter by tool name", default=""),
+        "status": meow.param("string", desc="Filter by status (running, completed, failed)", default=""),
+        "limit": meow.param("int", desc="Maximum number of sessions to show", default=20),
     },
     handler=sessions_handler,
 )
@@ -171,9 +171,9 @@ show_session_tool = meow.tool(
     name="show-session",
     description="Show detailed information about a specific session",
     params={
-        "id": meow.param("string", description="Session ID (empty for current session)", default=""),
-        "events": meow.param("bool", description="Include recent events", default=False),
-        "event_limit": meow.param("int", description="Number of events to show", default=10),
+        "id": meow.param("string", desc="Session ID (empty for current session)", default=""),
+        "events": meow.param("bool", desc="Include recent events", default=False),
+        "event_limit": meow.param("int", desc="Number of events to show", default=10),
     },
     handler=show_session_handler,
 )

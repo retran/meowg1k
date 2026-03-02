@@ -86,6 +86,7 @@ DEPENDENCIES:
 
 load("//lib/diff.star", "build_analysis_prompt")
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 _SYSTEM_PROMPT = """You are an expert at writing clean, effective git commit messages.
 Goal: Write messages that explain the 'WHY' and enable instant understanding.
@@ -286,13 +287,18 @@ Infer the commit message style from the patterns above and generate a message th
         # Final stage: Generate commit message
         gen_step = ctx.ui.step("Generating Commit Message")
         ctx.ui.info("Style: {}".format(style))
-        activity = ctx.ui.activity("Writing...")
-        commit_message = ctx.llm.chat(preset=preset_arg, system=_SYSTEM_PROMPT, prompt=prompt)
-        activity.done()
-        gen_step.done("Message ready")
 
+        on_event = make_markdown_stream_handler(ctx)
+        gen_step.done("Message ready")
         ctx.ui.divider("thick")
-        ctx.output.markdown(commit_message)
+        commit_message = ctx.llm.chat(
+            preset=preset_arg,
+            system=_SYSTEM_PROMPT,
+            prompt=prompt,
+            stream=True,
+            on_event=on_event,
+        )
+        ctx.output.writeline(commit_message)
         return commit_message
 
     def merge_intent_with_stdin(ctx, intent):

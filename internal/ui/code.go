@@ -4,14 +4,9 @@
 package ui
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/formatters"
-	"github.com/alecthomas/chroma/v2/lexers"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -22,6 +17,9 @@ func RenderCode(content, language, title string, theme Theme, opts RenderOptions
 }
 
 // RenderCodeWithMaxLines renders a code block with optional truncation.
+// In terminal mode the code is rendered by wrapping it in a fenced markdown
+// block and passing it through glamour (which uses chroma internally).
+// In plain/CI mode a simple text fence is returned instead.
 func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme Theme, opts RenderOptions) string {
 	// Truncate if requested
 	var wasTruncated bool
@@ -29,10 +27,8 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 		content, wasTruncated = TruncateContent(content, maxLines, opts)
 	}
 
-	var highlighted string
-
 	if opts.Plain || !opts.Terminal {
-		// Plain mode: just add code fence
+		// Plain mode: simple code fence
 		truncateNote := ""
 		if wasTruncated {
 			truncateNote = " (truncated)"
@@ -43,51 +39,33 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 		return fmt.Sprintf("```\n%s\n```", content)
 	}
 
-	// Try to highlight with chroma
-	lexer := lexers.Get(language)
-	if lexer == nil {
-		lexer = lexers.Fallback
-	}
-	lexer = chroma.Coalesce(lexer)
-
-	style := styles.Get("monokai")
-	if style == nil {
-		style = styles.Fallback
+	// Terminal mode: render via glamour using a fenced markdown block so that
+	// glamour's built-in chroma integration handles syntax highlighting.
+	lang := language
+	if lang == "" || lang == "text" {
+		lang = ""
 	}
 
-	formatter := formatters.Get("terminal256")
-	if formatter == nil {
-		formatter = formatters.Fallback
-	}
-
-	iterator, err := lexer.Tokenise(nil, content)
+	fence := "```" + lang + "\n" + content + "\n```"
+	highlighted, err := RenderMarkdown(fence, TerminalWidth(120), false)
 	if err != nil {
 		highlighted = content
-	} else {
-		buf := new(bytes.Buffer)
-		err = formatter.Format(buf, style, iterator)
-		if err != nil {
-			highlighted = content
-		} else {
-			highlighted = buf.String()
-		}
+	}
+	// RenderMarkdown returns a trailing newline; strip it for consistent rendering.
+	highlighted = strings.TrimRight(highlighted, "\n")
+
+	if title == "" && !wasTruncated {
+		return highlighted
 	}
 
-	// Remove trailing newline if present
-	highlighted = strings.TrimSuffix(highlighted, "\n")
-
-	// Create border
+	// Wrap with a titled border when a title is present.
 	lines := strings.Split(highlighted, "\n")
 	maxWidth := 0
 	for _, line := range lines {
-		// Count visible characters (strip ANSI codes for width calculation)
-		visibleLen := lipgloss.Width(line)
-		if visibleLen > maxWidth {
-			maxWidth = visibleLen
+		if w := lipgloss.Width(line); w > maxWidth {
+			maxWidth = w
 		}
 	}
-
-	// Ensure minimum width
 	if maxWidth < 40 {
 		maxWidth = 40
 	}
@@ -107,33 +85,23 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 		bottomRight = "+"
 	}
 
-	// Build output
 	var result strings.Builder
 
-	// Top border
+	// Top border with optional title
 	if title != "" {
 		titleStr := fmt.Sprintf(" %s ", title)
-		// Recalculate maxWidth if title is longer than content
-		if len(titleStr) > maxWidth {
-			maxWidth = len(titleStr) // No extra padding needed here, title str has spaces
-		}
-
-		// The math here is tricky. MaxWidth is the INNER width of content.
-		// We pad content with +1 space on left and +1 space on right.
-		// So total inner width is maxWidth + 2.
-
 		totalInnerWidth := maxWidth + 2
-
+		if len(titleStr) > totalInnerWidth {
+			totalInnerWidth = len(titleStr)
+		}
 		leftLen := (totalInnerWidth - len(titleStr)) / 2
 		rightLen := totalInnerWidth - len(titleStr) - leftLen
-
 		if leftLen < 0 {
 			leftLen = 0
 		}
 		if rightLen < 0 {
 			rightLen = 0
 		}
-
 		result.WriteString(theme.SystemStyle.Render(fmt.Sprintf("%s%s%s%s%s",
 			topLeft,
 			strings.Repeat(borderChar, leftLen),
@@ -149,22 +117,17 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 		)) + "\n")
 	}
 
-	// Content lines - vertical borders need to align with maxWidth
 	for _, line := range lines {
-		// Calculate visible length
-		visibleLen := lipgloss.Width(line)
-		padding := maxWidth - visibleLen
+		padding := maxWidth - lipgloss.Width(line)
 		if padding < 0 {
 			padding = 0
 		}
-
 		result.WriteString(theme.SystemStyle.Render("│ ") + line + strings.Repeat(" ", padding) + theme.SystemStyle.Render(" │") + "\n")
 	}
 
-	// Bottom border
 	result.WriteString(theme.SystemStyle.Render(fmt.Sprintf("%s%s%s",
 		bottomLeft,
-		strings.Repeat(borderChar, maxWidth+2), // +2 for the left and right padding spaces in content
+		strings.Repeat(borderChar, maxWidth+2),
 		bottomRight,
 	)))
 

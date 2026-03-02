@@ -42,55 +42,54 @@ config = {
 
 def handler(ctx):
     """Create a GitHub issue via the REST API."""
-    
+
     # Get parameters
-    title = ctx.params.title
-    body = ctx.params.body
-    repo = ctx.params.repo
-    labels_str = ctx.params.labels or ""
-    assignees_str = ctx.params.assignees or ""
-    
+    title = ctx.title
+    body = ctx.body
+    repo = ctx.repo
+    labels_str = ctx.labels or ""
+    assignees_str = ctx.assignees or ""
+
     # Get GitHub token from environment
     token = ctx.env.get("GITHUB_TOKEN")
     if not token:
         ctx.ui.error("GITHUB_TOKEN environment variable not set")
         ctx.ui.info("Set it with: export GITHUB_TOKEN=your_token_here")
         return
-    
+
     # Parse labels and assignees
     labels = [l.strip() for l in labels_str.split(",") if l.strip()]
     assignees = [a.strip() for a in assignees_str.split(",") if a.strip()]
-    
+
     # Build request body
     issue_data = {
         "title": title,
         "body": body,
     }
-    
+
     if labels:
         issue_data["labels"] = labels
-    
+
     if assignees:
         issue_data["assignees"] = assignees
-    
+
     # Show what we're about to create
-    ctx.ui.section("Creating GitHub Issue")
+    ctx.ui.banner("Creating GitHub Issue")
     ctx.ui.info("Repository: " + repo)
     ctx.ui.info("Title: " + title)
     if labels:
         ctx.ui.info("Labels: " + ", ".join(labels))
     if assignees:
         ctx.ui.info("Assignees: " + ", ".join(assignees))
-    
+
     # Confirm
-    confirm = ctx.ui.prompt("Create this issue? (y/n)", default="y")
-    if confirm.lower() != "y":
+    if not ctx.ui.confirm("Create this issue?", default=True):
         ctx.ui.warn("Cancelled")
         return
-    
+
     # Make API request
     url = config["api_base"] + "/repos/" + repo + "/issues"
-    
+
     ctx.ui.info("Sending request to GitHub...")
     response = ctx.http.post(
         url,
@@ -101,18 +100,18 @@ def handler(ctx):
             "X-GitHub-Api-Version": "2022-11-28",
         }
     )
-    
+
     # Handle response
     if response.ok:
         issue = response.json
         issue_url = issue.get("html_url", "")
         issue_number = issue.get("number", 0)
-        
+
         ctx.ui.success("Issue #" + str(issue_number) + " created successfully!")
         ctx.ui.info("URL: " + issue_url)
     else:
         ctx.ui.error("Failed to create issue (status: " + str(response.status_code) + ")")
-        
+
         # Try to parse error message
         if response.json and response.json != None:
             error_msg = response.json.get("message", "Unknown error")
@@ -122,52 +121,18 @@ def handler(ctx):
 
 def setup():
     """Register the github-issue command."""
-    
+
     tool = meow.tool(
         name="github-issue",
         handler=handler,
         description="Create a GitHub issue via REST API",
+        params={
+            "title": meow.param("string", desc="Issue title", required=True, short="t"),
+            "body": meow.param("string", desc="Issue body/description", required=True, short="b"),
+            "repo": meow.param("string", desc="Repository in owner/name format", required=True, short="r"),
+            "labels": meow.param("string", desc="Comma-separated labels", default="", short="l"),
+            "assignees": meow.param("string", desc="Comma-separated assignees", default="", short="a"),
+        },
     )
-    
-    # Define parameters
-    tool.param(
-        name="title",
-        type="string",
-        description="Issue title",
-        required=True,
-        short="t",
-    )
-    
-    tool.param(
-        name="body",
-        type="string",
-        description="Issue body/description",
-        required=True,
-        short="b",
-    )
-    
-    tool.param(
-        name="repo",
-        type="string",
-        description="Repository in owner/name format",
-        required=True,
-        short="r",
-    )
-    
-    tool.param(
-        name="labels",
-        type="string",
-        description="Comma-separated labels",
-        default="",
-        short="l",
-    )
-    
-    tool.param(
-        name="assignees",
-        type="string",
-        description="Comma-separated assignees",
-        default="",
-        short="a",
-    )
-    
+
     meow.command(tool)

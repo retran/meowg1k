@@ -8,47 +8,57 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
-	"github.com/gosuri/uilive"
-	"github.com/retran/meowg1k/internal/domain/output"
+	"github.com/retran/meowg1k/internal/adapters/output/tui"
+	outputdomain "github.com/retran/meowg1k/internal/domain/output"
 	"github.com/retran/meowg1k/internal/ui"
 )
 
 // Service is the concrete implementation of the Writer interface.
+//
+// TTY mode  — a Bubble Tea program (tui.Program) is started on the first call
+// that needs live output; all subsequent writes are dispatched as messages to
+// that program.  Print* calls send LogLineMsg so they appear in the block log.
+// Flush() stops the BubbleTea program, then writes the accumulated output
+// buffer to stdout.
+//
+// Non-TTY / plain mode — no BubbleTea program is started.  Print* calls write
+// directly to the destination.  Flush() writes the output buffer to stdout.
+//
+// ctx.output is a pure byte buffer.  Streaming preview (LLM token deltas) is
+// handled separately by the ui module (ui.stream), not by this service.
 type Service struct {
 	destination io.Writer
-	buffer      strings.Builder
-	liveWriter  *uilive.Writer
-	liveBuffer  strings.Builder
-	liveActive  bool
 	plainOutput bool
 	noColor     bool
 	isTerminal  bool
+
+	// prog is the BubbleTea program (TTY path only, lazily started).
+	prog *tui.Program
 }
 
-// NewService creates a new instance of the buffered output service.
-func NewService(destination output.Destination) *Service {
+// NewService creates a new instance of the output service.
+func NewService(destination outputdomain.Destination) *Service {
 	return NewServiceWithOptions(destination, false, false)
 }
 
 // NewServiceWithOptions creates a new instance with formatting options.
-func NewServiceWithOptions(destination output.Destination, plainOutput, noColor bool) *Service {
+func NewServiceWithOptions(destination outputdomain.Destination, plainOutput, noColor bool) *Service {
 	var destWriter io.Writer
 	var isTerminal bool
 
 	switch destination {
-	case output.Stdout:
+	case outputdomain.Stdout:
 		destWriter = os.Stdout
 		if f, ok := destWriter.(*os.File); ok {
 			isTerminal = ui.IsTerminal(f.Fd())
 		}
-	case output.Stderr:
+	case outputdomain.Stderr:
 		destWriter = os.Stderr
 		if f, ok := destWriter.(*os.File); ok {
 			isTerminal = ui.IsTerminal(f.Fd())
 		}
-	case output.Discard:
+	case outputdomain.Discard:
 		destWriter = io.Discard
 	default:
 		destWriter = io.Discard
@@ -62,102 +72,102 @@ func NewServiceWithOptions(destination output.Destination, plainOutput, noColor 
 	}
 }
 
-// Print adds content to the buffer.
+// tuiActive returns true when we should route output through the BubbleTea program.
+func (s *Service) tuiActive() bool {
+	return s.isTerminal && !s.plainOutput
+}
+
+// ensureProgram lazily starts the BubbleTea program on the first TTY write.
+func (s *Service) ensureProgram() {
+	if s.prog == nil {
+		s.prog = tui.NewInline(s.noColor)
+	}
+}
+
+// Print writes content without a trailing newline.
 func (s *Service) Print(content string) error {
 	if s == nil {
 		return fmt.Errorf("output service is nil")
 	}
-
-	s.buffer.WriteString(content)
+	if !s.tuiActive() {
+		_, err := fmt.Fprint(s.destination, content)
+		return err
+	}
+	s.ensureProgram()
+	s.prog.Send(tui.LogLineMsg{Line: content})
 	return nil
 }
 
-// PrintLine adds content with a newline to the buffer.
+// PrintLine writes content followed by a newline.
 func (s *Service) PrintLine(content string) error {
 	if s == nil {
 		return fmt.Errorf("output service is nil")
 	}
-
-	s.buffer.WriteString(content)
-	s.buffer.WriteString("\n")
+	if !s.tuiActive() {
+		_, err := fmt.Fprintln(s.destination, content)
+		return err
+	}
+	s.ensureProgram()
+	s.prog.Send(tui.LogLineMsg{Line: content})
 	return nil
 }
 
-// Printf adds formatted content to the buffer.
+// Printf writes formatted content.
 func (s *Service) Printf(format string, args ...any) error {
 	if s == nil {
 		return fmt.Errorf("output service is nil")
 	}
-
-	_, err := fmt.Fprintf(&s.buffer, format, args...)
-	if err != nil {
-		return fmt.Errorf("failed to write to buffer: %w", err)
+	text := fmt.Sprintf(format, args...)
+	if !s.tuiActive() {
+		_, err := fmt.Fprint(s.destination, text)
+		return err
 	}
-
+	s.ensureProgram()
+	s.prog.Send(tui.LogLineMsg{Line: text})
 	return nil
 }
 
-// PrintMarkdown renders Markdown to terminal output and buffers it.
-func (s *Service) PrintMarkdown(content string) error {
-	if s == nil {
-		return fmt.Errorf("output service is nil")
-	}
-
-	// Skip formatting if plain output is requested or output is not to a terminal
-	if s.plainOutput || !s.isTerminal {
-		s.buffer.WriteString(content)
-		return nil
-	}
-
-	rendered, err := ui.RenderMarkdown(content, ui.TerminalWidth(120), s.noColor)
-	if err != nil {
-		rendered = content
-	}
-	s.buffer.WriteString(rendered)
-	return nil
-}
-
-// StreamMarkdown renders Markdown incrementally and updates the terminal live area.
-func (s *Service) StreamMarkdown(content string, done bool) error {
-	if s == nil {
-		return fmt.Errorf("output service is nil")
-	}
-
-	// For plain output or non-terminal, just buffer and print when done
-	if s.plainOutput || !s.isTerminal {
-		s.liveBuffer.WriteString(content)
-		if done {
-			s.buffer.WriteString(s.liveBuffer.String())
-			s.liveBuffer.Reset()
+// LogWriter returns an io.Writer that appends static lines to the TUI block
+// log on TTY, or writes directly to the destination on non-TTY.
+// Use this to route ui.step / ui.success / ui.divider output through the
+// same program that owns the streaming area, preventing interleaved writes.
+func (s *Service) LogWriter() io.Writer {
+	if s == nil || !s.tuiActive() {
+		if s == nil {
+			return io.Discard
 		}
-		return nil
+		return s.destination
 	}
+	return &tuiLogWriter{svc: s}
+}
 
-	if !s.liveActive {
-		s.liveWriter = uilive.New()
-		s.liveWriter.Out = s.destination
-		s.liveWriter.Start()
-		s.liveActive = true
-	}
+// tuiLogWriter is an io.Writer that forwards each write as a LogLineMsg.
+type tuiLogWriter struct{ svc *Service }
 
-	s.liveBuffer.WriteString(content)
-	rendered, err := ui.RenderMarkdown(s.liveBuffer.String(), ui.TerminalWidth(120), s.noColor)
-	if err != nil {
-		rendered = s.liveBuffer.String()
+func (w *tuiLogWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
 	}
-	_, writeErr := fmt.Fprint(s.liveWriter, rendered)
-	if writeErr != nil {
-		return fmt.Errorf("failed to stream markdown: %w", writeErr)
-	}
+	w.svc.ensureProgram()
+	w.svc.prog.Send(tui.LogLineMsg{Line: string(p)})
+	return len(p), nil
+}
 
+// StreamToken sends a streaming token delta to the TUI on TTY, no-op on non-TTY.
+// delta is the raw text chunk; done=true seals the current StreamBlock.
+func (s *Service) StreamToken(delta string, done bool) {
+	if s == nil || !s.tuiActive() {
+		return
+	}
+	s.ensureProgram()
 	if done {
-		s.liveWriter.Stop()
-		s.liveActive = false
-		s.liveBuffer.Reset()
-		_, _ = fmt.Fprint(s.destination, "\n")
+		if delta != "" {
+			s.prog.Send(tui.TokenDeltaMsg{Text: delta})
+		}
+		s.prog.Send(tui.StreamDoneMsg{})
+	} else if delta != "" {
+		s.prog.Send(tui.TokenDeltaMsg{Text: delta})
 	}
-
-	return nil
 }
 
 // IsTTY returns true if the output destination is a terminal.
@@ -168,30 +178,15 @@ func (s *Service) IsTTY() bool {
 	return s.isTerminal
 }
 
-// Flush writes all accumulated content from the buffer to the destination
-// in a single write operation and then clears the buffer.
+// Flush stops the BubbleTea program (if running) and waits for it to exit,
+// restoring the terminal.  On non-TTY it is a no-op.
 func (s *Service) Flush() error {
 	if s == nil {
 		return fmt.Errorf("output service is nil")
 	}
-
-	if s.liveActive {
-		s.liveWriter.Stop()
-		s.liveActive = false
-		s.liveBuffer.Reset()
+	if s.prog != nil {
+		s.prog.Stop()
+		s.prog = nil
 	}
-
-	if s.buffer.Len() == 0 {
-		return nil
-	}
-
-	content := s.buffer.String()
-	s.buffer.Reset()
-
-	_, err := fmt.Fprint(s.destination, content)
-	if err != nil {
-		return fmt.Errorf("failed to write to destination: %w", err)
-	}
-
 	return nil
 }

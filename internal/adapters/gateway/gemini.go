@@ -472,22 +472,94 @@ func validateGeminiResponse(result *genai.GenerateContentResponse, model string)
 	return nil
 }
 
-// GenerateContentStream implements streaming for Gemini by delegating to GenerateContent
-// and synthesizing stream events from the aggregated response.
-// Full native streaming via the Gemini streaming API will be added in a future phase.
+// GenerateContentStream implements native streaming for Gemini using the SDK's
+// GenerateContentStream iterator. Each chunk is delivered to callback as a
+// StreamEventText event so the caller sees tokens as they arrive. A final
+// StreamEventDone event is fired after all chunks have been processed.
 func (g *geminiGateway) GenerateContentStream(
 	ctx context.Context,
 	request *gateway.GenerateContentRequest,
 	callback gateway.StreamCallback,
 ) (*gateway.GenerateContentResponse, error) {
-	resp, err := g.GenerateContent(ctx, request)
-	if err != nil {
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
-		}
-		return nil, err
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
 	}
-	return synthesizeStreamEvents(resp, callback)
+	if g == nil {
+		return nil, fmt.Errorf("gemini gateway is nil")
+	}
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	generationConfig := buildGeminiGenerationConfig(request)
+	if tools := request.Tools(); len(tools) > 0 {
+		generationConfig.Tools = buildGeminiTools(tools)
+		generationConfig.ToolConfig = &genai.ToolConfig{
+			FunctionCallingConfig: &genai.FunctionCallingConfig{Mode: genai.FunctionCallingConfigModeAuto},
+		}
+	}
+
+	userPromptText := g.mapMessagesToPrompt(request)
+	userPrompt := genai.Text(userPromptText)
+
+	var (
+		allBlocks  []gateway.ContentBlock
+		lastUsage  *gateway.UsageMetadata
+		totalCount int
+		streamErr  error
+	)
+
+	for chunk, err := range g.client.Models.GenerateContentStream(ctx, request.Model(), userPrompt, generationConfig) {
+		if err != nil {
+			streamErr = fmt.Errorf("gemini stream error for model %q: %w", request.Model(), err)
+			if callback != nil {
+				_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: streamErr.Error(), Recoverable: false})
+			}
+			return nil, streamErr
+		}
+
+		if chunk == nil {
+			continue
+		}
+
+		// Accumulate usage from each chunk (last non-nil wins).
+		if chunk.UsageMetadata != nil {
+			totalCount = int(chunk.UsageMetadata.TotalTokenCount)
+			lastUsage = &gateway.UsageMetadata{
+				PromptTokens:     int(chunk.UsageMetadata.PromptTokenCount),
+				CompletionTokens: int(chunk.UsageMetadata.CandidatesTokenCount),
+				TotalTokens:      int(chunk.UsageMetadata.TotalTokenCount),
+			}
+		}
+
+		blocks := parseGeminiBlocksOrdered(chunk)
+		allBlocks = append(allBlocks, blocks...)
+
+		if callback != nil {
+			for _, block := range blocks {
+				switch block.Kind {
+				case gateway.ContentBlockText:
+					if block.Text != "" {
+						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); cbErr != nil {
+							return nil, cbErr
+						}
+					}
+				case gateway.ContentBlockReasoning:
+					if block.Text != "" {
+						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); cbErr != nil {
+							return nil, cbErr
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if callback != nil {
+		_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: lastUsage})
+	}
+
+	return &gateway.GenerateContentResponse{Blocks: allBlocks, TokenCount: totalCount, Usage: lastUsage}, nil
 }
 
 // CountTokens counts tokens for the given content chunks using the Gemini API.

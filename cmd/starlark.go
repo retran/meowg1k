@@ -365,7 +365,7 @@ func executeStarlarkHandler(runtime *starlarkpkg.Runtime, registry *starlarkpkg.
 		"toml":      starlarkpkg.NewTOMLModule(),
 		"csv":       starlarkpkg.NewCSVModule(),
 		"env":       starlarkpkg.NewEnvModule(),
-		"ui":        starlarkpkg.NewUIModule(),
+		"ui":        starlarkpkg.NewUIModuleWithWriter(0, container.OutputService.IsTTY(), container.OutputService.LogWriter(), container.OutputService),
 		"path":      starlarkpkg.NewPathModule(),
 		"crypto":    starlarkpkg.NewCryptoModule(),
 		"time":      starlarkpkg.NewTimeModule(),

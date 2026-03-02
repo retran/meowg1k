@@ -821,7 +821,7 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 		"toml":      NewTOMLModule(),
 		"csv":       NewCSVModule(),
 		"env":       NewEnvModule(),
-		"ui":        NewIndentedUIModule(0),
+		"ui":        m.runtime.CreateUIModuleForCtx(0),
 		"path":      NewPathModule(),
 		"crypto":    NewCryptoModule(),
 		"time":      NewTimeModule(),

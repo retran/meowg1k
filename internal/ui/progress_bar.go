@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"golang.org/x/term"
+	"github.com/charmbracelet/x/term"
 )
 
 // ProgressBar represents a deterministic progress indicator.
@@ -73,7 +73,7 @@ func (pb *ProgressBar) render() {
 	// Terminal mode: visual progress bar
 	// Fixed 20-column width (never exceed 30, scale down for small terminals)
 	width := 20
-	if fd := int(os.Stderr.Fd()); term.IsTerminal(fd) {
+	if fd := os.Stderr.Fd(); term.IsTerminal(fd) {
 		if w, _, err := term.GetSize(fd); err == nil {
 			if w < 60 {
 				width = 15 // Smaller for narrow terminals
