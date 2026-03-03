@@ -213,13 +213,19 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
         # --- Phase 2: stream generation ---
         gen_step = ctx.ui.step("Generating")
 
-        # Custom on_event: forward text deltas for live preview, show token usage on done
-        state = {"tokens": 0}
+        # on_event: close the step + open the divider on first text token,
+        # capture token usage from the done event
+        state = {"tokens": 0, "started": False}
         def on_event(event):
             kind = event.get("kind", "")
             if kind == "text":
                 delta = event.get("delta", "")
                 if delta:
+                    if not state["started"]:
+                        # Step closes, thick divider, then stream begins
+                        gen_step.done()
+                        ctx.ui.divider("thick")
+                        state["started"] = True
                     ctx.ui.stream(delta)
             elif kind == "done":
                 ctx.ui.stream("", done=True)
@@ -232,10 +238,7 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
                 if event.get("recoverable", False):
                     ctx.ui.warn("Stream warning: " + msg)
                 else:
-                    ctx.ui.error("Stream error: " + msg)
-
-        gen_step.done()
-        ctx.ui.divider("thick")
+                    gen_step.fail("Stream error: " + msg)
 
         result = ctx.llm.chat(
             preset=preset,
@@ -244,6 +247,10 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
             stream=True,
             on_event=on_event,
         )
+
+        # If no tokens came (empty response), still close the step
+        if not state["started"]:
+            gen_step.done()
 
         ctx.ui.divider()
         if state["tokens"] > 0:
