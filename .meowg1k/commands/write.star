@@ -76,7 +76,6 @@ DEPENDENCIES:
 # ==============================================================================
 
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
-load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 # =============================================================================
 # Constants
@@ -189,17 +188,55 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
                 ctx.ui.error("No prompt provided")
                 return None
 
-        step = ctx.ui.step("Generating Content")
+        # --- Phase 1: prepare ---
+        prep_step = ctx.ui.step("Preparing")
+
         full_prompt = prompt
         if context:
-            ctx.ui.info("Including {} chars of context".format(len(context)))
+            activity = ctx.ui.activity("Reading context ({} chars)...".format(len(context)))
             full_prompt = "{}\n\n### Context:\n{}".format(prompt, context)
+            activity.success("Context included")
 
         system = build_system_prompt(tone, format, custom_tone)
 
-        on_event = make_markdown_stream_handler(ctx)
-        step.done()
-        ctx.ui.divider()
+        # Show what will be used
+        if custom_tone:
+            ctx.ui.info("Tone:   custom")
+        elif tone and tone in all_tones:
+            ctx.ui.info("Tone:   {}".format(all_tones[tone]["name"]))
+        ctx.ui.info("Format: {}".format(all_formats[format]["name"] if format in all_formats else format))
+        if preset:
+            ctx.ui.info("Preset: {}".format(preset))
+
+        prep_step.done()
+
+        # --- Phase 2: stream generation ---
+        gen_step = ctx.ui.step("Generating")
+
+        # Custom on_event: forward text deltas for live preview, show token usage on done
+        state = {"tokens": 0}
+        def on_event(event):
+            kind = event.get("kind", "")
+            if kind == "text":
+                delta = event.get("delta", "")
+                if delta:
+                    ctx.ui.stream(delta)
+            elif kind == "done":
+                ctx.ui.stream("", done=True)
+                usage = event.get("usage", {})
+                total = usage.get("total", 0)
+                if total > 0:
+                    state["tokens"] = total
+            elif kind == "error":
+                msg = event.get("error", "unknown error")
+                if event.get("recoverable", False):
+                    ctx.ui.warn("Stream warning: " + msg)
+                else:
+                    ctx.ui.error("Stream error: " + msg)
+
+        gen_step.done()
+        ctx.ui.divider("thick")
+
         result = ctx.llm.chat(
             preset=preset,
             system=system,
@@ -207,6 +244,12 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
             stream=True,
             on_event=on_event,
         )
+
+        ctx.ui.divider()
+        if state["tokens"] > 0:
+            ctx.ui.info("Tokens used: {}".format(state["tokens"]))
+        ctx.ui.success("Done")
+
         ctx.output.writeline(result)
         return result
 
