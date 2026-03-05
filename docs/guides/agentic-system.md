@@ -45,7 +45,7 @@ def my_agent_handler(ctx):
     """Agent handler function"""
     
     # 1. Parse inputs
-    goal = ctx.params.get("goal", "")
+    goal = ctx.goal
     
     # 2. Execute agentic loop
     result = ctx.llm.agent_turn(
@@ -65,7 +65,7 @@ my_agent = meow.tool(
     name="my-agent",
     description="My custom agent",
     params={
-        "goal": meow.param("string", description="Goal to achieve", required=True),
+        "goal": meow.param("string", desc="Goal to achieve", required=True),
     },
     handler=my_agent_handler,
 )
@@ -158,7 +158,7 @@ load("//lib/planning.star", "create_plan", "decompose_task", "execute_plan")
 
 # Generate a plan from a goal
 plan_json = create_plan.handler(ctx)  # Or ctx.run("create_plan", goal="...")
-plan = ctx.json.decode(plan_json)
+plan = ctx.json.parse(plan_json)
 
 # Break down complex tasks
 decomposition = ctx.run("decompose_task", task="Complex task description")
@@ -311,7 +311,7 @@ remember(ctx, "subtasks_completed", str(completed_count))
 
 **Pattern 2: Intermediate Results**
 ```python
-remember(ctx, "files_analyzed", ctx.json.encode(file_list))
+remember(ctx, "files_analyzed", ctx.json.stringify(file_list))
 remember(ctx, "issues_found", str(issue_count))
 remember(ctx, "final_report", report_text)
 ```
@@ -319,7 +319,7 @@ remember(ctx, "final_report", report_text)
 **Pattern 3: Context for Resume**
 ```python
 # Save context for potential resume (future feature)
-remember(ctx, "checkpoint", ctx.json.encode({
+remember(ctx, "checkpoint", ctx.json.stringify({
     "step": current_step,
     "data": processed_data,
     "next_action": "continue_from_here"
@@ -419,7 +419,7 @@ Break complex agents into distinct stages:
 ```python
 def multi_stage_agent_handler(ctx):
     # Stage 1: Planning
-    ctx.ui.info("Stage 1: Planning...")
+    ctx.output.writeline("Stage 1: Planning...")
     remember(ctx, "stage", "planning")
     
     plan = ctx.llm.chat(
@@ -430,7 +430,7 @@ def multi_stage_agent_handler(ctx):
     remember(ctx, "plan", plan)
     
     # Stage 2: Gathering
-    ctx.ui.info("Stage 2: Gathering context...")
+    ctx.output.writeline("Stage 2: Gathering context...")
     remember(ctx, "stage", "gathering")
     
     context = ctx.llm.agent_turn(
@@ -442,7 +442,7 @@ def multi_stage_agent_handler(ctx):
     remember(ctx, "context", context)
     
     # Stage 3: Execution
-    ctx.ui.info("Stage 3: Executing...")
+    ctx.output.writeline("Stage 3: Executing...")
     remember(ctx, "stage", "executing")
     
     result = ctx.llm.agent_turn(
@@ -463,11 +463,11 @@ Create specialized tools that call other tools:
 ```python
 def smart_search_handler(ctx):
     """Semantic search with automatic relevance filtering"""
-    query = ctx.params["query"]
+    query = ctx.query
     
     # First: Semantic search
     results_json = code_search.handler(ctx)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     # Then: Read and filter with LLM
     filtered = []
@@ -482,7 +482,7 @@ def smart_search_handler(ctx):
         if "yes" in is_relevant.lower():
             filtered.append(result)
     
-    return ctx.json.encode(filtered)
+    return ctx.json.stringify(filtered)
 ```
 
 ### Pattern: Delegating Sub-Agents
@@ -492,7 +492,7 @@ Create agents that invoke other specialized agents:
 ```python
 def coordinator_handler(ctx):
     """Coordinates multiple specialized agents"""
-    task = ctx.params["task"]
+    task = ctx.task
     
     # Analyze what needs to be done
     analysis = ctx.llm.chat(
@@ -551,17 +551,17 @@ def test_my_agent_handler(ctx):
     """Test my custom agent"""
     
     # Test case 1
-    ctx.ui.info("Test 1: Simple goal")
+    ctx.output.writeline("Test 1: Simple goal")
     result = ctx.run("my-agent", goal="simple task")
     assert "expected" in result, "Test 1 failed"
     
     # Test case 2
-    ctx.ui.info("Test 2: Complex goal")
+    ctx.output.writeline("Test 2: Complex goal")
     result = ctx.run("my-agent", goal="complex task")
     session = ctx.session.get_children()[-1]
     assert session["status"] == "completed", "Test 2 failed"
     
-    ctx.ui.success("All tests passed!")
+    ctx.output.writeline("All tests passed!")
 
 meow.tool(
     name="test-my-agent",
@@ -574,8 +574,8 @@ meow.tool(
 ## References
 
 - **API_REFERENCE.md** - Complete Starlark API documentation
-- **docs/agents/starlark-system.md** - Starlark extension system details
-- **docs/agents/architecture.md** - Hexagonal architecture overview
+- **docs/guides/starlark-system.md** - Starlark extension system details
+- **docs/guides/architecture.md** - Hexagonal architecture overview
 - **.meowg1k/lib/tools.star** - Built-in tools reference implementation
 - **.meowg1k/lib/planning.star** - Planning utilities implementation
 - **.meowg1k/lib/memory.star** - Memory utilities implementation

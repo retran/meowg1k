@@ -608,7 +608,7 @@ See `.golangci.yaml` for complete configuration. Key linters:
 ## Best Practices
 
 ### Use Table-Driven Tests
-See `.opencode/testing-standards.md`
+See `docs/guides/testing-standards.md`
 
 ### Avoid Naked Returns
 
