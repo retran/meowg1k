@@ -462,3 +462,65 @@ func TestFixedPathResolver_GetWorkspacePath_EmptyPath(t *testing.T) {
 		t.Errorf("Expected empty path, got %s", path)
 	}
 }
+
+func TestGetWorkspaceRoot_WithMeowg1kDir(t *testing.T) {
+	service := NewService(nil)
+
+	// Create temp directory structure
+	tempDir := t.TempDir()
+	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
+	subDir := workspaceRoot + "/sub/dir"
+	os.MkdirAll(subDir, 0o755)
+
+	// Create .meowg1k/ directory with init.star in root
+	meowDir := workspaceRoot + "/.meowg1k"
+	os.MkdirAll(meowDir, 0o755)
+	os.WriteFile(meowDir+"/init.star", []byte("# init"), 0o644)
+
+	// Change to subdirectory
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(subDir)
+
+	// Get should return the workspace root, not the current directory
+	dir, err := service.Get()
+	if err != nil {
+		t.Errorf("Get failed: %v", err)
+	}
+
+	// Resolve symlinks for comparison
+	dirResolved, _ := filepath.EvalSymlinks(dir)
+	if dirResolved != workspaceRoot {
+		t.Errorf("Expected workspace root %s, got %s", workspaceRoot, dirResolved)
+	}
+}
+
+func TestGetWorkspaceRoot_Meowg1kDirWithoutInitStar(t *testing.T) {
+	service := NewService(nil)
+
+	// Create temp directory structure
+	tempDir := t.TempDir()
+	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
+	subDir := workspaceRoot + "/sub/dir"
+	os.MkdirAll(subDir, 0o755)
+
+	// Create .meowg1k/ directory WITHOUT init.star - should NOT be a marker
+	meowDir := workspaceRoot + "/.meowg1k"
+	os.MkdirAll(meowDir, 0o755)
+
+	// Change to subdirectory
+	originalDir, _ := os.Getwd()
+	defer os.Chdir(originalDir)
+	os.Chdir(subDir)
+
+	// Get should return subDir (no valid markers found), not workspaceRoot
+	dir, err := service.Get()
+	if err != nil {
+		t.Errorf("Get failed: %v", err)
+	}
+
+	dirResolved, _ := filepath.EvalSymlinks(dir)
+	if dirResolved == workspaceRoot {
+		t.Errorf("Should not treat .meowg1k dir without init.star as workspace root, but got %s", dirResolved)
+	}
+}
