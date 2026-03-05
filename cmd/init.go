@@ -64,19 +64,16 @@ func initGlobalConfig(cmd *cobra.Command, force bool) error {
 	configDir := filepath.Join(homeDir, ".config", "meowg1k")
 	initFile := filepath.Join(configDir, "init.star")
 
-	// Check if already exists
 	if !force {
 		if _, err := os.Stat(initFile); err == nil {
 			return fmt.Errorf("global config already exists: %s\nUse --force to overwrite", initFile)
 		}
 	}
 
-	// Create directory
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Write init.star
 	if err := os.WriteFile(initFile, []byte(templates.GlobalInitTemplate), 0644); err != nil {
 		return fmt.Errorf("failed to write init.star: %w", err)
 	}
@@ -94,7 +91,6 @@ func initGlobalConfig(cmd *cobra.Command, force bool) error {
 }
 
 func initProjectConfig(cmd *cobra.Command, force bool) error {
-	// Check if we're in a git repository
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		fmt.Fprintf(cmd.OutOrStdout(), "⚠ Warning: Not in a git repository\n")
 	}
@@ -102,24 +98,20 @@ func initProjectConfig(cmd *cobra.Command, force bool) error {
 	projectDir := ".meowg1k"
 	initFile := filepath.Join(projectDir, "init.star")
 
-	// Check if already exists
 	if !force {
 		if _, err := os.Stat(initFile); err == nil {
 			return fmt.Errorf("project config already exists: %s\nUse --force to overwrite", initFile)
 		}
 	}
 
-	// Create directory
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 
-	// Write init.star
 	if err := os.WriteFile(initFile, []byte(templates.ProjectInitTemplate), 0644); err != nil {
 		return fmt.Errorf("failed to write init.star: %w", err)
 	}
 
-	// Update .gitignore
 	if err := updateGitignore(); err != nil {
 		fmt.Fprintf(cmd.OutOrStderr(), "⚠ Warning: %v\n", err)
 	}
@@ -136,24 +128,20 @@ func initProjectConfig(cmd *cobra.Command, force bool) error {
 func updateGitignore() error {
 	gitignorePath := ".gitignore"
 
-	// Read existing .gitignore
 	var content string
 	if data, err := os.ReadFile(gitignorePath); err == nil {
 		content = string(data)
 	}
 
-	// Check if already has our sentinel block
 	if strings.Contains(content, "# meowg1k") {
-		return nil // Already added
+		return nil
 	}
 
-	// Append our entries
 	if content != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
 	content += templates.GitignoreEntries
 
-	// Write back
 	return os.WriteFile(gitignorePath, []byte(content), 0644)
 }
 

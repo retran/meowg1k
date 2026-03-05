@@ -1,6 +1,8 @@
 // Copyright © 2025 The meowg1k Authors
 // SPDX-License-Identifier: Apache-2.0
 
+// Package ui provides terminal UI components including themes, widgets, and rendering
+// utilities for Bubble Tea-based interactive output.
 package ui
 
 import (
@@ -125,31 +127,28 @@ func DefaultThemeWithOptions(opts RenderOptions) Theme {
 		InputPrompt: lipgloss.Color("#F5C2E7"), // Catppuccin Pink - user prompts
 	}
 
-	// Base status styles - no bold for cleaner appearance
+	// Status styles omit bold for a cleaner appearance.
 	theme.StatusSuccess = lipgloss.NewStyle().Foreground(theme.Success)
 	theme.StatusError = lipgloss.NewStyle().Foreground(theme.Error)
 	theme.StatusWarn = lipgloss.NewStyle().Foreground(theme.Warn)
 	theme.StatusInfo = lipgloss.NewStyle().Foreground(theme.Info)
 
-	// Flux Terminal semantic styles
 	theme.SystemStyle = lipgloss.NewStyle().Foreground(theme.System)
 	theme.AgentStyle = lipgloss.NewStyle().Foreground(theme.Agent)
 	theme.ActionStyle = lipgloss.NewStyle().Foreground(theme.Action)
 	theme.ThoughtStyle = lipgloss.NewStyle().Foreground(theme.Thought)
 
-	// Step context styles - calm, structural, not status
+	// Step styles are calm and structural; success/error states use color only, no bold.
 	theme.StepBorder = lipgloss.NewStyle().Foreground(theme.Surface2)
 	theme.StepTitle = lipgloss.NewStyle().Foreground(theme.Text)
 	theme.StepSuccess = lipgloss.NewStyle().Foreground(theme.Success)
 	theme.StepError = lipgloss.NewStyle().Foreground(theme.Error)
 
-	// Choose border style based on Unicode support
+	// Use rounded Unicode borders when the terminal supports them; fall back to ASCII.
 	var border lipgloss.Border
 	if opts.SupportsUnicode {
-		// Use beautiful rounded borders for Unicode terminals
 		border = lipgloss.RoundedBorder()
 	} else {
-		// Fall back to ASCII borders for compatibility
 		border = lipgloss.ASCIIBorder()
 	}
 

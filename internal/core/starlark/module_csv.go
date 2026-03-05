@@ -51,9 +51,7 @@ func csvParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	}
 
 	if hasHeader {
-		// Parse as list of dicts with headers
 		if len(records) < 2 {
-			// Only header, no data rows
 			return starlark.NewList(nil), nil
 		}
 
@@ -75,7 +73,6 @@ func csvParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 		return starlark.NewList(result), nil
 	}
 
-	// Parse as list of lists
 	result := make([]starlark.Value, 0, len(records))
 	for _, row := range records {
 		rowList := make([]starlark.Value, 0, len(row))
@@ -111,7 +108,6 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 	writer := csv.NewWriter(&buf)
 	writer.Comma = rune(delimiter[0])
 
-	// Write headers if provided
 	if headers != nil {
 		headerRow := make([]string, 0, headers.Len())
 		for i := 0; i < headers.Len(); i++ {
@@ -126,13 +122,11 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		}
 	}
 
-	// Process each row
 	for i := 0; i < list.Len(); i++ {
 		item := list.Index(i)
 
 		switch v := item.(type) {
 		case *starlark.List:
-			// List of lists
 			row := make([]string, 0, v.Len())
 			for j := 0; j < v.Len(); j++ {
 				cell := v.Index(j)
@@ -154,7 +148,6 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 			}
 
 		case *starlark.Dict:
-			// List of dicts
 			if headers == nil {
 				return nil, fmt.Errorf("csv.stringify: headers required when value contains dicts")
 			}

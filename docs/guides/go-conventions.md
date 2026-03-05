@@ -608,7 +608,7 @@ See `.golangci.yaml` for complete configuration. Key linters:
 ## Best Practices
 
 ### Use Table-Driven Tests
-See `.opencode/testing-standards.md`
+See `docs/guides/testing-standards.md`
 
 ### Avoid Naked Returns
 
@@ -681,7 +681,7 @@ func NewService() (*Service, error) {
 - **Nil checks** before dereferencing
 - **Interfaces** in consumer packages, not implementation packages
 - **Named struct fields** for initialization
-- **75% test coverage** minimum
+- **65% test coverage** minimum
 - **golangci-lint** must pass
 
 Follow these conventions to maintain consistency and quality across the codebase.

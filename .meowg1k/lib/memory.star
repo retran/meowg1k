@@ -992,7 +992,7 @@ Focus on:
 
 Keep it under 200 words."""
     
-    summary = ctx.llm.generate(
+    summary = ctx.llm.chat(
         prompt="Summarize this conversation:\n\n" + history_text,
         system=system_prompt,
         preset="fast"

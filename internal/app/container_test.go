@@ -557,11 +557,11 @@ flows:
 	cmd.Flags().String("workspace", "", "workspace root path")
 	cmd.Flags().String("task", "", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
-	cmd.Flags().Bool("silent", false, "silent mode")
+	cmd.Flags().Bool("no-tui", false, "disable TUI")
 	cmd.Flags().Set("config", configPath)
 	cmd.Flags().Set("task", "anthropic-task")
 	cmd.Flags().Set("user-prompt", "Test prompt")
-	cmd.Flags().Set("silent", "true")
+	cmd.Flags().Set("no-tui", "true")
 
 	container, err := NewAppContainer(cmd)
 	if err != nil {
@@ -624,12 +624,12 @@ flows:
 		t.Errorf("Expected prompt 'Test prompt', got '%s'", userPrompt)
 	}
 
-	silent, err := container.CommandService.GetSilentFlag()
+	noTUI, err := container.CommandService.GetNoTUIFlag()
 	if err != nil {
-		t.Errorf("GetSilentFlag failed: %v", err)
+		t.Errorf("GetNoTUIFlag failed: %v", err)
 	}
-	if !silent {
-		t.Error("Expected silent to be true")
+	if !noTUI {
+		t.Error("Expected no-tui to be true")
 	}
 }
 
@@ -970,29 +970,6 @@ func TestGetDBHost(t *testing.T) {
 	result := container.GetDBHost()
 	if result != dbHost {
 		t.Error("Expected dbHost to be returned")
-	}
-}
-
-func TestGetSilentFlag(t *testing.T) {
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().Bool("silent", true, "silent mode")
-	cmd.Flags().Set("silent", "true")
-
-	commandService, err := command.NewService(cmd)
-	if err != nil {
-		t.Fatalf("Failed to create command service: %v", err)
-	}
-
-	container := &Container{
-		CommandService: commandService,
-	}
-
-	silent, err := container.GetSilentFlag()
-	if err != nil {
-		t.Errorf("GetSilentFlag returned error: %v", err)
-	}
-	if !silent {
-		t.Error("Expected silent to be true")
 	}
 }
 

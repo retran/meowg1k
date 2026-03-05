@@ -77,6 +77,7 @@ DEPENDENCIES:
 
 load("//lib/diff.star", "build_analysis_prompt")
 load("//lib/help.star", "build_choices_desc", "build_preset_desc")
+load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 _SYSTEM_PROMPT = """You are an expert software engineer writing Pull Request descriptions.
 Goal: Write clear, comprehensive PR descriptions that explain the WHY and enable efficient code review.
@@ -227,7 +228,6 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
             diff = ctx.git.diff(target=base)
 
         if len(diff.files) == 0:
-            ctx.ui.error("No changes")
             return None, None
 
         return diff, target
@@ -246,9 +246,12 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
 
     def generate_pr_description(ctx, intent="", source="branch", base="main", style="github", custom_style="", preset_arg="", summarize_preset_arg=""):
         """Generate a Pull Request description from git diff."""
+        turn = ctx.ui.assistant_turn()
+
         # Get diff
         diff, target = read_diff(ctx, source, base)
         if not diff:
+            turn.fail("No changes found")
             return None
 
         style_section = build_style_section(style, custom_style)
@@ -259,25 +262,23 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
         }
 
         # This internally handles collecting and summarization with proper UI stages
-        prompt = build_analysis_prompt(ctx, diff.files, target, template_vars, _TEMPLATES, summarize_preset_arg)
+        prompt = build_analysis_prompt(ctx, turn, diff.files, target, template_vars, _TEMPLATES, summarize_preset_arg)
 
         # Final stage: Generate PR description
-        gen_step = ctx.ui.step("Generating PR Description")
-        ctx.ui.info("Style: {}".format(style))
-        activity = ctx.ui.activity("Writing...")
+        gen_step = turn.step("Generating PR Description")
+        gen_step.info("Style: {}".format(style))
 
-        pr_description = ctx.llm.generate(
+        on_event = make_markdown_stream_handler(turn)
+        pr_description = ctx.llm.chat(
             preset=preset_arg,
             system=_SYSTEM_PROMPT,
-            prompt=prompt
+            prompt=prompt,
+            stream=True,
+            on_event=on_event,
         )
-
-        activity.done()
-        gen_step.done("Description ready")
-
-        ctx.ui.divider("thick")
-        ctx.output.markdown(pr_description)
-
+        gen_step.done()
+        turn.done()
+        ctx.output.writeline(pr_description)
         return pr_description
 
     def handle_pr(ctx):

@@ -47,6 +47,8 @@ func (m *SessionModule) toStarlarkStruct() *starlarkstruct.Struct {
 		"insert_summary":     m.insertSummaryMethod(),
 		"list_all":           m.listAllMethod(),
 		"get_by_id":          m.getByIDMethod(),
+		"set_system":         m.setSystemMethod(),
+		"get_system":         m.getSystemMethod(),
 	})
 }
 
@@ -146,7 +148,6 @@ func (m *SessionModule) getAllMetadataMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get metadata: %w", err)
 		}
 
-		// Convert to Starlark dict
 		dict := starlark.NewDict(len(metadata))
 		for k, v := range metadata {
 			if err := dict.SetKey(starlark.String(k), starlark.String(v)); err != nil {
@@ -171,7 +172,6 @@ func (m *SessionModule) getChildrenMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get child sessions: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(children))
 		for i, child := range children {
 			childDict := starlark.NewDict(4)
@@ -229,7 +229,6 @@ func (m *SessionModule) getEventsMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get events: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(events))
 		for i, event := range events {
 			eventDict := starlark.NewDict(5)
@@ -258,7 +257,6 @@ func (m *SessionModule) markObsoleteMethod() *starlark.Builtin {
 			return nil, err
 		}
 
-		// Convert Starlark list to Go slice
 		eventIDs := make([]string, eventIDsList.Len())
 		iter := eventIDsList.Iterate()
 		defer iter.Done()
@@ -336,7 +334,6 @@ func (m *SessionModule) listAllMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to list sessions: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(sessions))
 		for i, sess := range sessions {
 			sessDict := starlark.NewDict(5)
@@ -354,6 +351,47 @@ func (m *SessionModule) listAllMethod() *starlark.Builtin {
 	})
 }
 
+const systemPromptMetadataKey = "__system_prompt__"
+
+// setSystemMethod sets the system prompt for the current session.
+func (m *SessionModule) setSystemMethod() *starlark.Builtin {
+	return starlark.NewBuiltin("set_system", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		if m.currentSession == nil {
+			return nil, fmt.Errorf("no active session")
+		}
+
+		var prompt string
+		if err := starlark.UnpackArgs("set_system", args, kwargs, "prompt", &prompt); err != nil {
+			return nil, err
+		}
+
+		ctx := context.Background()
+		if err := m.sessionService.SetMetadata(ctx, m.currentSession.ID, systemPromptMetadataKey, prompt); err != nil {
+			return nil, fmt.Errorf("failed to set system prompt: %w", err)
+		}
+
+		return starlark.None, nil
+	})
+}
+
+// getSystemMethod retrieves the system prompt for the current session.
+// Returns None if no system prompt has been set.
+func (m *SessionModule) getSystemMethod() *starlark.Builtin {
+	return starlark.NewBuiltin("get_system", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		if m.currentSession == nil {
+			return nil, fmt.Errorf("no active session")
+		}
+
+		ctx := context.Background()
+		value, err := m.sessionService.GetMetadata(ctx, m.currentSession.ID, systemPromptMetadataKey)
+		if err != nil {
+			return starlark.None, nil // Return None if not set
+		}
+
+		return starlark.String(value), nil
+	})
+}
+
 // getByIDMethod retrieves a session by ID (global query)
 func (m *SessionModule) getByIDMethod() *starlark.Builtin {
 	return starlark.NewBuiltin("get_by_id", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -368,7 +406,6 @@ func (m *SessionModule) getByIDMethod() *starlark.Builtin {
 			return starlark.None, nil // Return None if not found
 		}
 
-		// Convert to Starlark dict
 		sessDict := starlark.NewDict(5)
 		sessDict.SetKey(starlark.String("id"), starlark.String(sess.ID))
 		sessDict.SetKey(starlark.String("tool_name"), starlark.String(sess.ToolName))

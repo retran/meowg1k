@@ -182,7 +182,6 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Insert event
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO events (id, session_id, type, content, tool_call_id, obsolete, created_at) 
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -192,7 +191,6 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 		return fmt.Errorf("failed to insert event: %w", err)
 	}
 
-	// Insert tool calls if present
 	for _, tc := range e.ToolCalls {
 		paramsJSON, err := json.Marshal(tc.Params)
 		if err != nil {
@@ -208,7 +206,6 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 		}
 	}
 
-	// Update session updated_at timestamp
 	_, err = tx.ExecContext(ctx,
 		`UPDATE sessions SET updated_at = ? WHERE id = ?`,
 		time.Now(), e.SessionID,
@@ -235,7 +232,6 @@ func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, off
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Query events
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, session_id, type, content, tool_call_id, obsolete, created_at
 		 FROM events WHERE session_id = ? AND obsolete = 0 
@@ -325,7 +321,6 @@ func (r *Repository) MarkEventsObsolete(ctx context.Context, eventIDs []string) 
 		return fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Build placeholders for IN clause
 	placeholders := ""
 	args := make([]interface{}, len(eventIDs))
 	for i, id := range eventIDs {
@@ -359,7 +354,6 @@ func (r *Repository) InsertSummary(ctx context.Context, sessionID, afterEventID,
 		return fmt.Errorf("failed to get database: %w", err)
 	}
 
-	// Get the timestamp of the event we're inserting after
 	var afterTimestamp time.Time
 	if afterEventID != "" {
 		err = db.QueryRowContext(ctx,

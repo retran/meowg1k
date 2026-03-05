@@ -6,16 +6,99 @@ package ui
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
+
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-// RenderWithPager displays content in a pager (like less) if it's too long.
-// Falls back to direct output if pager is not available or content is short.
+// pagerModel is a Bubble Tea model that wraps bubbles/viewport for paged display.
+type pagerModel struct {
+	viewport    viewport.Model
+	content     string
+	title       string
+	lineNumbers bool
+	ready       bool
+	theme       Theme
+}
+
+func (m pagerModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m pagerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		headerHeight := 0
+		if m.title != "" {
+			headerHeight = 1
+		}
+		footerHeight := 1
+		verticalMargin := headerHeight + footerHeight
+
+		if !m.ready {
+			m.viewport = viewport.New(msg.Width, msg.Height-verticalMargin)
+			m.viewport.SetContent(m.buildContent())
+			m.ready = true
+		} else {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - verticalMargin
+		}
+		return m, nil
+
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c", "esc":
+			return m, tea.Quit
+		}
+	}
+
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
+}
+
+func (m pagerModel) View() string {
+	if !m.ready {
+		return "\n  Loading..."
+	}
+
+	var b strings.Builder
+
+	if m.title != "" {
+		titleStyle := lipgloss.NewStyle().Bold(true)
+		b.WriteString(titleStyle.Render("=== "+m.title+" ===") + "\n")
+	}
+
+	b.WriteString(m.viewport.View())
+	b.WriteString("\n")
+
+	percent := int(m.viewport.ScrollPercent() * 100)
+	footerStyle := lipgloss.NewStyle().Faint(true)
+	b.WriteString(footerStyle.Render(fmt.Sprintf("  %d%%  ↑/↓ scroll  q quit", percent)))
+
+	return b.String()
+}
+
+func (m pagerModel) buildContent() string {
+	lines := strings.Split(m.content, "\n")
+	if !m.lineNumbers {
+		return m.content
+	}
+	var b strings.Builder
+	for i, line := range lines {
+		b.WriteString(fmt.Sprintf("%4d  %s\n", i+1, line))
+	}
+	return b.String()
+}
+
+// RenderWithPager displays content in an interactive viewport pager if the
+// content is long enough and the output is a terminal. Falls back to direct
+// output otherwise.
 func RenderWithPager(content, title string, lineNumbers bool, opts RenderOptions) error {
 	lines := strings.Split(content, "\n")
-	
-	// In plain mode or if content is short, just print it
+
 	if opts.Plain || !opts.Terminal || len(lines) <= 30 {
 		if title != "" {
 			fmt.Fprintf(os.Stderr, "=== %s ===\n", title)
@@ -30,45 +113,16 @@ func RenderWithPager(content, title string, lineNumbers bool, opts RenderOptions
 		return nil
 	}
 
-	// Try to use less as pager
-	lessPath, err := exec.LookPath("less")
-	if err != nil {
-		// Fallback to direct output if less not found
-		if title != "" {
-			fmt.Fprintf(os.Stderr, "=== %s ===\n", title)
-		}
-		fmt.Fprintln(os.Stderr, content)
-		return nil
+	model := pagerModel{
+		content:     content,
+		title:       title,
+		lineNumbers: lineNumbers,
+		theme:       DefaultTheme(),
 	}
 
-	// Prepare content with line numbers if requested
-	var displayContent string
-	if lineNumbers {
-		var numbered strings.Builder
-		for i, line := range lines {
-			numbered.WriteString(fmt.Sprintf("%4d  %s\n", i+1, line))
-		}
-		displayContent = numbered.String()
-	} else {
-		displayContent = content
-	}
-
-	// Add title if present
-	if title != "" {
-		displayContent = fmt.Sprintf("=== %s ===\n\n%s", title, displayContent)
-	}
-
-	// Setup less with appropriate flags:
-	// -R: handle ANSI colors
-	// -F: quit if content fits on one screen
-	// -X: don't clear screen on exit
-	// -S: chop long lines instead of wrapping
-	cmd := exec.Command(lessPath, "-R", "-F", "-X", "-S")
-	cmd.Stdin = strings.NewReader(displayContent)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithOutput(os.Stderr))
+	_, err := p.Run()
+	return err
 }
 
 // TruncateContent truncates content to maxLines with an indicator.
@@ -82,15 +136,14 @@ func TruncateContent(content string, maxLines int, opts RenderOptions) (string, 
 		return content, false
 	}
 
-	// Truncate and add indicator
 	truncated := strings.Join(lines[:maxLines], "\n")
-	
+
 	var indicator string
 	if opts.SupportsUnicode {
 		indicator = fmt.Sprintf("\n⋮ [%d more lines]", len(lines)-maxLines)
 	} else {
 		indicator = fmt.Sprintf("\n... [%d more lines]", len(lines)-maxLines)
 	}
-	
+
 	return truncated + indicator, true
 }
