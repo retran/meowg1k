@@ -497,10 +497,16 @@ func (c *Container) CreateIndexServicesForStarlark() (*starlarkpkg.IndexServices
 
 	vectorIndexSvc := vector.NewService(indexRepoImpl, indexRepoImpl, metaRepo)
 
+	searchSvc, err := vector.NewSearchService(metaRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create search service: %w", err)
+	}
+
 	return &starlarkpkg.IndexServices{
 		IndexRepo:          indexRepoImpl,
 		SnapshotRepo:       indexRepoImpl,
 		VectorIndexService: vectorIndexSvc,
+		SearchService:      searchSvc,
 	}, nil
 }
 

@@ -125,7 +125,10 @@ func buildCobraCommand(runtime *starlarkpkg.Runtime, cmd *starlarkpkg.Command) (
 			}
 		}
 
-		if flagDef.Required {
+		// Only enforce required at Cobra level if stdin can't satisfy it.
+		// When from_stdin=True, the handler reads stdin at runtime, so Cobra
+		// must not reject the command before our handler gets a chance to run.
+		if flagDef.Required && !flagDef.FromStdin {
 			if err := cobraCmd.MarkFlagRequired(flagName); err != nil {
 				return nil, fmt.Errorf("required flag %s not found: %w", flagName, err)
 			}
