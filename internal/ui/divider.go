@@ -8,8 +8,8 @@ import (
 	"io"
 	"os"
 	"strings"
-	
-	"golang.org/x/term"
+
+	"github.com/charmbracelet/x/term"
 )
 
 // RenderDivider creates a horizontal divider line.
@@ -17,15 +17,15 @@ func RenderDivider(style string, theme Theme, opts RenderOptions) string {
 	if opts.Plain || !opts.Terminal {
 		return "---"
 	}
-	
+
 	// Get terminal width
 	width := 80
-	if fd := int(os.Stderr.Fd()); term.IsTerminal(fd) {
+	if fd := os.Stderr.Fd(); term.IsTerminal(fd) {
 		if w, _, err := term.GetSize(fd); err == nil && w > 0 {
 			width = w
 		}
 	}
-	
+
 	var char string
 	switch style {
 	case "line":
@@ -51,7 +51,7 @@ func RenderDivider(style string, theme Theme, opts RenderOptions) string {
 	default:
 		char = "─"
 	}
-	
+
 	line := strings.Repeat(char, width)
 	return theme.SystemStyle.Render(line)
 }
@@ -61,7 +61,7 @@ func LogDivider(style string, theme Theme, opts RenderOptions, writer io.Writer)
 	if writer == nil {
 		writer = os.Stderr
 	}
-	
+
 	divider := RenderDivider(style, theme, opts)
 	if divider != "" {
 		fmt.Fprintln(writer, divider)

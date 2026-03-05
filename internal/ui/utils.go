@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
-	"github.com/mattn/go-runewidth"
 )
 
 // TerminalWidth returns the current terminal width or a fallback value.
@@ -29,44 +29,38 @@ func IsTerminal(fd uintptr) bool {
 // SupportsUnicode checks if the terminal supports Unicode characters.
 // Checks LANG, LC_ALL, LC_CTYPE environment variables for UTF-8 encoding.
 func SupportsUnicode() bool {
-	// Check common environment variables
 	for _, env := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
 		val := os.Getenv(env)
 		if val != "" {
 			val = strings.ToUpper(val)
-			// Check for UTF-8 encoding
 			if strings.Contains(val, "UTF-8") || strings.Contains(val, "UTF8") {
 				return true
 			}
-			// If explicitly set to C/POSIX, no Unicode support
 			if val == "C" || val == "POSIX" {
 				return false
 			}
-			// If explicitly set to something else without UTF, probably no Unicode
 			if strings.Contains(val, "ASCII") || strings.Contains(val, "ANSI") {
 				return false
 			}
 		}
 	}
-	
+
 	// Check TERM variable for hints
 	term := os.Getenv("TERM")
 	if term != "" {
 		term = strings.ToLower(term)
-		// Modern terminal emulators typically support Unicode
-		if strings.Contains(term, "xterm") || 
-		   strings.Contains(term, "screen") ||
-		   strings.Contains(term, "tmux") ||
-		   strings.Contains(term, "rxvt") ||
-		   strings.Contains(term, "alacritty") ||
-		   strings.Contains(term, "kitty") ||
-		   strings.Contains(term, "iterm") {
+		if strings.Contains(term, "xterm") ||
+			strings.Contains(term, "screen") ||
+			strings.Contains(term, "tmux") ||
+			strings.Contains(term, "rxvt") ||
+			strings.Contains(term, "alacritty") ||
+			strings.Contains(term, "kitty") ||
+			strings.Contains(term, "iterm") {
 			return true
 		}
 	}
-	
-	// Default to true for modern systems
-	// Most terminals support UTF-8 nowadays
+
+	// Default to true: most modern terminals support UTF-8.
 	return true
 }
 
@@ -104,27 +98,14 @@ func TruncatePlain(text string, width int) string {
 	if width <= 0 {
 		return ""
 	}
-	if runewidth.StringWidth(text) <= width {
+	if ansi.StringWidth(text) <= width {
 		return text
 	}
 	ellipsis := "..."
 	if width <= len(ellipsis) {
 		return ellipsis[:width]
 	}
-	target := width - len(ellipsis)
-	var b strings.Builder
-	b.Grow(len(text))
-	current := 0
-	for _, r := range text {
-		rw := runewidth.RuneWidth(r)
-		if current+rw > target {
-			break
-		}
-		b.WriteRune(r)
-		current += rw
-	}
-	b.WriteString(ellipsis)
-	return b.String()
+	return ansi.Truncate(text, width-len(ellipsis), "") + ellipsis
 }
 
 // Clamp bounds an integer to the inclusive [min, max] range.

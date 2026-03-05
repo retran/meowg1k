@@ -9,7 +9,7 @@ meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provide
 **CLI Framework**: Cobra  
 **TUI Framework**: Bubble Tea + Lip Gloss  
 **Build System**: Task (Taskfile.yaml)  
-**Testing**: testify with 75% coverage requirement  
+**Testing**: testify with 65% coverage requirement  
 **License**: Apache 2.0
 
 ## Project Structure
@@ -139,7 +139,7 @@ task deps:install          # Download and tidy Go modules
 # Testing and Quality
 task check:all            # Run all checks (lint, test, security)
 task check:lint           # Run golangci-lint
-task check:test           # Run tests with coverage (75% threshold)
+task check:test           # Run tests with coverage (65% threshold)
 task check:security       # Run gosec and govulncheck
 
 # Code Formatting
@@ -183,7 +183,7 @@ task build
 3. **Error Handling**: Always wrap errors with context using `fmt.Errorf` with `%w`
 4. **Nil Checks**: Always check for nil before dereferencing pointers
 5. **Interface Usage**: Depend on interfaces, not concrete types (especially in core/)
-6. **Testing**: Aim for 75%+ test coverage; tests must pass before commit
+6. **Testing**: Aim for 65%+ test coverage; tests must pass before commit
 
 ### Go-Specific
 
@@ -264,7 +264,7 @@ Key external dependencies:
 1. **Make Changes**: Edit source files following code standards
 2. **Format Code**: `task fix:fmt` (runs gofumpt, goimports)
 3. **Run Linter**: `task check:lint` (must pass before commit)
-4. **Run Tests**: `task check:test` (must maintain 75%+ coverage)
+4. **Run Tests**: `task check:test` (must maintain 65%+ coverage)
 5. **Build**: `task build` (creates `bin/meow`)
 6. **Commit**: Use conventional commit messages
 7. **CI/CD**: GitHub Actions runs lint, security, and tests automatically

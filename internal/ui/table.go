@@ -29,29 +29,25 @@ func RenderTable(rows []map[string]string, columns []string, opts TableOptions) 
 		theme = DefaultTheme()
 	}
 
-	// Plain mode: TSV output
 	if opts.Opts.Plain || !opts.Opts.Terminal || opts.Opts.NoBorders {
 		return renderPlainTable(rows, columns, opts)
 	}
 
-	// Terminal mode: bordered table
 	return renderBorderedTable(rows, columns, opts, theme)
 }
 
 // renderPlainTable renders a table without borders (TSV-style).
 func renderPlainTable(rows []map[string]string, columns []string, opts TableOptions) string {
 	var b strings.Builder
-	
+
 	if opts.Title != "" {
 		b.WriteString(opts.Title)
 		b.WriteString("\n\n")
 	}
-	
-	// Header
+
 	b.WriteString(strings.Join(columns, "\t"))
 	b.WriteString("\n")
-	
-	// Rows
+
 	for _, row := range rows {
 		values := make([]string, len(columns))
 		for i, col := range columns {
@@ -60,7 +56,7 @@ func renderPlainTable(rows []map[string]string, columns []string, opts TableOpti
 		b.WriteString(strings.Join(values, "\t"))
 		b.WriteString("\n")
 	}
-	
+
 	return b.String()
 }
 
@@ -74,15 +70,13 @@ func renderBorderedTable(rows []map[string]string, columns []string, opts TableO
 	colWidths := measureColumns(rows, columns)
 	shrinkColumns(colWidths, maxWidth, len(columns))
 
-	// Choose border characters based on Unicode support
+	// Use Unicode box-drawing characters when supported; otherwise fall back to ASCII.
 	var corner, horiz, vert string
 	if opts.Opts.SupportsUnicode {
-		// Unicode box-drawing characters
 		corner = "┼"
 		horiz = "─"
 		vert = "│"
 	} else {
-		// ASCII fallback
 		corner = "+"
 		horiz = "-"
 		vert = "|"
@@ -103,7 +97,7 @@ func renderBorderedTable(rows []map[string]string, columns []string, opts TableO
 	if opts.Opts.NoColor {
 		borderStyle = lipgloss.NewStyle()
 	}
-	
+
 	b.WriteString(borderStyle.Render(borderLine))
 	b.WriteString("\n")
 

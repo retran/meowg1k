@@ -168,7 +168,6 @@ func (s *Service) saveNewVersionImpl(
 		ContentHash:            input.ContentHash,
 	}
 
-	// Prepare chunks if any
 	var chunks []domainindex.Chunk
 	if len(input.Chunks) > 0 {
 		chunks = make([]domainindex.Chunk, len(input.Chunks))
@@ -188,7 +187,6 @@ func (s *Service) saveNewVersionImpl(
 		}
 	}
 
-	// Save document version and chunks in a single transaction
 	versionID, err := s.indexRepo.AddDocumentVersionWithChunks(ctx, &docVersion, input.Content, chunks)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add document version with chunks: %w", err)

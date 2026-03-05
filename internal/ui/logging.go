@@ -16,12 +16,10 @@ func LogThought(message string, theme Theme, opts RenderOptions, writer io.Write
 	}
 
 	if opts.Plain || !opts.Terminal {
-		// Plain mode: prefix with "thinking:"
 		fmt.Fprintf(writer, "thinking: %s\n", message)
 		return
 	}
 
-	// Styled output - Subtext color, quiet and skippable
 	styled := theme.ThoughtStyle.Render("… " + message)
 	fmt.Fprintln(writer, styled)
 }
@@ -33,12 +31,10 @@ func LogAction(message string, theme Theme, opts RenderOptions, writer io.Writer
 	}
 
 	if opts.Plain || !opts.Terminal {
-		// Plain mode: prefix with "action:"
 		fmt.Fprintf(writer, "action: %s\n", message)
 		return
 	}
 
-	// Styled output
 	styled := theme.ActionStyle.Render("› " + message)
 	fmt.Fprintln(writer, styled)
 }

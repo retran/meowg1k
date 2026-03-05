@@ -16,12 +16,11 @@ import (
 
 // MockOutputWriter is a test mock for OutputWriter
 type MockOutputWriter struct {
-	printCalls          []string
-	printLineCalls      []string
-	printfCalls         []printfCall
-	markdownCalls       []string
-	streamMarkdownCalls []streamMarkdownCall
-	shouldError         bool
+	printCalls     []string
+	printLineCalls []string
+	printfCalls    []printfCall
+	streamCalls    []streamCall
+	shouldError    bool
 }
 
 type printfCall struct {
@@ -29,9 +28,9 @@ type printfCall struct {
 	args   []any
 }
 
-type streamMarkdownCall struct {
-	content string
-	done    bool
+type streamCall struct {
+	delta string
+	done  bool
 }
 
 func (m *MockOutputWriter) Print(content string) error {
@@ -58,20 +57,8 @@ func (m *MockOutputWriter) Printf(format string, args ...any) error {
 	return nil
 }
 
-func (m *MockOutputWriter) PrintMarkdown(content string) error {
-	if m.shouldError {
-		return errors.New("mock markdown error")
-	}
-	m.markdownCalls = append(m.markdownCalls, content)
-	return nil
-}
-
-func (m *MockOutputWriter) StreamMarkdown(content string, done bool) error {
-	if m.shouldError {
-		return errors.New("mock stream markdown error")
-	}
-	m.streamMarkdownCalls = append(m.streamMarkdownCalls, streamMarkdownCall{content, done})
-	return nil
+func (m *MockOutputWriter) StreamToken(delta string, done bool) {
+	m.streamCalls = append(m.streamCalls, streamCall{delta, done})
 }
 
 func TestOutputModuleWrite(t *testing.T) {
@@ -247,137 +234,6 @@ func TestOutputModuleWritef(t *testing.T) {
 	})
 }
 
-func TestOutputModuleMarkdown(t *testing.T) {
-	t.Run("writes markdown", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		markdownFunc := outputModule.Members["markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		args := starlark.Tuple{starlark.String("# Header\n\nContent")}
-
-		result, err := starlark.Call(thread, markdownFunc, args, nil)
-
-		require.NoError(t, err)
-		assert.Equal(t, starlark.None, result)
-		assert.Equal(t, []string{"# Header\n\nContent"}, mock.markdownCalls)
-	})
-
-	t.Run("handles error from writer", func(t *testing.T) {
-		mock := &MockOutputWriter{shouldError: true}
-		outputModule := NewOutputModule(mock)
-
-		markdownFunc := outputModule.Members["markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		args := starlark.Tuple{starlark.String("test")}
-
-		_, err := starlark.Call(thread, markdownFunc, args, nil)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output.markdown failed")
-	})
-
-	t.Run("errors with missing argument", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		markdownFunc := outputModule.Members["markdown"]
-		thread := &starlark.Thread{Name: "test"}
-
-		_, err := starlark.Call(thread, markdownFunc, starlark.Tuple{}, nil)
-
-		assert.Error(t, err)
-	})
-}
-
-func TestOutputModuleStreamMarkdown(t *testing.T) {
-	t.Run("streams markdown with done=false", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		streamFunc := outputModule.Members["stream_markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		kwargs := []starlark.Tuple{
-			{starlark.String("content"), starlark.String("chunk1")},
-			{starlark.String("done"), starlark.Bool(false)},
-		}
-
-		result, err := starlark.Call(thread, streamFunc, starlark.Tuple{}, kwargs)
-
-		require.NoError(t, err)
-		assert.Equal(t, starlark.None, result)
-		assert.Equal(t, 1, len(mock.streamMarkdownCalls))
-		assert.Equal(t, "chunk1", mock.streamMarkdownCalls[0].content)
-		assert.False(t, mock.streamMarkdownCalls[0].done)
-	})
-
-	t.Run("streams markdown with done=true", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		streamFunc := outputModule.Members["stream_markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		kwargs := []starlark.Tuple{
-			{starlark.String("content"), starlark.String("final chunk")},
-			{starlark.String("done"), starlark.Bool(true)},
-		}
-
-		result, err := starlark.Call(thread, streamFunc, starlark.Tuple{}, kwargs)
-
-		require.NoError(t, err)
-		assert.Equal(t, starlark.None, result)
-		assert.Equal(t, 1, len(mock.streamMarkdownCalls))
-		assert.Equal(t, "final chunk", mock.streamMarkdownCalls[0].content)
-		assert.True(t, mock.streamMarkdownCalls[0].done)
-	})
-
-	t.Run("handles error from writer", func(t *testing.T) {
-		mock := &MockOutputWriter{shouldError: true}
-		outputModule := NewOutputModule(mock)
-
-		streamFunc := outputModule.Members["stream_markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		kwargs := []starlark.Tuple{
-			{starlark.String("content"), starlark.String("test")},
-		}
-
-		_, err := starlark.Call(thread, streamFunc, starlark.Tuple{}, kwargs)
-
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "output.stream_markdown failed")
-	})
-
-	t.Run("errors with missing content argument", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		streamFunc := outputModule.Members["stream_markdown"]
-		thread := &starlark.Thread{Name: "test"}
-
-		_, err := starlark.Call(thread, streamFunc, starlark.Tuple{}, nil)
-
-		assert.Error(t, err)
-	})
-
-	t.Run("works with done default value", func(t *testing.T) {
-		mock := &MockOutputWriter{}
-		outputModule := NewOutputModule(mock)
-
-		streamFunc := outputModule.Members["stream_markdown"]
-		thread := &starlark.Thread{Name: "test"}
-		kwargs := []starlark.Tuple{
-			{starlark.String("content"), starlark.String("chunk")},
-		}
-
-		result, err := starlark.Call(thread, streamFunc, starlark.Tuple{}, kwargs)
-
-		require.NoError(t, err)
-		assert.Equal(t, starlark.None, result)
-		assert.Equal(t, 1, len(mock.streamMarkdownCalls))
-		assert.False(t, mock.streamMarkdownCalls[0].done) // Default is false
-	})
-}
-
 // TestOutputModuleFunctions verifies all functions are available
 func TestOutputModuleFunctions(t *testing.T) {
 	mock := &MockOutputWriter{}
@@ -387,8 +243,6 @@ func TestOutputModuleFunctions(t *testing.T) {
 		"write",
 		"writeline",
 		"writef",
-		"markdown",
-		"stream_markdown",
 	}
 
 	for _, funcName := range expectedFunctions {
@@ -436,7 +290,6 @@ func TestOutputModuleUnicode(t *testing.T) {
 	assert.Equal(t, []string{"Hello 世界 🌍"}, mock.printCalls)
 }
 
-// TestOutputModuleLongContent tests handling of long content
 func TestOutputModuleLongContent(t *testing.T) {
 	mock := &MockOutputWriter{}
 	outputModule := NewOutputModule(mock)

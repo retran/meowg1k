@@ -147,7 +147,6 @@ func cosineSimilarity(a, b []float32) float32 {
 		return 0
 	}
 
-	// Cosine similarity = dot(a, b) / (||a|| * ||b||)
 	similarity := dotProduct / (float32(math.Sqrt(float64(normA))) * float32(math.Sqrt(float64(normB))))
 
 	return similarity

@@ -1,3 +1,6 @@
+// Copyright © 2025 The meowg1k Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package starlark
 
 import (
@@ -80,7 +83,6 @@ func timeSleep(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple
 
 // convertTimeFormat converts Python-style format to Go time format
 func convertTimeFormat(format string) string {
-	// Support common formats
 	replacements := map[string]string{
 		"%Y": "2006",
 		"%m": "01",

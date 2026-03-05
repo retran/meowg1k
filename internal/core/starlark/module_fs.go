@@ -69,7 +69,6 @@ func (r *Runtime) fsGlob(thread *starlark.Thread, b *starlark.Builtin, args star
 		pattern = filepath.Join(r.workingDir, pattern)
 	}
 
-	// Convert ignore list
 	ignore := []string{}
 	if ignoreList != nil {
 		for i := 0; i < ignoreList.Len(); i++ {
@@ -91,13 +90,11 @@ func (r *Runtime) fsGlob(thread *starlark.Thread, b *starlark.Builtin, args star
 			continue
 		}
 
-		// Make relative to working dir for both ignore check and return value
 		relPath, err := filepath.Rel(r.workingDir, match)
 		if err != nil {
 			relPath = match
 		}
 
-		// Check ignore patterns against relative path
 		if shouldIgnore(relPath, ignore) {
 			continue
 		}
@@ -146,7 +143,6 @@ func (r *Runtime) fsWrite(thread *starlark.Thread, b *starlark.Builtin, args sta
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	// Create parent directories if they don't exist
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create parent directories for '%s': %w", path, err)
 	}
@@ -254,7 +250,6 @@ func (r *Runtime) fsFilter(thread *starlark.Thread, b *starlark.Builtin, args st
 		return nil, err
 	}
 
-	// Make dir absolute
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(r.workingDir, dir)
 	}
@@ -273,13 +268,11 @@ func (r *Runtime) fsFilter(thread *starlark.Thread, b *starlark.Builtin, args st
 
 	files := make([]starlark.Value, 0, len(matches))
 	for _, match := range matches {
-		// Skip directories
 		stat, err := os.Stat(match)
 		if err != nil || stat.IsDir() {
 			continue
 		}
 
-		// Make relative to workingDir
 		rel, err := filepath.Rel(r.workingDir, match)
 		if err != nil {
 			rel = match
@@ -303,12 +296,10 @@ func (r *Runtime) fsWalk(thread *starlark.Thread, b *starlark.Builtin, args star
 		return nil, err
 	}
 
-	// Make root absolute
 	if !filepath.IsAbs(root) {
 		root = filepath.Join(r.workingDir, root)
 	}
 
-	// Check if root exists
 	if _, err := os.Stat(root); err != nil {
 		return nil, fmt.Errorf("failed to walk directory '%s': %w", root, err)
 	}
@@ -320,12 +311,10 @@ func (r *Runtime) fsWalk(thread *starlark.Thread, b *starlark.Builtin, args star
 			return err
 		}
 
-		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
 
-		// Apply pattern filter if provided
 		if pattern != "" {
 			matched, err := doublestar.Match(pattern, filepath.Base(path))
 			if err != nil {
@@ -336,7 +325,6 @@ func (r *Runtime) fsWalk(thread *starlark.Thread, b *starlark.Builtin, args star
 			}
 		}
 
-		// Make relative to workingDir
 		rel, err := filepath.Rel(r.workingDir, path)
 		if err != nil {
 			rel = path
@@ -361,7 +349,6 @@ func (r *Runtime) fsStat(thread *starlark.Thread, b *starlark.Builtin, args star
 		return nil, err
 	}
 
-	// Make path absolute
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
@@ -388,7 +375,6 @@ func (r *Runtime) fsListdir(thread *starlark.Thread, b *starlark.Builtin, args s
 		return nil, err
 	}
 
-	// Make path absolute
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
@@ -419,7 +405,6 @@ func (r *Runtime) fsChmod(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Make path absolute
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
@@ -444,15 +429,12 @@ func (r *Runtime) fsTouch(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Make path absolute
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	// Determine the target time
 	var targetTime time.Time
 	if mtimeVal != starlark.None {
-		// Convert Starlark int to Unix timestamp
 		if mtimeInt, ok := mtimeVal.(starlark.Int); ok {
 			unixTime, _ := mtimeInt.Int64()
 			targetTime = time.Unix(unixTime, 0)
@@ -463,10 +445,8 @@ func (r *Runtime) fsTouch(thread *starlark.Thread, b *starlark.Builtin, args sta
 		targetTime = time.Now()
 	}
 
-	// Check if file exists
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) {
-		// Create the file
 		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 			return nil, fmt.Errorf("failed to create parent directories for '%s': %w", path, err)
 		}
@@ -479,7 +459,6 @@ func (r *Runtime) fsTouch(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, fmt.Errorf("failed to stat '%s': %w", path, err)
 	}
 
-	// Update timestamp
 	if err := os.Chtimes(path, targetTime, targetTime); err != nil {
 		return nil, fmt.Errorf("failed to update timestamp for '%s': %w", path, err)
 	}

@@ -6,7 +6,6 @@
 - [Standard Modules](#standard-modules) - fs, git, llm, shell, index, ui, etc.
 - [Type Reference](#type-reference) - Complete type signatures  
 - [Cookbook](#cookbook-real-world-patterns) - Real-world examples
-- [UI Module](#complete-ui-api-documentation) - Flux Terminal widgets
 - [Complete Example](#complete-example) - Full code review workflow
 
 ---
@@ -168,7 +167,7 @@ Registers a `meow.tool` as a Top-Level CLI command.
 **Example:**
 ```python
 def my_handler(ctx):
-    ctx.ui.info("Hello " + ctx.name)
+    ctx.output.writeline("Hello " + ctx.name)
 
 hello_tool = meow.tool(
     name="hello",
@@ -203,7 +202,7 @@ def validate_even(ctx):
 
 tool_with_validation = meow.tool(
     name="even_checker",
-    handler=lambda ctx: ctx.ui.success("Valid number!"),
+    handler=lambda ctx: ctx.output.writeline("Valid number!"),
     params={
         "number": meow.param("int", validator=validate_even)
     }
@@ -250,7 +249,7 @@ result = ctx.run(calculator, a=10, b=5, op="add")
 - **Idempotency**: Ensure tools can run multiple times without side effects (e.g., check `fs.exists` before writing).
 - **Secrets**: Never hardcode API keys. Use `env.get("MY_KEY")`.
 - **Validation**: Use `validator` functions in `meow.param` to catch errors early.
-- **Output**: Use `ctx.ui` for user-facing logs and `output.write` for machine-readable output.
+- **Output**: Use `output.write` or `output.writeline` for machine-readable output, `ctx.ui.assistant_turn()` for user-facing responses.
 - **Error Handling**: Starlark has no exceptions. Operations that fail will stop execution with an error message. All error messages follow the pattern: `"operation failed for 'context': details"` to provide clear, actionable information.
 
 ### Error Handling
@@ -265,7 +264,7 @@ result = ctx.fs.read("missing.txt")
 result = ctx.git.commit("message")
 # Error: "git commit failed: nothing to commit, working tree clean"
 
-result = ctx.llm.generate("prompt", preset="invalid")
+result = ctx.llm.chat(prompt="prompt", preset="invalid")
 # Error: "failed to resolve preset 'invalid': preset not found"
 ```
 
@@ -279,7 +278,7 @@ result = ctx.llm.generate("prompt", preset="invalid")
 - Read error messages carefully - they include file paths and context
 - Check that files/directories exist before operations
 - Verify preset/model names are configured in `init.star`
-- Use `ctx.ui.info()` to log progress and debug execution flow
+- Use `output.writeline()` to log progress and debug execution flow
 
 ---
 
@@ -315,7 +314,7 @@ Remove a file or directory.
 Get current working directory.
 
 **`fs.getcwd()`** -> `string` *(Deprecated: use `cwd()`)*
-Alias for `cwd()` (deprecated, will be removed in v3.0).
+Alias for `cwd()`. Deprecated — use `fs.cwd()` instead.
 
 **`fs.filter(dir, pattern="*", recursive=False)`** -> `list[string]`
 Filter files in a directory by pattern.
@@ -432,11 +431,11 @@ Get diff statistics and raw content.
 - `target`: "staged" (default), "HEAD", or "commit-hash".
 - Returns: `{raw, files, additions, deletions}`.
 
-**`git.diff_file(file, target="staged")`** -> `string`
+**`git.diff_file(file, target="staged")`** -> `struct`
 Get diff for a specific file.
 - `file`: Path to the file (required).
 - `target`: "staged" (default), "HEAD", or "commit-hash".
-- Returns: Diff content for the specified file.
+- Returns: `{raw, file, additions, deletions}`.
 
 **`git.status()`** -> `list[string]`
 Get porcelain status lines.
@@ -514,7 +513,7 @@ untracked = ctx.git.untracked_files()
 
 # Process all files that need attention
 for file in staged + modified:
-    ctx.ui.info("Processing: " + file)
+    ctx.output.writeline("Processing: " + file)
 ```
 
 #### Git Constants
@@ -538,73 +537,148 @@ All git write operations (`commit`, `push`, `add`, `checkout`, `create_branch`) 
 ```python
 # Commit with result details
 result = ctx.git.commit("feat: add new feature")
-ctx.ui.info(f"Committed: {result.hash[:7]}")
-ctx.ui.info(f"Message: {result.message}")
+ctx.output.writeline(f"Committed: {result.hash[:7]}")
+ctx.output.writeline(f"Message: {result.message}")
 
 # Add files and check count
 result = ctx.git.add(["main.go", "README.md"])
-ctx.ui.success(f"Staged {result.count} files")
+ctx.output.writeline(f"Staged {result.count} files")
 for file in result.files_added:
-    ctx.ui.info(f"  • {file}")
+    ctx.output.writeline(f"  • {file}")
 
 # Push with details
 result = ctx.git.push()
-ctx.ui.success(f"Pushed to {result.remote}/{result.branch}")
+ctx.output.writeline(f"Pushed to {result.remote}/{result.branch}")
 
 # Checkout with confirmation
 result = ctx.git.checkout("main")
-ctx.ui.info(f"Switched to: {result.target}")
+ctx.output.writeline(f"Switched to: {result.target}")
 
 # Create branch with conditional checkout
 result = ctx.git.create_branch("feature/new", should_checkout=True)
 if result.checked_out:
-    ctx.ui.success(f"Created and switched to: {result.name}")
+    ctx.output.writeline(f"Created and switched to: {result.name}")
 else:
-    ctx.ui.info(f"Created branch: {result.name}")
+    ctx.output.writeline(f"Created branch: {result.name}")
 ```
 
 ---
 
 ### llm (Language Models)
 
-**`llm.generate(prompt, system="", preset="smart")`** -> `string`
-Generate text using a configured preset.
-- `prompt`: The user prompt.
-- `system`: System instruction (optional).
-- `preset`: Name of the preset to use (default: "smart").
+> **v0.3.0 Breaking Change**: `llm.generate()` and `llm.agentic()` have been removed.
+> Use `llm.chat()` and `llm.agent_turn()` respectively.
 
-**`llm.agentic(tools, prompt, system="", preset="smart", on_tool_error="return", max_iterations=50)`** -> `string`
-Run an agentic loop with native tool calling support. The LLM can autonomously call tools, receive results, and continue processing until it provides a final answer.
+**`llm.chat(prompt, preset, system=None, use_session=True, stream=False, on_event=None, response_format=None, response_schema=None)`** -> `string | dict`
 
-- `tools`: List of tool objects (created with `meow.tool()` or loaded from libraries like `//lib/tools.star`).
-- `prompt`: Initial user prompt.
+Generate a single LLM response. Returns a string by default, or a parsed dict when `response_format="json_object"`.
+
+- `prompt` (required): The user prompt.
+- `preset` (required): Name of the preset to use. No default — must be provided.
 - `system`: System instruction (optional).
-- `preset`: Name of the preset to use (default: "smart").
+- `use_session`: If `True` (default), previous messages from the current session are included in the context.
+- `stream`: If `True`, call `GenerateContentStream` on the gateway and emit events via `on_event`.
+- `on_event`: Callable invoked with each stream event dict (see Stream Events below). Required when `stream=True` to observe deltas; optional otherwise.
+- `response_format`: `"json_object"` to parse the response as JSON and return a dict.
+- `response_schema`: Reserved for structured output schemas (future use).
+
+**Example:**
+```python
+def handler(ctx):
+    # Non-streaming
+    result = ctx.llm.chat(
+        prompt="Explain Go interfaces",
+        preset="smart",
+        system="You are a Go expert.",
+    )
+    ctx.output.markdown(result)
+
+    # Streaming with markdown rendering
+    load("//lib/ui_helpers.star", "make_markdown_stream_handler")
+    result = ctx.llm.chat(
+        prompt="Write a detailed explanation",
+        preset="smart",
+        stream=True,
+        on_event=make_markdown_stream_handler(ctx),
+    )
+
+    # JSON output
+    data = ctx.llm.chat(
+        prompt="Extract name and age from: Alice is 30 years old",
+        preset="fast",
+        response_format="json_object",
+    )
+    ctx.output.writeline("Name: " + data["name"])
+```
+
+---
+
+**`llm.agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False, on_event=None, max_iterations=50, on_tool_error="return", response_format=None, response_schema=None)`** -> `string | dict`
+
+Run one turn of an agentic loop with native tool calling support. The LLM can call tools, receive results, and continue processing until it provides a final text answer or `max_iterations` is reached.
+
+- `prompt` (required): The user prompt.
+- `preset` (required): Name of the preset to use. No default — must be provided.
+- `tools` (required): List of tool objects created with `meow.tool()`.
+- `system`: System instruction (optional).
+- `use_session`: If `True` (default), previous session messages are included.
+- `stream`: If `True`, stream events are emitted via `on_event`.
+- `on_event`: Callable for stream events (tool call progress, text deltas, etc.).
+- `max_iterations`: Maximum LLM→tool→LLM cycles before returning (default: 50).
 - `on_tool_error`: Error handling strategy:
-  - `"return"`: Return error as tool result, let LLM see it (default)
-  - `"retry"`: Continue loop, let LLM retry
-  - `"abort"`: Stop immediately on tool error
-- `max_iterations`: Maximum number of LLM→tool→LLM cycles (default: 50).
+  - `"return"` (default): Return error as tool result so the LLM can see it.
+  - `"abort"`: Stop immediately and return an error.
+- `response_format`: `"json_object"` to parse final response as JSON.
+- `response_schema`: Reserved for structured output schemas (future use).
 
 **Example:**
 ```python
 load("//lib/tools.star", "calculator", "file_reader")
+load("//lib/ui_helpers.star", "make_agentic_stream_handler")
 
 def handler(ctx):
-    result = ctx.llm.agentic(
-        tools=[calculator, file_reader],
+    result = ctx.llm.agent_turn(
         prompt="Read config.json and calculate the sum of all numeric values",
-        system="You are a helpful assistant with access to file and calculation tools",
         preset="smart",
-        max_iterations=10
+        tools=[calculator, file_reader],
+        system="You are a helpful assistant with access to file and calculation tools.",
+        max_iterations=10,
+        stream=True,
+        on_event=make_agentic_stream_handler(ctx),
     )
     ctx.output.writeline(result)
 ```
 
-**`llm.embed(texts, preset="embeddings")`** -> `list[list[float]]`
+---
+
+#### Stream Events
+
+When `stream=True`, the `on_event` callback receives dicts with the following shapes:
+
+| `kind`            | Additional fields                                                        |
+| ----------------- | ------------------------------------------------------------------------ |
+| `text`            | `delta` (str) — incremental text token                                   |
+| `thinking`        | `delta` (str) — reasoning token (Anthropic extended thinking, etc.)      |
+| `usage`           | `usage` dict: `{prompt, completion, total}`                              |
+| `done`            | `usage` dict (optional) — signals stream completion                      |
+| `error`           | `error` (str), `recoverable` (bool)                                      |
+| `tool_call_start` | `tool_name`, `tool_id`, `arguments` (dict)                               |
+| `tool_call_end`   | `tool_name`, `tool_id`, `duration_ms` (int), `arguments` (dict)         |
+| `tool_call_error` | `tool_name`, `tool_id`, `error` (str), `duration_ms` (int), `arguments` |
+
+Stream events are **ephemeral** — they are not stored in the session database. Only the final aggregated messages are persisted.
+
+Use `//lib/ui_helpers.star` for pre-built handlers:
+- `make_markdown_stream_handler(ctx)` — renders text deltas as markdown
+- `make_plain_stream_handler(ctx)` — writes text deltas as plain text
+- `make_agentic_stream_handler(ctx, abort_on_error, max_errors)` — full agent handler
+
+---
+
+**`llm.embed(texts, preset)`** -> `list[list[float]]`
 Generate embeddings for a list of texts.
-- `texts`: List of strings to embed.
-- `preset`: Name of the embeddings preset to use (default: "embeddings").
+- `texts` (required): List of strings to embed.
+- `preset` (required): Name of the embeddings preset. No default — must be provided.
 - Returns: List of embedding vectors (each a list of floats).
 
 ---
@@ -636,11 +710,17 @@ Get all metadata for the current session.
 
 **`session.get_children()`** -> `list[dict]`
 Get information about child sessions created by this session.
-Returns list of `{id, tool_name, status, created_at, updated_at}`.
+Returns list of `{id, tool_name, status, parent_id}`.
 
-**`session.get_events(limit=0, offset=0)`** -> `list[dict]`
+**`session.set_system(prompt)`** -> `None`
+Store a system prompt for the current session. This prompt is used by `ctx.llm.chat()` and `ctx.llm.agent_turn()` when no explicit `system` parameter is provided.
+
+**`session.get_system()`** -> `string | None`
+Retrieve the system prompt stored for the current session. Returns `None` if none has been set.
+
+**`session.get_events(limit=100, offset=0)`** -> `list[dict]`
 Get events (messages, tool calls, results) for this session.
-Returns list of `{id, type, content, tool_call_id, tool_calls, obsolete, created_at}`.
+Returns list of `{id, type, content, tool_call_id}`.
 
 **`session.mark_obsolete(event_ids)`** -> `None`
 Mark events as obsolete for compaction (they will be excluded from context).
@@ -657,8 +737,8 @@ Get any session by ID (not just current session).
 **Example:**
 ```python
 def handler(ctx):
-    ctx.ui.info("Session: " + ctx.session.id())
-    ctx.ui.info("Tool: " + ctx.session.tool_name())
+    ctx.output.writeline("Session: " + ctx.session.id())
+    ctx.output.writeline("Tool: " + ctx.session.tool_name())
     
     # Store some metadata
     ctx.session.set_metadata("user_id", "123")
@@ -668,7 +748,7 @@ def handler(ctx):
     
     # Check child sessions
     children = ctx.session.get_children()
-    ctx.ui.info("Created " + str(len(children)) + " child sessions")
+    ctx.output.writeline("Created " + str(len(children)) + " child sessions")
 ```
 
 ---
@@ -707,60 +787,46 @@ ctx.index.build(strategy=ctx.index.STRATEGY_SEMANTIC)
 
 ### ui (User Interface)
 
-The UI module provides a comprehensive **Flux Terminal** design system for terminal output with hierarchical contexts, semantic logging, and rich content rendering.
+The `ui` module provides terminal output widgets and interactive components. All functions are accessed through `ctx.ui` in handler functions.
 
-**Important:** All UI functions must be accessed through `ctx.ui` in handler functions:
-```python
-def my_handler(ctx):
-    ctx.ui.info("Hello!")  # ✅ Correct
-    # ui.info("Hello!")    # ❌ Wrong - ui is not directly accessible
-```
+#### Conversation-Style Output
 
-The UI module is available in the handler context as `ctx.ui` and provides the full Flux Terminal API (25 functions).
+**`ui.user_turn(text)`**
+Display a user message turn.
 
-#### Basic Status Messages
+**`ui.assistant_turn()`** -> `TurnHandle`
+Begin an assistant response turn. Returns a handle for managing output:
+- `.step(text)` -> `StepHandle`: Add a progress step. Returns handle with:
+  - `.done(text=None)`: Mark step complete
+  - `.fail(text=None)`: Mark step failed
+  - `.info(text)`: Add info to step
+  - `.update(text)`: Update step text
+- `.stream(delta, done=False)`: Stream a text delta
+- `.done(summary=None)`: Complete the turn
+- `.fail(summary=None)`: Fail the turn
+- `.info(text)`: Add an info line
+- `.warn(text)`: Add a warning line
+- `.subturn(label)` -> `SubTurnHandle`: Create a sub-turn with:
+  - `.step(text)` -> `StepHandle`
+  - `.stream(delta, done=False)`
+  - `.done(summary=None)`
+  - `.fail(summary=None)`
 
-**`ui.info(msg)`**, **`ui.success(msg)`**, **`ui.warn(msg)`**, **`ui.error(msg)`**
-Print styled status messages to the console.
+#### Progress Indicators
 
-```python
-ctx.ui.info("Processing files...")
-ctx.ui.success("Build completed!")
-ctx.ui.warn("Deprecated function used")
-ctx.ui.error("Connection failed")
-```
+**`ui.progress_bar(total, message="")`** -> `ProgressBarHandle`
+Visual progress bar for batch operations. Returns handle with:
+- `.inc(amount=1)`: Increment progress
+- `.set(value)`: Set absolute value
+- `.done(message=None)`: Finish
 
-#### Hierarchical Contexts
+**`ui.progress(message, current=None, total=None)`**
+Simple single-line progress text.
 
-**`ui.step(title, icon=None)`** -> `StepHandle`
-Create a visual grouping for related operations. Returns a handle with methods:
-- `.done(message=None)`: Complete successfully
-- `.fail(message=None)`: Fail with error
-- `.write(content)`: Output within step
-
-```python
-step = ctx.ui.step("Analyzing Code", icon="🔍")
-ctx.ui.info("Found 150 files")
-step.done("Complete (1.2s)")
-```
-
-#### Semantic Logging
-
-**`ui.think(message)`**
-Output dimmed agent reasoning messages.
-
-**`ui.action(message)`**
-Output cyan tool/API action messages with ⚡ icon.
-
-```python
-ctx.ui.think("Analyzing security constraints...")
-ctx.ui.action("Calling GitHub API")
-```
-
-#### Rich Content
+#### Rich Content Display
 
 **`ui.code(content, lang="text", title=None, max_lines=0)`**
-Display code with syntax highlighting (100+ languages). Use `max_lines` to truncate.
+Display code with syntax highlighting (100+ languages via Chroma). Use `max_lines` to truncate.
 
 **`ui.diff(content, title=None, max_lines=0)`**
 Display git diff with colored +/- and borders. Use `max_lines` to truncate.
@@ -768,37 +834,45 @@ Display git diff with colored +/- and borders. Use `max_lines` to truncate.
 **`ui.tree(data, title=None)`**
 Display hierarchical data as a tree with ├── └── branches.
 
-**`ui.properties(data, title=None)`**
-Display aligned key-value pairs.
+**`ui.table(data, columns, title=None, query=None)`**
+Display data in a formatted table. `columns` is **required**.
+
+**`ui.markdown(content)`**
+Render and display a markdown string.
+
+**`ui.panel(content, title=None, style=None)`**
+Display content in a bordered panel.
+
+**`ui.banner(title, subtext=None)`**
+Display a prominent title banner with borders.
+
+**`ui.render(value, query=None)`**
+Auto-render a Starlark value: strings render as markdown, lists render as a table, diffs render as diff. `query` is used for table filtering.
 
 **`ui.link(text, url)`** -> `string`
-Create clickable hyperlink (OSC 8). Falls back to "text (url)" in unsupported terminals.
+Create a clickable hyperlink (OSC 8 terminal escape). Falls back to `"text (url)"` in unsupported terminals.
 
-**`ui.pager(content, title=None, show_line_numbers=True)`**
-Display content in `less` pager if >30 lines, otherwise prints directly.
+**`ui.pager(content, title=None, show_line_numbers=False)`**
+Display content in an interactive Bubble Tea viewport for scrolling through large text.
 
 ```python
-ctx.ui.code(code, lang="go", title="main.go", max_lines=20)  # Truncate to 20 lines
+ctx.ui.code(code, lang="go", title="main.go", max_lines=20)
 ctx.ui.diff(diff_text, title="patch.diff", max_lines=10)
 ctx.ui.tree({"dir": {"file": "value"}})
-ctx.ui.properties({"Key": "Value"}, title="Config")
-ctx.ui.info("See: " + ctx.ui.link("GitHub", "https://github.com/org/repo"))
-ctx.ui.pager(large_log, title="Build Log")  # Opens in less
+ctx.ui.table(rows, columns=["Name", "Age"], title="Users")
+link = ctx.ui.link("GitHub", "https://github.com/org/repo")
+ctx.ui.pager(large_log, title="Build Log")
 ```
 
 #### User Interaction
 
-**`ui.prompt(text, default="", is_sensitive=False, validate=None)`** -> `string`
-Ask the user for input with optional masking and validation.
+**`ui.prompt(message, default="", is_sensitive=False, validate=None)`** -> `string`
+Ask the user for text input with optional masking and validation.
 
 ```python
-# Simple prompt
 name = ctx.ui.prompt("Enter name:")
-
-# Password input (masked with *)
 api_key = ctx.ui.prompt("API Key:", is_sensitive=True)
 
-# With validation
 def validate_port(val):
     if not val.isdigit():
         return "Must be a number"
@@ -810,8 +884,8 @@ port = ctx.ui.prompt("Enter port:", default="8080", validate=validate_port)
 **`ui.confirm(prompt, default=False)`** -> `bool`
 Ask for Y/n confirmation.
 
-**`ui.select(prompt, items, allow_multiple=False, ...)`** -> `string | list`
-Interactive selection menu. Multi-select supported!
+**`ui.select(prompt, items, allow_multiple=False, is_fuzzy=False, limit=0, placeholder=None, initial_query=None, allow_new=False, should_return_index=False, label_key=None, value_key=None, meta_key=None)`** -> `string | list`
+Interactive fuzzy selection menu. Multi-select supported.
 
 ```python
 # Single select
@@ -822,67 +896,7 @@ files = ctx.ui.select("Pick files:", ["a.go", "b.go", "c.go"], allow_multiple=Tr
 # Returns: ["a.go", "c.go"]
 
 if ctx.ui.confirm("Continue?", default=True):
-    # proceed
-```
-
-#### Layout
-
-**`ui.divider(style="line")`**
-Display horizontal divider. Styles: "line", "thick", "dotted", "empty".
-
-```python
-ctx.ui.divider("thick")  # ━━━━━━━━━━━━━━
-# Or use constants
-ctx.ui.divider(ctx.ui.DIVIDER_THICK)
-```
-
-#### UI Constants
-
-**`ui.DIVIDER_THICK`** = `"thick"`  
-**`ui.DIVIDER_THIN`** = `"thin"`  
-**`ui.DIVIDER_DOUBLE`** = `"double"`
-
-Type-safe constants for divider styles.
-
-```python
-# Use constants for divider styles
-ctx.ui.divider(ctx.ui.DIVIDER_THICK)
-ctx.ui.divider(ctx.ui.DIVIDER_THIN)
-ctx.ui.divider(ctx.ui.DIVIDER_DOUBLE)
-```
-
-**`ui.progress(msg, current, total)`**
-Update a progress indicator.
-
-**`ui.banner(title, subtext=None)`**
-Display a prominent title banner with borders.
-
-```python
-ctx.ui.banner("Deployment System", "Production")
-```
-
-#### Progress Indicators
-
-**`ui.activity(message)`** -> `ActivityHandle`
-Animated spinner for indeterminate operations. Returns handle with:
-- `.update(msg)`: Change message
-- `.success(msg)`: Complete successfully
-- `.fail(msg)`: Complete with error
-
-**`ui.progress_bar(total, message="")`** -> `ProgressBarHandle`
-Visual progress bar for batch operations. Returns handle with:
-- `.inc(amount=1)`: Increment progress
-- `.set(value)`: Set absolute value
-- `.done(msg="")`: Finish at 100%
-
-```python
-activity = ctx.ui.activity("Processing...")
-activity.success("Done!")
-
-bar = ctx.ui.progress_bar(100, "Files")
-for i in range(100):
-    bar.inc()
-bar.done()
+    pass  # proceed
 ```
 
 ---
@@ -1198,7 +1212,7 @@ Perform a GraphQL query.
 response = ctx.http.get("https://api.github.com/repos/retran/meowg1k")
 if response.ok:
     repo = response.json
-    ctx.ui.info("Stars: " + str(repo["stargazers_count"]))
+    ctx.output.writeline("Stars: " + str(repo["stargazers_count"]))
 
 # POST with JSON
 data = {"title": "Bug report", "body": "Description"}
@@ -1216,7 +1230,7 @@ response = ctx.http.graphql(
 )
 if response.ok:
     user = response.json["data"]["viewer"]["login"]
-    ctx.ui.success("Logged in as: " + user)
+    ctx.output.writeline("Logged in as: " + user)
 
 # GET with query parameters
 response = ctx.http.get(
@@ -1232,14 +1246,14 @@ HTTP requests may fail due to network errors, timeouts, or invalid URLs. Always 
 ```python
 response = ctx.http.get("https://api.example.com/data")
 if not response.ok:
-    ctx.ui.error("Request failed with status: " + str(response.status_code))
+    ctx.output.writeline("Request failed with status: " + str(response.status_code))
     return
 
 # Or check specific status codes
 if response.status_code == 404:
-    ctx.ui.warn("Resource not found")
+    ctx.output.writeline("Resource not found")
 elif response.status_code >= 500:
-    ctx.ui.error("Server error occurred")
+    ctx.output.writeline("Server error occurred")
 ```
 
 ---
@@ -1276,7 +1290,7 @@ Go templates use `{{}}` for actions:
 # Simple template parsing and rendering
 tmpl = ctx.template.parse("Hello {{.Name}}, you are {{.Age}} years old")
 result = tmpl.render({"Name": "Alice", "Age": 30})
-ctx.ui.info(result)  # "Hello Alice, you are 30 years old"
+ctx.output.writeline(result)  # "Hello Alice, you are 30 years old"
 
 # Template with conditional
 tmpl = ctx.template.parse("""
@@ -1370,13 +1384,13 @@ Template parsing and rendering errors include context:
 try:
     tmpl = ctx.template.parse("{{.Missing")  # Syntax error
 except:
-    ctx.ui.error("Template parse error")
+    ctx.output.writeline("Template parse error")
 
 try:
     tmpl = ctx.template.parse("{{.User.Name}}")
     result = tmpl.render({"User": None})  # Runtime error
 except:
-    ctx.ui.error("Template render error")
+    ctx.output.writeline("Template render error")
 ```
 
 ---
@@ -1418,22 +1432,23 @@ def review_handler(ctx):
     # 1. Get staged changes
     diff = ctx.git.diff(target="staged")
     if not diff.raw:
-        ctx.ui.warn("No staged changes found.")
+        output.writeline("No staged changes found.")
         return
 
     # 2. Analyze with LLM
-    ctx.ui.info("Analyzing changes...")
+    turn = ctx.ui.assistant_turn()
+    step = turn.step("Analyzing changes...")
     prompt = "Review these changes:\n" + diff.raw
-    review = ctx.llm.generate(prompt, preset="coding")
+    review = ctx.llm.chat(prompt=prompt, preset="coding")
+    step.done()
 
     # 3. Output result
-    ctx.ui.success("Review Complete:")
     ctx.output.writeline(review)
 
     # 4. Ask to commit
-    if ctx.ui.prompt("Commit with this review? (y/n)") == "y":
+    if ctx.ui.confirm("Commit with this review?"):
         result = ctx.git.commit(message="refactor: " + review[:50])
-        ctx.ui.success("Committed as: " + result.hash[:7])
+        ctx.output.writeline("Committed as: " + result.hash[:7])
 
 review_tool = meow.tool(
     name="review",
@@ -1444,1018 +1459,7 @@ review_tool = meow.tool(
 meow.command(review_tool)
 ```
 
----
 
-
-The `ui` module provides a comprehensive **Flux Terminal** design system for creating professional, hierarchical terminal interfaces. All widgets support Unicode with ASCII fallback and plain mode for piping.
-
-**🔑 Important - Accessing UI Functions:**
-
-All UI functions are accessed through the handler context as `ctx.ui`:
-
-```python
-def my_handler(ctx):
-    # ✅ Correct - use ctx.ui
-    ctx.ui.info("Starting...")
-    ctx.ui.code(content, lang="python")
-
-    # ❌ Wrong - ui is not globally available
-    # ui.info("Starting...")
-```
-
-The documentation below uses `ui.` in function signatures for clarity, but **always use `ctx.ui.` in your code**.
-
----
-
-## 1. Flow Control & Hierarchical Contexts
-
-### ui.step(title, icon=None) → StepHandle
-
-Creates a visual grouping for related operations with timing and nesting support.
-
-**Parameters:**
-- `title` (string): Step title
-- `icon` (string, optional): Icon/emoji to display (e.g., "🔍", "⚡")
-
-**Returns:** `StepHandle` with methods:
-- `.done(message=None)`: Complete successfully, displays duration
-- `.fail(message=None)`: Fail with error message
-- `.write(content)`: Output content within the step context
-
-**Example:**
-```python
-step = ctx.ui.step("Analyzing Code", icon="🔍")
-ctx.ui.info("Found 150 files")
-ctx.ui.info("Scanning for issues...")
-step.done("Analysis complete")  # Shows: ✔ Analysis complete (2.3s)
-
-# Nested steps
-parent = ctx.ui.step("Building Project", icon="🔨")
-child = ctx.ui.step("Running Tests", icon="✓")
-child.done()
-parent.done("Build successful")
-
-# Failed step
-risky = ctx.ui.step("Deploying", icon="🚀")
-risky.fail("Connection timeout")  # Shows: ✖ Connection timeout (1.5s)
-```
-
-**Output:**
-```
-╭─ 🔍 Analyzing Code ──────────────────
-│  ℹ Found 150 files
-│  ℹ Scanning for issues...
-╰─ ✔ Analysis complete (2.3s) ────────
-```
-
----
-
-## 2. Interactive Progress Indicators
-
-### ui.activity(message) → ActivityHandle
-
-Creates an animated spinner for indeterminate operations.
-
-**Parameters:**
-- `message` (string): Initial status message
-
-**Returns:** `ActivityHandle` with methods:
-- `.update(message)`: Change the status message
-- `.success(message)`: Complete successfully with final message
-- `.fail(message)`: Complete with error message
-
-**Example:**
-```python
-activity = ctx.ui.activity("Downloading dependencies...")
-# ... work in progress ...
-activity.update("Almost done...")
-activity.success("Downloaded 42 packages")  # Shows duration
-
-# Or on failure:
-activity.fail("Network error")
-```
-
-**Output (animated):**
-```
-⠋ Downloading dependencies...
-⠙ Downloading dependencies...
-⠹ Almost done...
-✔ Downloaded 42 packages (5.2s)
-```
-
-### ui.progress_bar(total, message="Progress") → ProgressBarHandle
-
-Creates a visual progress bar for deterministic batch operations.
-
-**Parameters:**
-- `total` (int): Total number of items/steps
-- `message` (string, optional): Progress label
-
-**Returns:** `ProgressBarHandle` with methods:
-- `.inc(amount=1)`: Increment progress counter
-- `.set(value)`: Set absolute progress value
-- `.done(message="Complete")`: Finish at 100%
-
-**Example:**
-```python
-files = ["a.go", "b.go", "c.go"]
-pb = ctx.ui.progress_bar(len(files), "Processing")
-
-for file in files:
-    process(file)
-    pb.inc()  # Increment by 1
-
-pb.done("All files processed")
-```
-
-**Output:**
-```
-Processing [████████████░░░░░░░░] 60% (18/30)
-✔ All files processed (3.1s)
-```
-
----
-
-## 3. Semantic Logging
-
-Messages color-coded by semantic meaning for visual scanning.
-
-### ui.think(message)
-
-Outputs dimmed "thinking" messages for agent reasoning (Chain of Thought).
-
-```python
-ctx.ui.think("Analyzing security constraints...")
-ctx.ui.think("Should we refactor the auth module?")
-```
-
-### ui.action(message)
-
-Outputs cyan action messages for tool/API execution.
-
-```python
-ctx.ui.action("Reading configuration file")
-ctx.ui.action("Calling GitHub API")
-ctx.ui.action("Writing patch to disk")
-```
-
-### ui.info(message)
-
-Neutral informational message.
-
-```python
-ctx.ui.info("Found 150 Go files")
-```
-
-### ui.success(message)
-
-Green success message with checkmark.
-
-```python
-ctx.ui.success("Tests passed!")
-```
-
-### ui.warn(message)
-
-Yellow warning message.
-
-```python
-ctx.ui.warn("Deprecated function used")
-```
-
-### ui.error(message)
-
-Red error message with X mark.
-
-```python
-ctx.ui.error("Build failed")
-```
-
-**Output:**
-```
-✦ Analyzing security constraints...
-⚡ Calling GitHub API
-ℹ Found 150 Go files
-✔ Tests passed!
-⚠ Deprecated function used
-✖ Build failed
-```
-
----
-
-## 4. Rich Content Display
-
-### ui.code(content, lang="text", title=None, max_lines=0)
-
-Displays code with syntax highlighting (100+ languages via Chroma).
-
-**Parameters:**
-- `content` (string): Code to display
-- `lang` (string, optional): Language for highlighting (go, python, json, diff, etc.)
-- `title` (string, optional): Panel title (e.g., filename)
-- `max_lines` (int, optional): Truncate content to N lines (0 = no limit)
-
-**Supported languages:** go, python, javascript, typescript, rust, java, c, cpp, bash, sql, json, yaml, xml, html, css, markdown, diff, and 90+ more.
-
-**Example:**
-```python
-code = """package main
-
-import "fmt"
-
-func main() {
-    fmt.Println("Hello, Flux!")
-}"""
-
-ctx.ui.code(code, lang="go", title="main.go")
-
-# Truncate long files
-long_code = fs.read("large_file.go")
-ctx.ui.code(long_code, lang="go", title="large_file.go", max_lines=20)
-```
-
-**Output:**
-```
-╭── main.go ────────────────────╮
-│ package main                  │
-│                               │
-│ import "fmt"                  │
-│                               │
-│ func main() {                 │
-│     fmt.Println("Hello!")     │
-│ }                             │
-╰───────────────────────────────╯
-```
-
-**Truncation example:**
-```
-╭── large_file.go ─────────────╮
-│ package main                 │
-│ ...                          │
-│ (first 20 lines)             │
-⋮ [150 more lines]
-╰──────────────────────────────╯
-```
-
-### ui.diff(content, title=None, max_lines=0)
-
-Displays git diff with colored additions/deletions and borders.
-
-**Parameters:**
-- `content` (string): Unified diff text
-- `title` (string, optional): Panel title (usually filename)
-- `max_lines` (int, optional): Truncate content to N lines (0 = no limit)
-
-**Example:**
-```python
-diff = """diff --git a/auth.go b/auth.go
---- a/auth.go
-+++ b/auth.go
-@@ -10,2 +10,3 @@
--token = "hardcoded"
-+token = os.Getenv("TOKEN")
-+// Security improvement"""
-
-ctx.ui.diff(diff, title="auth.go")
-```
-
-**Output:**
-```
-╭── auth.go ────────────────────╮
-│ diff --git a/auth.go b/auth.go│
-│ --- a/auth.go                 │
-│ +++ b/auth.go                 │
-│ @@ -10,2 +10,3 @@             │
-│ -token = "hardcoded"          │ (red)
-│ +token = os.Getenv("TOKEN")   │ (green)
-│ +// Security improvement      │ (green)
-╰───────────────────────────────╯
-```
-
-### ui.tree(data, title=None)
-
-Displays hierarchical data as a tree with branches.
-
-**Parameters:**
-- `data` (dict or list): Nested structure to visualize
-- `title` (string, optional): Tree title
-
-**Example:**
-```python
-structure = {
-    "src": {
-        "cmd": ["main.go", "config.go"],
-        "internal": {
-            "ui": ["theme.go", "widgets.go"],
-            "core": ["engine.go"]
-        }
-    },
-    "tests": ["unit_test.go", "integration_test.go"]
-}
-
-ctx.ui.tree(structure, title="Project Structure")
-```
-
-**Output:**
-```
-Project Structure
-src
-├── cmd
-│   ├── main.go
-│   └── config.go
-└── internal
-    ├── ui
-    │   ├── theme.go
-    │   └── widgets.go
-    └── core
-        └── engine.go
-tests
-├── unit_test.go
-└── integration_test.go
-```
-
-### ui.properties(data, title=None)
-
-Displays key-value pairs in an aligned, compact list.
-
-**Parameters:**
-- `data` (dict): Key-value pairs to display
-- `title` (string, optional): Properties section title
-
-**Example:**
-```python
-ctx.ui.properties({
-    "Model": "gpt-4-turbo",
-    "Temperature": "0.7",
-    "Max Tokens": "2048",
-    "Status": "Active",
-    "Cost": "$0.03"
-}, title="LLM Configuration")
-```
-
-**Output:**
-```
-LLM Configuration
-Model:        gpt-4-turbo
-Temperature:  0.7
-Max Tokens:   2048
-Status:       Active
-Cost:         $0.03
-```
-
-### ui.table(data, columns=None, title=None)
-
-Displays data in a formatted table.
-
-**Parameters:**
-- `data` (list): List of dicts or list of lists
-- `columns` (list, optional): Column headers (required if data is list of lists)
-- `title` (string, optional): Table title
-
-**Example:**
-```python
-# List of dicts (columns auto-detected)
-results = [
-    {"file": "main.go", "lines": 150, "issues": 2},
-    {"file": "auth.go", "lines": 80, "issues": 0},
-    {"file": "api.go", "lines": 200, "issues": 5}
-]
-ctx.ui.table(results, title="Scan Results")
-
-# List of lists (columns required)
-data = [
-    ["Alice", 25, "Engineer"],
-    ["Bob", 30, "Designer"]
-]
-ctx.ui.table(data, columns=["Name", "Age", "Role"])
-```
-
-**Output:**
-```
-Scan Results
-┌──────────┬───────┬────────┐
-│ FILE     │ LINES │ ISSUES │
-├──────────┼───────┼────────┤
-│ main.go  │ 150   │ 2      │
-│ auth.go  │ 80    │ 0      │
-│ api.go   │ 200   │ 5      │
-└──────────┴───────┴────────┘
-```
-
-### ui.markdown(content)
-
-Renders Markdown with basic formatting (headers, bold, italic, lists).
-
-**Example:**
-```python
-ctx.ui.markdown("""
-# Analysis Complete
-
-## Summary
-- **Files Scanned**: 150
-- **Issues Found**: 7
-- **Critical**: 2
-
-See [documentation](https://example.com) for details.
-""")
-```
-
-### ui.panel(content, title=None)
-
-Displays content in a bordered panel.
-
-**Example:**
-```python
-ctx.ui.panel("⚠️  Important: Backup your data before proceeding!",
-         title="Warning")
-```
-
-### ui.link(text, url) → string
-
-Creates a clickable hyperlink using OSC 8 terminal escape sequences. Modern terminals (iTerm2, kitty, WezTerm, Windows Terminal) will make the text clickable.
-
-**Parameters:**
-- `text` (string): Display text for the link
-- `url` (string): Target URL
-
-**Returns:** Formatted link string (with OSC 8 codes if supported, otherwise plain text)
-
-**Example:**
-```python
-# Create clickable link
-link = ctx.ui.link("View PR", "https://github.com/org/repo/pull/123")
-ctx.ui.info("PR created: " + link)
-
-# Simple URL (text = url)
-ctx.ui.info("Documentation: " + ctx.ui.link("https://docs.example.com", "https://docs.example.com"))
-```
-
-**Terminal support:**
-- ✅ iTerm2 (macOS)
-- ✅ WezTerm
-- ✅ Windows Terminal
-- ✅ kitty
-- ✅ VS Code terminal
-- ❌ Basic terminals: Falls back to "text (url)" format
-
-### ui.pager(content, title=None, show_line_numbers=True)
-
-Displays content in a pager (like `less`) for easy scrolling through large text. If content is short (<30 lines), displays directly.
-
-**Parameters:**
-- `content` (string): Text to display
-- `title` (string, optional): Header title
-- `show_line_numbers` (bool, optional): Show line numbers (default: True)
-
-**Behavior:**
-- Content ≤ 30 lines: Direct output
-- Content > 30 lines: Opens in `less` pager
-- No `less` available: Falls back to direct output
-
-**Pager controls (less):**
-- `Space`: Next page
-- `b`: Previous page
-- `q`: Quit
-- `/pattern`: Search
-- `G`: Go to end
-- `g`: Go to start
-
-**Example:**
-```python
-# View large log file
-logs = fs.read("build.log")
-ctx.ui.pager(logs, title="Build Logs", show_line_numbers=True)
-
-# View command output
-result = shell.run("git log --all --oneline --graph")
-ctx.ui.pager(result.stdout, title="Git History", show_line_numbers=False)
-
-# Short content (prints directly)
-ctx.ui.pager("Line 1\nLine 2\nLine 3", title="Short")
-```
-
-**Output (short content):**
-```
-=== Short ===
-   1  Line 1
-   2  Line 2
-   3  Line 3
-```
-
-**Output (long content):** Opens interactive `less` viewer.
-
----
-
-## 5. User Interaction
-
-### ui.prompt(message, default="", is_sensitive=False, validate=None) → string
-
-Prompts user for text input with optional password masking and validation.
-
-**Parameters:**
-- `message` (string): Prompt message
-- `default` (string, optional): Default value if user presses Enter
-- `is_sensitive` (bool, optional): **Hide input with asterisks** (for passwords, API keys)
-  - When `True`, input is masked and not echoed to terminal
-  - Uses `golang.org/x/term` for secure input
-- `validate` (function, optional): Validation callback function
-  - Accepts one string parameter (the input value)
-  - Returns `None` if input is valid
-  - Returns error message string if invalid
-  - Prompt repeats on validation failure
-
-**Returns:** User's input as string
-
-**Example:**
-```python
-# Simple prompt
-name = ctx.ui.prompt("Enter your name:")
-
-# With default
-branch = ctx.ui.prompt("Branch name:", default="main")
-
-# Password input (MASKED)
-api_key = ctx.ui.prompt("API Key:", is_sensitive=True)
-# User sees: API Key: *********
-
-# With validation callback
-def validate_port(value):
-    if not value.isdigit():
-        return "Must be a number"
-    port = int(value)
-    if port < 1 or port > 65535:
-        return "Port must be between 1 and 65535"
-    return None  # Valid
-
-port = ctx.ui.prompt("Enter port:", default="8080", validate=validate_port)
-
-# Combined: is_sensitive + validation
-def validate_token(value):
-    if len(value) < 20:
-        return "Token too short (min 20 chars)"
-    return None
-
-token = ctx.ui.prompt("GitHub Token:", is_sensitive=True, validate=validate_token)
-```
-
-**Interactive Flow:**
-```text
-# Regular input
-Enter your name: Alice
-✓ Accepted
-
-# Sensitive input (masked)
-API Key: ********************
-✓ Accepted
-
-# With validation
-Enter port [8080]: abc
-✗ Must be a number
-Enter port [8080]: 99999
-✗ Port must be between 1 and 65535
-Enter port [8080]: 3000
-✓ Accepted
-```
-
-**Mode Support:**
-- ✅ Plain: Yes (no masking in non-TTY)
-- ✅ Terminal: Yes (with masking and validation)
-- ✅ Unicode: N/A
-- ✅ ASCII: N/A
-
-**Security Note:** When `is_sensitive=True`, input is not stored in shell history and is masked in the terminal. However, it's still in memory as a string.
-
----
-
-Asks user for Y/n confirmation.
-
-**Parameters:**
-- `prompt` (string): Question to ask
-- `default` (bool, optional): Default if user presses Enter
-
-**Returns:** `True` for yes, `False` for no
-
-**Example:**
-```python
-if ctx.ui.confirm("Deploy to production?", default=False):
-    deploy_to_prod()
-else:
-    ctx.ui.info("Deployment cancelled")
-
-# With default=True
-if ctx.ui.confirm("Continue with defaults?", default=True):
-    use_defaults()
-```
-
-**Output:**
-```
-Deploy to production? (y/N) › y
-✔ Deploying...
-
-Continue with defaults? (Y/n) › [Enter]
-✔ Using defaults
-```
-
-### ui.select(prompt, options, allow_multiple=False, is_fuzzy=True, limit=10, ...) → string | list
-
-Displays an interactive selection menu with fuzzy search.
-
-**Parameters:**
-- `prompt` (string): Selection prompt/question
-- `options` (list): List of choices (strings or dicts with label/value keys)
-- `allow_multiple` (bool, optional): **Enable multi-select mode** (default: False)
-  - When `True`: Use Space to toggle items, Enter to confirm
-  - Returns list of selected values instead of single value
-  - Shows `[x]` checkboxes for selected items
-- `is_fuzzy` (bool, optional): Enable fuzzy search (default: True)
-- `limit` (int, optional): Max items to show at once (default: 10)
-- `placeholder` (string, optional): Search input placeholder
-- `initial_query` (string, optional): Pre-fill search
-- `allow_new` (bool, optional): Allow creating new value (default: False)
-- `should_return_index` (bool, optional): Return index instead of value (default: False)
-- `label_key` (string, optional): Key for label in dict items (default: "label")
-- `value_key` (string, optional): Key for value in dict items (default: "value")
-- `meta_key` (string, optional): Key for metadata in dict items (default: "meta")
-
-**Returns:**
-- Single select mode: String (selected value)
-- Multi-select mode: List of strings (selected values)
-
-**Example:**
-```python
-# Single select (default)
-env = ctx.ui.select("Choose environment:", [
-    "Development",
-    "Staging",
-    "Production"
-])
-
-# Multi-select mode (NEW!)
-files = ctx.ui.select(
-    "Select files to process:",
-    ["main.go", "utils.go", "config.go", "api.go"],
-    allow_multiple=True
-)
-# User can select multiple with Space
-# Returns: ["main.go", "config.go"]
-
-# With dict options
-result = ctx.ui.select("Choose preset:", [
-    {"label": "Fast (GPT-3.5)", "value": "fast"},
-    {"label": "Smart (GPT-4)", "value": "smart"},
-    {"label": "Balanced (GPT-4-mini)", "value": "balanced"}
-])
-
-# Multi-select with dict options
-selected = ctx.ui.select(
-    "Choose deployment targets:",
-    [
-        {"label": "🚀 Production (US-East)", "value": "prod-us"},
-        {"label": "🧪 Staging", "value": "staging"},
-        {"label": "💻 Development", "value": "dev"}
-    ],
-    allow_multiple=True
-)
-# Returns: ["prod-us", "staging"]
-```
-
-**Interactive UI (Single Mode):**
-```text
-Choose environment:
-Search:
-> [Development]
-  [Staging]
-  [Production]
-Enter: select  Esc: cancel
-```
-
-**Interactive UI (Multi Mode):**
-```text
-Select files to process:
-Search: util
-> [x] utils.go
-  [ ] main.go
-  [ ] config.go
-Enter: confirm  Space: toggle  Esc: cancel
-```
-
-**Keyboard Controls:**
-- **↑/↓ or k/j**: Navigate items
-- **Enter**: Confirm selection (single mode) or confirm all selected (multi mode)
-- **Space**: Toggle current item (multi mode only)
-- **Ctrl+A**: Select all visible items (multi mode only)
-- **Ctrl+D**: Deselect all (multi mode only)
-- **PgUp/PgDn**: Page navigation
-- **Home/End**: Jump to first/last
-- **Esc**: Cancel
-
-**Mode Support:**
-- ❌ Plain: No (requires interactive terminal)
-- ✅ Terminal: Yes (full interactive mode)
-- ✅ Unicode: Yes (uses box drawing)
-- ✅ ASCII: Fallback available
-
----
-
-## 6. Layout & Formatting
-
-### ui.divider(style="line")
-
-Displays a horizontal divider line across terminal width.
-
-**Parameters:**
-- `style` (string, optional): Divider style
-  - `"line"`: ──────────── (default)
-  - `"thick"`: ━━━━━━━━━━━
-  - `"dotted"`: ············
-  - `"empty"`: blank line
-
-**Example:**
-```python
-ctx.ui.info("Section 1")
-ctx.ui.divider("thick")
-ctx.ui.info("Section 2")
-ctx.ui.divider()
-ctx.ui.info("Section 3")
-ctx.ui.divider("dotted")
-```
-
-**Output:**
-```
-ℹ Section 1
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-ℹ Section 2
-──────────────────────────
-ℹ Section 3
-··························
-```
-
-### ui.banner(title, subtext=None)
-
-Displays a prominent title banner with borders.
-
-**Parameters:**
-- `title` (string): Main title text
-- `subtext` (string, optional): Subtitle or description
-
-**Example:**
-```python
-ctx.ui.banner("MEOW AI Assistant", "AI Development Assistant")
-ctx.ui.banner("Code Review Complete")
-```
-
-**Output:**
-```
-════════════════════════════════════
-  MEOW AI Assistant
-  AI Development Assistant
-════════════════════════════════════
-```
-
-### ui.progress(message)
-
-Simple progress indicator (legacy, use `ui.progress_bar()` for interactive).
-
-**Example:**
-```python
-ctx.ui.progress("Processing 42 files...")
-```
-
----
-
-## 7. Advanced/Internal Functions
-
-### ui.render(template, data)
-
-Internal function for template rendering. Typically not used directly.
-
----
-
-## Complete Example
-
-```python
-def analyze_codebase(ctx):
-    """Complete workflow demonstrating all UI widgets"""
-
-    # 1. Banner
-    ctx.ui.banner("Code Analysis Tool")
-    ctx.ui.divider("thick")
-
-    # 2. Properties panel
-    ctx.ui.properties({
-        "Repository": ctx.workspace,
-        "Branch": "main",
-        "Files": "150"
-    }, title="Configuration")
-
-    ctx.ui.divider()
-
-    # 3. Hierarchical steps with activity
-    scan_step = ctx.ui.step("Scanning Repository", icon="🔍")
-
-    ctx.ui.think("Determining which files to analyze...")
-    ctx.ui.action("Reading .gitignore patterns")
-
-    activity = ctx.ui.activity("Indexing files...")
-    # ... indexing work ...
-    activity.success("Indexed 1,420 files")
-
-    scan_step.done("Scan complete")
-
-    # 4. Progress bar for batch work
-    analysis_step = ctx.ui.step("Analyzing Code", icon="🔬")
-
-    files = get_files_to_analyze()
-    pb = ctx.ui.progress_bar(len(files), "Processing")
-
-    issues = []
-    for file in files:
-        result = analyze_file(file)
-        issues.extend(result.issues)
-        pb.inc()
-
-    pb.done("Analysis complete")
-
-    # 5. Display results with table
-    if issues:
-        ctx.ui.warn(f"Found {len(issues)} issues")
-        ctx.ui.table(issues, title="Issues Found")
-    else:
-        ctx.ui.success("No issues found!")
-
-    # 6. Show code sample if requested
-    if issues:
-        ctx.ui.code(issues[0].code, lang="go", title=issues[0].file)
-        ctx.ui.diff(issues[0].fix, title="Proposed fix")
-
-    # 7. Tree of affected files
-    affected = group_by_directory(issues)
-    ctx.ui.tree(affected, title="Affected Files")
-
-    analysis_step.done("Analysis complete")
-
-    # 8. Interactive confirmation
-    ctx.ui.divider()
-    if ctx.ui.confirm("Apply automatic fixes?", default=True):
-        fix_step = ctx.ui.step("Applying Fixes", icon="🔧")
-
-        pb2 = ctx.ui.progress_bar(len(issues), "Fixing")
-        for issue in issues:
-            apply_fix(issue)
-            pb2.inc()
-        pb2.done("All fixes applied")
-
-        ctx.ui.success("Fixes applied successfully!")
-        fix_step.done()
-    else:
-        ctx.ui.info("Skipping fixes")
-
-    # 9. Summary
-    ctx.ui.divider("thick")
-    ctx.ui.success("✨ Code analysis complete!")
-
-    return {"issues_found": len(issues)}
-```
-
----
-
-## Feature Matrix
-
-| Feature | Plain Mode | Terminal | Unicode | ASCII |
-|---------|------------|----------|---------|-------|
-| step() | ✅ Text | ✅ Borders | ╭─╮╰ | +--+ |
-| activity() | ✅ Static | ✅ Animated | ⠋⠙⠹ | ... |
-| progress_bar() | ✅ % | ✅ Visual | █░ | #- |
-| think/action | ✅ Prefix | ✅ Colored | ✦⚡ | * ! |
-| code() | ✅ Fence | ✅ Highlight | ✅ | ✅ |
-| diff() | ✅ +/- | ✅ Colors | ✅ | ✅ |
-| tree() | ✅ Text | ✅ Lines | ├──└ | |-- |
-| divider() | --- | ✅ Styled | ─━· | --- |
-| banner() | === | ✅ Styled | ═══ | === |
-
----
-
-## Notes
-
-### Plain Mode
-All widgets automatically degrade to plain text when:
-- Output is piped (`| less`, `> file`)
-- `NO_COLOR` environment variable is set
-- Terminal is not detected
-
-### Unicode Support
-Widgets detect terminal Unicode capability and fallback to ASCII:
-- UTF-8 locale: Full Unicode
-- ASCII locale: ASCII fallback
-- Auto-detected per terminal
-
-### Thread Safety
-- Activity and ProgressBar are thread-safe (use mutex)
-- Other widgets should be called from single thread
-
-### Performance
-- Syntax highlighting cached per language
-- Terminal width detected once per widget
-- Spinner updates at 80ms intervals (12.5 FPS)
-
-
----
-
-
-## UI Features
-
-### Available Features (25 total)
-
-### Feature Categories
-
-#### 1. Flow Control & Context (4 features)
-
-| Feature | Description |
-|---------|-------------|
-| `ui.step()` | Visual grouping with timing and nesting |
-| `ui.activity()` | Animated spinner for indeterminate progress |
-| `ui.progress_bar()` | Determinate progress with percentage |
-| `ui.divider()` | Visual separators (line, thick, dotted, empty) |
-
-#### 2. Semantic Logging (6 features)
-
-| Feature | Description |
-|---------|-------------|
-| `ui.info()` | Informational messages (blue ℹ) |
-| `ui.success()` | Success messages (green ✓) |
-| `ui.warn()` | Warning messages (yellow ⚠) |
-| `ui.error()` | Error messages (red ✗) |
-| `ui.think()` | Agent thoughts (faint, italic) |
-| `ui.action()` | Tool actions (cyan ⚡) |
-
-#### 3. Rich Content Display (7 features)
-
-| Feature | Description |
-|---------|-------------|
-| `ui.markdown()` | Markdown rendering (headers, bold, lists) |
-| `ui.code()` | Syntax highlighting (100+ languages) + truncation |
-| `ui.diff()` | Git diffs with colored +/- + truncation |
-| `ui.table()` | Tabular data with borders |
-| `ui.properties()` | Aligned key-value lists |
-| `ui.tree()` | Hierarchical structures with branches |
-| `ui.panel()` | Bordered content boxes |
-
-#### 4. User Interaction (5 features)
-
-| Feature | Description |
-|---------|-------------|
-| `ui.prompt()` | Text input with validation + password masking |
-| `ui.confirm()` | Y/n confirmation prompts |
-| `ui.select()` | Interactive selection (single + multi-select) |
-| `ui.progress()` | Simple progress counter |
-| `ui.render()` | Auto-render Starlark values |
-
-#### 5. Advanced Features (3 features)
-
-| Feature | Description |
-|---------|-------------|
-| `ui.link()` | OSC 8 clickable hyperlinks |
-| `ui.pager()` | Interactive viewer for large content (less) |
-| `ui.banner()` | ASCII art title banners | 
----
-
-### API Access Pattern
-
-**Important:** All UI functions are accessed through `ctx.ui` in handlers:
-
-```python
-def my_handler(ctx):
-    # ✅ Correct
-    ctx.ui.info("Hello!")
-    ctx.ui.code(content, lang="python")
-    link = ctx.ui.link("GitHub", "https://github.com/org/repo")
-    
-    # ❌ Wrong - ui is not globally available
-    # ui.info("Hello!")
-```
-
----
-
-### Terminal Support
-
-**Unicode vs ASCII:**
-- Auto-detects via `LANG`, `LC_ALL`, `TERM` environment variables
-- Unicode: `✓ ✗ ⚠ ℹ ⚡ ╭─╮│╰─╯ ├─└ ⋮`
-- ASCII fallback: `+ x ! i > +-+|+-+ |- ...`
-
-**Color Support:**
-- Detects via `TERM_PROGRAM`, `NO_COLOR`, TTY check
-- Plain mode for pipes: `--plain` flag or isatty detection
-
-**OSC 8 Hyperlinks (ui.link):**
-- ✅ iTerm2, WezTerm, Windows Terminal, kitty, VS Code
-- ❌ Basic terminals: Falls back to "text (url)" format
-
-**Interactive Pager (ui.pager):**
-- Auto-detects `less` availability
-- Content ≤ 30 lines: Direct output
-- Content > 30 lines: Opens in less
-- Preserves ANSI colors
 
 ---
 
@@ -2521,22 +1525,38 @@ This section provides explicit type signatures for all Starlark functions. While
 {
     .done(message?: string) -> None,  # Complete successfully
     .fail(message?: string) -> None,  # Fail with error
-    .write(content: string) -> None   # Output within step
+    .info(text: string) -> None,      # Add info line
+    .update(text: string) -> None     # Update step text
 }
 ```
 
-**UIActivityHandle**: `object`
+**UITurnHandle**: `object`
 ```python
 {
-    .done(message?: string) -> None,  # Complete activity
-    .fail(message?: string) -> None   # Fail activity
+    .step(text: string) -> UIStepHandle,     # Add progress step
+    .stream(delta: string, done?: bool) -> None,
+    .done(summary?: string) -> None,
+    .fail(summary?: string) -> None,
+    .info(text: string) -> None,
+    .warn(text: string) -> None,
+    .subturn(label: string) -> UISubTurnHandle
+}
+```
+
+**UISubTurnHandle**: `object`
+```python
+{
+    .step(text: string) -> UIStepHandle,
+    .stream(delta: string, done?: bool) -> None,
+    .done(summary?: string) -> None,
+    .fail(summary?: string) -> None
 }
 ```
 
 **UIProgressBarHandle**: `object`
 ```python
 {
-    .inc(delta?: int) -> None,        # Increment progress
+    .inc(amount?: int) -> None,       # Increment progress
     .set(value: int) -> None,         # Set absolute value
     .done(message?: string) -> None   # Complete progress
 }
@@ -2550,9 +1570,9 @@ meow.provider(name: string, type: string, **kwargs) -> None
 meow.model(name: string, **kwargs) -> None
 meow.preset(name: string, **kwargs) -> None
 meow.presets() -> list[string]
-meow.tool(name: string, handler: function, params?: dict, description?: string) -> None
-meow.param(type: string, **kwargs) -> ParamDef
-meow.command(name: string, tool: Tool, **kwargs) -> None
+meow.tool(name: string, handler: function, params?: dict, description?: string) -> ToolValue
+meow.param(type: string, **kwargs) -> ParamValue
+meow.command(tool: ToolValue, name?: string) -> None
 ```
 
 #### env module
@@ -2573,6 +1593,12 @@ fs.copy(src: string, dst: string) -> bool
 fs.remove(path: string) -> bool
 fs.cwd() -> string
 fs.getcwd() -> string  # Deprecated: use cwd()
+fs.filter(dir: string, pattern?: string, recursive?: bool) -> list[string]
+fs.walk(root: string, pattern?: string) -> list[string]
+fs.stat(path: string) -> struct{size: int, mtime: int, is_dir: bool, mode: int}
+fs.listdir(path: string) -> list[string]
+fs.chmod(path: string, mode: int) -> bool
+fs.touch(path: string, mtime?: int) -> bool
 ```
 
 #### git module
@@ -2581,7 +1607,7 @@ git.glob(ref?: string, pattern?: string, ignore?: list[string]) -> list[string]
 git.read(ref_path: string) -> string  # Syntax: "ref:path"
 git.read(ref?: string, path: string) -> string  # Keyword syntax
 git.diff(target?: string) -> GitDiffResult
-git.diff_file(file: string, target?: string) -> string
+git.diff_file(file: string, target?: string) -> struct{raw: string, file: string, additions: int, deletions: int}
 git.staged_files() -> list[string]
 git.modified_files() -> list[string]
 git.untracked_files() -> list[string]
@@ -2637,7 +1663,17 @@ git.create_branch(name: string, should_checkout?: bool) -> GitCreateBranchResult
 
 #### llm module
 ```python
-llm.generate(prompt: string, system?: string, preset?: string) -> string
+llm.chat(prompt: string, preset: string, system?: string, use_session?: bool,
+         stream?: bool, on_event?: callable, response_format?: string,
+         response_schema?: any) -> string | dict
+
+llm.agent_turn(prompt: string, preset: string, tools: list,
+               system?: string, use_session?: bool, stream?: bool,
+               on_event?: callable, max_iterations?: int,
+               on_tool_error?: string, response_format?: string,
+               response_schema?: any) -> string | dict
+
+llm.embed(texts: list[string], preset: string) -> list[list[float]]
 ```
 
 #### shell module
@@ -2653,61 +1689,57 @@ index.build() -> None
 
 #### ui module
 ```python
-ui.info(msg: string) -> None
-ui.success(msg: string) -> None
-ui.warn(msg: string) -> None
-ui.error(msg: string) -> None
-ui.think(msg: string) -> None
-ui.action(msg: string) -> None
+ui.user_turn(text: string) -> None
+ui.assistant_turn() -> UITurnHandle
 
-ui.step(title: string, icon?: string) -> UIStepHandle
-ui.activity(message: string) -> UIActivityHandle
 ui.progress_bar(total: int, message?: string) -> UIProgressBarHandle
+ui.progress(message: string, current?: int, total?: int) -> None
 
 ui.code(content: string, lang?: string, title?: string, max_lines?: int) -> None
 ui.diff(content: string, title?: string, max_lines?: int) -> None
-ui.markdown(content: string, title?: string) -> None
+ui.markdown(content: string) -> None
 ui.tree(data: dict | list, title?: string) -> None
-ui.table(data: list[list], headers?: list[string], title?: string) -> None
-ui.properties(data: dict, title?: string) -> None
-ui.panel(content: string, title?: string) -> None
-
-ui.prompt(text: string, default?: string, sensitive?: bool, validate?: function) -> string
-ui.confirm(prompt: string, default?: bool) -> bool
-ui.select(prompt: string, items: list[string], multi?: bool) -> string | list[string]
+ui.table(data: list, columns: list[string], title?: string, query?: string) -> None
+ui.panel(content: string, title?: string, style?: string) -> None
+ui.banner(title: string, subtext?: string) -> None
+ui.render(value: any, query?: string) -> None
 ui.link(text: string, url: string) -> string
-ui.pager(content: string, title?: string, line_numbers?: bool) -> None
+ui.pager(content: string, title?: string, show_line_numbers?: bool) -> None
 
-ui.divider(style?: string) -> None  # "line", "thick", "dotted", "empty"
-ui.banner(text: string) -> None
-ui.print(text: string) -> None
+ui.prompt(message: string, default?: string, is_sensitive?: bool, validate?: function) -> string
+ui.confirm(prompt: string, default?: bool) -> bool
+ui.select(prompt: string, items: list, allow_multiple?: bool, is_fuzzy?: bool,
+          limit?: int, placeholder?: string, initial_query?: string,
+          allow_new?: bool, should_return_index?: bool,
+          label_key?: string, value_key?: string, meta_key?: string) -> string | list[string]
 ```
 
 #### json module
 ```python
-json.encode(value: any) -> string
-json.decode(text: string) -> any
+json.parse(text: string) -> any
+json.stringify(value: any, indent?: int) -> string
 ```
 
 #### path module
 ```python
 path.join(*parts: string) -> string
-path.split(path: string) -> tuple[string, string]  # (dir, file)
 path.basename(path: string) -> string
 path.dirname(path: string) -> string
 path.ext(path: string) -> string
+path.extension(path: string) -> string  # alias for ext
 path.abs(path: string) -> string
-path.rel(path: string, base?: string) -> string
+path.rel(base: string, target: string) -> string
 path.clean(path: string) -> string
-path.match(pattern: string, path: string) -> bool
+path.stem(path: string) -> string
+path.parent(path: string) -> string  # alias for dirname
+path.parts(path: string) -> list[string]
 ```
 
 #### crypto module
 ```python
-crypto.sha256(data: string) -> string
-crypto.md5(data: string) -> string
-crypto.base64_encode(data: string) -> string
-crypto.base64_decode(data: string) -> string
+crypto.sha256(data: string) -> string  # hex-encoded
+crypto.md5(data: string) -> string     # hex-encoded
+crypto.hmac(key: string, data: string) -> string  # SHA256 hex-encoded
 ```
 
 #### time module
@@ -2721,21 +1753,23 @@ time.sleep(seconds: float) -> None
 #### regexp module
 ```python
 regexp.match(pattern: string, text: string) -> bool
-regexp.find(pattern: string, text: string) -> string | None
-regexp.find_all(pattern: string, text: string) -> list[string]
-regexp.replace(pattern: string, repl: string, text: string) -> string
+regexp.find_all(pattern: string, text: string, limit?: int) -> list[string]
+regexp.replace(pattern: string, text: string, replacement: string) -> string
+regexp.split(pattern: string, text: string, limit?: int) -> list[string]
 ```
 
 #### stdin module
 ```python
 stdin.read() -> string
+stdin.read_line() -> string
 stdin.is_piped() -> bool
 ```
 
 #### output module
 ```python
-output.print(text: string) -> None
-output.error(text: string) -> None
+output.write(content: string) -> None
+output.writeline(content: string) -> None
+output.writef(format: string, *args) -> None
 ```
 
 ---
@@ -2755,7 +1789,7 @@ def generate_commit():
     diff = ctx.git.diff(target="staged")
     
     if len(diff.files) == 0:
-        ctx.ui.error("No staged changes found")
+        ctx.output.writeline("No staged changes found")
         return
     
     # Determine commit type based on files
@@ -2772,7 +1806,7 @@ def generate_commit():
 
 Just return the summary, nothing else."""
     
-    summary = ctx.llm.generate(prompt, preset="fast").strip()
+    summary = ctx.llm.chat(prompt=prompt, preset="fast").strip()
     
     # Generate detailed body
     body_prompt = f"""Analyze this diff and list the key changes as bullet points:
@@ -2784,7 +1818,7 @@ Format as:
 - Change 2
 etc."""
     
-    body = ctx.llm.generate(body_prompt, preset="fast").strip()
+    body = ctx.llm.chat(prompt=body_prompt, preset="fast").strip()
     
     # Compose message
     message = f"{commit_type}: {summary}\n\n{body}"
@@ -2794,7 +1828,7 @@ etc."""
     
     if ctx.ui.confirm("Use this message?", default=True):
         result = ctx.git.commit(message)
-        ctx.ui.success(f"Committed successfully! Hash: {result.hash[:7]}")
+        ctx.output.writeline("Committed successfully! Hash: " + result.hash[:7])
 ```
 
 #### Create PR Description from Branch Diff
@@ -2838,9 +1872,9 @@ Generate a PR description with:
 3. ## Testing (how to test)
 """
     
-    description = ctx.llm.generate(prompt, preset="smart")
+    description = ctx.llm.chat(prompt=prompt, preset="smart")
     
-    ctx.ui.markdown(description, title="PR Description")
+    ctx.ui.markdown(description)
     
     return description
 ```
@@ -2865,19 +1899,19 @@ def find_deleted_file():
             break
     
     if not found_in:
-        ctx.ui.error(f"File '{filename}' not found in recent history")
+        ctx.output.writeline(f"File '{filename}' not found in recent history")
         return
     
-    ctx.ui.success(f"Found in {len(found_in)} commits:")
+    ctx.output.writeline(f"Found in {len(found_in)} commits:")
     for ref, msg in found_in[:10]:
-        ctx.ui.info(f"{ref}: {msg[:50]}")
+        ctx.output.writeline(f"{ref}: {msg[:50]}")
     
     # Let user select which version to restore
     if ctx.ui.confirm("Restore file?"):
         ref = found_in[0][0]
         content = ctx.git.read(f"{ref}:{filename}")
         ctx.fs.write(filename, content)
-        ctx.ui.success(f"Restored {filename} from {ref}")
+        ctx.output.writeline(f"Restored {filename} from {ref}")
 ```
 
 ### 2. LLM Workflows
@@ -2891,7 +1925,7 @@ def chat_about_code():
     files = ctx.ui.select(
         "Select files for context:",
         ctx.fs.glob("**/*.go"),
-        multi=True
+        allow_multiple=True
     )
     
     context = ""
@@ -2918,31 +1952,10 @@ New question: {question}
 
 Answer concisely, reference specific code when relevant."""
         
-        answer = ctx.llm.generate(prompt, preset="smart")
+        answer = ctx.llm.chat(prompt=prompt, preset="smart")
         
         ctx.ui.markdown(answer)
         conversation.append((question, answer))
-```
-
-#### Fallback Between Models
-
-```python
-def generate_with_fallback(prompt):
-    """Try multiple models with fallback on failure."""
-    presets = ["fast", "smart", "creative"]
-    
-    for preset in presets:
-        try:
-            ctx.ui.info(f"Trying preset: {preset}")
-            result = ctx.llm.generate(prompt, preset=preset)
-            ctx.ui.success(f"Success with {preset}")
-            return result
-        except Exception as e:
-            ctx.ui.warn(f"{preset} failed: {str(e)}")
-            continue
-    
-    ctx.ui.error("All models failed")
-    return None
 ```
 
 ### 3. UI Patterns
@@ -2954,13 +1967,12 @@ def process_files_with_progress():
     """Process files with visual progress."""
     files = ctx.fs.glob("**/*.go")
     
-    step = ctx.ui.step(f"Processing {len(files)} files")
+    turn = ctx.ui.assistant_turn()
+    step = turn.step(f"Processing {len(files)} files")
     pb = ctx.ui.progress_bar(len(files), message="Processing...")
     
     results = []
     for file in files:
-        ctx.ui.info(f"Processing: {file}")
-        
         # Simulate work
         content = ctx.fs.read(file)
         # ... do something ...
@@ -2970,6 +1982,7 @@ def process_files_with_progress():
     
     pb.done("Complete!")
     step.done(f"Processed {len(results)} files")
+    turn.done()
 ```
 
 #### Confirmation with Validation
@@ -2980,17 +1993,17 @@ def safe_delete_files():
     files = ctx.ui.select(
         "Select files to delete:",
         ctx.fs.glob("**/*.tmp"),
-        multi=True
+        allow_multiple=True
     )
     
     if not files:
-        ctx.ui.warn("No files selected")
+        ctx.output.writeline("No files selected")
         return
     
     # Show what will be deleted
-    ctx.ui.warn("Files to delete:")
+    ctx.output.writeline("Files to delete:")
     for f in files:
-        ctx.ui.info(f"  - {f}")
+        ctx.output.writeline(f"  - {f}")
     
     # Require exact confirmation
     def validate_confirmation(value):
@@ -3010,7 +2023,7 @@ def safe_delete_files():
         pb.inc()
     
     pb.done("All files deleted")
-    ctx.ui.success(f"Deleted {len(files)} files")
+    ctx.output.writeline(f"Deleted {len(files)} files")
 ```
 
 ### 4. File Operations
@@ -3047,11 +2060,16 @@ def analyze_codebase():
             stats["largest_file"] = (file, lines)
     
     # Display results
-    ctx.ui.divider("thick")
-    ctx.ui.info("Codebase Analysis")
-    ctx.ui.divider("line")
-    ctx.ui.properties(stats)
-    ctx.ui.divider("thick")
+    ctx.ui.banner("Codebase Analysis")
+    ctx.ui.table(
+        [
+            ["Total Files", str(stats["total_files"])],
+            ["Total Lines", str(stats["total_lines"])],
+            ["Total Functions", str(stats["total_functions"])],
+            ["Largest File", stats["largest_file"][0] + " (" + str(stats["largest_file"][1]) + " lines)"],
+        ],
+        columns=["Metric", "Value"]
+    )
 ```
 
 #### Safe File Modification with Backup
@@ -3065,7 +2083,7 @@ def safe_modify_file(filepath, modifier_fn):
     # Create backup
     backup_path = f"{filepath}.backup"
     ctx.fs.write(backup_path, original)
-    ctx.ui.info(f"Backup created: {backup_path}")
+    ctx.output.writeline(f"Backup created: {backup_path}")
     
     try:
         # Apply modification
@@ -3078,14 +2096,14 @@ def safe_modify_file(filepath, modifier_fn):
         if ctx.ui.confirm("Apply changes?"):
             ctx.fs.write(filepath, modified)
             ctx.fs.remove(backup_path)
-            ctx.ui.success("Changes applied")
+            ctx.output.writeline("Changes applied")
         else:
-            ctx.ui.info("Changes discarded")
+            ctx.output.writeline("Changes discarded")
     except Exception as e:
         # Restore from backup on error
         ctx.fs.write(filepath, original)
         ctx.fs.remove(backup_path)
-        ctx.ui.error(f"Error, restored from backup: {str(e)}")
+        ctx.output.writeline(f"Error, restored from backup: {str(e)}")
 ```
 
 ### 5. RAG and Code Search
@@ -3095,7 +2113,7 @@ def safe_modify_file(filepath, modifier_fn):
 ```python
 def search_and_explain(query):
     """Search code and explain findings."""
-    ctx.ui.info(f"Searching for: {query}")
+    ctx.output.writeline(f"Searching for: {query}")
     
     # Search with RAG
     results = ctx.index.search(
@@ -3105,13 +2123,13 @@ def search_and_explain(query):
     )
     
     if not results:
-        ctx.ui.warn("No results found")
+        ctx.output.writeline("No results found")
         return
     
     # Show results
-    ctx.ui.success(f"Found {len(results)} matches:")
+    ctx.output.writeline(f"Found {len(results)} matches:")
     for i, result in enumerate(results):
-        ctx.ui.info(f"\n{i+1}. {result.file_path} (score: {result.score:.2f})")
+        ctx.output.writeline(f"\n{i+1}. {result.file_path} (score: {result.score:.2f})")
         ctx.ui.code(
             result.content,
             lang="go",
@@ -3130,8 +2148,8 @@ def search_and_explain(query):
 
 Explain how '{query}' is implemented in this codebase."""
     
-    explanation = ctx.llm.generate(prompt, preset="smart")
-    ctx.ui.markdown(explanation, title="Explanation")
+    explanation = ctx.llm.chat(prompt=prompt, preset="smart")
+    ctx.ui.markdown(explanation)
 ```
 
 #### Build Index and Search
@@ -3141,9 +2159,11 @@ def index_and_search():
     """Build code index and perform semantic search."""
     # Check if index needs rebuild
     if ctx.ui.confirm("Rebuild index?", default=False):
-        step = ctx.ui.step("Building search index")
+        turn = ctx.ui.assistant_turn()
+        step = turn.step("Building search index")
         ctx.index.build()
         step.done("Index built")
+        turn.done()
     
     # Interactive search loop
     while True:
@@ -3154,16 +2174,16 @@ def index_and_search():
         results = ctx.index.search(query, top_k=3)
         
         for result in results:
-            ctx.ui.properties({
-                "File": result.file_path,
-                "Lines": f"{result.start_line}-{result.end_line}",
-                "Score": f"{result.score:.2f}"
-            })
+            ctx.ui.table(
+                [
+                    ["File", result.file_path],
+                    ["Lines", f"{result.start_line}-{result.end_line}"],
+                    ["Score", f"{result.score:.2f}"],
+                ],
+                columns=["Key", "Value"]
+            )
             ctx.ui.code(result.content, lang="go")
 ```
 
 ---
 
-## Summary
-
-The meowg1k UI module provides 25 widget functions for building modern CLI interfaces with hierarchical contexts, rich content display, and interactive input capabilities.

@@ -590,12 +590,13 @@ def handler(ctx):
        # Combine tool sets
        all_tools = file_tools + git_tools + code_search_tools
        
-       # Use in agentic loop
-       result = ctx.llm.agentic(
-           tools=all_tools,
-           prompt="Analyze the codebase",
-           max_iterations=20
-       )
+        # Use in agentic loop
+        result = ctx.llm.agent_turn(
+            tools=all_tools,
+            prompt="Analyze the codebase",
+            preset="smart",
+            max_iterations=20
+        )
    ```
 
 ### Error Handling

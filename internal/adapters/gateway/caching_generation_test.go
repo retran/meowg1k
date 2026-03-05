@@ -69,6 +69,14 @@ func (m *mockGenGatewayForCaching) GenerateContent(ctx context.Context, request 
 	}, nil
 }
 
+func (m *mockGenGatewayForCaching) GenerateContentStream(ctx context.Context, request *domainGateway.GenerateContentRequest, callback domainGateway.StreamCallback) (*domainGateway.GenerateContentResponse, error) {
+	resp, err := m.GenerateContent(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 func TestCachingGenerationGateway_CacheHit(t *testing.T) {
 	mockGateway := &mockGenGatewayForCaching{response: "fresh"}
 	mockCache := newMockCacheForCaching()

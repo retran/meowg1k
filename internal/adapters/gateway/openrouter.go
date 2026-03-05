@@ -440,6 +440,24 @@ func parseOpenRouterArguments(raw string) (map[string]any, error) {
 	return args, nil
 }
 
+// GenerateContentStream implements streaming for OpenRouter by delegating to GenerateContent
+// and synthesizing stream events from the aggregated response.
+// Full native SSE streaming will be added in a future phase.
+func (g *openrouterGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	resp, err := g.GenerateContent(ctx, request)
+	if err != nil {
+		if callback != nil {
+			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+		}
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // CountTokens estimates token count for OpenRouter models.
 // Since OpenRouter is a proxy to various providers, we use character-based estimation:
 // approximately (chars + 2) / 3 for better accuracy.
