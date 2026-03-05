@@ -6,13 +6,11 @@ package starlark
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/retran/meowg1k/internal/ports"
 	"github.com/retran/meowg1k/internal/ui"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -21,20 +19,7 @@ import (
 var (
 	defaultRenderOptions = ui.NewRenderOptions()
 	defaultTheme         = ui.DefaultThemeWithOptions(defaultRenderOptions)
-	currentActivity      *ui.Activity
-	activityMu           sync.Mutex
 )
-
-// StreamSender is implemented by the output service to forward streaming token
-// deltas to the TUI program.  On non-TTY the implementation is a no-op.
-type StreamSender interface {
-	StreamToken(delta string, done bool)
-}
-
-// noopStreamSender discards all stream tokens (used on non-TTY).
-type noopStreamSender struct{}
-
-func (noopStreamSender) StreamToken(_ string, _ bool) {}
 
 // noopBuiltin returns a Starlark builtin that accepts any arguments and returns None.
 func noopBuiltin(name string) *starlark.Builtin {
@@ -43,27 +28,10 @@ func noopBuiltin(name string) *starlark.Builtin {
 	})
 }
 
-// noopActivityFunc returns a function that creates a no-op ActivityHandle.
-// Scripts that call activity.success(...) / .fail(...) / .done() / .update(...) won't crash.
-func noopActivityFunc() func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+// noopTurnFunc returns a function that creates a no-op TurnHandle.
+func noopTurnFunc() func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
-		return &ActivityHandle{activity: nil}, nil
-	}
-}
-
-// noopStepFunc returns a function that creates a no-op StepHandle.
-// Scripts that call step.done(...) / .fail(...) won't crash.
-func noopStepFunc() func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
-		return &StepHandle{step: nil}, nil
-	}
-}
-
-// noopProgressBarFunc returns a function that creates a no-op ProgressBarHandle.
-// Scripts that call bar.inc() / .set(...) / .done(...) won't crash.
-func noopProgressBarFunc() func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
-		return &ProgressBarHandle{bar: nil}, nil
+		return &TurnHandle{writer: nil}, nil
 	}
 }
 
@@ -73,14 +41,11 @@ func noopUIModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "ui",
 		Members: starlark.StringDict{
-			"success":        noopBuiltin("ui.success"),
-			"error":          noopBuiltin("ui.error"),
-			"warn":           noopBuiltin("ui.warn"),
-			"info":           noopBuiltin("ui.info"),
+			"user_turn":      starlark.NewBuiltin("ui.user_turn", noopTurnFunc()),
+			"assistant_turn": starlark.NewBuiltin("ui.assistant_turn", noopTurnFunc()),
 			"prompt":         starlark.NewBuiltin("ui.prompt", uiPrompt),   // interactive — keep
 			"confirm":        starlark.NewBuiltin("ui.confirm", uiConfirm), // interactive — keep
-			"progress":       noopBuiltin("ui.progress"),
-			"progress_bar":   starlark.NewBuiltin("ui.progress_bar", noopProgressBarFunc()),
+			"progress_bar":   starlark.NewBuiltin("ui.progress_bar", makeProgressBarFunc("", os.Stdout)),
 			"markdown":       noopBuiltin("ui.markdown"),
 			"table":          noopBuiltin("ui.table"),
 			"panel":          noopBuiltin("ui.panel"),
@@ -91,16 +56,8 @@ func noopUIModule() *starlarkstruct.Module {
 			"code":           noopBuiltin("ui.code"),
 			"diff":           noopBuiltin("ui.diff"),
 			"tree":           noopBuiltin("ui.tree"),
-			"divider":        noopBuiltin("ui.divider"),
-			"activity":       starlark.NewBuiltin("ui.activity", noopActivityFunc()),
 			"banner":         noopBuiltin("ui.banner"),
-			"step":           starlark.NewBuiltin("ui.step", noopStepFunc()),
-			"action":         noopBuiltin("ui.action"),
-			"think":          noopBuiltin("ui.think"),
-			"stream":         noopBuiltin("ui.stream"),
-			"DIVIDER_THICK":  starlark.String("thick"),
-			"DIVIDER_THIN":   starlark.String("thin"),
-			"DIVIDER_DOUBLE": starlark.String("double"),
+			"progress":       noopBuiltin("ui.progress"),
 		},
 	}
 }
@@ -108,84 +65,426 @@ func noopUIModule() *starlarkstruct.Module {
 // NewUIModule creates the ui module, auto-detecting whether stdout is a TTY
 // and writing directly to os.Stdout.
 func NewUIModule() *starlarkstruct.Module {
-	return NewUIModuleWithWriter(0, ui.IsTerminal(os.Stdout.Fd()), os.Stdout, noopStreamSender{})
+	return NewUIModuleWithUIWriter(0, nil)
 }
 
-// NewIndentedUIModule creates a UI module with indentation for nested commands.
-func NewIndentedUIModule(depth int) *starlarkstruct.Module {
-	return NewUIModuleWithWriter(depth, ui.IsTerminal(os.Stdout.Fd()), os.Stdout, noopStreamSender{})
-}
-
-// NewUIModuleWithOptions creates a UI module. When isTTY is false all display
-// functions become no-ops so scripts run cleanly when piped or redirected.
-// Deprecated: prefer NewUIModuleWithWriter which accepts an explicit writer.
-func NewUIModuleWithOptions(depth int, isTTY bool) *starlarkstruct.Module {
-	return NewUIModuleWithWriter(depth, isTTY, os.Stdout, noopStreamSender{})
-}
-
-// NewUIModuleWithWriter creates a UI module that routes all output through
-// the provided writer and forwards stream tokens through streamer.
-// When isTTY is false all display functions become no-ops.
-// Pass OutputService.LogWriter() as writer and OutputService as streamer so
-// that all output goes through the same BubbleTea program as streaming.
-func NewUIModuleWithWriter(depth int, isTTY bool, writer io.Writer, streamer StreamSender) *starlarkstruct.Module {
+// NewUIModuleWithUIWriter creates a UI module wired to a ports.UIWriter.
+// When writer is nil or IsTTY() is false, all display functions become no-ops.
+func NewUIModuleWithUIWriter(depth int, writer ports.UIWriter) *starlarkstruct.Module {
+	isTTY := false
+	if writer != nil {
+		isTTY = writer.IsTTY()
+	}
 	if !isTTY {
 		return noopUIModule()
 	}
 
 	indent := strings.Repeat("| ", depth)
+	logW := writer.LogWriter()
 
 	return &starlarkstruct.Module{
 		Name: "ui",
 		Members: starlark.StringDict{
-			// Functions
-			"success":      starlark.NewBuiltin("ui.success", makeStatusFunc(indent, defaultTheme.StatusSuccess, "✓ ", writer)),
-			"error":        starlark.NewBuiltin("ui.error", makeStatusFunc(indent, defaultTheme.StatusError, "✗ ", writer)),
-			"warn":         starlark.NewBuiltin("ui.warn", makeStatusFunc(indent, defaultTheme.StatusWarn, "! ", writer)),
-			"info":         starlark.NewBuiltin("ui.info", makeStatusFunc(indent, defaultTheme.StatusInfo, "· ", writer)),
+			// Turn-based conversation model
+			"user_turn":      starlark.NewBuiltin("ui.user_turn", makeUserTurnFunc(writer)),
+			"assistant_turn": starlark.NewBuiltin("ui.assistant_turn", makeAssistantTurnFunc(writer)),
+
+			// Rich display functions (kept from old API)
 			"prompt":       starlark.NewBuiltin("ui.prompt", uiPrompt),
 			"confirm":      starlark.NewBuiltin("ui.confirm", uiConfirm),
-			"progress":     starlark.NewBuiltin("ui.progress", makeProgressFunc(indent, writer)),
-			"progress_bar": starlark.NewBuiltin("ui.progress_bar", makeProgressBarFunc(indent, writer)),
-			"markdown":     starlark.NewBuiltin("ui.markdown", makeMarkdownFunc(indent, writer)),
-			"table":        starlark.NewBuiltin("ui.table", makeTableFunc(indent, writer)),
-			"panel":        starlark.NewBuiltin("ui.panel", makePanelFunc(indent, writer)),
+			"progress":     starlark.NewBuiltin("ui.progress", makeProgressFunc(indent, logW)),
+			"progress_bar": starlark.NewBuiltin("ui.progress_bar", makeProgressBarFunc(indent, logW)),
+			"markdown":     starlark.NewBuiltin("ui.markdown", makeMarkdownFunc(indent, logW)),
+			"table":        starlark.NewBuiltin("ui.table", makeTableFunc(indent, logW)),
+			"panel":        starlark.NewBuiltin("ui.panel", makePanelFunc(indent, logW)),
 			"select":       starlark.NewBuiltin("ui.select", uiSelect),
-			"render":       starlark.NewBuiltin("ui.render", makeRenderFunc(indent, writer)),
+			"render":       starlark.NewBuiltin("ui.render", makeRenderFunc(indent, logW)),
 			"link":         starlark.NewBuiltin("ui.link", makeLinkFunc(indent)),
 			"pager":        starlark.NewBuiltin("ui.pager", makePagerFunc(indent)),
-			"code":         starlark.NewBuiltin("ui.code", makeCodeFunc(indent, writer)),
-			"diff":         starlark.NewBuiltin("ui.diff", makeDiffFunc(indent, writer)),
-			"tree":         starlark.NewBuiltin("ui.tree", makeTreeFunc(indent, writer)),
-			"divider":      starlark.NewBuiltin("ui.divider", makeDividerFunc(indent, writer)),
-			"activity":     starlark.NewBuiltin("ui.activity", makeActivityFunc(indent, writer)),
-			"banner":       starlark.NewBuiltin("ui.banner", makeBannerFunc(indent, writer)),
-			"step":         starlark.NewBuiltin("ui.step", makeStepFunc(depth, writer)),
-			"action":       starlark.NewBuiltin("ui.action", makeActionFunc(indent, writer)),
-			"think":        starlark.NewBuiltin("ui.think", makeThinkFunc(indent, writer)),
-			"stream":       starlark.NewBuiltin("ui.stream", makeStreamFunc(streamer)),
-
-			// Constants
-			"DIVIDER_THICK":  starlark.String("thick"),
-			"DIVIDER_THIN":   starlark.String("thin"),
-			"DIVIDER_DOUBLE": starlark.String("double"),
+			"code":         starlark.NewBuiltin("ui.code", makeCodeFunc(indent, logW)),
+			"diff":         starlark.NewBuiltin("ui.diff", makeDiffFunc(indent, logW)),
+			"tree":         starlark.NewBuiltin("ui.tree", makeTreeFunc(indent, logW)),
+			"banner":       starlark.NewBuiltin("ui.banner", makeBannerFunc(indent, logW)),
 		},
 	}
 }
 
-func makeStatusFunc(indent string, style lipgloss.Style, prefix string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+// ---------------------------------------------------------------------------
+// Turn factory functions
+// ---------------------------------------------------------------------------
+
+func makeUserTurnFunc(writer ports.TurnWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var message string
-		if err := starlark.UnpackPositionalArgs(b.Name(), args, kwargs, 1, &message); err != nil {
+		var text string
+		if err := starlark.UnpackPositionalArgs("ui.user_turn", args, kwargs, 1, &text); err != nil {
 			return nil, err
 		}
-		text := style.Render(prefix + message)
-		fmt.Fprintln(writer, ui.IndentLines(text, indent))
+		writer.BeginUserTurn(text)
 		return starlark.None, nil
 	}
 }
 
-func makeProgressFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeAssistantTurnFunc(writer ports.TurnWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		if err := starlark.UnpackPositionalArgs("ui.assistant_turn", args, kwargs, 0); err != nil {
+			return nil, err
+		}
+		writer.BeginAssistantTurn()
+		return &TurnHandle{writer: writer}, nil
+	}
+}
+
+// ---------------------------------------------------------------------------
+// TurnHandle — Starlark value for an assistant turn
+// ---------------------------------------------------------------------------
+
+// TurnHandle is a Starlark value representing an active assistant turn.
+// When writer is nil the handle is a no-op (used on non-TTY).
+type TurnHandle struct {
+	writer ports.TurnWriter
+}
+
+func (t *TurnHandle) String() string        { return "<turn>" }
+func (t *TurnHandle) Type() string          { return "turn" }
+func (t *TurnHandle) Freeze()               {}
+func (t *TurnHandle) Truth() starlark.Bool  { return starlark.True }
+func (t *TurnHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: turn") }
+
+func (t *TurnHandle) Attr(name string) (starlark.Value, error) {
+	switch name {
+	case "step":
+		return starlark.NewBuiltin("turn.step", t.step), nil
+	case "stream":
+		return starlark.NewBuiltin("turn.stream", t.stream), nil
+	case "done":
+		return starlark.NewBuiltin("turn.done", t.done), nil
+	case "fail":
+		return starlark.NewBuiltin("turn.fail", t.fail), nil
+	case "info":
+		return starlark.NewBuiltin("turn.info", t.info), nil
+	case "warn":
+		return starlark.NewBuiltin("turn.warn", t.warn), nil
+	case "subturn":
+		return starlark.NewBuiltin("turn.subturn", t.subturn), nil
+	default:
+		return nil, nil
+	}
+}
+
+func (t *TurnHandle) AttrNames() []string {
+	return []string{"step", "stream", "done", "fail", "info", "warn", "subturn"}
+}
+
+func (t *TurnHandle) step(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("turn.step", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if t.writer == nil {
+		return &StepHandle{id: "", writer: nil}, nil
+	}
+	id := t.writer.OpenStep(text)
+	return &StepHandle{id: id, writer: t.writer}, nil
+}
+
+func (t *TurnHandle) stream(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var delta string
+	var done bool
+	if err := starlark.UnpackArgs("turn.stream", args, kwargs, "delta", &delta, "done?", &done); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.StreamToken(delta, done)
+	}
+	return starlark.None, nil
+}
+
+func (t *TurnHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	summary := ""
+	if err := starlark.UnpackArgs("turn.done", args, kwargs, "summary?", &summary); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.EndTurn(summary)
+	}
+	return starlark.None, nil
+}
+
+func (t *TurnHandle) fail(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	summary := ""
+	if err := starlark.UnpackArgs("turn.fail", args, kwargs, "summary?", &summary); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.EndTurn(summary)
+	}
+	return starlark.None, nil
+}
+
+func (t *TurnHandle) info(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("turn.info", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.SetStatus(text)
+	}
+	return starlark.None, nil
+}
+
+func (t *TurnHandle) warn(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("turn.warn", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.SetStatus("! " + text)
+	}
+	return starlark.None, nil
+}
+
+func (t *TurnHandle) subturn(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var label string
+	if err := starlark.UnpackPositionalArgs("turn.subturn", args, kwargs, 1, &label); err != nil {
+		return nil, err
+	}
+	if t.writer != nil {
+		t.writer.BeginSubTurn(label)
+	}
+	return &SubTurnHandle{writer: t.writer}, nil
+}
+
+// ---------------------------------------------------------------------------
+// SubTurnHandle — Starlark value for a nested subturn inside an assistant turn
+// ---------------------------------------------------------------------------
+
+// SubTurnHandle is a Starlark value for a nested subturn.
+// It has the same step/stream/done interface as TurnHandle but routes into
+// the subturn opened by BeginSubTurn. Calling done() sends EndSubTurn.
+type SubTurnHandle struct {
+	writer ports.TurnWriter
+}
+
+func (s *SubTurnHandle) String() string        { return "<subturn>" }
+func (s *SubTurnHandle) Type() string          { return "subturn" }
+func (s *SubTurnHandle) Freeze()               {}
+func (s *SubTurnHandle) Truth() starlark.Bool  { return starlark.True }
+func (s *SubTurnHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: subturn") }
+
+func (s *SubTurnHandle) Attr(name string) (starlark.Value, error) {
+	switch name {
+	case "step":
+		return starlark.NewBuiltin("subturn.step", s.step), nil
+	case "stream":
+		return starlark.NewBuiltin("subturn.stream", s.stream), nil
+	case "done":
+		return starlark.NewBuiltin("subturn.done", s.done), nil
+	case "fail":
+		return starlark.NewBuiltin("subturn.fail", s.fail), nil
+	default:
+		return nil, nil
+	}
+}
+
+func (s *SubTurnHandle) AttrNames() []string {
+	return []string{"step", "stream", "done", "fail"}
+}
+
+func (s *SubTurnHandle) step(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("subturn.step", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if s.writer == nil {
+		return &StepHandle{id: "", writer: nil}, nil
+	}
+	id := s.writer.OpenStep(text)
+	return &StepHandle{id: id, writer: s.writer}, nil
+}
+
+func (s *SubTurnHandle) stream(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var delta string
+	var done bool
+	if err := starlark.UnpackArgs("subturn.stream", args, kwargs, "delta", &delta, "done?", &done); err != nil {
+		return nil, err
+	}
+	if s.writer != nil {
+		s.writer.StreamToken(delta, done)
+	}
+	return starlark.None, nil
+}
+
+func (s *SubTurnHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackPositionalArgs("subturn.done", args, kwargs, 0); err != nil {
+		return nil, err
+	}
+	if s.writer != nil {
+		s.writer.EndSubTurn()
+	}
+	return starlark.None, nil
+}
+
+func (s *SubTurnHandle) fail(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	if err := starlark.UnpackPositionalArgs("subturn.fail", args, kwargs, 0); err != nil {
+		return nil, err
+	}
+	if s.writer != nil {
+		s.writer.EndSubTurn()
+	}
+	return starlark.None, nil
+}
+
+// ---------------------------------------------------------------------------
+// StepHandle — Starlark value for a step inside an assistant turn
+// ---------------------------------------------------------------------------
+
+// StepHandle is a Starlark value for step operations inside an assistant turn.
+// When writer is nil the handle is a no-op (used on non-TTY).
+type StepHandle struct {
+	id     string
+	writer ports.TurnWriter
+}
+
+func (s *StepHandle) String() string        { return "<step>" }
+func (s *StepHandle) Type() string          { return "step" }
+func (s *StepHandle) Freeze()               {}
+func (s *StepHandle) Truth() starlark.Bool  { return starlark.True }
+func (s *StepHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: step") }
+
+func (s *StepHandle) Attr(name string) (starlark.Value, error) {
+	switch name {
+	case "done":
+		return starlark.NewBuiltin("step.done", s.done), nil
+	case "fail":
+		return starlark.NewBuiltin("step.fail", s.fail), nil
+	case "info":
+		return starlark.NewBuiltin("step.info", s.info), nil
+	case "update":
+		return starlark.NewBuiltin("step.update", s.update), nil
+	default:
+		return nil, nil
+	}
+}
+
+func (s *StepHandle) AttrNames() []string {
+	return []string{"done", "fail", "info", "update"}
+}
+
+func (s *StepHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	text := ""
+	if err := starlark.UnpackArgs("step.done", args, kwargs, "text?", &text); err != nil {
+		return nil, err
+	}
+	if s.writer != nil && s.id != "" {
+		s.writer.CloseStep(s.id, true, text)
+	}
+	return starlark.None, nil
+}
+
+func (s *StepHandle) fail(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	text := ""
+	if err := starlark.UnpackArgs("step.fail", args, kwargs, "text?", &text); err != nil {
+		return nil, err
+	}
+	if s.writer != nil && s.id != "" {
+		s.writer.CloseStep(s.id, false, text)
+	}
+	return starlark.None, nil
+}
+
+func (s *StepHandle) info(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("step.info", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if s.writer != nil && s.id != "" {
+		s.writer.AddStepInfo(s.id, text)
+	}
+	return starlark.None, nil
+}
+
+func (s *StepHandle) update(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var text string
+	if err := starlark.UnpackPositionalArgs("step.update", args, kwargs, 1, &text); err != nil {
+		return nil, err
+	}
+	if s.writer != nil && s.id != "" {
+		s.writer.UpdateStep(s.id, text)
+	}
+	return starlark.None, nil
+}
+
+// ---------------------------------------------------------------------------
+// ProgressBarHandle — kept for progress_bar widget
+// ---------------------------------------------------------------------------
+
+// ProgressBarHandle is a Starlark value for progress bar operations.
+// When bar is nil the handle is a no-op (used on non-TTY).
+type ProgressBarHandle struct {
+	bar *ui.ProgressBar
+}
+
+func (p *ProgressBarHandle) String() string        { return "<progress_bar>" }
+func (p *ProgressBarHandle) Type() string          { return "progress_bar" }
+func (p *ProgressBarHandle) Freeze()               {}
+func (p *ProgressBarHandle) Truth() starlark.Bool  { return starlark.True }
+func (p *ProgressBarHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: progress_bar") }
+
+func (p *ProgressBarHandle) Attr(name string) (starlark.Value, error) {
+	switch name {
+	case "inc":
+		return starlark.NewBuiltin("progress_bar.inc", p.inc), nil
+	case "set":
+		return starlark.NewBuiltin("progress_bar.set", p.set), nil
+	case "done":
+		return starlark.NewBuiltin("progress_bar.done", p.done), nil
+	default:
+		return nil, nil
+	}
+}
+
+func (p *ProgressBarHandle) AttrNames() []string {
+	return []string{"inc", "set", "done"}
+}
+
+func (p *ProgressBarHandle) inc(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	amount := 1
+	if err := starlark.UnpackArgs("progress_bar.inc", args, kwargs, "amount?", &amount); err != nil {
+		return nil, err
+	}
+	if p.bar != nil {
+		p.bar.Inc(amount)
+	}
+	return starlark.None, nil
+}
+
+func (p *ProgressBarHandle) set(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var value int
+	if err := starlark.UnpackPositionalArgs("progress_bar.set", args, kwargs, 1, &value); err != nil {
+		return nil, err
+	}
+	if p.bar != nil {
+		p.bar.Set(value)
+	}
+	return starlark.None, nil
+}
+
+func (p *ProgressBarHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	message := "Complete"
+	if err := starlark.UnpackArgs("progress_bar.done", args, kwargs, "message?", &message); err != nil {
+		return nil, err
+	}
+	if p.bar != nil {
+		p.bar.Done(message)
+	}
+	return starlark.None, nil
+}
+
+// ---------------------------------------------------------------------------
+// Display functions (kept from old API)
+// ---------------------------------------------------------------------------
+
+func makeProgressFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var (
 			message string
@@ -208,7 +507,7 @@ func makeProgressFunc(indent string, writer io.Writer) func(*starlark.Thread, *s
 	}
 }
 
-func makeMarkdownFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeMarkdownFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content string
 		if err := starlark.UnpackPositionalArgs("ui.markdown", args, kwargs, 1, &content); err != nil {
@@ -223,7 +522,7 @@ func makeMarkdownFunc(indent string, writer io.Writer) func(*starlark.Thread, *s
 	}
 }
 
-func makeTableFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeTableFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var data starlark.Value
 		var columnsVal starlark.Value
@@ -254,7 +553,7 @@ func makeTableFunc(indent string, writer io.Writer) func(*starlark.Thread, *star
 	}
 }
 
-func makePanelFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makePanelFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content string
 		var title string
@@ -459,7 +758,7 @@ func uiSelect(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	return starlark.String(result.Items[0].Value), nil
 }
 
-func makeRenderFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeRenderFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var value starlark.Value
 		var query string
@@ -629,14 +928,14 @@ func dataToSelectItems(value starlark.Value, labelKey, valueKey, metaKey string)
 			items = append(items, ui.SelectItem{Label: text, Value: text})
 		case *starlark.Dict:
 			label := dictGetStringOrFallback(v, labelKey, valueKey)
-			value := dictGetStringOrFallback(v, valueKey, labelKey)
+			val := dictGetStringOrFallback(v, valueKey, labelKey)
 			meta := dictGetStringOrFallback(v, metaKey, "")
-			items = append(items, ui.SelectItem{Label: label, Value: value, Meta: meta})
+			items = append(items, ui.SelectItem{Label: label, Value: val, Meta: meta})
 		case *starlarkstruct.Struct:
 			label := structGetStringOrFallback(v, labelKey, valueKey)
-			value := structGetStringOrFallback(v, valueKey, labelKey)
+			val := structGetStringOrFallback(v, valueKey, labelKey)
 			meta := structGetStringOrFallback(v, metaKey, "")
-			items = append(items, ui.SelectItem{Label: label, Value: value, Meta: meta})
+			items = append(items, ui.SelectItem{Label: label, Value: val, Meta: meta})
 		default:
 			text := valueToString(item)
 			items = append(items, ui.SelectItem{Label: text, Value: text})
@@ -756,20 +1055,8 @@ func inferColumns(value starlark.Value) ([]string, error) {
 	}
 }
 
-// makeDividerFunc creates the ui.divider() function.
-func makeDividerFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		style := "line"
-		if err := starlark.UnpackArgs("ui.divider", args, kwargs, "style?", &style); err != nil {
-			return nil, err
-		}
-		ui.LogDivider(style, defaultTheme, defaultRenderOptions, writer)
-		return starlark.None, nil
-	}
-}
-
 // makeCodeFunc creates the ui.code() function.
-func makeCodeFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeCodeFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content, language, title string
 		var maxLines int
@@ -786,7 +1073,7 @@ func makeCodeFunc(indent string, writer io.Writer) func(*starlark.Thread, *starl
 }
 
 // makeDiffFunc creates the ui.diff() function.
-func makeDiffFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeDiffFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content, title string
 		var maxLines int
@@ -800,7 +1087,7 @@ func makeDiffFunc(indent string, writer io.Writer) func(*starlark.Thread, *starl
 }
 
 // makeTreeFunc creates the ui.tree() function.
-func makeTreeFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeTreeFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var dataVal starlark.Value
 		var title string
@@ -817,184 +1104,8 @@ func makeTreeFunc(indent string, writer io.Writer) func(*starlark.Thread, *starl
 	}
 }
 
-// ActivityHandle is a Starlark value for activity operations.
-// When activity is nil the handle is a no-op (used on non-TTY).
-type ActivityHandle struct {
-	activity *ui.Activity
-}
-
-func (a *ActivityHandle) String() string        { return "<activity>" }
-func (a *ActivityHandle) Type() string          { return "activity" }
-func (a *ActivityHandle) Freeze()               {}
-func (a *ActivityHandle) Truth() starlark.Bool  { return starlark.True }
-func (a *ActivityHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: activity") }
-
-func (a *ActivityHandle) Attr(name string) (starlark.Value, error) {
-	switch name {
-	case "update":
-		return starlark.NewBuiltin("activity.update", a.update), nil
-	case "success":
-		return starlark.NewBuiltin("activity.success", a.success), nil
-	case "fail":
-		return starlark.NewBuiltin("activity.fail", a.fail), nil
-	case "done":
-		return starlark.NewBuiltin("activity.done", a.done), nil
-	default:
-		return nil, nil
-	}
-}
-
-func (a *ActivityHandle) AttrNames() []string {
-	return []string{"update", "success", "fail", "done"}
-}
-
-func (a *ActivityHandle) update(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message string
-	if err := starlark.UnpackPositionalArgs("activity.update", args, kwargs, 1, &message); err != nil {
-		return nil, err
-	}
-	if a.activity != nil {
-		a.activity.Update(message)
-	}
-	return starlark.None, nil
-}
-
-func (a *ActivityHandle) success(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message string
-	if err := starlark.UnpackPositionalArgs("activity.success", args, kwargs, 1, &message); err != nil {
-		return nil, err
-	}
-	if a.activity != nil {
-		a.activity.Success(message)
-
-		// Clear current activity if this is it
-		activityMu.Lock()
-		if currentActivity == a.activity {
-			currentActivity = nil
-		}
-		activityMu.Unlock()
-	}
-	return starlark.None, nil
-}
-
-func (a *ActivityHandle) fail(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message string
-	if err := starlark.UnpackPositionalArgs("activity.fail", args, kwargs, 1, &message); err != nil {
-		return nil, err
-	}
-	if a.activity != nil {
-		a.activity.Fail(message)
-
-		// Clear current activity if this is it
-		activityMu.Lock()
-		if currentActivity == a.activity {
-			currentActivity = nil
-		}
-		activityMu.Unlock()
-	}
-	return starlark.None, nil
-}
-
-func (a *ActivityHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	if err := starlark.UnpackPositionalArgs("activity.done", args, kwargs, 0); err != nil {
-		return nil, err
-	}
-	if a.activity != nil {
-		a.activity.Done()
-
-		// Clear current activity if this is it
-		activityMu.Lock()
-		if currentActivity == a.activity {
-			currentActivity = nil
-		}
-		activityMu.Unlock()
-	}
-	return starlark.None, nil
-}
-
-// makeActivityFunc creates the ui.activity() function.
-func makeActivityFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var message string
-		if err := starlark.UnpackPositionalArgs("ui.activity", args, kwargs, 1, &message); err != nil {
-			return nil, err
-		}
-
-		activity := ui.NewActivity(message, defaultTheme, defaultRenderOptions, writer)
-
-		// Register as current activity
-		activityMu.Lock()
-		currentActivity = activity
-		activityMu.Unlock()
-
-		return &ActivityHandle{activity: activity}, nil
-	}
-}
-
-// ProgressBarHandle is a Starlark value for progress bar operations.
-// When bar is nil the handle is a no-op (used on non-TTY).
-type ProgressBarHandle struct {
-	bar *ui.ProgressBar
-}
-
-func (p *ProgressBarHandle) String() string        { return "<progress_bar>" }
-func (p *ProgressBarHandle) Type() string          { return "progress_bar" }
-func (p *ProgressBarHandle) Freeze()               {}
-func (p *ProgressBarHandle) Truth() starlark.Bool  { return starlark.True }
-func (p *ProgressBarHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: progress_bar") }
-
-func (p *ProgressBarHandle) Attr(name string) (starlark.Value, error) {
-	switch name {
-	case "inc":
-		return starlark.NewBuiltin("progress_bar.inc", p.inc), nil
-	case "set":
-		return starlark.NewBuiltin("progress_bar.set", p.set), nil
-	case "done":
-		return starlark.NewBuiltin("progress_bar.done", p.done), nil
-	default:
-		return nil, nil
-	}
-}
-
-func (p *ProgressBarHandle) AttrNames() []string {
-	return []string{"inc", "set", "done"}
-}
-
-func (p *ProgressBarHandle) inc(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	amount := 1
-	if err := starlark.UnpackArgs("progress_bar.inc", args, kwargs, "amount?", &amount); err != nil {
-		return nil, err
-	}
-	if p.bar != nil {
-		p.bar.Inc(amount)
-	}
-	return starlark.None, nil
-}
-
-func (p *ProgressBarHandle) set(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var value int
-	if err := starlark.UnpackPositionalArgs("progress_bar.set", args, kwargs, 1, &value); err != nil {
-		return nil, err
-	}
-	if p.bar != nil {
-		p.bar.Set(value)
-	}
-	return starlark.None, nil
-}
-
-func (p *ProgressBarHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	message := "Complete"
-	if err := starlark.UnpackArgs("progress_bar.done", args, kwargs, "message?", &message); err != nil {
-		return nil, err
-	}
-	if p.bar != nil {
-		p.bar.Done(message)
-	}
-	return starlark.None, nil
-}
-
 // makeProgressBarFunc creates the ui.progress_bar() function.
-func makeProgressBarFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeProgressBarFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var total int
 		var message string
@@ -1011,7 +1122,7 @@ func makeProgressBarFunc(indent string, writer io.Writer) func(*starlark.Thread,
 }
 
 // makeBannerFunc creates the ui.banner() function.
-func makeBannerFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeBannerFunc(indent string, writer interface{ Write([]byte) (int, error) }) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var title, subtext string
 		if err := starlark.UnpackArgs("ui.banner", args, kwargs, "title", &title, "subtext?", &subtext); err != nil {
@@ -1054,147 +1165,8 @@ func makePagerFunc(indent string) func(*starlark.Thread, *starlark.Builtin, star
 	}
 }
 
-// StepHandle is a Starlark value for step operations.
-// When step is nil the handle is a no-op (used on non-TTY).
-type StepHandle struct {
-	step *ui.Step
-}
-
-func (s *StepHandle) String() string        { return "<step>" }
-func (s *StepHandle) Type() string          { return "step" }
-func (s *StepHandle) Freeze()               {}
-func (s *StepHandle) Truth() starlark.Bool  { return starlark.True }
-func (s *StepHandle) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: step") }
-
-func (s *StepHandle) Attr(name string) (starlark.Value, error) {
-	switch name {
-	case "done":
-		return starlark.NewBuiltin("step.done", s.done), nil
-	case "fail":
-		return starlark.NewBuiltin("step.fail", s.fail), nil
-	default:
-		return nil, nil
-	}
-}
-
-func (s *StepHandle) AttrNames() []string {
-	return []string{"done", "fail"}
-}
-
-func (s *StepHandle) done(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message string
-	if err := starlark.UnpackArgs("step.done", args, kwargs, "message?", &message); err != nil {
-		return nil, err
-	}
-	if s.step != nil {
-		s.step.Done(message)
-	}
-	return starlark.None, nil
-}
-
-func (s *StepHandle) fail(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var message string
-	if err := starlark.UnpackArgs("step.fail", args, kwargs, "message?", &message); err != nil {
-		return nil, err
-	}
-	if s.step != nil {
-		s.step.Fail(message)
-	}
-	return starlark.None, nil
-}
-
-// makeStepFunc creates the ui.step() function.
-func makeStepFunc(depth int, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var (
-			title string
-			icon  string
-		)
-		if err := starlark.UnpackArgs("ui.step", args, kwargs, "title", &title, "icon?", &icon); err != nil {
-			return nil, err
-		}
-
-		step := ui.NewStep(title, icon, depth, defaultTheme, defaultRenderOptions, writer)
-		return &StepHandle{step: step}, nil
-	}
-}
-
-// makeActionFunc creates the ui.action() function.
-func makeActionFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var message string
-		if err := starlark.UnpackPositionalArgs("ui.action", args, kwargs, 1, &message); err != nil {
-			return nil, err
-		}
-
-		// Pause any active spinner
-		activityMu.Lock()
-		if currentActivity != nil {
-			currentActivity.Pause()
-		}
-		activityMu.Unlock()
-
-		iw := &indentingWriter{w: writer, indent: indent}
-		ui.LogAction(message, defaultTheme, defaultRenderOptions, iw)
-
-		// Resume spinner
-		activityMu.Lock()
-		if currentActivity != nil {
-			currentActivity.Resume()
-		}
-		activityMu.Unlock()
-
-		return starlark.None, nil
-	}
-}
-
-// makeThinkFunc creates the ui.think() function.
-func makeThinkFunc(indent string, writer io.Writer) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var message string
-		if err := starlark.UnpackPositionalArgs("ui.think", args, kwargs, 1, &message); err != nil {
-			return nil, err
-		}
-
-		// Pause any active spinner
-		activityMu.Lock()
-		if currentActivity != nil {
-			currentActivity.Pause()
-		}
-		activityMu.Unlock()
-
-		iw := &indentingWriter{w: writer, indent: indent}
-		ui.LogThought(message, defaultTheme, defaultRenderOptions, iw)
-
-		// Resume spinner
-		activityMu.Lock()
-		if currentActivity != nil {
-			currentActivity.Resume()
-		}
-		activityMu.Unlock()
-
-		return starlark.None, nil
-	}
-}
-
-// makeStreamFunc creates the ui.stream(delta, done=False) function.
-// On TTY it forwards token deltas to the TUI StreamBlock via streamer.
-// On non-TTY the whole ui module is replaced by noopUIModule so this is
-// never called, but the noop entry in that module handles it gracefully.
-func makeStreamFunc(streamer StreamSender) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
-	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		var delta string
-		var done bool
-		if err := starlark.UnpackArgs("ui.stream", args, kwargs, "delta", &delta, "done?", &done); err != nil {
-			return nil, err
-		}
-		streamer.StreamToken(delta, done)
-		return starlark.None, nil
-	}
-}
-
 type indentingWriter struct {
-	w      io.Writer
+	w      interface{ Write([]byte) (int, error) }
 	indent string
 }
 
@@ -1202,17 +1174,10 @@ func (iw *indentingWriter) Write(p []byte) (n int, err error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
-	// Simple implementation: indent every line
-	// This might be imperfect if Write is called partial lines.
-	// For logging functions that typically write one line, it's okay.
 	s := string(p)
 	if iw.indent != "" {
-		// Only indent if not already at start (not easy to track state here without more complexity)
-		// But IndentLines handles newlines.
-		// The issue is if multiple Writes build one line.
-		// Assuming line-based writes from ui helpers.
 		s = ui.IndentLines(s, iw.indent)
 	}
 	_, err = fmt.Fprint(iw.w, s)
-	return len(p), err // Return original length to satisfy interface
+	return len(p), err
 }

@@ -22,10 +22,17 @@ type rendererKey struct {
 	noColor bool
 }
 
+// markdownWrapWidth is the maximum line width used when word-wrapping rendered
+// Markdown output.
+const markdownWrapWidth = 120
+
 // RenderMarkdown renders Markdown content to a terminal-friendly string.
 func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 	if width <= 0 {
 		width = 80
+	}
+	if width > markdownWrapWidth {
+		width = markdownWrapWidth
 	}
 
 	key := rendererKey{width: width, noColor: noColor}

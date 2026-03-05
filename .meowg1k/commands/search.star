@@ -252,8 +252,6 @@ def _display_file_stats(ctx, files, title="Changed Files"):
     if len(files) <= 15:
         rows = [{"file": f} for f in files]
         ctx.ui.table(rows, columns=["file"], title=title)
-    else:
-        ctx.ui.info("{} files (too many to display)".format(len(files)))
 
 # =============================================================================
 # Setup Function
@@ -284,15 +282,16 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
     def semantic_search(ctx, query, snapshots="workdir,stage,HEAD", limit=_DEFAULT_SEARCH_RESULTS, threshold=0.0, format="text", full=False):
         """Perform semantic code search."""
         if not query:
-            ctx.ui.error("Query required")
+            turn = ctx.ui.assistant_turn()
+            turn.fail("Query required")
             return []
 
-        step = ctx.ui.step("Semantic Search")
-        ctx.ui.action("Query: '{}'".format(query))
+        turn = ctx.ui.assistant_turn()
+        search_step = turn.step("Searching")
+        search_step.info("Query: '{}'".format(query))
 
         snapshot_list = [s.strip() for s in snapshots.split(",")]
 
-        activity = ctx.ui.activity("Searching...")
         results = ctx.index.search(
             query=query,
             snapshots=snapshot_list,
@@ -301,13 +300,12 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         )
 
         if not results or len(results) == 0:
-            activity.fail("No results")
-            step.fail()
-            ctx.ui.warn("Try lowering threshold (current: {:.2f})".format(threshold))
+            search_step.fail("No results")
+            turn.warn("Try lowering threshold (current: {:.2f})".format(threshold))
+            turn.done()
             return []
 
-        activity.success("{} matches".format(len(results)))
-        step.done()
+        search_step.done("{} matches".format(len(results)))
 
         if format == "json":
             ctx.output.writeline(ctx.json.encode(results))
@@ -319,7 +317,6 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
                     ctx.output.writeline("-" * 40)
 
             if not full:
-                ctx.ui.divider()
                 table_data = []
                 for r in results:
                     table_data.append({
@@ -329,18 +326,21 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
                     })
                 ctx.ui.table(table_data, columns=["File", "Lines", "Score"], title="Results for '{}'".format(query))
 
+        turn.done()
         return results
 
     def ask_question(ctx, question, preset="smart", snapshots="workdir,stage,HEAD", context_size=_DEFAULT_RAG_RESULTS, threshold=_DEFAULT_SIMILARITY_THRESHOLD, show_context=False):
         """Ask questions about codebase using RAG."""
         if not question:
-            ctx.ui.error("Question required")
+            turn = ctx.ui.assistant_turn()
+            turn.fail("Question required")
             return None
 
-        rag_step = ctx.ui.step("Retrieving Context")
+        turn = ctx.ui.assistant_turn()
+
+        rag_step = turn.step("Retrieving Context")
         snapshot_list = [s.strip() for s in snapshots.split(",")]
 
-        activity = ctx.ui.activity("Searching...")
         results = ctx.index.search(
             query=question,
             snapshots=snapshot_list,
@@ -349,12 +349,12 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         )
 
         if not results or len(results) == 0:
-            activity.fail("No context found")
-            rag_step.fail()
-            ctx.ui.warn("Try lowering threshold (current: {:.2f}) or indexing more code".format(threshold))
+            rag_step.fail("No context found")
+            turn.warn("Try lowering threshold (current: {:.2f}) or indexing more code".format(threshold))
+            turn.done()
             return None
 
-        activity.success("{} snippets".format(len(results)))
+        rag_step.done("{} snippets".format(len(results)))
 
         context_parts = []
         seen_files = {}
@@ -373,12 +373,9 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         context = "\n\n".join(context_parts)
 
         if show_context:
-            ctx.ui.divider("dotted")
             ctx.ui.markdown("**Retrieved Context:**")
             file_list = list(seen_files.keys())
             _display_file_stats(ctx, file_list, title="Source Files")
-
-        rag_step.done()
 
         prompt = """Question: {}
 
@@ -389,12 +386,10 @@ Please provide a comprehensive answer based on the code context above. Reference
             question, context
         )
 
-        ans_step = ctx.ui.step("Generating Answer")
-        ctx.ui.info("{} snippets from {} files".format(len(results), len(seen_files)))
+        ans_step = turn.step("Generating Answer")
+        ans_step.info("{} snippets from {} files".format(len(results), len(seen_files)))
 
-        on_event = make_markdown_stream_handler(ctx)
-        ans_step.done()
-        ctx.ui.divider("thick")
+        on_event = make_markdown_stream_handler(turn)
         answer = ctx.llm.chat(
             preset=preset,
             system=_SYSTEM_PROMPT_ASK,
@@ -402,9 +397,9 @@ Please provide a comprehensive answer based on the code context above. Reference
             stream=True,
             on_event=on_event,
         )
+        ans_step.done()
         ctx.output.writeline(answer)
 
-        ctx.ui.divider()
         source_rows = []
         for r in results:
             source_rows.append({
@@ -414,6 +409,7 @@ Please provide a comprehensive answer based on the code context above. Reference
             })
         ctx.ui.table(source_rows, columns=["File", "Lines", "Relevance"], title="References")
 
+        turn.done()
         return {"answer": answer, "sources": results}
 
     def rebuild_index(ctx, custom_ignore_patterns=None, batch_size=None, chunking_strategy="lines"):
@@ -424,18 +420,19 @@ Please provide a comprehensive answer based on the code context above. Reference
             custom_ignore_patterns = cfg_ignore_patterns
 
         ctx.ui.banner("Rebuilding Search Index")
+        turn = ctx.ui.assistant_turn()
 
-        __cleanup_snapshots(ctx)
-        file_counts = __scan_workspace(ctx, custom_ignore_patterns)
-        dedup_result = __deduplicate_files(ctx, file_counts)
+        __cleanup_snapshots(ctx, turn)
+        file_counts = __scan_workspace(ctx, turn, custom_ignore_patterns)
+        dedup_result = __deduplicate_files(ctx, turn, file_counts)
 
         if len(dedup_result["new_files"]) > 0:
-            __process_new_files(ctx, dedup_result["new_files"], dedup_result["existing_versions"], batch_size, chunking_strategy)
+            __process_new_files(ctx, turn, dedup_result["new_files"], dedup_result["existing_versions"], batch_size, chunking_strategy)
 
-        __link_snapshots(ctx, dedup_result["snapshot_map"], dedup_result["existing_versions"])
-        __build_vector_indices(ctx)
+        __link_snapshots(ctx, turn, dedup_result["snapshot_map"], dedup_result["existing_versions"])
+        __build_vector_indices(ctx, turn)
 
-        ctx.ui.success("Index rebuilt successfully")
+        turn.done()
 
     def handle_query(ctx):
         return semantic_search(
@@ -534,37 +531,32 @@ Please provide a comprehensive answer based on the code context above. Reference
 # Index Helper Functions
 # ==============================================================================
 
-def __cleanup_snapshots(ctx):
+def __cleanup_snapshots(ctx, turn):
     """Clear old snapshot links."""
-    step = ctx.ui.step("Step 1/6: Clearing old index data")
-    activity = ctx.ui.activity("Clearing snapshots...")
+    step = turn.step("Clearing old index data")
     ctx.index.clear_snapshot("HEAD")
     ctx.index.clear_snapshot("stage")
     ctx.index.clear_snapshot("workdir")
-    activity.success("Cleared")
-    step.done()
+    step.done("Cleared")
 
-def __scan_workspace(ctx, ignore_patterns):
+def __scan_workspace(ctx, turn, ignore_patterns):
     """Scan all snapshots and return file lists."""
-    step = ctx.ui.step("Step 2/6: Scanning workspace files")
+    step = turn.step("Scanning workspace files")
 
-    activity = ctx.ui.activity("Scanning...")
     head_files = ctx.git.glob(ref="HEAD", pattern="**/*", ignore=ignore_patterns)
     stage_files = ctx.git.glob(ref="stage", pattern="**/*", ignore=ignore_patterns)
     workdir_files = ctx.fs.glob(pattern="**/*", ignore=ignore_patterns)
 
     total = len(head_files) + len(stage_files) + len(workdir_files)
-    activity.success("{} total files".format(total))
-    ctx.ui.info("  HEAD: {} | Stage: {} | Working: {}".format(len(head_files), len(stage_files), len(workdir_files)))
-    step.done()
+    step.info("HEAD: {} | Stage: {} | Working: {}".format(len(head_files), len(stage_files), len(workdir_files)))
+    step.done("{} total files".format(total))
 
     return {"HEAD": head_files, "stage": stage_files, "workdir": workdir_files}
 
-def __deduplicate_files(ctx, file_counts):
+def __deduplicate_files(ctx, turn, file_counts):
     """Deduplicate files by content hash."""
-    step = ctx.ui.step("Step 3/6: Deduplicating by content hash")
+    step = turn.step("Deduplicating by content hash")
 
-    activity = ctx.ui.activity("Deduplicating...")
     file_map = {}
     snapshot_map = {"HEAD": [], "stage": [], "workdir": []}
 
@@ -601,30 +593,30 @@ def __deduplicate_files(ctx, file_counts):
 
     unique_files = len(all_hashes)
     cached_count = unique_files - len(new_files)
-    activity.success("{} unique files".format(unique_files))
-    ctx.ui.info("  {} unique | {} new | {} cached".format(unique_files, len(new_files), cached_count))
-    step.done()
+    step.info("{} unique | {} new | {} cached".format(unique_files, len(new_files), cached_count))
+    step.done("{} unique files".format(unique_files))
 
     return {"new_files": new_files, "existing_versions": existing_versions, "snapshot_map": snapshot_map}
 
-def __process_new_files(ctx, new_files, existing_versions, batch_size, chunking_strategy):
+def __process_new_files(ctx, turn, new_files, existing_versions, batch_size, chunking_strategy):
     """Chunk, embed, and save new files incrementally."""
-    step = ctx.ui.step("Step 4/6: Processing new files")
+    step = turn.step("Processing new files")
 
-    activity = ctx.ui.activity("Splitting {} files into chunks...".format(len(new_files)))
     total_chunks = 0
     for file_info in new_files:
         chunks = _chunk_file(file_info["content"], file_info["path"], strategy=chunking_strategy)
         file_info["chunks"] = chunks
         total_chunks += len(chunks)
-    activity.success("{} files → {} chunks".format(len(new_files), total_chunks))
-
-    __process_files_incrementally(ctx, new_files, existing_versions, batch_size)
+    step.info("{} files → {} chunks".format(len(new_files), total_chunks))
     step.done()
 
-def __process_files_incrementally(ctx, new_files, existing_versions, batch_size):
+    sub = turn.subturn("Computing embeddings")
+    __process_files_incrementally(ctx, sub, new_files, existing_versions, batch_size)
+    sub.done()
+
+def __process_files_incrementally(ctx, turn, new_files, existing_versions, batch_size):
     """Process files incrementally with batched embeddings."""
-    step = ctx.ui.step("Computing embeddings (batch size: {})".format(batch_size))
+    step = turn.step("Batch size: {}".format(batch_size))
 
     chunk_queue = []
     for file_info in new_files:
@@ -643,9 +635,8 @@ def __process_files_incrementally(ctx, new_files, existing_versions, batch_size)
         batch_items = chunk_queue[batch_start:batch_end]
 
         batch_texts = [item["text"] for item in batch_items]
-        activity = ctx.ui.activity("Batch {}/{}: embedding {} chunks...".format(batch_num, num_batches, len(batch_texts)))
         embeddings = ctx.llm.embed(texts=batch_texts, preset="embeddings")
-        activity.success("Batch {}/{}".format(batch_num, num_batches))
+        step.update("Batch {}/{}".format(batch_num, num_batches))
 
         for i, item in enumerate(batch_items):
             item["embedding"] = embeddings[i]
@@ -657,10 +648,8 @@ def __process_files_incrementally(ctx, new_files, existing_versions, batch_size)
             if existing_versions[file_info["hash"]] == None:
                 __save_single_file(ctx, file_info, existing_versions)
                 saved_files += 1
-                if saved_files % 10 == 0:
-                    ctx.ui.action("  Saved {}/{} files".format(saved_files, len(new_files)))
 
-    step.done()
+    step.done("{}/{} files embedded".format(saved_files, len(new_files)))
 
 def __collect_completed_files(batch_items, all_processed):
     """Find files where all chunks have been embedded."""
@@ -699,11 +688,10 @@ def __save_single_file(ctx, file_info, existing_versions):
     )
     existing_versions[file_info["hash"]] = version_id
 
-def __link_snapshots(ctx, snapshot_map, existing_versions):
+def __link_snapshots(ctx, turn, snapshot_map, existing_versions):
     """Link versions to snapshots."""
-    step = ctx.ui.step("Step 5/6: Linking files to snapshots")
+    step = turn.step("Linking files to snapshots")
 
-    activity = ctx.ui.activity("Linking...")
     for snapshot_name, hash_list in snapshot_map.items():
         version_ids = []
         for content_hash in hash_list:
@@ -711,16 +699,14 @@ def __link_snapshots(ctx, snapshot_map, existing_versions):
             if version_id != None:
                 version_ids.append(version_id)
         ctx.index.link_snapshot(snapshot_name, version_ids)
-    activity.success("3 snapshots linked")
-    step.done()
+    step.done("3 snapshots linked")
 
-def __build_vector_indices(ctx):
+def __build_vector_indices(ctx, turn):
     """Build HNSW vector indices for all snapshots."""
-    step = ctx.ui.step("Step 6/6: Building vector search indices")
+    step = turn.step("Building vector search indices")
 
-    activity = ctx.ui.activity("Building HNSW indices...")
     ctx.index.build_vector_index("HEAD")
     ctx.index.build_vector_index("stage")
     ctx.index.build_vector_index("workdir")
-    activity.success("Search index ready")
-    step.done()
+    step.done("Search index ready")
+

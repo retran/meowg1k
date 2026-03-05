@@ -7,6 +7,7 @@ package ports
 import (
 	"context"
 	"database/sql"
+	"io"
 	"net/http"
 	"time"
 
@@ -17,9 +18,68 @@ import (
 	"github.com/retran/meowg1k/internal/domain/session"
 )
 
-// OutputWriter writes output to the user (used in flows).
-type OutputWriter interface {
+// OutputSink is the minimal write interface (used in flows that only need PrintLine).
+type OutputSink interface {
 	PrintLine(line string) error
+}
+
+// OutputWriter is the buffered plain-text output interface.
+// Writes go to an internal buffer and are flushed to stdout when Flush is called.
+type OutputWriter interface {
+	OutputSink
+	Print(content string) error
+	Printf(format string, args ...any) error
+}
+
+// TurnWriter is the conversation-model UI interface.
+// It drives the BubbleTea TUI through explicit turn/step lifecycle messages.
+// On non-TTY all methods are no-ops (implemented without error).
+type TurnWriter interface {
+	// SendHeader emits a one-line header above the conversation log.
+	SendHeader(text string)
+	// BeginUserTurn opens a user-turn bubble with the given text.
+	BeginUserTurn(text string)
+	// BeginAssistantTurn opens an assistant-turn block (live area).
+	BeginAssistantTurn()
+	// OpenStep creates a new live step inside the current assistant turn.
+	// Returns an opaque step ID for subsequent calls.
+	OpenStep(text string) string
+	// UpdateStep changes the label of an open step.
+	UpdateStep(id, text string)
+	// AddStepInfo appends an info line to an open step (shown indented below label).
+	AddStepInfo(id, text string)
+	// CloseStep marks an open step as done (ok=true) or failed (ok=false).
+	CloseStep(id string, ok bool, summary string)
+	// StreamToken delivers one LLM token delta. done=true seals the stream block.
+	StreamToken(delta string, done bool)
+	// BeginSubTurn opens a nested subturn with the given label inside the current
+	// assistant turn. Subsequent step and stream calls are routed into this subturn
+	// until EndSubTurn is called.
+	BeginSubTurn(label string)
+	// EndSubTurn closes the active subturn. Subsequent calls route back to the
+	// parent turn.
+	EndSubTurn()
+	// EndTurn closes the current assistant turn with an optional summary line.
+	EndTurn(summary string)
+	// SetStatus updates the single-line status bar at the bottom of the screen.
+	SetStatus(text string)
+}
+
+// UIWriter is the complete output interface satisfied by output.Service.
+type UIWriter interface {
+	OutputWriter
+	TurnWriter
+	// IsTTY returns true when output is going to a real terminal.
+	IsTTY() bool
+	// LogWriter returns an io.Writer that feeds into the TUI log (TTY) or
+	// directly to the destination (non-TTY).  Used to route ui.step /
+	// ui.success / ui.divider output through the same BubbleTea program.
+	LogWriter() io.Writer
+	// SetCancel registers a cancel func that is called when the user presses
+	// Ctrl+C or q in the TUI.  Must be called before the first TUI write.
+	SetCancel(cancel func())
+	// Flush stops the BubbleTea program and copies the output buffer to stdout.
+	Flush() error
 }
 
 // ConfigResolver reads the application configuration.

@@ -8,7 +8,7 @@ FEATURES:
   - Flexible Prompting: Generate content from natural language prompts
   - Tone Control: Technical, casual, formal, concise, or custom
   - Output Formats: Prose, bullets, numbered lists, markdown
-  - Context Support: Include context from stdin or command line
+  - Context Support: Include context from stdin or -c flag
   - LLM Presets: Choose between fast and smart models
   - Configurable: Add custom tones and formats via init.star
 
@@ -169,6 +169,71 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
             parts.append("Format: {}".format(f["instructions"]))
         return "\n\n".join(parts)
 
+    def generate_content(ctx, prompt, context="", tone="", custom_tone="", format="prose", preset="smart"):
+        if not prompt:
+            if context:
+                prompt = "Process this input:\n\n{}".format(context)
+            else:
+                turn = ctx.ui.assistant_turn()
+                turn.fail("No prompt provided")
+                return None
+
+        turn = ctx.ui.assistant_turn()
+
+        # --- Phase 1: prepare ---
+        prep_step = turn.step("Preparing")
+
+        full_prompt = prompt
+        if context:
+            prep_step.info("Context: {} chars".format(len(context)))
+            full_prompt = "{}\n\n### Context:\n{}".format(prompt, context)
+
+        system = build_system_prompt(tone, format, custom_tone)
+
+        if custom_tone:
+            prep_step.info("Tone: custom")
+        elif tone and tone in all_tones:
+            prep_step.info("Tone: {}".format(all_tones[tone]["name"]))
+        prep_step.info("Format: {}".format(all_formats[format]["name"] if format in all_formats else format))
+        if preset:
+            prep_step.info("Preset: {}".format(preset))
+
+        prep_step.done()
+
+        # --- Phase 2: stream generation ---
+        gen_step = turn.step("Generating")
+
+        # on_event: seal stream on error
+        def on_event(event):
+            kind = event.get("kind", "")
+            if kind == "text":
+                delta = event.get("delta", "")
+                if delta:
+                    turn.stream(delta)
+            elif kind == "done":
+                turn.stream("", done=True)
+            elif kind == "error":
+                msg = event.get("error", "unknown error")
+                if event.get("recoverable", False):
+                    turn.warn("Stream warning: " + msg)
+                else:
+                    gen_step.fail("Stream error: " + msg)
+                    turn.stream("", done=True)
+
+        result = ctx.llm.chat(
+            preset=preset,
+            system=system,
+            prompt=full_prompt,
+            stream=True,
+            on_event=on_event,
+        )
+
+        gen_step.done()
+        turn.done()
+
+        ctx.output.writeline(result)
+        return result
+
     def merge_context_with_stdin(ctx, context):
         full_context = context or ""
         if ctx.stdin.is_piped():
@@ -179,86 +244,6 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
                 else:
                     full_context = stdin_content
         return full_context
-
-    def generate_content(ctx, prompt, context="", tone="", custom_tone="", format="prose", preset="smart"):
-        if not prompt:
-            if context:
-                prompt = "Process this input:\n\n{}".format(context)
-            else:
-                ctx.ui.error("No prompt provided")
-                return None
-
-        # --- Phase 1: prepare ---
-        prep_step = ctx.ui.step("Preparing")
-
-        full_prompt = prompt
-        if context:
-            activity = ctx.ui.activity("Reading context ({} chars)...".format(len(context)))
-            full_prompt = "{}\n\n### Context:\n{}".format(prompt, context)
-            activity.success("Context included")
-
-        system = build_system_prompt(tone, format, custom_tone)
-
-        # Show what will be used
-        if custom_tone:
-            ctx.ui.info("Tone:   custom")
-        elif tone and tone in all_tones:
-            ctx.ui.info("Tone:   {}".format(all_tones[tone]["name"]))
-        ctx.ui.info("Format: {}".format(all_formats[format]["name"] if format in all_formats else format))
-        if preset:
-            ctx.ui.info("Preset: {}".format(preset))
-
-        prep_step.done()
-
-        # --- Phase 2: stream generation ---
-        gen_step = ctx.ui.step("Generating")
-
-        # on_event: close the step + open the divider on first text token,
-        # capture token usage from the done event
-        state = {"tokens": 0, "started": False}
-        def on_event(event):
-            kind = event.get("kind", "")
-            if kind == "text":
-                delta = event.get("delta", "")
-                if delta:
-                    if not state["started"]:
-                        # Step closes, thick divider, then stream begins
-                        gen_step.done()
-                        ctx.ui.divider("thick")
-                        state["started"] = True
-                    ctx.ui.stream(delta)
-            elif kind == "done":
-                ctx.ui.stream("", done=True)
-                usage = event.get("usage", {})
-                total = usage.get("total", 0)
-                if total > 0:
-                    state["tokens"] = total
-            elif kind == "error":
-                msg = event.get("error", "unknown error")
-                if event.get("recoverable", False):
-                    ctx.ui.warn("Stream warning: " + msg)
-                else:
-                    gen_step.fail("Stream error: " + msg)
-
-        result = ctx.llm.chat(
-            preset=preset,
-            system=system,
-            prompt=full_prompt,
-            stream=True,
-            on_event=on_event,
-        )
-
-        # If no tokens came (empty response), still close the step
-        if not state["started"]:
-            gen_step.done()
-
-        ctx.ui.divider()
-        if state["tokens"] > 0:
-            ctx.ui.info("Tokens used: {}".format(state["tokens"]))
-        ctx.ui.success("Done")
-
-        ctx.output.writeline(result)
-        return result
 
     def handle_write(ctx):
         full_context = merge_context_with_stdin(ctx, ctx.context)
@@ -286,7 +271,7 @@ def setup(tones=None, formats=None, default_tone=None, default_format=None, pres
         description="Generate text content.",
         params={
             "prompt": meow.param("string", default="", short="p", min_len=1, desc="What to write."),
-            "context": meow.param("string", default="", short="c", from_stdin=True, desc="Background information or reference material."),
+            "context": meow.param("string", default="", short="c", desc="Background information or reference material (supports piped input)."),
             "tone": meow.param("string", default=config_default_tone, short="t", choices=all_tones, desc=build_tone_desc(config_default_tone)),
             "custom_tone": meow.param("string", default="", desc="Free-form tone instructions (overrides --tone)."),
             "format": meow.param("string", default=config_default_format, short="f", choices=all_formats, desc=build_format_desc(config_default_format)),

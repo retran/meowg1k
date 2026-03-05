@@ -37,13 +37,17 @@ File: {file_path}
 Changes:
 {diff_content}"""
 
-def _summarize_file_changes(ctx, file_path, diff_content, preset=""):
-    """Generate a concise 1-2 sentence summary of changes in a single file."""
+def _summarize_file_changes(ctx, file_path, diff_content, on_event, preset=""):
+    """Generate a concise 1-2 sentence summary of changes in a single file.
+
+    Streams token deltas via on_event; the caller is responsible for calling
+    turn.stream("", done=True) after all files are processed.
+    """
     prompt = _FILE_SUMMARY_PROMPT.format(
         file_path=file_path,
         diff_content=_smart_truncate(diff_content, _MAX_FILE_DIFF_CHARS)
     )
-    return ctx.llm.chat(preset=preset, prompt=prompt)
+    return ctx.llm.chat(preset=preset, prompt=prompt, stream=True, on_event=on_event, use_session=False)
 
 def _should_use_map_reduce(file_count, total_chars):
     """Decide whether to use map-reduce based on size metrics."""
@@ -87,7 +91,7 @@ def _format_line_stats(additions, deletions):
     else:
         return "no changes"
 
-def _collect_diffs(ctx, files, target):
+def _collect_diffs(ctx, turn, files, target):
     """
     Stage 1: Collect all file diffs.
 
@@ -95,7 +99,7 @@ def _collect_diffs(ctx, files, target):
     fetched_diffs is list of (file_path, raw_diff, additions, deletions)
     """
     total_files = len(files)
-    step = ctx.ui.step("Collecting Changes")
+    step = turn.step("Collecting Changes")
 
     fetched_diffs = []
     total_chars = 0
@@ -110,7 +114,7 @@ def _collect_diffs(ctx, files, target):
         total_deletions += file_diff.deletions
 
         # Show file with line stats and progress
-        ctx.ui.info("[{}/{}] {} ({})".format(i + 1, total_files, file_path, _format_line_stats(file_diff.additions, file_diff.deletions)))
+        step.info("[{}/{}] {} ({})".format(i + 1, total_files, file_path, _format_line_stats(file_diff.additions, file_diff.deletions)))
 
     # Decide strategy
     use_map_reduce = _should_use_map_reduce(total_files, total_chars)
@@ -121,42 +125,62 @@ def _collect_diffs(ctx, files, target):
 
     return fetched_diffs, total_chars, use_map_reduce
 
-def _summarize_diffs(ctx, fetched_diffs, preset=""):
+def _summarize_diffs(ctx, turn, fetched_diffs, preset=""):
     """
-    Stage 2: Generate and display summaries one by one.
+    Stage 2: Summarize each file, streaming results into per-file subturns.
+    Each file gets its own subturn labeled with the filename and line stats.
 
     Returns formatted summaries for prompt.
     """
     total_files = len(fetched_diffs)
-    step = ctx.ui.step("Summarizing Changes")
+    step = turn.step("Summarizing Changes")
 
     file_summaries = []
 
     for i, (file_path, file_diff, additions, deletions) in enumerate(fetched_diffs):
-        # Generate summary
-        summary = _summarize_file_changes(ctx, file_path, file_diff, preset)
+        line_stats = _format_line_stats(additions, deletions)
+
+        # Progress indicator stays in the parent step.
+        step.update("[{}/{}] Summarizing Changes".format(i + 1, total_files))
+
+        # Open a subturn for this file's summary.
+        sub = turn.subturn("**{}** ({})".format(file_path, line_stats))
+
+        # Build a per-file on_event that forwards text deltas into the subturn.
+        def _make_on_event(s):
+            def _on_event(event):
+                kind = event.get("kind", "")
+                if kind == "text":
+                    delta = event.get("delta", "")
+                    if delta:
+                        s.stream(delta)
+                elif kind == "done":
+                    s.stream("", done=True)
+            return _on_event
+
+        summary = _summarize_file_changes(ctx, file_path, file_diff, _make_on_event(sub), preset)
+
+        # Close the subturn after the file's stream is done.
+        sub.done()
+
         clean = _clean_summary(summary)
         file_summaries.append((file_path, clean))
 
-        # Output: filename with line stats and progress, then LLM summary
-        ctx.ui.info("[{}/{}] {} ({})".format(i + 1, total_files, file_path, _format_line_stats(additions, deletions)))
-        for line in clean.split("\n"):
-            ctx.ui.think(line)
-
     step.done("{} summaries generated".format(total_files))
 
-    # Return formatted summaries for prompt
+    # Return formatted summaries for the final LLM prompt.
     formatted = []
     for file_path, summary in file_summaries:
         formatted.append("**{}**\n  {}".format(file_path, summary))
     return "\n\n".join(formatted)
 
-def _fetch_and_decide_strategy(ctx, files, target, summarize_preset=""):
+def _fetch_and_decide_strategy(ctx, turn, files, target, summarize_preset=""):
     """
     Fetch all file diffs and select optimal analysis strategy.
 
     Args:
         ctx: Command context
+        turn: TurnHandle for UI feedback
         files: List of file paths
         target: Git target
         summarize_preset: Preset to use for file summarization
@@ -165,23 +189,24 @@ def _fetch_and_decide_strategy(ctx, files, target, summarize_preset=""):
     Strategy selection based on file count and total size.
     """
     # Stage 1: Collect diffs (includes strategy decision)
-    fetched_diffs, total_chars, use_map_reduce = _collect_diffs(ctx, files, target)
+    fetched_diffs, total_chars, use_map_reduce = _collect_diffs(ctx, turn, files, target)
 
     # Execute strategy
     if use_map_reduce:
         # Stage 2: Summarize
-        result = _summarize_diffs(ctx, fetched_diffs, summarize_preset)
+        result = _summarize_diffs(ctx, turn, fetched_diffs, summarize_preset)
         return ("map_reduce", result)
     else:
         concatenated = "\n".join([diff for _, diff, _, _ in fetched_diffs])
         return ("unified", concatenated)
 
-def build_analysis_prompt(ctx, files, target, template_vars, templates, summarize_preset=""):
+def build_analysis_prompt(ctx, turn, files, target, template_vars, templates, summarize_preset=""):
     """
     Build LLM prompt using adaptive analysis strategy.
 
     Args:
-        ctx: Command context with git, llm, ui access
+        ctx: Command context with git, llm access
+        turn: TurnHandle for UI feedback
         files: List of file paths to analyze
         target: Git target ("staged", branch name)
         template_vars: Dict of variables to inject into templates
@@ -191,7 +216,7 @@ def build_analysis_prompt(ctx, files, target, template_vars, templates, summariz
     Returns:
         Formatted prompt string ready for LLM generation
     """
-    strategy, content = _fetch_and_decide_strategy(ctx, files, target, summarize_preset)
+    strategy, content = _fetch_and_decide_strategy(ctx, turn, files, target, summarize_preset)
 
     if strategy == "map_reduce":
         template_vars["summaries"] = content

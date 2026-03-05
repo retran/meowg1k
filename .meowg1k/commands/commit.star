@@ -246,7 +246,6 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
             diff = ctx.git.diff(target=base)
 
         if len(diff.files) == 0:
-            ctx.ui.error("No changes")
             return None, None
 
         return diff, target
@@ -265,9 +264,12 @@ Infer the commit message style from the patterns above and generate a message th
 
     def generate_commit_message(ctx, intent="", source="staged", base="main", style="match", custom_style="", preset_arg="", summarize_preset_arg=""):
         """Generate a git commit message from diff."""
+        turn = ctx.ui.assistant_turn()
+
         # Get diff
         diff, target = read_diff(ctx, source, base)
         if not diff:
+            turn.fail("No changes found")
             return None
 
         style_section = ""
@@ -282,22 +284,23 @@ Infer the commit message style from the patterns above and generate a message th
         }
 
         # This internally handles collecting and summarization with proper UI stages
-        prompt = build_analysis_prompt(ctx, diff.files, target, template_vars, _TEMPLATES, summarize_preset_arg)
+        prompt = build_analysis_prompt(ctx, turn, diff.files, target, template_vars, _TEMPLATES, summarize_preset_arg)
 
         # Final stage: Generate commit message
-        gen_step = ctx.ui.step("Generating Commit Message")
-        ctx.ui.info("Style: {}".format(style))
+        gen_step = turn.step("Generating Commit Message")
+        gen_step.info("Style: {}".format(style))
 
-        on_event = make_markdown_stream_handler(ctx)
-        gen_step.done("Message ready")
-        ctx.ui.divider("thick")
+        on_event = make_markdown_stream_handler(turn)
         commit_message = ctx.llm.chat(
             preset=preset_arg,
             system=_SYSTEM_PROMPT,
             prompt=prompt,
             stream=True,
             on_event=on_event,
+            use_session=False,
         )
+        gen_step.done()
+        turn.done()
         ctx.output.writeline(commit_message)
         return commit_message
 

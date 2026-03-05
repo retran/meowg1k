@@ -4,6 +4,7 @@
 package starlark
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -439,13 +440,6 @@ func TestNoopOutputWriter(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("StreamToken is a no-op", func(t *testing.T) {
-		writer := &noopOutputWriter{}
-		// Should not panic
-		writer.StreamToken("delta", false)
-		writer.StreamToken("final", true)
-	})
-
 	t.Run("all methods can be called multiple times", func(t *testing.T) {
 		writer := &noopOutputWriter{}
 
@@ -453,12 +447,11 @@ func TestNoopOutputWriter(t *testing.T) {
 			assert.NoError(t, writer.Print("test"))
 			assert.NoError(t, writer.PrintLine("test"))
 			assert.NoError(t, writer.Printf("test %d", i))
-			writer.StreamToken("test", i%2 == 0)
 		}
 	})
 }
 
-// mockOutputWriter is a test implementation of OutputWriter
+// mockOutputWriter is a test implementation of ports.UIWriter
 type mockOutputWriter struct {
 	printed []string
 }
@@ -477,4 +470,20 @@ func (m *mockOutputWriter) Printf(format string, args ...any) error {
 	return nil
 }
 
-func (m *mockOutputWriter) StreamToken(delta string, done bool) {}
+// TurnWriter methods
+func (m *mockOutputWriter) SendHeader(text string)                       {}
+func (m *mockOutputWriter) BeginUserTurn(text string)                    {}
+func (m *mockOutputWriter) BeginAssistantTurn()                          {}
+func (m *mockOutputWriter) OpenStep(text string) string                  { return "" }
+func (m *mockOutputWriter) UpdateStep(id, text string)                   {}
+func (m *mockOutputWriter) AddStepInfo(id, text string)                  {}
+func (m *mockOutputWriter) CloseStep(id string, ok bool, summary string) {}
+func (m *mockOutputWriter) StreamToken(delta string, done bool)          {}
+func (m *mockOutputWriter) BeginSubTurn(label string)                    {}
+func (m *mockOutputWriter) EndSubTurn()                                  {}
+func (m *mockOutputWriter) EndTurn(summary string)                       {}
+func (m *mockOutputWriter) SetStatus(text string)                        {}
+func (m *mockOutputWriter) IsTTY() bool                                  { return false }
+func (m *mockOutputWriter) LogWriter() io.Writer                         { return io.Discard }
+func (m *mockOutputWriter) SetCancel(cancel func())                      {}
+func (m *mockOutputWriter) Flush() error                                 { return nil }

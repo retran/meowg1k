@@ -4,6 +4,7 @@
 package command
 
 import (
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -21,11 +22,9 @@ func createTestCommand(name string) *cobra.Command {
 	cmd.Flags().String("workspace", "/default/workspace", "workspace path")
 	cmd.Flags().String("task", "default-task", "task name")
 	cmd.Flags().String("user-prompt", "", "user prompt")
-	cmd.Flags().Bool("silent", false, "silent mode")
 	cmd.Flags().Bool("no-cache", false, "disable cache")
 	cmd.Flags().Bool("update-cache", false, "update cache")
-	cmd.Flags().Bool("plain", false, "plain output")
-	cmd.Flags().Bool("no-color", false, "disable colors")
+	cmd.Flags().Bool("no-tui", false, "disable TUI")
 
 	return cmd
 }
@@ -198,58 +197,75 @@ func TestGetUserPrompt(t *testing.T) {
 	})
 }
 
-// TestGetSilentFlag tests retrieving silent flag
-func TestGetSilentFlag(t *testing.T) {
+// TestGetNoTUIFlag tests retrieving no-tui flag
+func TestGetNoTUIFlag(t *testing.T) {
 	t.Run("default false", func(t *testing.T) {
 		cmd := createTestCommand("test")
 		service := &Service{cmd: cmd}
 
-		silent, err := service.GetSilentFlag()
+		noTUI, err := service.GetNoTUIFlag()
 		require.NoError(t, err)
-		assert.False(t, silent)
+		assert.False(t, noTUI)
 	})
 
 	t.Run("set to true", func(t *testing.T) {
 		cmd := createTestCommand("test")
-		cmd.Flags().Set("silent", "true")
+		cmd.Flags().Set("no-tui", "true")
 		service := &Service{cmd: cmd}
 
-		silent, err := service.GetSilentFlag()
+		noTUI, err := service.GetNoTUIFlag()
 		require.NoError(t, err)
-		assert.True(t, silent)
+		assert.True(t, noTUI)
 	})
 
 	t.Run("nil service", func(t *testing.T) {
 		var service *Service
-		silent, err := service.GetSilentFlag()
+		noTUI, err := service.GetNoTUIFlag()
 		assert.Error(t, err)
-		assert.False(t, silent)
+		assert.False(t, noTUI)
 		assert.Contains(t, err.Error(), "service is nil")
 	})
 
 	t.Run("nil command", func(t *testing.T) {
 		service := &Service{cmd: nil}
-		silent, err := service.GetSilentFlag()
+		noTUI, err := service.GetNoTUIFlag()
 		assert.Error(t, err)
-		assert.False(t, silent)
+		assert.False(t, noTUI)
 		assert.Contains(t, err.Error(), "command is nil")
 	})
 }
 
-// TestGetStdIn tests retrieving standard input
+// TestMultipleFlagRetrievals tests getting multiple flags in sequence
 func TestGetStdIn(t *testing.T) {
-	t.Run("empty stdin", func(t *testing.T) {
+	t.Run("empty stdin when not piped", func(t *testing.T) {
 		cmd := createTestCommand("test")
-		service := &Service{cmd: cmd, stdin: ""}
+		service := &Service{cmd: cmd}
 
+		// When stdin is a TTY (not piped), GetStdIn should return empty string.
+		// In the test environment stdin is typically not a pipe, so stdinCached
+		// stays "" and no error is returned.
 		stdin, err := service.GetStdIn()
 		require.NoError(t, err)
 		assert.Empty(t, stdin)
 	})
 
-	t.Run("with stdin content", func(t *testing.T) {
+	t.Run("with piped stdin content", func(t *testing.T) {
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+
+		_, err = w.WriteString("some input")
+		require.NoError(t, err)
+		w.Close()
+
+		old := os.Stdin
+		os.Stdin = r
+		defer func() {
+			r.Close()
+			os.Stdin = old
+		}()
+
 		cmd := createTestCommand("test")
-		service := &Service{cmd: cmd, stdin: "some input"}
+		service := &Service{cmd: cmd}
 
 		stdin, err := service.GetStdIn()
 		require.NoError(t, err)
@@ -341,91 +357,15 @@ func TestGetUpdateCacheFlag(t *testing.T) {
 	})
 }
 
-// TestGetPlainFlag tests retrieving plain flag
-func TestGetPlainFlag(t *testing.T) {
-	t.Run("default false", func(t *testing.T) {
-		cmd := createTestCommand("test")
-		service := &Service{cmd: cmd}
-
-		plain, err := service.GetPlainFlag()
-		require.NoError(t, err)
-		assert.False(t, plain)
-	})
-
-	t.Run("set to true", func(t *testing.T) {
-		cmd := createTestCommand("test")
-		cmd.Flags().Set("plain", "true")
-		service := &Service{cmd: cmd}
-
-		plain, err := service.GetPlainFlag()
-		require.NoError(t, err)
-		assert.True(t, plain)
-	})
-
-	t.Run("nil service", func(t *testing.T) {
-		var service *Service
-		plain, err := service.GetPlainFlag()
-		assert.Error(t, err)
-		assert.False(t, plain)
-		assert.Contains(t, err.Error(), "service is nil")
-	})
-
-	t.Run("nil command", func(t *testing.T) {
-		service := &Service{cmd: nil}
-		plain, err := service.GetPlainFlag()
-		assert.Error(t, err)
-		assert.False(t, plain)
-		assert.Contains(t, err.Error(), "command is nil")
-	})
-}
-
-// TestGetNoColorFlag tests retrieving no-color flag
-func TestGetNoColorFlag(t *testing.T) {
-	t.Run("default false", func(t *testing.T) {
-		cmd := createTestCommand("test")
-		service := &Service{cmd: cmd}
-
-		noColor, err := service.GetNoColorFlag()
-		require.NoError(t, err)
-		assert.False(t, noColor)
-	})
-
-	t.Run("set to true", func(t *testing.T) {
-		cmd := createTestCommand("test")
-		cmd.Flags().Set("no-color", "true")
-		service := &Service{cmd: cmd}
-
-		noColor, err := service.GetNoColorFlag()
-		require.NoError(t, err)
-		assert.True(t, noColor)
-	})
-
-	t.Run("nil service", func(t *testing.T) {
-		var service *Service
-		noColor, err := service.GetNoColorFlag()
-		assert.Error(t, err)
-		assert.False(t, noColor)
-		assert.Contains(t, err.Error(), "service is nil")
-	})
-
-	t.Run("nil command", func(t *testing.T) {
-		service := &Service{cmd: nil}
-		noColor, err := service.GetNoColorFlag()
-		assert.Error(t, err)
-		assert.False(t, noColor)
-		assert.Contains(t, err.Error(), "command is nil")
-	})
-}
-
 // TestMultipleFlagRetrievals tests getting multiple flags in sequence
 func TestMultipleFlagRetrievals(t *testing.T) {
 	cmd := createTestCommand("test")
 	cmd.Flags().Set("workspace", "/my/workspace")
 	cmd.Flags().Set("task", "my-task")
-	cmd.Flags().Set("silent", "true")
+	cmd.Flags().Set("no-tui", "true")
 	cmd.Flags().Set("no-cache", "true")
 
-	service := &Service{cmd: cmd, stdin: "test input"}
+	service := &Service{cmd: cmd}
 
 	// Get workspace
 	workspace, err := service.GetWorkspacePath()
@@ -437,20 +377,20 @@ func TestMultipleFlagRetrievals(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "my-task", task)
 
-	// Get silent
-	silent, err := service.GetSilentFlag()
+	// Get no-tui
+	noTUI, err := service.GetNoTUIFlag()
 	require.NoError(t, err)
-	assert.True(t, silent)
+	assert.True(t, noTUI)
 
 	// Get no-cache
 	noCache, err := service.GetNoCacheFlag()
 	require.NoError(t, err)
 	assert.True(t, noCache)
 
-	// Get stdin
+	// GetStdIn returns empty when stdin is not piped (TTY in test environment)
 	stdin, err := service.GetStdIn()
 	require.NoError(t, err)
-	assert.Equal(t, "test input", stdin)
+	assert.Empty(t, stdin)
 
 	// Get command name
 	name, err := service.GetCommandName()

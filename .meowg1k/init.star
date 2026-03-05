@@ -68,9 +68,6 @@ commit_setup(preset="smart", summarize_preset="fast")
 load("//commands/pr.star", pr_setup = "setup")
 pr_setup(preset="smart", summarize_preset="fast")
 
-load("//commands/code.star", code_setup = "setup")
-code_setup(preset="smart")
-
 load("//commands/search.star", search_setup = "setup")
 search_setup(
     ignore_patterns = [
@@ -89,18 +86,7 @@ search_setup(
 )
 
 # ==============================================================================
-# AGENT COMMANDS
-# ==============================================================================
-load("//commands/review-agent.star", review_handler = "review_agent_handler")
-load("//commands/orchestrator-agent.star", orch_handler = "orchestrator_handler")
-
-# ==============================================================================
 # EXAMPLE COMMANDS (Structured Outputs)
 # ==============================================================================
 load("//commands/extract.star", extract_setup = "setup")
 extract_setup()
-
-# ==============================================================================
-# SESSION MANAGEMENT COMMANDS
-# ==============================================================================
-load("//commands/sessions.star", sessions_list_handler = "sessions_handler")

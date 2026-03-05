@@ -8,7 +8,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -26,7 +25,6 @@ import (
 	adaptergw "github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
-	"github.com/retran/meowg1k/internal/adapters/progress"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
 	indexRepo "github.com/retran/meowg1k/internal/adapters/sqlite/index"
@@ -47,16 +45,9 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Writer writes output to the user (used in activities).
-type Writer interface {
-	Print(content string) error
-	PrintLine(content string) error
-	Printf(format string, args ...any) error
-	IsTTY() bool
-	Flush() error
-	LogWriter() io.Writer
-	StreamToken(delta string, done bool)
-}
+// Writer is an alias for ports.UIWriter kept for internal use.
+// It is satisfied by *output.Service.
+type Writer = ports.UIWriter
 
 // Container is the main application struct that holds all cross-cutting adapters.
 type Container struct {
@@ -74,9 +65,6 @@ type Container struct {
 
 	// OutputService handles application output to stdout/stderr.
 	OutputService Writer
-
-	// ProgressLogger provides progress and status logging to stderr.
-	ProgressLogger progress.Logger
 
 	// TraceLogger provides context-aware trace logging for sessions.
 	TraceLogger *tracelog.Logger
@@ -162,19 +150,13 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
 
-	// Get formatting flags
-	plainFlag, _ := commandService.GetPlainFlag()
-	noColorFlag, _ := commandService.GetNoColorFlag()
-
-	outputService := output.NewServiceWithOptions(domainOutput.Stdout, plainFlag, noColorFlag)
-	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
-		return nil, err
+	noTUI, err := commandService.GetNoTUIFlag()
+	if err != nil {
+		noTUI = false
 	}
 
-	// Create progress logger
-	silent, _ := commandService.GetSilentFlag()
-	progressLogger := progress.New(silent, nil)
-	if err := registerProgressShutdown(shutdownService, progressLogger); err != nil {
+	outputService := output.NewServiceWithOptions(domainOutput.Stdout, noTUI, false)
+	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
 		return nil, err
 	}
 
@@ -202,7 +184,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.ProgressLogger = progressLogger
 	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
 	container.httpClientService = httpClientService
@@ -257,11 +238,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", err
 	}
 
-	progressLogger := progress.New(false, nil)
-	if err := registerProgressShutdown(shutdownService, progressLogger); err != nil {
-		return nil, "", err
-	}
-
 	traceLogger := tracelog.NewLogger(workspaceService)
 	if err := registerTraceShutdown(shutdownService, traceLogger); err != nil {
 		return nil, "", err
@@ -285,7 +261,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 	container.ShutdownService = shutdownService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.ProgressLogger = progressLogger
 	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
 	container.httpClientService = httpClientService
@@ -356,15 +331,6 @@ func registerTraceShutdown(shutdownService *shutdown.Service, traceLogger *trace
 		return traceLogger.Close()
 	}); err != nil {
 		return fmt.Errorf("failed to register trace logger shutdown callback: %w", err)
-	}
-	return nil
-}
-
-func registerProgressShutdown(shutdownService *shutdown.Service, progressLogger progress.Logger) error {
-	if err := shutdownService.Register(func(_ context.Context) error {
-		return progressLogger.Close()
-	}); err != nil {
-		return fmt.Errorf("failed to register progress logger shutdown callback: %w", err)
 	}
 	return nil
 }
@@ -472,15 +438,6 @@ func (c *Container) GetDBHost() ports.Host {
 		return nil
 	}
 	return c.dbHost
-}
-
-// GetSilentFlag returns the silent flag from the command service.
-func (c *Container) GetSilentFlag() (bool, error) {
-	flag, err := c.CommandService.GetSilentFlag()
-	if err != nil {
-		return false, fmt.Errorf("failed to get silent flag: %w", err)
-	}
-	return flag, nil
 }
 
 // buildPresetService creates a preset service for configuration.

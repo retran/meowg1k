@@ -222,7 +222,7 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 		return nil, fmt.Errorf("llm services not configured")
 	}
 
-	ctx := context.Background()
+	ctx := m.runtime.ctx
 
 	// Resolve preset
 	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
@@ -391,7 +391,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		return nil, fmt.Errorf("llm services not configured")
 	}
 
-	ctx := context.Background()
+	ctx := m.runtime.ctx
 
 	// Build tool definitions
 	toolDefinitions := make([]gateway.ToolDefinition, 0, toolsList.Len())
@@ -633,7 +633,7 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 	}
 
 	// Create embeddings gateway
-	ctx := context.Background()
+	ctx := m.runtime.ctx
 	embGateway, err := m.runtime.llmServices.EmbeddingsFactory.NewEmbeddingsGateway(ctx, presetObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)

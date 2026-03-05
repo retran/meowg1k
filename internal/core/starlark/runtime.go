@@ -6,8 +6,8 @@ package starlark
 
 import (
 	"bufio"
+	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,8 +27,9 @@ type Runtime struct {
 	llmServices    *LLMServices
 	indexServices  *IndexServices
 	sessionService ports.SessionService
-	outputService  OutputWriter
+	outputService  ports.UIWriter
 	stdinReader    *bufio.Reader
+	ctx            context.Context // cancelled when the user aborts (Ctrl+C)
 
 	// Configuration storage - providers, models and presets defined via Starlark scripts
 	// These configurations are applied to LLM and Index services during initialization
@@ -81,10 +82,17 @@ func NewRuntime(workingDir string) *Runtime {
 		providers:   make(map[string]ProviderConfig),
 		models:      make(map[string]ModelConfig),
 		presets:     make(map[string]PresetConfig),
+		ctx:         context.Background(),
 	}
 
 	r.initModules()
 	return r
+}
+
+// SetContext sets the context used for LLM and other cancellable operations.
+// Call this with the shutdown context before executing any handlers.
+func (r *Runtime) SetContext(ctx context.Context) {
+	r.ctx = ctx
 }
 
 // initModules registers all built-in modules.
@@ -230,7 +238,7 @@ func (r *Runtime) CreateIndexModuleForCtx() starlark.Value { return r.createInde
 func (r *Runtime) CreateStdinModuleForCtx() starlark.Value { return r.createStdinModule() }
 
 // SetOutputService sets the output service for the runtime.
-func (r *Runtime) SetOutputService(service OutputWriter) {
+func (r *Runtime) SetOutputService(service ports.UIWriter) {
 	r.outputService = service
 }
 
@@ -244,24 +252,10 @@ func (r *Runtime) CreateOutputModuleForCtx() starlark.Value {
 }
 
 // CreateUIModuleForCtx returns a ui module wired to the output service.
-// On TTY, chrome writes go through LogWriter() and stream tokens go through
-// StreamToken() so everything is routed through the same BubbleTea program.
+// On TTY, turn/step messages go through the BubbleTea program.
 // On non-TTY, all ui functions are no-ops.
 func (r *Runtime) CreateUIModuleForCtx(depth int) *starlarkstruct.Module {
-	if r.outputService == nil {
-		return NewUIModuleWithWriter(depth, false, io.Discard, &noopOutputWriter{})
-	}
-	// OutputWriter also satisfies StreamSender (has StreamToken method).
-	isTTY := false
-	var logWriter io.Writer = io.Discard
-	if svc, ok := r.outputService.(interface {
-		IsTTY() bool
-		LogWriter() io.Writer
-	}); ok {
-		isTTY = svc.IsTTY()
-		logWriter = svc.LogWriter()
-	}
-	return NewUIModuleWithWriter(depth, isTTY, logWriter, r.outputService)
+	return NewUIModuleWithUIWriter(depth, r.outputService)
 }
 
 // SetSessionService sets the session service for the runtime.
@@ -281,10 +275,9 @@ func (r *Runtime) CreateSessionModuleForCtx(currentSession *session.Session) sta
 	return NewSessionModule(r.sessionService, currentSession)
 }
 
-// noopOutputWriter is a no-op implementation for when outputService is not set
+// noopOutputWriter is a no-op implementation of ports.OutputWriter for when outputService is not set
 type noopOutputWriter struct{}
 
 func (n *noopOutputWriter) Print(content string) error              { return nil }
 func (n *noopOutputWriter) PrintLine(content string) error          { return nil }
 func (n *noopOutputWriter) Printf(format string, args ...any) error { return nil }
-func (n *noopOutputWriter) StreamToken(delta string, done bool)     {}

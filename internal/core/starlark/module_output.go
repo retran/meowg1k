@@ -6,24 +6,13 @@ package starlark
 import (
 	"fmt"
 
+	"github.com/retran/meowg1k/internal/ports"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
-// OutputWriter is the interface for buffered plain-text output.
-// It is a simple write buffer; no markdown rendering or streaming preview.
-// StreamToken is used by the ui module (ui.stream) for live TUI preview.
-type OutputWriter interface {
-	Print(content string) error
-	PrintLine(content string) error
-	Printf(format string, args ...any) error
-	// StreamToken forwards a token delta to the TUI StreamBlock on TTY.
-	// On non-TTY implementations this is a no-op.
-	StreamToken(delta string, done bool)
-}
-
 // NewOutputModule creates the output module for buffered writing.
-func NewOutputModule(writer OutputWriter) *starlarkstruct.Module {
+func NewOutputModule(writer ports.OutputWriter) *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "output",
 		Members: starlark.StringDict{
@@ -35,7 +24,7 @@ func NewOutputModule(writer OutputWriter) *starlarkstruct.Module {
 }
 
 // makeOutputWrite creates the output.write function
-func makeOutputWrite(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeOutputWrite(writer ports.OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content string
 		if err := starlark.UnpackPositionalArgs("output.write", args, kwargs, 1, &content); err != nil {
@@ -51,7 +40,7 @@ func makeOutputWrite(writer OutputWriter) func(*starlark.Thread, *starlark.Built
 }
 
 // makeOutputWriteLine creates the output.writeline function
-func makeOutputWriteLine(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeOutputWriteLine(writer ports.OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var content string
 		if err := starlark.UnpackPositionalArgs("output.writeline", args, kwargs, 1, &content); err != nil {
@@ -67,7 +56,7 @@ func makeOutputWriteLine(writer OutputWriter) func(*starlark.Thread, *starlark.B
 }
 
 // makeOutputWritef creates the output.writef function
-func makeOutputWritef(writer OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
+func makeOutputWritef(writer ports.OutputWriter) func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error) {
 	return func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if len(args) < 1 {
 			return nil, fmt.Errorf("output.writef requires at least one argument (format string)")

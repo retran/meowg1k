@@ -158,14 +158,7 @@ func joinTextBlocks(blocks []ContentBlock, kind ContentBlockKind) string {
 		if b.Kind != kind {
 			continue
 		}
-		segment := strings.TrimSpace(b.Text)
-		if segment == "" {
-			continue
-		}
-		if sb.Len() > 0 {
-			sb.WriteString("\n")
-		}
-		sb.WriteString(segment)
+		sb.WriteString(b.Text)
 	}
 	return strings.TrimSpace(sb.String())
 }
