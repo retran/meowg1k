@@ -301,6 +301,24 @@ func applyLlamaLogprobs(req *llama.CompletionRequest, request *gateway.GenerateC
 	}
 }
 
+// GenerateContentStream implements streaming for Llama by delegating to GenerateContent
+// and synthesizing stream events from the aggregated response.
+// Full native streaming via the llama.cpp streaming API will be added in a future phase.
+func (g *llamaGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	resp, err := g.GenerateContent(ctx, request)
+	if err != nil {
+		if callback != nil {
+			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+		}
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // ComputeEmbeddings computes embeddings for the provided chunks using the llama.cpp /embedding endpoint.
 // Uses batch processing to send all chunks in a single request.
 func (g *llamaGateway) ComputeEmbeddings(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error) {

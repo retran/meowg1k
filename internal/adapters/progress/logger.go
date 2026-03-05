@@ -51,7 +51,6 @@ func New(silent bool, writer io.Writer) Logger {
 		writer = os.Stderr
 	}
 
-	// Check if stderr is a TTY
 	if f, ok := writer.(*os.File); ok && term.IsTerminal(f.Fd()) {
 		return NewTTYLogger(writer)
 	}

@@ -178,7 +178,6 @@ func parseNameStatusWithRenames(output string) (files []string, renames map[stri
 
 		status := parts[0]
 
-		// Check if this is a rename (status starts with 'R')
 		if strings.HasPrefix(status, "R") {
 			// For renames: R<similarity>\told\tnew
 			if len(parts) >= 3 {
@@ -188,7 +187,6 @@ func parseNameStatusWithRenames(output string) (files []string, renames map[stri
 				renames[newPath] = oldPath
 			}
 		} else {
-			// For other changes (A, M, D, etc.): <status>\tfilename
 			files = append(files, parts[1])
 		}
 	}

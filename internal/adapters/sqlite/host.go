@@ -87,19 +87,17 @@ func (h *localHostImpl) GetProjectDB() (*sql.DB, error) {
 }
 
 func getDB(path string) (*sql.DB, error) {
-	// Add busy_timeout and cache parameters for better multi-client access.
-	// Increased timeout to 30 seconds to handle high concurrency
+	// _busy_timeout and cache=shared improve multi-client access.
 	dbURL := fmt.Sprintf("file:%s?_foreign_keys=on&_busy_timeout=30000&cache=shared", path)
 	db, err := sql.Open("sqlite3", dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open main db at %s: %w", path, err)
 	}
 
-	// Configure connection pool to reduce contention
 	// SQLite works best with limited writers in WAL mode.
-	db.SetMaxOpenConns(5)    // Limit total connections to reduce lock contention
-	db.SetMaxIdleConns(2)    // Keep some connections ready
-	db.SetConnMaxLifetime(0) // Reuse connections indefinitely
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
+	db.SetConnMaxLifetime(0)
 
 	ctx := context.Background()
 
@@ -108,32 +106,28 @@ func getDB(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
-	// Set synchronous mode to NORMAL for better performance with WAL
+	// NORMAL synchronous mode is safe with WAL and gives better performance.
 	if _, err := db.ExecContext(ctx, "PRAGMA synchronous=NORMAL"); err != nil {
 		return nil, fmt.Errorf("failed to set synchronous mode: %w", err)
 	}
 
-	// Increase cache size for better performance
 	if _, err := db.ExecContext(ctx, "PRAGMA cache_size=-64000"); err != nil { // 64MB cache
 		return nil, fmt.Errorf("failed to set cache size: %w", err)
 	}
 
-	// Set busy timeout at PRAGMA level as well for extra safety
 	if _, err := db.ExecContext(ctx, "PRAGMA busy_timeout=30000"); err != nil {
 		return nil, fmt.Errorf("failed to set busy timeout: %w", err)
 	}
 
-	// Set WAL autocheckpoint to run more frequently
 	if _, err := db.ExecContext(ctx, "PRAGMA wal_autocheckpoint=1000"); err != nil {
 		return nil, fmt.Errorf("failed to set wal_autocheckpoint: %w", err)
 	}
 
-	// Configure connection pool for better multi-client access.
-	// SQLite with WAL can handle multiple readers, but only one writer at a time
-	db.SetMaxOpenConns(10)   // Allow multiple connections
-	db.SetMaxIdleConns(5)    // Keep some connections idle
-	db.SetConnMaxLifetime(0) // No limit on connection lifetime
-	db.SetConnMaxIdleTime(0) // No limit on idle time
+	// WAL supports multiple concurrent readers with a single writer.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(0)
+	db.SetConnMaxIdleTime(0)
 
 	return db, nil
 }

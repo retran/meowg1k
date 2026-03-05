@@ -66,15 +66,84 @@ func (g *cachingGenerationGateway) GenerateContent(
 	encoded, err := json.Marshal(result)
 	if err == nil {
 		if err := g.cache.Set(ctx, cacheKey, string(encoded)); err != nil {
-			// Log error but don't fail the request
 			// TODO: add logging when logger is available in this context
 			_ = err
 		}
 	}
 	if err != nil {
-		// Log error but don't fail the request
 		// TODO: add logging when logger is available in this context
 		_ = err
+	}
+
+	return result, nil
+}
+
+// GenerateContentStream implements GenerationGateway with caching for streaming.
+// It calls the inner gateway's stream, buffers all events, caches the aggregated
+// response, and on cache hit replays events instantly through the callback.
+func (g *cachingGenerationGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	if g == nil {
+		return nil, fmt.Errorf("caching generation gateway is nil")
+	}
+
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+
+	cacheKey := g.createCacheKey(request)
+
+	if !g.updateCache {
+		if cachedValue, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
+			var cachedResp gateway.GenerateContentResponse
+			if jsonErr := json.Unmarshal([]byte(cachedValue), &cachedResp); jsonErr == nil {
+				// Nil callback: nothing to replay, just return the cached response.
+				if callback == nil {
+					return &cachedResp, nil
+				}
+				// Replay cached response as stream events instantly.
+				for _, block := range cachedResp.Blocks {
+					switch block.Kind {
+					case gateway.ContentBlockText:
+						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); cbErr != nil {
+							return &cachedResp, cbErr
+						}
+					case gateway.ContentBlockReasoning:
+						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); cbErr != nil {
+							return &cachedResp, cbErr
+						}
+					}
+				}
+				var usage *gateway.UsageMetadata
+				if cachedResp.Usage != nil {
+					u := *cachedResp.Usage
+					usage = &u
+				}
+				if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: usage}); cbErr != nil {
+					return &cachedResp, cbErr
+				}
+				return &cachedResp, nil
+			}
+		}
+	}
+
+	result, err := g.gateway.GenerateContentStream(ctx, request, callback)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stream content: %w", err)
+	}
+
+	encoded, marshalErr := json.Marshal(result)
+	if marshalErr == nil {
+		if setErr := g.cache.Set(ctx, cacheKey, string(encoded)); setErr != nil {
+			_ = setErr
+		}
 	}
 
 	return result, nil

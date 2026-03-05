@@ -67,7 +67,6 @@ func (l *Logger) ensureLogFile() error {
 		return fmt.Errorf("failed to create logs directory: %w", err)
 	}
 
-	// Generate unique filename with timestamp and random suffix
 	timestamp := time.Now().Format("20060102_150405")
 	randomBytes := make([]byte, 3)
 	if _, err := rand.Read(randomBytes); err != nil {

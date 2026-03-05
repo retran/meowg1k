@@ -20,35 +20,32 @@ func RenderBanner(title, subtext string, theme Theme, opts RenderOptions) string
 		}
 		return result
 	}
-	
-	// Simple styled banner
+
 	var result strings.Builder
-	
-	// Top border
+
 	width := len(title) + 4
 	if len(subtext) > len(title) {
 		width = len(subtext) + 4
 	}
-	
+
 	borderChar := "═"
 	if !opts.SupportsUnicode {
 		borderChar = "="
 	}
-	
+
 	border := strings.Repeat(borderChar, width)
-	
-	// Title (bold, colored)
+
 	titleStyled := theme.SystemStyle.Bold(true).Render(title)
-	
+
 	result.WriteString(border + "\n")
 	result.WriteString(theme.SystemStyle.Render("  ") + titleStyled + "\n")
-	
+
 	if subtext != "" {
 		subtextStyled := theme.SystemStyle.Faint(true).Render(subtext)
 		result.WriteString(theme.SystemStyle.Render("  ") + subtextStyled + "\n")
 	}
-	
+
 	result.WriteString(border)
-	
+
 	return result.String()
 }

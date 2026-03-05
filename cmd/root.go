@@ -7,6 +7,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -24,7 +26,12 @@ func Execute() error {
 
 	err := rootCmd.Execute()
 	if err != nil {
-		return fmt.Errorf("failed to execute root command: %w", err)
+		// Suppress cancellation — user already saw "Cancelling…" in the TUI.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		fmt.Fprintf(rootCmd.ErrOrStderr(), "Error: %v\n", err)
+		return err
 	}
 	return nil
 }
@@ -49,8 +56,10 @@ func loadStarlarkCommands() error {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "meow",
-	Short: "'meow' — your fast, script-friendly AI companion",
+	Use:           "meow",
+	Short:         "'meow' — your fast, script-friendly AI companion",
+	SilenceUsage:  true, // never print usage on RunE errors
+	SilenceErrors: true, // we print errors ourselves in Execute()
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd == nil {
 			return fmt.Errorf("command cannot be nil")
@@ -98,9 +107,7 @@ const (
 
 func init() {
 	rootCmd.PersistentFlags().String("workspace", "", "workspace root directory (overrides auto-detection)")
-	rootCmd.PersistentFlags().Bool("silent", false, "silent mode - only output the result without progress indicators")
 	rootCmd.PersistentFlags().Bool("no-cache", false, "disable LLM response caching")
 	rootCmd.PersistentFlags().Bool("update-cache", false, "force cache refresh by making fresh requests and updating cache entries")
-	rootCmd.PersistentFlags().Bool("plain", false, "plain output - disable markdown formatting")
-	rootCmd.PersistentFlags().Bool("no-color", false, "disable colored output")
+	rootCmd.PersistentFlags().Bool("no-tui", false, "disable the interactive TUI (same behaviour as running in a non-TTY environment)")
 }

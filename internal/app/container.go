@@ -25,7 +25,6 @@ import (
 	adaptergw "github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/adapters/httpclient"
 	"github.com/retran/meowg1k/internal/adapters/output"
-	"github.com/retran/meowg1k/internal/adapters/progress"
 	"github.com/retran/meowg1k/internal/adapters/sqlite"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
 	indexRepo "github.com/retran/meowg1k/internal/adapters/sqlite/index"
@@ -46,15 +45,9 @@ import (
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-// Writer writes output to the user (used in activities).
-type Writer interface {
-	Print(content string) error
-	PrintLine(content string) error
-	Printf(format string, args ...any) error
-	PrintMarkdown(content string) error
-	StreamMarkdown(content string, done bool) error
-	Flush() error
-}
+// Writer is an alias for ports.UIWriter kept for internal use.
+// It is satisfied by *output.Service.
+type Writer = ports.UIWriter
 
 // Container is the main application struct that holds all cross-cutting adapters.
 type Container struct {
@@ -72,9 +65,6 @@ type Container struct {
 
 	// OutputService handles application output to stdout/stderr.
 	OutputService Writer
-
-	// ProgressLogger provides progress and status logging to stderr.
-	ProgressLogger progress.Logger
 
 	// TraceLogger provides context-aware trace logging for sessions.
 	TraceLogger *tracelog.Logger
@@ -153,26 +143,18 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	workspaceService := workspace.NewService(commandService)
 
-	// ConfigService now only holds configuration from Starlark scripts
-	// It will be populated by BuildStarlarkCommands during CLI initialization
 	configService, err := adapterConfig.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
 	}
 
-	// Get formatting flags
-	plainFlag, _ := commandService.GetPlainFlag()
-	noColorFlag, _ := commandService.GetNoColorFlag()
-
-	outputService := output.NewServiceWithOptions(domainOutput.Stdout, plainFlag, noColorFlag)
-	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
-		return nil, err
+	noTUI, err := commandService.GetNoTUIFlag()
+	if err != nil {
+		noTUI = false
 	}
 
-	// Create progress logger
-	silent, _ := commandService.GetSilentFlag()
-	progressLogger := progress.New(silent, nil)
-	if err := registerProgressShutdown(shutdownService, progressLogger); err != nil {
+	outputService := output.NewServiceWithOptions(domainOutput.Stdout, noTUI, false)
+	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
 		return nil, err
 	}
 
@@ -186,7 +168,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create db path service: %w", err)
 	}
 
-	// Initialize HTTP client service
 	httpClientService, err := httpclient.New()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client service: %w", err)
@@ -200,7 +181,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 	container.CommandService = commandService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.ProgressLogger = progressLogger
 	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
 	container.httpClientService = httpClientService
@@ -229,22 +209,20 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", err
 	}
 
-	// Create a minimal workspace service without command service
-	// This resolves workspace root by looking for .meowg1k markers or .git
+	// Create a minimal workspace service without command service;
+	// resolves workspace root by looking for .meowg1k markers or .git.
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get working directory: %w", err)
 	}
 	workspaceService := workspace.NewServiceWithPath(cwd)
 
-	// Get actual workspace root (may differ from cwd)
 	workspaceRoot, err := workspaceService.Get()
 	if err != nil {
-		// If we can't determine workspace, fall back to cwd
 		workspaceRoot = cwd
 	}
 
-	// ConfigService starts empty, will be populated by Starlark scripts
+	// ConfigService starts empty; will be populated by Starlark scripts.
 	configService, err := adapterConfig.NewService()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create config service: %w", err)
@@ -252,11 +230,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 
 	outputService := output.NewService(domainOutput.Stdout)
 	if err := registerOutputShutdown(shutdownService, outputService); err != nil {
-		return nil, "", err
-	}
-
-	progressLogger := progress.New(false, nil)
-	if err := registerProgressShutdown(shutdownService, progressLogger); err != nil {
 		return nil, "", err
 	}
 
@@ -270,7 +243,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", fmt.Errorf("failed to create db path service: %w", err)
 	}
 
-	// Initialize HTTP client service
 	httpClientService, err := httpclient.New()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create HTTP client service: %w", err)
@@ -283,7 +255,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 	container.ShutdownService = shutdownService
 	container.ConfigService = configService
 	container.OutputService = outputService
-	container.ProgressLogger = progressLogger
 	container.TraceLogger = traceLogger
 	container.dbPathService = dbPathService
 	container.httpClientService = httpClientService
@@ -358,15 +329,6 @@ func registerTraceShutdown(shutdownService *shutdown.Service, traceLogger *trace
 	return nil
 }
 
-func registerProgressShutdown(shutdownService *shutdown.Service, progressLogger progress.Logger) error {
-	if err := shutdownService.Register(func(_ context.Context) error {
-		return progressLogger.Close()
-	}); err != nil {
-		return fmt.Errorf("failed to register progress logger shutdown callback: %w", err)
-	}
-	return nil
-}
-
 func registerHTTPClientShutdown(shutdownService *shutdown.Service, httpClientService ports.HTTPClientService) error {
 	if err := shutdownService.Register(func(_ context.Context) error {
 		return httpClientService.Close()
@@ -426,7 +388,6 @@ func (c *Container) purgeCacheOnStartup(cacheRepo ports.CacheRepository) {
 
 // GetCacheRepo returns the cache repository, initializing the database if needed.
 func (c *Container) GetCacheRepo() ports.CacheRepository {
-	// If already set (e.g., in tests), return it directly
 	if c.cacheRepo != nil {
 		return c.cacheRepo
 	}
@@ -472,15 +433,6 @@ func (c *Container) GetDBHost() ports.Host {
 	return c.dbHost
 }
 
-// GetSilentFlag returns the silent flag from the command service.
-func (c *Container) GetSilentFlag() (bool, error) {
-	flag, err := c.CommandService.GetSilentFlag()
-	if err != nil {
-		return false, fmt.Errorf("failed to get silent flag: %w", err)
-	}
-	return flag, nil
-}
-
 // buildPresetService creates a preset service for configuration.
 func (c *Container) buildPresetService() (*preset.Service, error) {
 	providerService := provider.NewService()
@@ -511,12 +463,10 @@ func (c *Container) CreateLLMServices() (*starlarkpkg.LLMServices, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create gateway factory
 	gatewayFactory, err := adaptergw.NewFactory(
 		c.GetCacheRepo(),
 		c.CommandService,
@@ -538,16 +488,13 @@ func (c *Container) CreateLLMServices() (*starlarkpkg.LLMServices, error) {
 
 // CreateIndexServicesForStarlark creates Index services for Starlark runtime.
 func (c *Container) CreateIndexServicesForStarlark() (*starlarkpkg.IndexServices, error) {
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create repositories
 	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
 	metaRepo := meta.NewRepository(c.dbHost)
 
-	// Create vector index service
 	vectorIndexSvc := vector.NewService(indexRepoImpl, indexRepoImpl, metaRepo)
 
 	return &starlarkpkg.IndexServices{
@@ -559,15 +506,12 @@ func (c *Container) CreateIndexServicesForStarlark() (*starlarkpkg.IndexServices
 
 // CreateSessionService creates the session service for managing tool execution sessions.
 func (c *Container) CreateSessionService() (ports.SessionService, error) {
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create session repository
 	sessionRepo := sessionRepo.NewRepository(c.dbHost)
 
-	// Create session service
 	sessionService, err := sessionService.NewService(sessionRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session service: %w", err)
@@ -578,7 +522,7 @@ func (c *Container) CreateSessionService() (ports.SessionService, error) {
 
 // getLogDir returns the appropriate log directory for the current OS.
 func getLogDir() (string, error) {
-	// TODO review if this is the best location for logs
+	// TODO: review if this is the best location for logs
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)

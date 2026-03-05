@@ -40,7 +40,6 @@ func (t *ToolValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: t
 // CreateParamFunction creates the meow.param() builtin
 func CreateParamFunction() *starlark.Builtin {
 	return starlark.NewBuiltin("param", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		// Parse positional arg
 		if args.Len() < 1 {
 			return nil, fmt.Errorf("param() requires type as first argument")
 		}
@@ -54,7 +53,6 @@ func CreateParamFunction() *starlark.Builtin {
 			Type: typeVal.GoString(),
 		}
 
-		// Parse kwargs
 		for _, kv := range kwargs {
 			if len(kv) != 2 {
 				continue
@@ -148,7 +146,6 @@ func CreateToolFunction(registry *Registry) *starlark.Builtin {
 			Params: make(map[string]*Param),
 		}
 
-		// Parse kwargs
 		for _, kv := range kwargs {
 			if len(kv) != 2 {
 				continue
@@ -198,7 +195,6 @@ func CreateToolFunction(registry *Registry) *starlark.Builtin {
 			return nil, fmt.Errorf("tool handler is required")
 		}
 
-		// Register the tool
 		if err := registry.RegisterTool(tool); err != nil {
 			return nil, err
 		}
@@ -213,7 +209,6 @@ func CreateCommandFunction(registry *Registry) *starlark.Builtin {
 		var toolVal *ToolValue
 		var nameOverride string
 
-		// First positional arg must be a Tool
 		if args.Len() < 1 {
 			return nil, fmt.Errorf("command() requires a tool as first argument")
 		}
@@ -224,7 +219,6 @@ func CreateCommandFunction(registry *Registry) *starlark.Builtin {
 			return nil, fmt.Errorf("first argument must be a tool")
 		}
 
-		// Check for name override in kwargs
 		for _, kv := range kwargs {
 			if len(kv) != 2 {
 				continue
@@ -240,13 +234,11 @@ func CreateCommandFunction(registry *Registry) *starlark.Builtin {
 			}
 		}
 
-		// Create command from tool
 		cmd, err := registry.CommandFromTool(toolVal.Tool, nameOverride)
 		if err != nil {
 			return nil, err
 		}
 
-		// Register the command
 		if err := registry.Register(cmd); err != nil {
 			return nil, err
 		}

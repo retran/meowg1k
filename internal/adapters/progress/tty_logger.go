@@ -140,7 +140,6 @@ func (l *TTYLogger) StartProgress(label string, total int) {
 	}
 	l.updateProgressDisplay()
 
-	// Start animation goroutine for progress bar
 	go func() {
 		for {
 			select {
@@ -301,7 +300,6 @@ func (l *TTYLogger) updateProgressDisplay() {
 		percent = (l.progress.current * 100) / l.progress.total
 	}
 
-	// Create progress bar without spinner
 	barWidth := 50
 	filled := (percent * barWidth) / 100
 	bar := strings.Repeat("█", filled) + strings.Repeat(" ", barWidth-filled)

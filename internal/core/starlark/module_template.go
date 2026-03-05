@@ -78,7 +78,6 @@ func (t *Template) render(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Convert Starlark dict to Go map
 	data := make(map[string]interface{})
 	if dataDict != nil {
 		for _, item := range dataDict.Items() {
@@ -90,7 +89,6 @@ func (t *Template) render(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Execute template
 	var buf bytes.Buffer
 	if err := t.tmpl.Execute(&buf, data); err != nil {
 		return nil, fmt.Errorf("template rendering failed: %w", err)
@@ -115,7 +113,6 @@ func templateParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.T
 		name = "template"
 	}
 
-	// Parse template
 	tmpl, err := template.New(name).Parse(text)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
@@ -132,18 +129,15 @@ func templateLoad(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		return nil, err
 	}
 
-	// Resolve path
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(workingDir, path)
 	}
 
-	// Read template file
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file '%s': %w", path, err)
 	}
 
-	// Parse template
 	name := filepath.Base(path)
 	tmpl, err := template.New(name).Parse(string(content))
 	if err != nil {
