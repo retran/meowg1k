@@ -640,7 +640,7 @@ def quick_plan_handler(ctx):
     # For simple, repetitive tasks use fast preset directly
     prompt = "Break down: " + ctx.params["goal"]
     
-    quick_plan = ctx.llm.generate(
+    quick_plan = ctx.llm.chat(
         prompt=prompt,
         system="List 3-5 action steps as JSON array",
         preset="fast"  # Much faster
@@ -819,7 +819,7 @@ Example:
     if context != "":
         prompt = prompt + "\n\nContext:\n" + context
     
-    response = ctx.llm.generate(prompt=prompt, system=system_prompt, preset="smart")
+    response = ctx.llm.chat(prompt=prompt, system=system_prompt, preset="smart")
     
     # Try to parse as JSON
     plan = ctx.json.decode(response)
@@ -846,7 +846,7 @@ Plan:
     
     prompt = "Execute the plan above step by step. Use the available tools as needed."
     
-    result = ctx.llm.agentic(
+    result = ctx.llm.agent_turn(
         tools=tools_list,
         prompt=prompt,
         system=system_prompt,
@@ -871,7 +871,7 @@ Keep decomposition practical and actionable."""
     
     prompt = "Decompose this task: " + task
     
-    response = ctx.llm.generate(prompt=prompt, system=system_prompt, preset="smart")
+    response = ctx.llm.chat(prompt=prompt, system=system_prompt, preset="smart")
     return response
 
 # Tool definitions
@@ -920,7 +920,7 @@ def plan_and_execute(ctx, goal, tools, context=""):
     
     # Execute plan
     ctx.ui.info("Executing plan...")
-    result = ctx.llm.agentic(
+    result = ctx.llm.agent_turn(
         tools=tools,
         prompt="Execute this plan: " + plan_json,
         system="You are a task executor. Follow the plan step by step.",

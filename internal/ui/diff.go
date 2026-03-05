@@ -13,12 +13,10 @@ import (
 // RenderDiff applies styling to a unified diff string.
 // In plain mode, returns the diff without styling.
 func RenderDiff(diff string, theme Theme, opts RenderOptions) string {
-	// Plain mode: return as-is
 	if opts.Plain || !opts.Terminal || opts.NoColor {
 		return diff
 	}
-	
-	// Terminal mode: apply colors
+
 	var b strings.Builder
 	lines := strings.Split(diff, "\n")
 	for i, line := range lines {
@@ -61,9 +59,8 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 	if maxLines > 0 {
 		content, wasTruncated = TruncateContent(content, maxLines, opts)
 	}
-	
+
 	if opts.Plain || !opts.Terminal {
-		// Plain mode: just add separator
 		truncateNote := ""
 		if wasTruncated {
 			truncateNote = " (truncated)"
@@ -73,22 +70,20 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 		}
 		return fmt.Sprintf("--- diff ---\n%s\n---", content)
 	}
-	
+
 	lines := strings.Split(content, "\n")
-	
-	// Define styles
-	addedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))   // Green
-	removedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")) // Red
+
+	addedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00"))
+	removedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
 	metaStyle := lipgloss.NewStyle().Faint(true)
-	
-	// Colorize each line
+
 	var coloredLines []string
 	for _, line := range lines {
 		if line == "" {
 			coloredLines = append(coloredLines, "")
 			continue
 		}
-		
+
 		switch {
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
 			coloredLines = append(coloredLines, addedStyle.Render(line))
@@ -100,8 +95,7 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 			coloredLines = append(coloredLines, line)
 		}
 	}
-	
-	// Calculate max width
+
 	maxWidth := 0
 	for _, line := range coloredLines {
 		visibleLen := lipgloss.Width(line)
@@ -109,12 +103,11 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 			maxWidth = visibleLen
 		}
 	}
-	
+
 	if maxWidth < 40 {
 		maxWidth = 40
 	}
-	
-	// Border characters
+
 	var borderChar, topLeft, topRight, bottomLeft, bottomRight string
 	if opts.SupportsUnicode {
 		borderChar = "─"
@@ -129,11 +122,9 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 		bottomLeft = "+"
 		bottomRight = "+"
 	}
-	
-	// Build output
+
 	var result strings.Builder
-	
-	// Top border with title
+
 	if title != "" {
 		titleStr := fmt.Sprintf(" %s ", title)
 		borderLen := maxWidth - len(titleStr)
@@ -153,19 +144,17 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 			topRight,
 		)))
 	}
-	
-	// Content lines
+
 	for _, line := range coloredLines {
 		result.WriteString(theme.SystemStyle.Render("│") + " " + line + "\n")
 	}
-	
-	// Bottom border
+
 	result.WriteString(theme.SystemStyle.Render(fmt.Sprintf("%s%s%s",
 		bottomLeft,
 		strings.Repeat(borderChar, maxWidth),
 		bottomRight,
 	)))
-	
+
 	return result.String()
 }
 

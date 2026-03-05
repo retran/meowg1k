@@ -67,7 +67,6 @@ func (r *Runtime) stdinReadLine(thread *starlark.Thread, b *starlark.Builtin, ar
 		return nil, fmt.Errorf("failed to read line from stdin: %w", err)
 	}
 
-	// Remove trailing newline
 	line = strings.TrimSuffix(line, "\n")
 
 	return starlark.String(line), nil

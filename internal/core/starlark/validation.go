@@ -320,7 +320,7 @@ func createValidatorContext(runtime *Runtime, registry *Registry, flags starlark
 		"toml":      NewTOMLModule(),
 		"csv":       NewCSVModule(),
 		"env":       NewEnvModule(),
-		"ui":        NewUIModule(),
+		"ui":        runtime.CreateUIModuleForCtx(0),
 		"path":      NewPathModule(),
 		"crypto":    NewCryptoModule(),
 		"time":      NewTimeModule(),

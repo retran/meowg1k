@@ -170,6 +170,12 @@ func executeStarlarkHandler(runtime *starlarkpkg.Runtime, registry *starlarkpkg.
 	// Set up output service for buffered writing
 	runtime.SetOutputService(container.OutputService)
 
+	// Wire the shutdown context so LLM calls are cancelled when the user aborts.
+	runtime.SetContext(container.ShutdownService.Context())
+
+	// Wire Ctrl+C in the TUI to cancel the running operation via shutdown.
+	container.OutputService.SetCancel(container.ShutdownService.Shutdown)
+
 	// Set up Index services (optional - some commands don't need them)
 	indexServices, err := container.CreateIndexServicesForStarlark()
 	if err == nil {
@@ -365,7 +371,7 @@ func executeStarlarkHandler(runtime *starlarkpkg.Runtime, registry *starlarkpkg.
 		"toml":      starlarkpkg.NewTOMLModule(),
 		"csv":       starlarkpkg.NewCSVModule(),
 		"env":       starlarkpkg.NewEnvModule(),
-		"ui":        starlarkpkg.NewUIModule(),
+		"ui":        starlarkpkg.NewUIModuleWithUIWriter(0, container.OutputService),
 		"path":      starlarkpkg.NewPathModule(),
 		"crypto":    starlarkpkg.NewCryptoModule(),
 		"time":      starlarkpkg.NewTimeModule(),

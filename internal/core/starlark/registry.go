@@ -170,7 +170,6 @@ func (r *Registry) CommandFromTool(tool *Tool, nameOverride string) (*Command, e
 		Tool:        tool,
 	}
 
-	// Convert params to flags
 	for paramName, param := range tool.Params {
 		cmd.Flags[paramName] = &FlagDef{
 			Short:       param.Short,
@@ -261,7 +260,6 @@ func (t *Tool) GenerateToolSchema() ToolSchema {
 
 	for paramName, param := range t.Params {
 		paramType := param.Type
-		// Map our types to JSON Schema types
 		switch paramType {
 		case "int":
 			paramType = "integer"

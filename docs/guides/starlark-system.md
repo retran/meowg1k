@@ -111,138 +111,88 @@ The **Tool System** provides a unified way to define CLI commands with parameter
 
 ```python
 # Example: Simple write command
-load("//lib/help.star", "build_preset_desc")
 
-def setup(preset="smart"):
-    """Setup the write command with the specified preset."""
-    
-    # Define the tool
-    tool = meow.tool(
-        name="write",
-        description="Generate AI-powered content",
-        long_description="""
-        AI-powered content generation with configurable tones and formats.
-        Supports context from stdin and flexible output styles.
-        """,
-        handler=_handler,  # Function to execute
-        parameters=[
-            meow.param(
-                name="prompt",
-                type="string",
-                description="What to generate",
-                required=True,
-                shorthand="p"
-            ),
-            meow.param(
-                name="context",
-                type="string",
-                description="Additional context",
-                required=False,
-                shorthand="c"
-            ),
-            meow.param(
-                name="tone",
-                type="string",
-                description="Writing tone (technical, casual, formal)",
-                required=False,
-                shorthand="t",
-                default=""
-            )
-        ]
-    )
-    
-    # Register the command
-    meow.register_command(tool, preset=preset)
-
-def _handler(ctx):
+def write_handler(ctx):
     """Execute the write command."""
-    prompt = ctx.param("prompt")
-    context = ctx.param("context")
-    tone = ctx.param("tone")
+    prompt = ctx.prompt
+    tone = ctx.tone
     
-    # Build the LLM request
-    messages = []
+    system = ""
     if tone:
-        messages.append({"role": "system", "content": f"Write in a {tone} tone."})
+        system = f"Write in a {tone} tone."
     
-    user_message = prompt
-    if context:
-        user_message += f"\n\nContext:\n{context}"
-    messages.append({"role": "user", "content": user_message})
-    
-    # Call LLM
-    response = ctx.run_llm(messages=messages)
-    
-    # Output result
-    output.print_markdown(response)
+    response = ctx.llm.chat(
+        prompt=prompt,
+        preset="smart",
+        system=system,
+        stream=True,
+    )
+    ctx.output.writeline(response)
+
+write_tool = meow.tool(
+    name="write",
+    description="Generate AI-powered content",
+    handler=write_handler,
+    params={
+        "prompt": meow.param("string", required=True, desc="What to generate", short="p"),
+        "tone":   meow.param("string", desc="Writing tone (technical, casual, formal)", short="t"),
+    }
+)
+
+meow.command(write_tool)
 ```
 
 ### Parameter Types
 
 ```python
 # String parameter
-meow.param(
-    name="prompt",
-    type="string",
-    description="User prompt",
-    required=True
-)
+"prompt": meow.param("string", required=True, desc="User prompt")
 
 # Boolean flag
-meow.param(
-    name="verbose",
-    type="bool",
-    description="Enable verbose output",
-    default=False
-)
+"verbose": meow.param("bool", default=False, desc="Enable verbose output")
 
 # Integer parameter
-meow.param(
-    name="limit",
-    type="int",
-    description="Maximum results",
-    default=10
-)
+"limit": meow.param("int", default=10, desc="Maximum results")
 
 # Choice parameter (enum)
-meow.param(
-    name="format",
-    type="string",
-    description="Output format",
-    choices=["json", "yaml", "text"],
-    default="json"
-)
+"format": meow.param("string", choices=["json", "yaml", "text"], default="json", desc="Output format")
 ```
 
 ### Handler Context
 
-The handler function receives a **context object** (`ctx`) with access to parameters and utilities.
+The handler function receives a **context object** (`ctx`) where each parameter value is accessible as a direct attribute:
 
 ```python
-def _handler(ctx):
-    # Get parameter values
-    prompt = ctx.param("prompt")
-    verbose = ctx.param("verbose")
+def my_handler(ctx):
+    # Parameter values accessed as ctx attributes
+    prompt = ctx.prompt
+    verbose = ctx.verbose
     
     # Run LLM generation
-    response = ctx.run_llm(
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=2048
+    response = ctx.llm.chat(
+        prompt=prompt,
+        preset="smart",
     )
     
-    # Access configuration
-    preset = ctx.preset()  # Get current preset
-    
-    # Output results
-    output.print(response)
+    ctx.output.writeline(response)
 ```
 
-**Context Methods**:
-- `ctx.param(name)` - Get parameter value
-- `ctx.run_llm(messages, **kwargs)` - Execute LLM generation
-- `ctx.preset()` - Get current preset configuration
-- `ctx.workspace()` - Get workspace root directory
+**Context modules**:
+- `ctx.<param_name>` - Parameter value (direct attribute)
+- `ctx.llm` - LLM operations (`chat`, `agent_turn`, `embed`)
+- `ctx.fs` - Filesystem operations
+- `ctx.git` - Git operations
+- `ctx.shell` - Shell execution
+- `ctx.ui` - Terminal UI components
+- `ctx.output` - Output writing
+- `ctx.session` - Session management
+- `ctx.index` - RAG indexing/search
+- `ctx.path` - Path manipulation
+- `ctx.json` - JSON parsing/serialization
+- `ctx.crypto` - Cryptographic operations
+- `ctx.regexp` - Regular expressions
+- `ctx.stdin` - Standard input
+- `ctx.run(tool_name, **kwargs)` - Invoke another tool
 
 ## Standard Library Modules
 
@@ -254,22 +204,25 @@ Configuration and command registration.
 
 ```python
 # Define provider
-meow.provider(name, type, api_key, **kwargs)
+meow.provider("anthropic", type="anthropic", api_key=env.get("MEOW_ANTHROPIC_API_KEY"))
 
 # Define model
-meow.model(name, provider, model, max_input_tokens, max_output_tokens)
+meow.model("claude-sonnet", provider="anthropic", model="claude-sonnet-4",
+           max_input_tokens=200000, max_output_tokens=8192)
 
 # Define preset
-meow.preset(name, model, temperature=0.2, **kwargs)
+meow.preset("smart", model="claude-sonnet", temperature=0.2)
 
 # Create tool
-tool = meow.tool(name, description, handler, parameters)
+tool = meow.tool(name="my-cmd", description="...", handler=my_handler, params={...})
 
 # Register command
-meow.register_command(tool, preset="smart")
+meow.command(tool)
+meow.command(tool, name="alias")  # Override name
 
 # Create parameter
-param = meow.param(name, type, description, required, default, choices, shorthand)
+param = meow.param("string", default="value", short="v", desc="Description",
+                   required=False, choices=["a", "b"])
 ```
 
 ### `env` Module
@@ -285,30 +238,45 @@ port = env.get("PORT", "8080")
 
 # Set environment variable
 env.set("DEBUG", "true")
+
+# List all environment variables
+all_vars = env.list()
 ```
 
 ### `fs` Module
 
-Filesystem operations.
+Filesystem operations (all paths relative to workspace root unless absolute).
 
 ```python
 # Read file
-content = fs.read_file("README.md")
+content = ctx.fs.read("README.md")
 
 # Write file
-fs.write_file("output.txt", "Hello, world!")
+ctx.fs.write("output.txt", "Hello, world!")
 
 # Check existence
-exists = fs.exists("config.yaml")
+exists = ctx.fs.exists("config.yaml")
 
 # List directory
-files = fs.list_dir("src/")
+files = ctx.fs.listdir("src/")
 
 # Get file info
-info = fs.stat("data.json")  # Returns {size, mode, mtime}
+info = ctx.fs.stat("data.json")  # Returns struct{size, mode, mtime, is_dir}
 
 # Glob patterns
-matches = fs.glob("**/*.py")
+matches = ctx.fs.glob("**/*.go")
+
+# Recursive walk
+all_files = ctx.fs.walk("src/", pattern="*.go")
+
+# Make directory
+ctx.fs.mkdir("output/reports")
+
+# Remove file or directory
+ctx.fs.remove("tmp/file.txt")
+
+# Current working directory
+cwd = ctx.fs.cwd()
 ```
 
 ### `git` Module
@@ -316,53 +284,97 @@ matches = fs.glob("**/*.py")
 Git operations.
 
 ```python
-# Get status
-status = git.status()
+# Get staged/unstaged diff
+diff = ctx.git.diff()                          # Unstaged
+diff = ctx.git.diff(target=ctx.git.STAGED)    # Staged
+diff = ctx.git.diff(target="HEAD")            # Against HEAD
 
-# Get diff
-diff = git.diff(ref="HEAD", path="src/")
+# Get diff for a specific file
+result = ctx.git.diff_file("main.go", target=ctx.git.STAGED)
+# result: {raw, file, additions, deletions}
 
-# Show commit
-commit_info = git.show("HEAD")
+# Get git log
+log = ctx.git.log(n=10)
+log = ctx.git.log(n=5, path="main.go")
 
-# Get log
-log = git.log(limit=10, path="main.go")
+# Get status string
+status = ctx.git.status()
 
-# Get branches
-branches = git.branches()
-
-# Get current branch
-branch = git.current_branch()
-
-# Stage files
-git.stage(["file1.go", "file2.go"])
+# Get current branch name
+branch = ctx.git.branch()
 
 # Commit changes
-git.commit("feat: add new feature")
+result = ctx.git.commit("feat: add new feature")
+# result: {hash, message, ...}
 
-# Get HEAD hash
-head = git.head_hash()
+# Push to remote
+result = ctx.git.push()
+# result: {remote, branch, ...}
+
+# Create branch
+result = ctx.git.create_branch("feature/new", should_checkout=True)
+# result: {name, checked_out}
+
+# Checkout branch or ref
+result = ctx.git.checkout("main")
+# result: {target}
+
+# Stage files
+result = ctx.git.add(["main.go", "README.md"])
+# result: {count, files_added}
+
+# Glob files tracked by git
+files = ctx.git.glob("**/*.go")
+
+# Read file at a git ref
+content = ctx.git.read("main.go", ref="HEAD")
+
+# Get lists of file states
+staged   = ctx.git.staged_files()
+modified = ctx.git.modified_files()
+untracked = ctx.git.untracked_files()
+
+# Constants
+ctx.git.STAGED    # "staged"
+ctx.git.HEAD      # "HEAD"
+ctx.git.UNSTAGED  # "unstaged"
 ```
 
 ### `llm` Module
 
-LLM operations (typically accessed via `ctx.run_llm()` in handlers).
+LLM operations accessible via `ctx.llm.*` in handlers.
 
 ```python
-# Generate content
-response = llm.generate(
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "Explain quantum computing."}
-    ],
+# Generate content (non-streaming)
+response = ctx.llm.chat(
+    prompt="Explain quantum computing.",
     preset="smart",
-    temperature=0.7,
-    max_tokens=1024
+    system="You are a helpful assistant.",
 )
 
 # Stream response
-for chunk in llm.generate_stream(messages=messages, preset="fast"):
-    output.print(chunk)
+def on_event(event):
+    if event["type"] == "delta":
+        ctx.output.write(event["content"])
+
+response = ctx.llm.chat(
+    prompt="Explain quantum computing.",
+    preset="fast",
+    stream=True,
+    on_event=on_event,
+)
+
+# Agentic turn with tools
+response = ctx.llm.agent_turn(
+    prompt="Read config.json and summarise the settings.",
+    preset="smart",
+    tools=[file_reader],
+    max_iterations=50,
+    on_tool_error="return",
+)
+
+# Generate embeddings
+embeddings = ctx.llm.embed(["text 1", "text 2"], preset="embeddings")
 ```
 
 ### `shell` Module
@@ -370,29 +382,28 @@ for chunk in llm.generate_stream(messages=messages, preset="fast"):
 Execute shell commands.
 
 ```python
-# Run command
-result = shell.exec("ls -la")  # Returns stdout
-
-# Run with error handling
-try:
-    output = shell.exec("git status")
-except Exception as e:
-    print("Command failed:", str(e))
+# Run command — returns {stdout, stderr, exit_code}
+result = ctx.shell.exec("ls -la")
+if result.exit_code == 0:
+    ctx.output.writeline(result.stdout)
+else:
+    ctx.output.writeline("Error: " + result.stderr)
 ```
 
 ### `index` Module
 
-RAG indexing and search.
+RAG indexing and semantic search.
 
 ```python
 # Index files
-index.index_files(
+ctx.index.index(
     patterns=["**/*.go", "**/*.py"],
-    ignore_patterns=["vendor/**", "node_modules/**"]
+    ignore_patterns=["vendor/**", "node_modules/**"],
+    preset="embeddings"
 )
 
 # Search by query
-results = index.search(
+results = ctx.index.search(
     query="How does authentication work?",
     limit=10,
     preset="embeddings"
@@ -400,62 +411,69 @@ results = index.search(
 
 # Each result: {file_path, chunk_text, score}
 for result in results:
-    print(f"{result['file_path']}: {result['score']}")
+    ctx.output.writeline(f"{result['file_path']}: {result['score']}")
 ```
 
 ### `ui` Module
 
-Terminal UI components (Bubble Tea/Lip Gloss).
+Terminal UI components (Bubble Tea/Lip Gloss). All called via `ctx.ui.*` in handlers.
 
 ```python
 # Prompt user for input
-name = ui.prompt("Enter your name:")
+name = ctx.ui.prompt("Enter your name:")
 
-# Selection menu
-choice = ui.select(
-    "Choose an option:",
-    options=["Option A", "Option B", "Option C"]
-)
+# Selection menu (single or multiple)
+choice = ctx.ui.select("Choose an option:", ["Option A", "Option B", "Option C"])
+files  = ctx.ui.select("Select files:", ctx.fs.glob("**/*.go"), allow_multiple=True)
 
 # Confirmation
-if ui.confirm("Are you sure?"):
+if ctx.ui.confirm("Are you sure?"):
     # Proceed
+    pass
 
 # Progress bar
-ui.progress_start("Processing files...")
-ui.progress_update(0.5)  # 50%
-ui.progress_complete()
+bar = ctx.ui.progress_bar(total=100, message="Processing files...")
+for i in range(100):
+    bar.inc()
+bar.done("Done!")
 
 # Display table
-ui.table(
-    headers=["Name", "Value", "Status"],
-    rows=[
-        ["Item 1", "100", "✓"],
-        ["Item 2", "200", "✗"]
-    ]
+ctx.ui.table(
+    [{"Name": "Item 1", "Value": "100"}, {"Name": "Item 2", "Value": "200"}],
+    columns=["Name", "Value"],
+    title="Items"
 )
+
+# Display code with syntax highlighting
+ctx.ui.code("func main() {}", lang="go", title="main.go")
+
+# Display diff
+ctx.ui.diff(diff_text, title="changes.diff")
+
+# Render markdown
+ctx.ui.markdown("# Heading\n\nContent")
+
+# Panel
+ctx.ui.panel("Content here", title="Info")
+
+# Pager (scrollable viewer)
+ctx.ui.pager(large_text, title="Output")
+
+# Turn/step pattern for structured output
+turn = ctx.ui.assistant_turn("Analyzing...")
+step = turn.step("Reading files")
+step.done()
+turn.done("Analysis complete")
 ```
 
 ### `output` Module
 
-Output formatting.
+Write output to stdout.
 
 ```python
-# Print text
-output.print("Hello, world!")
-
-# Print line
-output.print_line("This is a line")
-
-# Print markdown
-output.print_markdown("# Heading\n\nParagraph with **bold**.")
-
-# Stream markdown (for LLM responses)
-output.stream_markdown(chunk, done=False)
-output.stream_markdown("", done=True)  # Flush
-
-# Flush output
-output.flush()
+ctx.output.write("partial line")
+ctx.output.writeline("full line with newline")
+ctx.output.writef("Hello %s, you are %d years old", name, age)
 ```
 
 ### `json` Module
@@ -463,14 +481,14 @@ output.flush()
 JSON parsing and serialization.
 
 ```python
-# Parse JSON
-data = json.loads('{"name": "Alice", "age": 30}')
+# Parse JSON string
+data = ctx.json.parse('{"name": "Alice", "age": 30}')
 
 # Serialize to JSON
-json_str = json.dumps({"status": "ok", "code": 200})
+json_str = ctx.json.stringify({"status": "ok", "code": 200})
 
 # Pretty print
-pretty = json.dumps(data, indent=2)
+pretty = ctx.json.stringify(data, indent=2)
 ```
 
 ### `path` Module
@@ -479,22 +497,28 @@ Path manipulation.
 
 ```python
 # Join paths
-full_path = path.join("src", "main", "app.go")
+full_path = ctx.path.join("src", "main", "app.go")
 
 # Get directory
-dir = path.dir("/home/user/file.txt")  # Returns "/home/user"
+dir = ctx.path.dirname("/home/user/file.txt")  # "/home/user"
 
 # Get filename
-name = path.base("/home/user/file.txt")  # Returns "file.txt"
+name = ctx.path.basename("/home/user/file.txt")  # "file.txt"
 
 # Get extension
-ext = path.ext("document.pdf")  # Returns ".pdf"
+ext = ctx.path.ext("document.pdf")  # ".pdf"
+
+# Get stem (name without extension)
+stem = ctx.path.stem("document.pdf")  # "document"
 
 # Absolute path
-abs_path = path.abs("../relative/path")
+abs_path = ctx.path.abs("../relative/path")
 
 # Clean path
-clean = path.clean("src//./main/../main/app.go")
+clean = ctx.path.clean("src//./main/../main/app.go")
+
+# Relative path
+rel = ctx.path.rel("/base", "/base/sub/file.go")  # "sub/file.go"
 ```
 
 ### `crypto` Module
@@ -503,16 +527,13 @@ Cryptographic operations.
 
 ```python
 # SHA256 hash
-hash = crypto.sha256("content")
+hash = ctx.crypto.sha256("content")
 
 # MD5 hash
-hash = crypto.md5("content")
+hash = ctx.crypto.md5("content")
 
-# Base64 encode
-encoded = crypto.base64_encode("data")
-
-# Base64 decode
-decoded = crypto.base64_decode(encoded)
+# HMAC
+mac = ctx.crypto.hmac("key", "data")
 ```
 
 ### `time` Module
@@ -520,17 +541,17 @@ decoded = crypto.base64_decode(encoded)
 Time and date operations.
 
 ```python
-# Current time
-now = time.now()  # Unix timestamp
+# Current time (Unix timestamp as float)
+now = ctx.time.now()
 
 # Format time
-formatted = time.format(now, "2006-01-02 15:04:05")
+formatted = ctx.time.format(now, "2006-01-02 15:04:05")
 
 # Parse time
-timestamp = time.parse("2024-01-15 10:30:00", "2006-01-02 15:04:05")
+timestamp = ctx.time.parse("2024-01-15 10:30:00", "2006-01-02 15:04:05")
 
 # Sleep
-time.sleep(1.5)  # Sleep for 1.5 seconds
+ctx.time.sleep(1.5)  # Sleep for 1.5 seconds
 ```
 
 ### `regexp` Module
@@ -539,14 +560,17 @@ Regular expressions.
 
 ```python
 # Match pattern
-if regexp.match(r"^\d+$", "12345"):
-    print("It's a number")
+if ctx.regexp.match(r"^\d+$", "12345"):
+    ctx.output.writeline("It's a number")
 
-# Find matches
-matches = regexp.find_all(r"\b\w+@\w+\.\w+\b", text)  # Find emails
+# Find all matches
+matches = ctx.regexp.find_all(r"\b\w+@\w+\.\w+\b", text)
 
 # Replace
-new_text = regexp.replace(r"\s+", " ", text)  # Normalize whitespace
+new_text = ctx.regexp.replace(r"\s+", text, " ")  # arg order: pattern, text, replacement
+
+# Split
+parts = ctx.regexp.split(r",\s*", "a, b, c")
 ```
 
 ### `stdin` Module
@@ -554,12 +578,15 @@ new_text = regexp.replace(r"\s+", " ", text)  # Normalize whitespace
 Standard input reading.
 
 ```python
-# Read all stdin
-content = stdin.read()
+# Check if stdin is piped
+if ctx.stdin.is_piped():
+    data = ctx.stdin.read()
 
-# Check if stdin available
-if stdin.is_available():
-    data = stdin.read()
+# Read all stdin
+content = ctx.stdin.read()
+
+# Read one line
+line = ctx.stdin.read_line()
 ```
 
 ## Complete Example: Custom Command
@@ -569,59 +596,20 @@ Here's a complete example of a custom command that explains code changes:
 ```python
 # .meowg1k/commands/explain.star
 
-def setup(preset="smart"):
-    """Setup the explain command."""
-    
-    tool = meow.tool(
-        name="explain",
-        description="Explain code changes using Git diff",
-        long_description="""
-        Analyzes Git diff output and provides a detailed explanation
-        of what changed and why it might matter.
-        """,
-        handler=_handler,
-        parameters=[
-            meow.param(
-                name="ref",
-                type="string",
-                description="Git ref to diff against (default: HEAD)",
-                required=False,
-                default="HEAD",
-                shorthand="r"
-            ),
-            meow.param(
-                name="path",
-                type="string",
-                description="Limit diff to specific path",
-                required=False,
-                default="",
-                shorthand="p"
-            ),
-            meow.param(
-                name="detailed",
-                type="bool",
-                description="Provide detailed analysis",
-                default=False,
-                shorthand="d"
-            )
-        ]
-    )
-    
-    meow.register_command(tool, preset=preset)
-
-def _handler(ctx):
+def explain_handler(ctx):
     """Execute the explain command."""
-    ref = ctx.param("ref")
-    path = ctx.param("path")
-    detailed = ctx.param("detailed")
+    ref = ctx.ref
+    path = ctx.path_filter
+    detailed = ctx.detailed
     
     # Get the diff
-    ui.progress_start("Fetching diff...")
-    diff_output = git.diff(ref=ref, path=path)
-    ui.progress_complete()
+    if path:
+        diff_output = ctx.git.diff(target=ref, path=path)
+    else:
+        diff_output = ctx.git.diff(target=ref)
     
     if not diff_output:
-        output.print_line("No changes detected.")
+        ctx.output.writeline("No changes detected.")
         return
     
     # Build the prompt
@@ -636,22 +624,38 @@ def _handler(ctx):
     
     user_prompt = f"Explain these code changes:\n\n```diff\n{diff_output}\n```"
     
-    # Call LLM
-    ui.progress_start("Analyzing changes...")
-    response = ctx.run_llm(
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-    )
-    ui.progress_complete()
+    # Call LLM with streaming
+    turn = ctx.ui.assistant_turn("Analyzing changes...")
     
-    # Output the explanation
-    output.print_markdown(f"# Code Changes Explanation\n\n{response}")
+    def on_event(event):
+        if event["type"] == "delta":
+            turn.stream(event["content"])
+    
+    response = ctx.llm.chat(
+        prompt=user_prompt,
+        preset="smart",
+        system=system_prompt,
+        stream=True,
+        on_event=on_event,
+    )
+    
+    turn.done()
 
-# Register in init.star
-# load("//commands/explain.star", explain_setup = "setup")
-# explain_setup(preset="smart")
+explain_tool = meow.tool(
+    name="explain",
+    description="Explain code changes using Git diff",
+    handler=explain_handler,
+    params={
+        "ref":         meow.param("string", default="HEAD", short="r",
+                                  desc="Git ref to diff against"),
+        "path_filter": meow.param("string", default="", short="p",
+                                  desc="Limit diff to specific path"),
+        "detailed":    meow.param("bool", default=False, short="d",
+                                  desc="Provide detailed analysis"),
+    }
+)
+
+meow.command(explain_tool)
 ```
 
 ## Best Practices
@@ -690,17 +694,17 @@ meow.param(
 ```python
 def _handler(ctx):
     try:
-        result = git.diff(ref="HEAD")
+        result = ctx.git.diff(target="HEAD")
     except Exception as e:
-        output.print_line(f"Error: {str(e)}")
+        ctx.output.writeline(f"Error: {str(e)}")
         return
 ```
 
 ### 5. Use Progress Indicators
 ```python
-ui.progress_start("Processing...")
+bar = ctx.ui.progress_bar(total=100, message="Processing...")
 # Long-running operation
-ui.progress_complete()
+bar.done("Done!")
 ```
 
 ## Advanced Topics
@@ -728,7 +732,7 @@ load("//lib/formatting.star", "format_code_block", "format_list")
 
 def _handler(ctx):
     code = "print('hello')"
-    output.print_markdown(format_code_block(code, "python"))
+    ctx.ui.markdown(format_code_block(code, "python"))
 ```
 
 ### Conditional Provider Selection

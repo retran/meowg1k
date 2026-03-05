@@ -6,12 +6,14 @@ package starlark
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 
 	"github.com/retran/meowg1k/internal/domain/session"
 	"github.com/retran/meowg1k/internal/ports"
@@ -25,8 +27,9 @@ type Runtime struct {
 	llmServices    *LLMServices
 	indexServices  *IndexServices
 	sessionService ports.SessionService
-	outputService  OutputWriter
+	outputService  ports.UIWriter
 	stdinReader    *bufio.Reader
+	ctx            context.Context // cancelled when the user aborts (Ctrl+C)
 
 	// Configuration storage - providers, models and presets defined via Starlark scripts
 	// These configurations are applied to LLM and Index services during initialization
@@ -79,18 +82,22 @@ func NewRuntime(workingDir string) *Runtime {
 		providers:   make(map[string]ProviderConfig),
 		models:      make(map[string]ModelConfig),
 		presets:     make(map[string]PresetConfig),
+		ctx:         context.Background(),
 	}
 
 	r.initModules()
 	return r
 }
 
+// SetContext sets the context used for LLM and other cancellable operations.
+// Call this with the shutdown context before executing any handlers.
+func (r *Runtime) SetContext(ctx context.Context) {
+	r.ctx = ctx
+}
+
 // initModules registers all built-in modules.
 func (r *Runtime) initModules() {
-	// meow module for command registration
 	r.predeclared["meow"] = r.createMeowModule()
-
-	// env module is exposed globally for configuration
 	r.predeclared["env"] = NewEnvModule()
 
 	// Note: All other operational modules (git, fs, llm, shell, index, json,
@@ -125,12 +132,10 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 	cache := make(map[string]starlark.StringDict)
 
 	return func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
-		// Check cache first
 		if dict, ok := cache[module]; ok {
 			return dict, nil
 		}
 
-		// Resolve module path
 		var modulePath string
 		if strings.HasPrefix(module, "//") {
 			// Bazel-style absolute path from workspace root: //packages/foo/bar.star
@@ -143,7 +148,6 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 			modulePath = filepath.Join(filepath.Dir(currentFile), module)
 		}
 
-		// Read module content
 		content, err := os.ReadFile(modulePath)
 		if err != nil {
 			// If not found and using // prefix, try system config directory
@@ -162,19 +166,16 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 			}
 		}
 
-		// Create a new thread for the loaded module with recursive load support
 		moduleThread := &starlark.Thread{
 			Name: "load:" + modulePath,
 			Load: r.makeLoadFunc(modulePath), // Allow nested loads
 		}
 
-		// Execute module and return its globals
 		globals, err := starlark.ExecFile(moduleThread, modulePath, content, r.predeclared)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute module %s: %w", module, err)
 		}
 
-		// Cache the result
 		cache[module] = globals
 
 		return globals, nil
@@ -228,7 +229,7 @@ func (r *Runtime) CreateIndexModuleForCtx() starlark.Value { return r.createInde
 func (r *Runtime) CreateStdinModuleForCtx() starlark.Value { return r.createStdinModule() }
 
 // SetOutputService sets the output service for the runtime.
-func (r *Runtime) SetOutputService(service OutputWriter) {
+func (r *Runtime) SetOutputService(service ports.UIWriter) {
 	r.outputService = service
 }
 
@@ -239,6 +240,13 @@ func (r *Runtime) CreateOutputModuleForCtx() starlark.Value {
 		return NewOutputModule(&noopOutputWriter{})
 	}
 	return NewOutputModule(r.outputService)
+}
+
+// CreateUIModuleForCtx returns a ui module wired to the output service.
+// On TTY, turn/step messages go through the BubbleTea program.
+// On non-TTY, all ui functions are no-ops.
+func (r *Runtime) CreateUIModuleForCtx(depth int) *starlarkstruct.Module {
+	return NewUIModuleWithUIWriter(depth, r.outputService)
 }
 
 // SetSessionService sets the session service for the runtime.
@@ -258,15 +266,9 @@ func (r *Runtime) CreateSessionModuleForCtx(currentSession *session.Session) sta
 	return NewSessionModule(r.sessionService, currentSession)
 }
 
-// noopOutputWriter is a no-op implementation for when outputService is not set
+// noopOutputWriter is a no-op implementation of ports.OutputWriter for when outputService is not set
 type noopOutputWriter struct{}
 
-func (n *noopOutputWriter) Print(content string) error     { return nil }
-func (n *noopOutputWriter) PrintLine(content string) error { return nil }
-func (n *noopOutputWriter) Printf(format string, args ...any) error {
-	return nil
-}
-func (n *noopOutputWriter) PrintMarkdown(content string) error { return nil }
-func (n *noopOutputWriter) StreamMarkdown(content string, done bool) error {
-	return nil
-}
+func (n *noopOutputWriter) Print(content string) error              { return nil }
+func (n *noopOutputWriter) PrintLine(content string) error          { return nil }
+func (n *noopOutputWriter) Printf(format string, args ...any) error { return nil }

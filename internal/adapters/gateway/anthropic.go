@@ -96,7 +96,6 @@ func (g *anthropicGateway) GenerateContent(
 			}
 		}
 
-		// Set generation parameters if provided
 		if temperature := request.Temperature(); temperature != nil {
 			params.Temperature = anthropic.Float(*temperature)
 		}
@@ -135,16 +134,6 @@ func (g *anthropicGateway) GenerateContent(
 			}
 		}
 
-		// Anthropic doesn't directly support all parameters like logprobs, logit_bias, etc.
-		// They are primarily OpenAI-specific features
-		// However, we can document which parameters are not supported
-
-		// User identifier (not directly supported by Anthropic Messages API as of current version)
-		// ServiceTier (OpenAI-specific)
-		// LogitBias (OpenAI-specific)
-		// CandidateCount/N (OpenAI-specific, Anthropic returns single response)
-		// LogProbs (OpenAI/Gemini-specific)
-
 		response, err := g.client.Messages.New(ctx, params)
 		if err != nil {
 			return nil, err
@@ -156,7 +145,6 @@ func (g *anthropicGateway) GenerateContent(
 
 		blocks := parseAnthropicBlocksOrdered(response.Content)
 
-		// Extract usage information
 		var usage *gateway.UsageMetadata
 		if response.Usage.InputTokens > 0 || response.Usage.OutputTokens > 0 {
 			usage = &gateway.UsageMetadata{
@@ -331,6 +319,24 @@ func parseAnthropicBlocksOrdered(blocks []anthropic.ContentBlockUnion) []gateway
 	return result
 }
 
+// GenerateContentStream implements streaming for Anthropic by delegating to GenerateContent
+// and synthesizing stream events from the aggregated response.
+// Full native streaming via the Anthropic SSE API will be added in a future phase.
+func (g *anthropicGateway) GenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
+	resp, err := g.GenerateContent(ctx, request)
+	if err != nil {
+		if callback != nil {
+			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+		}
+		return nil, err
+	}
+	return synthesizeStreamEvents(resp, callback)
+}
+
 // CountTokens counts tokens using Anthropic's token counting API.
 // For embeddings, Anthropic doesn't provide embeddings, so this returns an error.
 // For generation, it calls the count_tokens endpoint with the messages.
@@ -343,7 +349,6 @@ func (g *anthropicGateway) CountTokens(ctx context.Context, model string, texts 
 		return 0, nil
 	}
 
-	// Build messages from texts
 	messages := make([]anthropic.MessageParam, 0, len(texts))
 	for _, text := range texts {
 		if text != "" {
@@ -355,7 +360,6 @@ func (g *anthropicGateway) CountTokens(ctx context.Context, model string, texts 
 		return 0, nil
 	}
 
-	// Call the count tokens API
 	result, err := g.client.Messages.CountTokens(ctx, anthropic.MessageCountTokensParams{
 		Model:    anthropic.Model(model),
 		Messages: messages,

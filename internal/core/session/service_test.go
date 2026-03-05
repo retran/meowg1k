@@ -178,50 +178,146 @@ func TestService_CreateSession(t *testing.T) {
 	})
 }
 
+func TestService_GetSession(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		expected := &session.Session{ID: "session-abc", ToolName: "my-tool"}
+		repo.On("GetSession", ctx, "session-abc").Return(expected, nil)
+
+		sess, err := svc.GetSession(ctx, "session-abc")
+		require.NoError(t, err)
+		require.NotNil(t, sess)
+		assert.Equal(t, "session-abc", sess.ID)
+
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("empty id", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		sess, err := svc.GetSession(ctx, "")
+		require.Error(t, err)
+		require.Nil(t, sess)
+		assert.Contains(t, err.Error(), "session ID cannot be empty")
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		repo.On("GetSession", ctx, "missing").Return(nil, errors.New("not found"))
+
+		sess, err := svc.GetSession(ctx, "missing")
+		require.Error(t, err)
+		require.Nil(t, sess)
+		assert.Contains(t, err.Error(), "failed to get session")
+
+		repo.AssertExpectations(t)
+	})
+}
+
 func TestService_CompleteSession(t *testing.T) {
-	repo := new(mockSessionRepository)
-	svc, _ := NewService(repo)
-	ctx := context.Background()
+	t.Run("success", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
 
-	sessionID := "session-123"
-	existingSession := &session.Session{
-		ID:       sessionID,
-		ToolName: "test-tool",
-		Status:   session.SessionStatusRunning,
-	}
+		sessionID := "session-123"
+		existingSession := &session.Session{
+			ID:       sessionID,
+			ToolName: "test-tool",
+			Status:   session.SessionStatusRunning,
+		}
 
-	repo.On("GetSession", ctx, sessionID).Return(existingSession, nil)
-	repo.On("UpdateSession", ctx, mock.MatchedBy(func(s *session.Session) bool {
-		return s.ID == sessionID && s.Status == session.SessionStatusCompleted
-	})).Return(nil)
+		repo.On("GetSession", ctx, sessionID).Return(existingSession, nil)
+		repo.On("UpdateSession", ctx, mock.MatchedBy(func(s *session.Session) bool {
+			return s.ID == sessionID && s.Status == session.SessionStatusCompleted
+		})).Return(nil)
 
-	err := svc.CompleteSession(ctx, sessionID)
-	require.NoError(t, err)
+		err := svc.CompleteSession(ctx, sessionID)
+		require.NoError(t, err)
 
-	repo.AssertExpectations(t)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("empty id", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		err := svc.CompleteSession(ctx, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "session ID cannot be empty")
+	})
+
+	t.Run("get session error", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		repo.On("GetSession", ctx, "bad-id").Return(nil, errors.New("not found"))
+
+		err := svc.CompleteSession(ctx, "bad-id")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get session")
+
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestService_FailSession(t *testing.T) {
-	repo := new(mockSessionRepository)
-	svc, _ := NewService(repo)
-	ctx := context.Background()
+	t.Run("success", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
 
-	sessionID := "session-123"
-	existingSession := &session.Session{
-		ID:       sessionID,
-		ToolName: "test-tool",
-		Status:   session.SessionStatusRunning,
-	}
+		sessionID := "session-123"
+		existingSession := &session.Session{
+			ID:       sessionID,
+			ToolName: "test-tool",
+			Status:   session.SessionStatusRunning,
+		}
 
-	repo.On("GetSession", ctx, sessionID).Return(existingSession, nil)
-	repo.On("UpdateSession", ctx, mock.MatchedBy(func(s *session.Session) bool {
-		return s.ID == sessionID && s.Status == session.SessionStatusFailed
-	})).Return(nil)
+		repo.On("GetSession", ctx, sessionID).Return(existingSession, nil)
+		repo.On("UpdateSession", ctx, mock.MatchedBy(func(s *session.Session) bool {
+			return s.ID == sessionID && s.Status == session.SessionStatusFailed
+		})).Return(nil)
 
-	err := svc.FailSession(ctx, sessionID)
-	require.NoError(t, err)
+		err := svc.FailSession(ctx, sessionID)
+		require.NoError(t, err)
 
-	repo.AssertExpectations(t)
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("empty id", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		err := svc.FailSession(ctx, "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "session ID cannot be empty")
+	})
+
+	t.Run("get session error", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		repo.On("GetSession", ctx, "bad-id").Return(nil, errors.New("not found"))
+
+		err := svc.FailSession(ctx, "bad-id")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get session")
+
+		repo.AssertExpectations(t)
+	})
 }
 
 func TestService_AddUserMessage(t *testing.T) {
@@ -360,6 +456,287 @@ func TestService_GetAllEvents(t *testing.T) {
 	events, err := svc.GetAllEvents(ctx, sessionID)
 	require.NoError(t, err)
 	assert.Len(t, events, 2)
+
+	repo.AssertExpectations(t)
+}
+
+func TestService_ListSessions(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		expected := []*session.Session{
+			{ID: "s1", ToolName: "tool-a"},
+			{ID: "s2", ToolName: "tool-b"},
+		}
+		repo.On("ListSessions", ctx, (*session.SessionFilter)(nil)).Return(expected, nil)
+
+		result, err := svc.ListSessions(ctx, nil)
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+
+		repo.AssertExpectations(t)
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		repo := new(mockSessionRepository)
+		svc, _ := NewService(repo)
+		ctx := context.Background()
+
+		repo.On("ListSessions", ctx, (*session.SessionFilter)(nil)).Return(nil, errors.New("db error"))
+
+		result, err := svc.ListSessions(ctx, nil)
+		require.Error(t, err)
+		require.Nil(t, result)
+		assert.Contains(t, err.Error(), "failed to list sessions")
+
+		repo.AssertExpectations(t)
+	})
+}
+
+func TestService_GetChildSessions_EmptyParentID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	result, err := svc.GetChildSessions(ctx, "")
+	require.Error(t, err)
+	require.Nil(t, result)
+	assert.Contains(t, err.Error(), "parent ID cannot be empty")
+}
+
+func TestService_AddUserMessage_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.AddUserMessage(ctx, "", "hello")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_AddAssistantMessage_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.AddAssistantMessage(ctx, "", "response", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_AddToolResult_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.AddToolResult(ctx, "", "call-1", "result")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_AddToolResult_EmptyToolCallID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.AddToolResult(ctx, "session-1", "", "result")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tool call ID cannot be empty")
+}
+
+func TestService_AddSystemMessage_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.AddSystemMessage(ctx, "", "notification")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_GetEvents_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	events, err := svc.GetEvents(ctx, "", 10, 0)
+	require.Error(t, err)
+	require.Nil(t, events)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_GetEvents_InvalidLimit(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	events, err := svc.GetEvents(ctx, "session-1", 0, 0)
+	require.Error(t, err)
+	require.Nil(t, events)
+	assert.Contains(t, err.Error(), "limit must be greater than 0")
+}
+
+func TestService_GetAllEvents_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	events, err := svc.GetAllEvents(ctx, "")
+	require.Error(t, err)
+	require.Nil(t, events)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_MarkEventsObsolete_Empty(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	// Empty slice should be a no-op, no error
+	err := svc.MarkEventsObsolete(ctx, []string{})
+	require.NoError(t, err)
+}
+
+func TestService_InsertSummary_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.InsertSummary(ctx, "", "event-1", "summary")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_InsertSummary_EmptySummary(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.InsertSummary(ctx, "session-1", "event-1", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "summary content cannot be empty")
+}
+
+func TestService_SetMetadata_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.SetMetadata(ctx, "", "key", "value")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_SetMetadata_EmptyKey(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	err := svc.SetMetadata(ctx, "session-1", "", "value")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "metadata key cannot be empty")
+}
+
+func TestService_GetMetadata_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	val, err := svc.GetMetadata(ctx, "", "key")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_GetMetadata_EmptyKey(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	val, err := svc.GetMetadata(ctx, "session-1", "")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "metadata key cannot be empty")
+}
+
+func TestService_GetAllMetadata_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	meta, err := svc.GetAllMetadata(ctx, "")
+	require.Error(t, err)
+	require.Nil(t, meta)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_GetChildMetadata_EmptySessionID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	val, err := svc.GetChildMetadata(ctx, "", "child-1", "key")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "session ID cannot be empty")
+}
+
+func TestService_GetChildMetadata_EmptyChildID(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	val, err := svc.GetChildMetadata(ctx, "parent-1", "", "key")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "child ID cannot be empty")
+}
+
+func TestService_GetChildMetadata_EmptyKey(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	val, err := svc.GetChildMetadata(ctx, "parent-1", "child-1", "")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "metadata key cannot be empty")
+}
+
+func TestService_GetChildMetadata_NilParent(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	childSession := &session.Session{
+		ID:       "child-1",
+		ParentID: nil,
+		ToolName: "child-tool",
+	}
+
+	repo.On("GetSession", ctx, "child-1").Return(childSession, nil)
+
+	val, err := svc.GetChildMetadata(ctx, "parent-1", "child-1", "key")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "not a child")
+
+	repo.AssertExpectations(t)
+}
+
+func TestService_GetChildMetadata_GetSessionError(t *testing.T) {
+	repo := new(mockSessionRepository)
+	svc, _ := NewService(repo)
+	ctx := context.Background()
+
+	repo.On("GetSession", ctx, "child-1").Return(nil, errors.New("db error"))
+
+	val, err := svc.GetChildMetadata(ctx, "parent-1", "child-1", "key")
+	require.Error(t, err)
+	assert.Empty(t, val)
+	assert.Contains(t, err.Error(), "failed to get child session")
 
 	repo.AssertExpectations(t)
 }

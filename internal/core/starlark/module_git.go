@@ -49,7 +49,6 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Build git diff command arguments
 	var diffArgs []string
 	switch target {
 	case "staged":
@@ -60,7 +59,6 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 		diffArgs = []string{"diff", target}
 	}
 
-	// Get raw diff
 	cmd := exec.Command("git", diffArgs...)
 	cmd.Dir = r.workingDir
 
@@ -87,7 +85,7 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, fmt.Errorf("git diff --name-only failed: %w: %s", err, nameStderr.String())
 	}
 
-	// Parse file names (one per line, already properly escaped by git)
+	// Parse file names (one per line, already properly escaped by git).
 	files := []string{}
 	for _, line := range strings.Split(strings.TrimSpace(nameStdout.String()), "\n") {
 		if line != "" {
@@ -95,7 +93,6 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Count additions/deletions from raw diff
 	additions := 0
 	deletions := 0
 	for _, line := range strings.Split(rawDiff, "\n") {
@@ -106,7 +103,6 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Build Starlark struct
 	filesList := starlark.NewList(make([]starlark.Value, len(files)))
 	for i, f := range files {
 		filesList.SetIndex(i, starlark.String(f))
@@ -130,7 +126,6 @@ func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args
 		return nil, err
 	}
 
-	// Build git diff command arguments
 	var diffArgs []string
 	switch target {
 	case "staged":
@@ -141,7 +136,6 @@ func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args
 		diffArgs = []string{"diff", target, "--", filePath}
 	}
 
-	// Get diff for specific file
 	cmd := exec.Command("git", diffArgs...)
 	cmd.Dir = r.workingDir
 
@@ -155,7 +149,6 @@ func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args
 
 	rawDiff := stdout.String()
 
-	// Count additions/deletions from raw diff
 	additions := 0
 	deletions := 0
 	for _, line := range strings.Split(rawDiff, "\n") {
@@ -174,7 +167,6 @@ func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args
 	}), nil
 }
 
-// gitChangedFiles implements git.changed_files().
 // gitLog implements git.log().
 func (r *Runtime) gitLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var count int = 10
@@ -278,7 +270,6 @@ func (r *Runtime) gitCommit(thread *starlark.Thread, b *starlark.Builtin, args s
 		return nil, fmt.Errorf("git commit failed: %w: %s", err, stderr.String())
 	}
 
-	// Get the commit hash
 	hashCmd := exec.Command("git", "rev-parse", "HEAD")
 	hashCmd.Dir = r.workingDir
 	var hashOut bytes.Buffer
@@ -289,7 +280,6 @@ func (r *Runtime) gitCommit(thread *starlark.Thread, b *starlark.Builtin, args s
 		commitHash = strings.TrimSpace(hashOut.String())
 	}
 
-	// Return structured result
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"success": starlark.Bool(true),
 		"message": starlark.String(message),
@@ -325,12 +315,10 @@ func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, fmt.Errorf("git push failed: %w: %s", err, stderr.String())
 	}
 
-	// Determine actual remote and branch if not specified
 	if remote == "" {
 		remote = "origin"
 	}
 	if branch == "" {
-		// Get current branch
 		branchCmd := exec.Command("git", "branch", "--show-current")
 		branchCmd.Dir = r.workingDir
 		var branchOut bytes.Buffer
@@ -340,7 +328,6 @@ func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Return structured result
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"success": starlark.Bool(true),
 		"remote":  starlark.String(remote),
@@ -358,7 +345,6 @@ func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, 
 		return nil, err
 	}
 
-	// Create branch
 	cmd := exec.Command("git", "branch", name)
 	cmd.Dir = r.workingDir
 
@@ -370,7 +356,6 @@ func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, 
 	}
 
 	checkedOut := false
-	// Checkout if requested
 	if shouldCheckout {
 		checkoutCmd := exec.Command("git", "checkout", name)
 		checkoutCmd.Dir = r.workingDir
@@ -382,7 +367,6 @@ func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, 
 		checkedOut = true
 	}
 
-	// Return structured result
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"success":     starlark.Bool(true),
 		"name":        starlark.String(name),
@@ -409,7 +393,6 @@ func (r *Runtime) gitCheckout(thread *starlark.Thread, b *starlark.Builtin, args
 		return nil, fmt.Errorf("git checkout failed: %w: %s", err, stderr.String())
 	}
 
-	// Return structured result
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"success": starlark.Bool(true),
 		"target":  starlark.String(target),
@@ -447,7 +430,6 @@ func (r *Runtime) gitAdd(thread *starlark.Thread, b *starlark.Builtin, args star
 		return nil, fmt.Errorf("git add failed: %w: %s", err, stderr.String())
 	}
 
-	// Return structured result
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
 		"success":     starlark.Bool(true),
 		"files_added": filesAdded,
@@ -471,7 +453,6 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Convert ignore list to string slice
 	ignore := []string{}
 	if ignoreList != nil {
 		for i := 0; i < ignoreList.Len(); i++ {
@@ -481,7 +462,6 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Get file list from git
 	var files []string
 	var err error
 
@@ -500,15 +480,12 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 		return nil, err
 	}
 
-	// Filter by pattern and ignore
 	results := []starlark.Value{}
 	for _, file := range files {
-		// Check ignore patterns
 		if shouldIgnoreFile(file, ignore) {
 			continue
 		}
 
-		// Check pattern match
 		matched, err := doublestar.Match(pattern, file)
 		if err != nil {
 			return nil, fmt.Errorf("invalid pattern %s: %w", pattern, err)
@@ -540,7 +517,6 @@ func (r *Runtime) gitRead(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	// Parse as keyword arguments
 	var ref string = "HEAD"
 	var path string
 

@@ -20,7 +20,6 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 		}
 	}
 
-	// Apply providers from Starlark
 	for name, providerCfg := range r.providers {
 		domainProvider := &domainConfig.ProviderConfig{
 			Type:       providerCfg.Type,
@@ -33,7 +32,6 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 		baseConfig.Providers[name] = domainProvider
 	}
 
-	// Apply models from Starlark
 	for name, modelCfg := range r.models {
 		domainModel := &domainConfig.ModelConfig{
 			Provider: modelCfg.Provider,
@@ -58,7 +56,6 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 		baseConfig.Models[name] = domainModel
 	}
 
-	// Apply presets from Starlark
 	for name, presetCfg := range r.presets {
 		requestCfg := &domainConfig.RequestConfig{}
 
@@ -120,14 +117,12 @@ func float64Ptr(f float64) *float64 {
 
 // ValidateConfiguration checks if Starlark configuration is valid.
 func (r *Runtime) ValidateConfiguration() error {
-	// Validate that models reference existing providers
 	for modelName, modelCfg := range r.models {
 		if _, exists := r.providers[modelCfg.Provider]; !exists {
 			return fmt.Errorf("model %q references unknown provider %q", modelName, modelCfg.Provider)
 		}
 	}
 
-	// Validate that presets reference existing models
 	for presetName, presetCfg := range r.presets {
 		if _, exists := r.models[presetCfg.Model]; !exists {
 			return fmt.Errorf("preset %q references unknown model %q", presetName, presetCfg.Model)

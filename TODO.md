@@ -35,33 +35,11 @@ We deleted the old man pages. Generate new ones from Starlark commands.
 
 Use `cobra` or write a custom generator.
 
-### 4. Clean up test commands (1 week) ✅
-
-11 test commands live in `.meowg1k/commands/test-*.star`. Each needs a decision:
-
-- **Keep** → rename, document, make official
-- **Delete** → move to examples or remove
-
-**Test commands**:
-```
-test-agentic-simple.star
-test-agentic-tools.star
-test-agentic.star
-test-child-session.star
-test-event-flow.star
-test-llm-events.star
-test-persistence.star
-test-session.star
-test-system-message.star
-test-tool-objects.star
-test-tool-value-run.star
-```
-
 ---
 
 ## Good to have
 
-### 5. Add examples to libraries (2-3 days)
+### 4. Add examples to libraries (2-3 days)
 
 `planning.star` and `memory.star` have 10+ examples each. Other libraries don't.
 
@@ -73,7 +51,7 @@ test-tool-value-run.star
 - `diff.star`
 - `validators.star`
 
-### 6. Write integration tests (3-4 days)
+### 5. Write integration tests (3-4 days)
 
 Coverage jumped from 44% to 65%. Go higher:
 
@@ -83,7 +61,7 @@ Coverage jumped from 44% to 65%. Go higher:
 - Test tool execution and errors
 - Benchmark RAG search speed
 
-### 7. Create examples/ folder (1-2 days)
+### 6. Create examples/ folder (1-2 days)
 
 Show users what's possible:
 
@@ -100,19 +78,11 @@ examples/
     └── memory-example.star
 ```
 
-### 8. Delete leftover files (30 min) ✅
-
-Merge artifacts and debug code:
-
-- `internal/adapters/gateway/factory_test.go.orig`
-- `internal/adapters/gateway/factory_test.go.rej`
-- `debug_ui.go`
-
 ---
 
 ## Future ideas
 
-### 9. Import Starlark libs from GitHub (3-4 weeks)
+### 7. Import Starlark libs from GitHub (3-4 weeks)
 
 Like Bazel's `load("@repo//lib:file.star")`.
 
@@ -137,56 +107,15 @@ github_library(
 load("@utils//lib:helpers.star", "format_code")
 ```
 
-### 10. Stream LLM output in terminal (2-3 weeks)
+### 8. Native streaming for Ollama/Llama (1 week)
 
-Show words as they arrive, not after completion.
+Llama currently synthesizes stream events from a completed response. Add real SSE streaming via the llama.cpp streaming API.
 
 **Build**:
-- Add streaming support to ALL provider gateways:
-  - ✅ OpenAI (via SSE)
-  - ✅ Anthropic (via SSE)  
-  - ✅ Gemini (via gRPC streaming)
-  - ✅ OpenRouter (via SSE)
-  - ❌ Ollama/Llama (needs implementation)
-  - ❌ Voyage (embeddings only, N/A)
-- Implement streaming UI renderer with Bubble Tea:
-  - Progressive markdown rendering
-  - Syntax highlighting during stream
-  - Show tokens/second metrics
-  - Handle Ctrl+C gracefully
-  - Real-time progress indicators
-- Add `stream=True` parameter to `llm.generate()` and `llm.agentic()`
-- Buffer management for incomplete tokens
-- Error handling mid-stream
+- Implement `GenerateContentStream` using native llama.cpp SSE endpoint
+- Replace current synthesized fallback in `internal/adapters/gateway/llama.go`
 
-**Example**:
-```python
-# Streaming in commands
-result = ctx.llm.generate(
-    prompt="Write a story...",
-    stream=True,  # Enable streaming
-)
-# Text appears progressively in terminal
-
-# Streaming with callback
-def on_chunk(chunk):
-    ctx.ui.append(chunk.text)
-    ctx.ui.show_speed(chunk.tokens_per_sec)
-
-ctx.llm.generate(
-    prompt="Explain quantum computing...",
-    stream=True,
-    on_chunk=on_chunk
-)
-```
-
-**UI Features**:
-- Animated spinner while waiting for first token
-- Character-by-character or word-by-word rendering
-- Syntax highlighting updates in real-time for code blocks
-- Final cleanup pass for complete markdown rendering
-
-### 11. Plugin system (2-3 weeks)
+### 9. Plugin system (2-3 weeks)
 
 Let users share Starlark libraries safely.
 
@@ -196,9 +125,9 @@ Let users share Starlark libraries safely.
 - Signature verification
 - `meow plugin install` command
 
-Works with #9 (import system).
+Works with #7 (import system).
 
-### 12. Web UI for sessions (4-6 weeks)
+### 10. Web UI for sessions (4-6 weeks)
 
 View sessions in a browser:
 
@@ -207,7 +136,7 @@ View sessions in a browser:
 - Replay past sessions
 - Share sessions with team
 
-### 13. LSP for Starlark (3-4 weeks)
+### 11. LSP for Starlark (3-4 weeks)
 
 Make IDEs understand meowg1k code:
 
@@ -216,7 +145,7 @@ Make IDEs understand meowg1k code:
 - Jump to definition
 - Inline errors for schema validation
 
-### 14. Speed up queries (ongoing)
+### 12. Speed up queries (ongoing)
 
 **Profile and optimize**:
 - Starlark execution time
@@ -224,7 +153,7 @@ Make IDEs understand meowg1k code:
 - Vector search (HNSW)
 - File chunking strategies
 
-### 15. Better error messages (2-3 days)
+### 13. Better error messages (2-3 days)
 
 Make errors useful:
 
@@ -233,7 +162,7 @@ Make errors useful:
 - "Config not found" → "Create `.meowg1k/init.star` first. See docs/user/setup.md"
 - Add "Did you mean?" for typos
 
-### 16. Update GitHub templates (1 hour)
+### 14. Update GitHub templates (1 hour)
 
 Change issue templates:
 
@@ -241,7 +170,7 @@ Change issue templates:
 - Add "Request Starlark API" template
 - Add "Request new library" template
 
-### 17. Improve CI/CD (1-2 days)
+### 15. Improve CI/CD (1-2 days)
 
 - Verify nightly builds work
 - Run integration tests on CI
@@ -249,7 +178,7 @@ Change issue templates:
 - Lint Starlark files
 - Validate documentation links
 
-### 18. Support MCP (Model Context Protocol) (3-4 weeks)
+### 16. Support MCP (Model Context Protocol) (3-4 weeks)
 
 Add support for Anthropic's Model Context Protocol to integrate external tools and resources.
 
@@ -279,7 +208,7 @@ content = ctx.mcp.call("filesystem", "read_file", {"path": "README.md"})
 - https://modelcontextprotocol.io/
 - https://github.com/modelcontextprotocol
 
-### 19. Support ACP (Agent Communication Protocol) (4-5 weeks)
+### 17. Support ACP (Agent Communication Protocol) (4-5 weeks)
 
 Implement ACP for multi-agent orchestration and collaboration.
 
@@ -306,7 +235,7 @@ tests = test_agent.request("generate_tests", {"code": review.code})
 - Research existing agent communication protocols
 - Design meowg1k-specific ACP extensions
 
-### 20. Session compaction and summarization (2-3 weeks)
+### 18. Session compaction and summarization (2-3 weeks)
 
 Automatically compress long conversation histories to fit within context windows.
 
@@ -355,8 +284,7 @@ session.replace_range(start=0, end=50, summary=summary)
 
 **Priority order**:
 1. Write user docs (#1, #2, #3) - users can't learn without docs
-2. Clean up commands (#4) - confusing to have test-* in production
-3. Everything else when we have time
+2. Everything else when we have time
 
 **Before you start a task**:
 - Check if it breaks existing code
@@ -366,5 +294,5 @@ session.replace_range(start=0, end=50, summary=summary)
 
 ---
 
-**Updated**: 2026-02-16  
+**Updated**: 2026-03-02  
 **PR**: #80

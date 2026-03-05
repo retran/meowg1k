@@ -504,7 +504,7 @@ def llm_generate_handler(ctx):
     system = ctx.params.get("system", "")
     preset = ctx.params.get("preset", "smart")
     
-    result = ctx.llm.generate(prompt=prompt, system=system, preset=preset)
+    result = ctx.llm.chat(prompt=prompt, system=system, preset=preset)
     return result
 
 # ==============================================================================

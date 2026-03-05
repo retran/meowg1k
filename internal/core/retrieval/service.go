@@ -308,7 +308,6 @@ func (s *Service) RetrieveContext(
 		return "", nil
 	}
 
-	// Format context as a structured string
 	var builder strings.Builder
 	builder.WriteString("# Retrieved Context\n\n")
 

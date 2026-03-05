@@ -63,7 +63,6 @@ func (r *Runtime) indexFindVersions(thread *starlark.Thread, b *starlark.Builtin
 		return nil, fmt.Errorf("index services not configured")
 	}
 
-	// Convert Starlark list to Go slice
 	hashes := []string{}
 	for i := 0; i < contentHashes.Len(); i++ {
 		if str, ok := contentHashes.Index(i).(starlark.String); ok {
@@ -73,13 +72,11 @@ func (r *Runtime) indexFindVersions(thread *starlark.Thread, b *starlark.Builtin
 
 	ctx := context.Background()
 
-	// Find versions
 	versions, err := r.indexServices.IndexRepo.FindVersionsByContentHashes(ctx, hashes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find versions: %w", err)
 	}
 
-	// Build result dict
 	result := starlark.NewDict(len(hashes))
 	for _, hash := range hashes {
 		version, exists := versions[hash]
@@ -119,7 +116,6 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 		return nil, fmt.Errorf("chunks and embeddings must have same length, got %d and %d", chunkslist.Len(), embeddingslist.Len())
 	}
 
-	// Convert Starlark chunks to Go ChunkData
 	chunks := make([]domainindex.ChunkData, chunkslist.Len())
 	for i := 0; i < chunkslist.Len(); i++ {
 		chunkDict, ok := chunkslist.Index(i).(*starlark.Dict)
@@ -134,7 +130,6 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 		chunks[i] = chunk
 	}
 
-	// Convert Starlark embeddings to Go Embeddings
 	embeddings := make([]gateway.Embedding, embeddingslist.Len())
 	for i := 0; i < embeddingslist.Len(); i++ {
 		embList, ok := embeddingslist.Index(i).(*starlark.List)
@@ -151,14 +146,12 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 
 	ctx := context.Background()
 
-	// Create document version
 	docVersion := domainindex.DocumentVersion{
 		FilePath:               path,
 		ContentHash:            contentHash,
 		GitCommitHashFirstSeen: sql.NullString{Valid: false},
 	}
 
-	// Prepare chunks with embeddings
 	dbChunks := make([]domainindex.Chunk, len(chunks))
 	for i, chunkData := range chunks {
 		dbChunks[i] = domainindex.Chunk{
@@ -174,7 +167,6 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 		}
 	}
 
-	// Save to database
 	versionID, err := r.indexServices.IndexRepo.AddDocumentVersionWithChunks(ctx, &docVersion, []byte(content), dbChunks)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save version: %w", err)
@@ -203,7 +195,6 @@ func (r *Runtime) indexLinkSnapshot(thread *starlark.Thread, b *starlark.Builtin
 
 	ctx := context.Background()
 
-	// Link each version to snapshot
 	for i := 0; i < versionIDs.Len(); i++ {
 		versionID, ok := versionIDs.Index(i).(starlark.Int)
 		if !ok {
@@ -215,7 +206,6 @@ func (r *Runtime) indexLinkSnapshot(thread *starlark.Thread, b *starlark.Builtin
 			return nil, fmt.Errorf("version_id %d too large", i)
 		}
 
-		// Use internal snapshot name mapping
 		snapshotName := mapSnapshotName(snapshot)
 
 		if err := r.indexServices.SnapshotRepo.LinkVersionToSnapshot(ctx, snapshotName, id); err != nil {
@@ -244,7 +234,6 @@ func (r *Runtime) indexClearSnapshot(thread *starlark.Thread, b *starlark.Builti
 
 	ctx := context.Background()
 
-	// Use internal snapshot name mapping
 	snapshotName := mapSnapshotName(snapshot)
 
 	if err := r.indexServices.SnapshotRepo.ClearSnapshotLinks(ctx, snapshotName); err != nil {
@@ -270,7 +259,6 @@ func (r *Runtime) indexBuildVectorIndex(thread *starlark.Thread, b *starlark.Bui
 		return nil, fmt.Errorf("index services not configured")
 	}
 
-	// Use internal snapshot name mapping
 	snapshotName := mapSnapshotName(snapshot)
 
 	if err := r.indexServices.VectorIndexService.BuildAndSave(snapshotName); err != nil {
@@ -300,7 +288,6 @@ func mapSnapshotName(snapshot string) string {
 func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.ChunkData, error) {
 	var chunk domainindex.ChunkData
 
-	// Get text
 	textVal, found, err := chunkDict.Get(starlark.String("text"))
 	if err != nil || !found {
 		return chunk, fmt.Errorf("chunk missing 'text' field")
@@ -311,7 +298,6 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 	}
 	chunk.TextContent = string(textStr)
 
-	// Get optional line numbers
 	if val, found, _ := chunkDict.Get(starlark.String("start_line")); found {
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
@@ -328,7 +314,6 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	// Get optional byte positions
 	if val, found, _ := chunkDict.Get(starlark.String("start_byte")); found {
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
@@ -345,7 +330,6 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	// Get optional rune positions
 	if val, found, _ := chunkDict.Get(starlark.String("start_rune")); found {
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {

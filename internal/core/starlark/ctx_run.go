@@ -17,7 +17,6 @@ import (
 // parentSession is the session of the current context (can be nil if no session).
 func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *session.Session, depth int) *starlark.Builtin {
 	return starlark.NewBuiltin("run", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-		// Parse arguments: run(command_name_or_tool, **kwargs)
 		if len(args) == 0 {
 			return nil, fmt.Errorf("run() requires command name or tool object as first argument")
 		}
@@ -26,16 +25,13 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 		var cmd *Command
 		var exists bool
 
-		// Check if first argument is a ToolValue or a string
 		if toolValue, ok := args[0].(*ToolValue); ok {
-			// It's a ToolValue - look up by tool name
 			commandName = toolValue.Tool.Name
 			cmd, exists = registry.Get(commandName)
 			if !exists {
 				return nil, fmt.Errorf("tool '%s' not registered as command", commandName)
 			}
 		} else if name, ok := starlark.AsString(args[0]); ok {
-			// It's a string - look up by name
 			commandName = name
 			cmd, exists = registry.Get(commandName)
 			if !exists {
@@ -65,18 +61,15 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			}()
 		}
 
-		// Create isolated context for the child command
 		flagsMembers := starlark.StringDict{}
 		argsMembers := starlark.StringDict{}
 		paramsMembers := make(map[string]starlark.Value)
 
-		// Start with defaults from command definition
 		for flagName, flagDef := range cmd.Flags {
 			var value starlark.Value
 			if flagDef.Default != nil {
 				value = convertGoValueToStarlark(flagDef.Default)
 			} else {
-				// Provide zero values for required types
 				switch flagDef.Type {
 				case "bool":
 					value = starlark.False
@@ -99,7 +92,6 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			paramsMembers[flagName] = value
 		}
 
-		// Override with provided kwargs
 		for _, kv := range kwargs {
 			if len(kv) != 2 {
 				continue
@@ -120,7 +112,6 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			paramsMembers[key] = value
 		}
 
-		// Handle positional args if provided (after command name)
 		for i := 1; i < len(args); i++ {
 			for argName, argDef := range cmd.Args {
 				if argDef.Index == i-1 {
@@ -136,7 +127,6 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			}
 		}
 
-		// Fill in default args
 		for argName, argDef := range cmd.Args {
 			if _, exists := argsMembers[argName]; !exists && argDef.Default != nil {
 				value := convertGoValueToStarlark(argDef.Default)
@@ -159,7 +149,6 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 		flagsStruct := starlarkstruct.FromStringDict(starlarkstruct.Default, flagsMembers)
 		argsStruct := starlarkstruct.FromStringDict(starlarkstruct.Default, argsMembers)
 
-		// Create child context with indented UI
 		childCtxMembers := starlark.StringDict{
 			"flags":     flagsStruct,
 			"args":      argsStruct,
@@ -176,7 +165,7 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			"toml":      NewTOMLModule(),
 			"csv":       NewCSVModule(),
 			"env":       NewEnvModule(),
-			"ui":        NewIndentedUIModule(depth + 1), // Indent child output
+			"ui":        runtime.CreateUIModuleForCtx(depth + 1), // Indent child output
 			"path":      NewPathModule(),
 			"crypto":    NewCryptoModule(),
 			"time":      NewTimeModule(),
@@ -191,13 +180,11 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 		childCtxStruct := starlarkstruct.FromStringDict(starlarkstruct.Default, childCtxMembers)
 		childCtx := CreateContextWithParams(childCtxStruct, paramsMembers)
 
-		// Call the handler
 		result, handlerErr := starlark.Call(thread, cmd.Handler, starlark.Tuple{childCtx}, nil)
 		if handlerErr != nil {
 			return nil, fmt.Errorf("command '%s' failed: %w", commandName, handlerErr)
 		}
 
-		// Return result (could be None, string, list, dict, etc.)
 		return result, nil
 	})
 }
