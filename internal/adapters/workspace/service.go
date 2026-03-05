@@ -127,6 +127,13 @@ func hasWorkspaceMarker(dir string) (bool, error) {
 		return true, nil
 	}
 
+	// .meowg1k directory (with init.star) is also a valid workspace marker
+	if info, err := os.Stat(filepath.Join(dir, ".meowg1k")); err == nil && info.IsDir() {
+		if _, err2 := os.Stat(filepath.Join(dir, ".meowg1k", "init.star")); err2 == nil {
+			return true, nil
+		}
+	}
+
 	info, err := os.Stat(filepath.Join(dir, ".git"))
 	if err == nil && info.IsDir() {
 		return true, nil

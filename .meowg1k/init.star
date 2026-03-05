@@ -80,21 +80,7 @@ load("//commands/pr.star", pr_setup = "setup")
 pr_setup(preset="smart", summarize_preset="fast")
 
 load("//commands/search.star", search_setup = "setup")
-search_setup(
-    ignore_patterns = [
-        ".git/**",
-        "node_modules/**",
-        "**/*.pyc",
-        "__pycache__/**",
-        ".env",
-        "*.lock",
-        "**/.DS_Store",
-        "**/dist/**",
-        "**/build/**",
-        "**/*.min.js",
-        "**/*.min.css",
-    ]
-)
+search_setup()
 
 # ==============================================================================
 # EXAMPLE COMMANDS (Structured Outputs)

@@ -290,27 +290,10 @@ type WorkspaceService interface {
 	Get() (string, error)
 }
 
-// ProjectStateService defines the interface for getting project file states.
-type ProjectStateService interface {
-	GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error)
-	GetStagingState(ctx context.Context) (map[string]domainindex.FileState, error)
-	GetWorkdirState(ctx context.Context) (map[string]domainindex.FileState, error)
-}
-
 // VectorIndexService defines the interface for vector index operations.
 type VectorIndexService interface {
 	// BuildAndSave builds a vector index for the given snapshot and saves it.
 	BuildAndSave(snapshotName string) error
-}
-
-// IndexService defines the interface for index management operations.
-type IndexService interface {
-	// PrepareForProcessing deduplicates files and prepares them for processing.
-	PrepareForProcessing(ctx context.Context, workspaceState interface{}) (interface{}, error)
-	// SaveNewVersion saves a new version of a file with its chunks and embeddings.
-	SaveNewVersion(ctx context.Context, input interface{}) (interface{}, error)
-	// FinalizeLiveSnapshots finalizes the live snapshots with version mappings.
-	FinalizeLiveSnapshots(ctx context.Context, input interface{}) error
 }
 
 // SessionRepository defines the interface for session persistence operations.
