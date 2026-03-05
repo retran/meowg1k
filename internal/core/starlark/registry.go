@@ -57,6 +57,7 @@ type FlagDef struct {
 	Type        string // "string", "bool", "int"
 	Default     any
 	Required    bool
+	FromStdin   bool // if true, stdin can satisfy a required value
 	Description string
 }
 
@@ -176,6 +177,7 @@ func (r *Registry) CommandFromTool(tool *Tool, nameOverride string) (*Command, e
 			Type:        param.Type,
 			Default:     param.Default,
 			Required:    param.Required,
+			FromStdin:   param.FromStdin,
 			Description: buildFlagDescription(param),
 		}
 	}

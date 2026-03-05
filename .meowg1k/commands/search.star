@@ -11,6 +11,7 @@ FEATURES:
   - Smart Chunking: Automatic code splitting with context preservation
   - Index Management: Efficient incremental updates with deduplication
   - Relevance Scoring: Threshold-based filtering for quality results
+  - Content Preview: Inline snippet preview in search results
 
 INSTALLATION:
   # In your .meowg1k/init.star
@@ -19,15 +20,14 @@ INSTALLATION:
   setup(
       # Optional: Configure defaults
       default_limit = 10,
-      default_threshold = 0.65,
+      default_threshold = 0.3,
       default_context_size = 8,
       default_preset = "smart"
   )
 
 USAGE:
   # Semantic search
-  meow query "authentication middleware"
-  meow search "error handling patterns"  # alias for query
+  meow search "authentication middleware"
 
   # Ask questions with RAG
   meow ask "How does the auth system work?"
@@ -37,30 +37,33 @@ USAGE:
   meow index
 
   # Advanced search options
-  meow query "database queries" --limit 20 --threshold 0.7
-  meow query "API handlers" --snapshots workdir,HEAD
+  meow search "database queries" --limit 20 --threshold 0.7
+  meow search "API handlers" --snapshots workdir,HEAD
+
+  # Pipeline usage (stdin)
+  echo "authentication middleware" | meow search
+  echo "How does auth work?" | meow ask
 
 COMMANDS:
-  query    Semantic code search
-  search   Alias for query
+  search   Semantic code search
   ask      Ask questions about codebase using RAG
   index    Build or rebuild search index
 
 EXAMPLES:
   # Search working directory
-  meow query "HTTP request handlers"
+  meow search "HTTP request handlers"
 
   # Search specific snapshots
-  meow query "validation logic" --snapshots HEAD,stage
+  meow search "validation logic" --snapshots HEAD,stage
 
   # With threshold filter
-  meow query "caching" --threshold 0.75
+  meow search "caching" --threshold 0.75
 
   # Full content output
-  meow query "tests" --full
+  meow search "tests" --full
 
   # JSON output
-  meow query "config" --format json
+  meow search "config" --format json
 
   # Ask with more context
   meow ask "Explain the caching strategy" --context-size 12
@@ -69,21 +72,22 @@ EXAMPLES:
   meow ask "How is authentication implemented?" --show-context
 
 PARAMETERS:
-  Query/Search:
+  Search:
     query              Search query string (required, min 3 chars, supports stdin)
     --limit, -n        Maximum results to return (default: 10)
-    --snapshots, -s    Comma-separated snapshots (default: "workdir,stage,HEAD")
-    --threshold, -t    Minimum similarity score 0.0-1.0 (default: 0.0)
+    --snapshots, -s    Comma-separated snapshots (default: "workdir")
+    --threshold, -t    Minimum similarity score 0.0-1.0 (default: 0.3)
     --format, -f       Output format: "text" or "json" (default: "text")
     --full             Include full content in output
+    --preview          Characters of inline content preview (default: 120, 0=off)
 
   Ask:
     question           Question to ask (required, min 3 chars, supports stdin)
     --preset, -p       LLM preset: "fast" or "smart" (default: "smart")
     --context-size, -n Number of code snippets to retrieve (default: 8)
-    --threshold, -t    Minimum similarity score (default: 0.65)
-    --snapshots, -s    Comma-separated snapshots (default: "workdir,stage,HEAD")
-    --show-context     Display retrieved context before answer
+    --threshold, -t    Minimum similarity score (default: 0.5)
+    --snapshots, -s    Comma-separated snapshots (default: "workdir")
+    --show-context     Display retrieved context snippets in output
 
   Index:
     No parameters - rebuilds entire index
@@ -100,7 +104,7 @@ NOTES:
   - Supports multiple git snapshots (HEAD, stage, workdir) for comprehensive search
   - Embeddings cached by content hash for efficiency
   - Default ignore patterns exclude node_modules, .git, build artifacts
-  - Relevance threshold: 0.65 works well for most cases, adjust as needed
+  - Relevance threshold: 0.5 works well for most cases, adjust as needed
 """
 # ==============================================================================
 
@@ -113,20 +117,48 @@ load("//lib/ui_helpers.star", "make_markdown_stream_handler")
 
 _DEFAULT_SEARCH_RESULTS = 10
 _DEFAULT_RAG_RESULTS = 8
-_DEFAULT_SIMILARITY_THRESHOLD = 0.65
+_DEFAULT_SIMILARITY_THRESHOLD = 0.5
+_DEFAULT_SEARCH_THRESHOLD = 0.3
+_DEFAULT_PREVIEW_CHARS = 120
 _DEFAULT_BATCH_SIZE = 20
+_DEFAULT_SNAPSHOTS = "workdir"
 _DEFAULT_IGNORE_PATTERNS = [
+    # Version control
     ".git/**",
-    "node_modules/**",
+    # Tool configuration / project-specific
+    ".meowg1k/**",
+    # Dependencies
+    "**/node_modules/**",
+    "**/vendor/**",
+    # Python
     "**/*.pyc",
-    "__pycache__/**",
+    "**/__pycache__/**",
+    # Environment / secrets
     ".env",
-    "*.lock",
+    ".env.*",
+    # Lock files and checksums
+    "**/*.lock",
+    "**/*.sum",
+    # OS noise
     "**/.DS_Store",
+    "**/Thumbs.db",
+    # Build output
+    "bin/**",
     "**/dist/**",
     "**/build/**",
+    "**/out/**",
+    # Test / coverage artifacts
+    "coverage.out",
+    "coverage.html",
+    # IDE / editor
+    ".idea/**",
+    ".vscode/**",
+    # Minified assets
     "**/*.min.js",
     "**/*.min.css",
+    # Generated code
+    "**/*.pb.go",
+    "**/*.gen.go",
 ]
 
 _SYSTEM_PROMPT_ASK = """You are an expert AI programming assistant with deep knowledge of software engineering.
@@ -242,6 +274,48 @@ def _chunk_file(content, path, strategy="lines"):
         return _split_by_lines(content, max_lines=100, overlap_lines=10)
 
 # =============================================================================
+# Output Formatting Helpers
+# =============================================================================
+
+def _truncate(text, max_chars):
+    """Truncate text to max_chars, replacing newlines with spaces."""
+    # Collapse whitespace for inline display
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[:max_chars - 1] + "…"
+
+def _format_score(score):
+    """Format a similarity score as a percentage string."""
+    return "{}%".format(int(score * 100))
+
+def _format_location(file_path, start_line, end_line):
+    """Format a file location as file:start-end."""
+    return "{}:{}-{}".format(file_path, start_line, end_line)
+
+def _print_separator(ctx, char="-", width=72):
+    """Print a separator line."""
+    ctx.output.writeline(char * width)
+
+def _print_result_text(ctx, r, index, preview_chars):
+    """Print a single search result in text format."""
+    location = _format_location(r.file_path, r.start_line, r.end_line)
+    score = _format_score(r.score)
+    ctx.output.writeline("[{}] {} ({})".format(index, location, score))
+    if preview_chars > 0 and r.content:
+        preview = _truncate(r.content, preview_chars)
+        ctx.output.writeline("    {}".format(preview))
+
+def _print_result_full(ctx, r, index):
+    """Print a single search result with full content."""
+    location = _format_location(r.file_path, r.start_line, r.end_line)
+    score = _format_score(r.score)
+    ctx.output.writeline("[{}] {} ({})".format(index, location, score))
+    ctx.output.writeline("")
+    ctx.output.writeline(r.content)
+    ctx.output.writeline("")
+
+# =============================================================================
 # UI Helpers
 # =============================================================================
 
@@ -257,29 +331,36 @@ def _display_file_stats(ctx, files, title="Changed Files"):
 # Setup Function
 # =============================================================================
 
-def setup(default_limit=None, default_threshold=None, default_ask_threshold=None, default_context_size=None, default_preset=None, default_format=None, default_snapshots=None, ignore_patterns=None):
+def setup(default_limit=None, default_threshold=None, default_ask_threshold=None, default_context_size=None, default_preset=None, default_format=None, default_snapshots=None, default_preview=None, ignore_patterns=None):
     """Configure the search commands.
 
     Args:
         default_limit: Default number of search results.
-        default_threshold: Default similarity threshold for query/search.
+        default_threshold: Default similarity threshold for search.
         default_ask_threshold: Default similarity threshold for ask.
         default_context_size: Default context size for ask.
         default_preset: Default LLM preset for ask.
         default_format: Default output format ("text" or "json").
         default_snapshots: Default snapshots to search (comma-separated).
+        default_preview: Default preview characters (0 to disable).
         ignore_patterns: List of glob patterns to ignore during indexing.
     """
     cfg_default_limit = default_limit if default_limit != None else _DEFAULT_SEARCH_RESULTS
-    cfg_default_threshold = default_threshold if default_threshold != None else 0.0
+    cfg_default_threshold = default_threshold if default_threshold != None else _DEFAULT_SEARCH_THRESHOLD
     cfg_default_ask_threshold = default_ask_threshold if default_ask_threshold != None else _DEFAULT_SIMILARITY_THRESHOLD
     cfg_default_context_size = default_context_size if default_context_size != None else _DEFAULT_RAG_RESULTS
     cfg_default_preset = default_preset if default_preset != None else "smart"
     cfg_default_format = default_format if default_format != None else "text"
-    cfg_default_snapshots = default_snapshots if default_snapshots != None else "workdir,stage,HEAD"
+    cfg_default_snapshots = default_snapshots if default_snapshots != None else _DEFAULT_SNAPSHOTS
+    cfg_default_preview = default_preview if default_preview != None else _DEFAULT_PREVIEW_CHARS
     cfg_ignore_patterns = ignore_patterns if ignore_patterns != None else list(_DEFAULT_IGNORE_PATTERNS)
 
-    def semantic_search(ctx, query, snapshots="workdir,stage,HEAD", limit=_DEFAULT_SEARCH_RESULTS, threshold=0.0, format="text", full=False):
+    def _embed_query(ctx, query, preset="embeddings"):
+        """Embed a query string and return the embedding vector."""
+        embeddings = ctx.llm.embed(texts=[query], preset=preset)
+        return embeddings[0]
+
+    def semantic_search(ctx, query, snapshots=_DEFAULT_SNAPSHOTS, limit=_DEFAULT_SEARCH_RESULTS, threshold=_DEFAULT_SEARCH_THRESHOLD, format="text", full=False, preview=_DEFAULT_PREVIEW_CHARS):
         """Perform semantic code search."""
         if not query:
             turn = ctx.ui.assistant_turn()
@@ -292,8 +373,9 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
 
         snapshot_list = [s.strip() for s in snapshots.split(",")]
 
+        embedding = _embed_query(ctx, query)
         results = ctx.index.search(
-            query=query,
+            embedding=embedding,
             snapshots=snapshot_list,
             top_k=limit,
             min_score=threshold
@@ -301,7 +383,7 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
 
         if not results or len(results) == 0:
             search_step.fail("No results")
-            turn.warn("Try lowering threshold (current: {:.2f})".format(threshold))
+            turn.warn("Try lowering --threshold (current: {})".format(threshold))
             turn.done()
             return []
 
@@ -309,27 +391,39 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
 
         if format == "json":
             ctx.output.writeline(ctx.json.encode(results))
+        elif full:
+            ctx.output.writeline("")
+            ctx.output.writeline("Search results for '{}' ({} matches):".format(query, len(results)))
+            _print_separator(ctx)
+            for i, r in enumerate(results):
+                _print_result_full(ctx, r, i + 1)
+                if i < len(results) - 1:
+                    _print_separator(ctx, char="·")
+                    ctx.output.writeline("")
+            _print_separator(ctx)
         else:
+            # TUI table for interactive sessions
+            table_data = []
             for r in results:
-                ctx.output.writef("%s:%d-%d [%.2f]\n", r.file_path, r.start_line, r.end_line, r.score)
-                if full:
-                    ctx.output.writeline(r.content)
-                    ctx.output.writeline("-" * 40)
+                table_data.append({
+                    "File": r.file_path,
+                    "Lines": "{}-{}".format(r.start_line, r.end_line),
+                    "Score": _format_score(r.score),
+                })
+            ctx.ui.table(table_data, columns=["File", "Lines", "Score"], title="Results for '{}'".format(query))
 
-            if not full:
-                table_data = []
-                for r in results:
-                    table_data.append({
-                        "File": r.file_path,
-                        "Lines": "{}-{}".format(r.start_line, r.end_line),
-                        "Score": "{}%".format(int(r.score*100))
-                    })
-                ctx.ui.table(table_data, columns=["File", "Lines", "Score"], title="Results for '{}'".format(query))
+            # Persistent output with preview
+            ctx.output.writeline("")
+            ctx.output.writeline("Search results for '{}' ({} matches):".format(query, len(results)))
+            _print_separator(ctx)
+            for i, r in enumerate(results):
+                _print_result_text(ctx, r, i + 1, preview)
+            _print_separator(ctx)
 
         turn.done()
         return results
 
-    def ask_question(ctx, question, preset="smart", snapshots="workdir,stage,HEAD", context_size=_DEFAULT_RAG_RESULTS, threshold=_DEFAULT_SIMILARITY_THRESHOLD, show_context=False):
+    def ask_question(ctx, question, preset="smart", snapshots=_DEFAULT_SNAPSHOTS, context_size=_DEFAULT_RAG_RESULTS, threshold=_DEFAULT_SIMILARITY_THRESHOLD, show_context=False):
         """Ask questions about codebase using RAG."""
         if not question:
             turn = ctx.ui.assistant_turn()
@@ -341,8 +435,9 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         rag_step = turn.step("Retrieving Context")
         snapshot_list = [s.strip() for s in snapshots.split(",")]
 
+        embedding = _embed_query(ctx, question)
         results = ctx.index.search(
-            query=question,
+            embedding=embedding,
             snapshots=snapshot_list,
             top_k=context_size,
             min_score=threshold
@@ -350,11 +445,14 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
 
         if not results or len(results) == 0:
             rag_step.fail("No context found")
-            turn.warn("Try lowering threshold (current: {:.2f}) or indexing more code".format(threshold))
+            turn.warn("Try lowering --threshold (current: {}) or run 'meow index' first".format(threshold))
             turn.done()
             return None
 
-        rag_step.done("{} snippets".format(len(results)))
+        rag_step.done("{} snippets from {} file(s)".format(
+            len(results),
+            len({r.file_path: True for r in results})
+        ))
 
         context_parts = []
         seen_files = {}
@@ -376,6 +474,14 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
             ctx.ui.markdown("**Retrieved Context:**")
             file_list = list(seen_files.keys())
             _display_file_stats(ctx, file_list, title="Source Files")
+            # Also write context to persistent output
+            ctx.output.writeline("")
+            ctx.output.writeline("Retrieved context ({} snippets from {} file(s)):".format(len(results), len(seen_files)))
+            _print_separator(ctx)
+            for i, r in enumerate(results):
+                _print_result_full(ctx, r, i + 1)
+            _print_separator(ctx)
+            ctx.output.writeline("")
 
         prompt = """Question: {}
 
@@ -398,18 +504,32 @@ Please provide a comprehensive answer based on the code context above. Reference
             on_event=on_event,
         )
         ans_step.done()
-        ctx.output.writeline(answer)
 
+        # TUI: render references table
         source_rows = []
         for r in results:
             source_rows.append({
                 "File": r.file_path,
                 "Lines": "{}-{}".format(r.start_line, r.end_line),
-                "Relevance": "{}%".format(int(r.score*100))
+                "Relevance": _format_score(r.score),
             })
         ctx.ui.table(source_rows, columns=["File", "Lines", "Relevance"], title="References")
 
         turn.done()
+
+        # Persistent output: answer + references
+        ctx.output.writeline("")
+        ctx.output.writeline(answer)
+        ctx.output.writeline("")
+        _print_separator(ctx)
+        ctx.output.writeline("References ({} snippets):".format(len(results)))
+        for r in results:
+            ctx.output.writeline("  {} ({})".format(
+                _format_location(r.file_path, r.start_line, r.end_line),
+                _format_score(r.score),
+            ))
+        _print_separator(ctx)
+
         return {"answer": answer, "sources": results}
 
     def rebuild_index(ctx, custom_ignore_patterns=None, batch_size=None, chunking_strategy="lines"):
@@ -432,9 +552,17 @@ Please provide a comprehensive answer based on the code context above. Reference
         __link_snapshots(ctx, turn, dedup_result["snapshot_map"], dedup_result["existing_versions"])
         __build_vector_indices(ctx, turn)
 
+        # Summary
+        total_unique = len(dedup_result["existing_versions"])
+        new_count = len(dedup_result["new_files"])
+        cached_count = total_unique - new_count
+        turn.info("Done: {} files ({} new, {} cached)".format(total_unique, new_count, cached_count))
         turn.done()
 
-    def handle_query(ctx):
+        ctx.output.writeline("")
+        ctx.output.writeline("Index rebuilt: {} files ({} new, {} cached)".format(total_unique, new_count, cached_count))
+
+    def handle_search(ctx):
         return semantic_search(
             ctx,
             query=ctx.query,
@@ -442,7 +570,8 @@ Please provide a comprehensive answer based on the code context above. Reference
             limit=ctx.limit,
             threshold=ctx.threshold,
             format=ctx.format,
-            full=ctx.full
+            full=ctx.full,
+            preview=ctx.preview,
         )
 
     def handle_ask(ctx):
@@ -467,40 +596,25 @@ Please provide a comprehensive answer based on the code context above. Reference
         return build_choices_desc("Output format (one of):", formats, default_format)
 
     def build_snapshots_desc():
-        # Not using build_choices_desc since this is informational, not a strict enum
         lines = ["Snapshots to search (comma-separated):"]
-        lines.append("  workdir: Current working directory")
+        lines.append("  workdir: Current working directory (default)")
         lines.append("  stage: Staged changes")
         lines.append("  HEAD: Latest commit")
         return "\n".join(lines)
 
-    query_command = meow.tool(
-        name="query",
-        description="Semantic code search",
-        params={
-            "query": meow.param("string", required=True, from_stdin=True, min_len=3, desc="Search query."),
-            "limit": meow.param("int", default=cfg_default_limit, short="n", desc="Maximum results to return."),
-            "snapshots": meow.param("string", default=cfg_default_snapshots, short="s", desc=build_snapshots_desc()),
-            "threshold": meow.param("float", default=cfg_default_threshold, short="t", desc="Minimum similarity score (0.0-1.0)."),
-            "format": meow.param("string", default=cfg_default_format, choices=["text", "json"], short="f", desc=build_format_desc(cfg_default_format)),
-            "full": meow.param("bool", default=False, desc="Include full content in output.")
-        },
-        handler=handle_query
-    )
-    meow.command(query_command)
-
     search_command = meow.tool(
         name="search",
-        description="Semantic code search (alias for query)",
+        description="Semantic code search",
         params={
-            "query": meow.param("string", required=True, from_stdin=True, min_len=3, desc="Search query."),
+            "query": meow.param("string", required=True, from_stdin=True, min_len=3, short="q", desc="Search query."),
             "limit": meow.param("int", default=cfg_default_limit, short="n", desc="Maximum results to return."),
             "snapshots": meow.param("string", default=cfg_default_snapshots, short="s", desc=build_snapshots_desc()),
             "threshold": meow.param("float", default=cfg_default_threshold, short="t", desc="Minimum similarity score (0.0-1.0)."),
             "format": meow.param("string", default=cfg_default_format, choices=["text", "json"], short="f", desc=build_format_desc(cfg_default_format)),
-            "full": meow.param("bool", default=False, desc="Include full content in output.")
+            "full": meow.param("bool", default=False, desc="Include full content in output."),
+            "preview": meow.param("int", default=cfg_default_preview, desc="Characters of inline preview per result (0 to disable)."),
         },
-        handler=handle_query
+        handler=handle_search
     )
     meow.command(search_command)
 
@@ -508,12 +622,12 @@ Please provide a comprehensive answer based on the code context above. Reference
         name="ask",
         description="Ask questions about codebase using RAG",
         params={
-            "question": meow.param("string", required=True, from_stdin=True, min_len=3, desc="Question to ask about the codebase."),
+            "question": meow.param("string", required=True, from_stdin=True, min_len=3, short="q", desc="Question to ask about the codebase."),
             "preset": meow.param("string", default=cfg_default_preset, short="p", choices=meow.presets(), desc=build_preset_desc(cfg_default_preset)),
             "context_size": meow.param("int", default=cfg_default_context_size, short="n", desc="Number of code snippets to retrieve."),
             "threshold": meow.param("float", default=cfg_default_ask_threshold, short="t", desc="Minimum similarity score (0.0-1.0)."),
             "snapshots": meow.param("string", default=cfg_default_snapshots, short="s", desc=build_snapshots_desc()),
-            "show_context": meow.param("bool", default=False, short="v", desc="Display retrieved context before answer.")
+            "show_context": meow.param("bool", default=False, short="v", desc="Display retrieved context snippets in output.")
         },
         handler=handle_ask
     )
@@ -611,11 +725,11 @@ def __process_new_files(ctx, turn, new_files, existing_versions, batch_size, chu
     step.done()
 
     sub = turn.subturn("Computing embeddings")
-    __process_files_incrementally(ctx, sub, new_files, existing_versions, batch_size)
+    __process_files_incrementally(ctx, sub, new_files, existing_versions, batch_size, total_chunks)
     sub.done()
 
-def __process_files_incrementally(ctx, turn, new_files, existing_versions, batch_size):
-    """Process files incrementally with batched embeddings."""
+def __process_files_incrementally(ctx, turn, new_files, existing_versions, batch_size, total_chunks):
+    """Process files incrementally with batched embeddings and progress bar."""
     step = turn.step("Batch size: {}".format(batch_size))
 
     chunk_queue = []
@@ -623,20 +737,24 @@ def __process_files_incrementally(ctx, turn, new_files, existing_versions, batch
         for chunk in file_info["chunks"]:
             chunk_queue.append({"text": chunk["text"], "file": file_info, "chunk_data": chunk})
 
-    total_chunks = len(chunk_queue)
+    total = len(chunk_queue)
     processed = 0
     saved_files = 0
-    num_batches = (total_chunks + batch_size - 1) // batch_size
+    num_batches = (total + batch_size - 1) // batch_size
     batch_num = 0
 
-    for batch_start in range(0, total_chunks, batch_size):
+    # Progress bar for embedding batches
+    progress = ctx.ui.progress_bar(num_batches, message="Embedding batches")
+
+    for batch_start in range(0, total, batch_size):
         batch_num += 1
-        batch_end = min(batch_start + batch_size, total_chunks)
+        batch_end = min(batch_start + batch_size, total)
         batch_items = chunk_queue[batch_start:batch_end]
 
         batch_texts = [item["text"] for item in batch_items]
         embeddings = ctx.llm.embed(texts=batch_texts, preset="embeddings")
         step.update("Batch {}/{}".format(batch_num, num_batches))
+        progress.inc()
 
         for i, item in enumerate(batch_items):
             item["embedding"] = embeddings[i]
@@ -649,6 +767,7 @@ def __process_files_incrementally(ctx, turn, new_files, existing_versions, batch
                 __save_single_file(ctx, file_info, existing_versions)
                 saved_files += 1
 
+    progress.done("{} batches complete".format(num_batches))
     step.done("{}/{} files embedded".format(saved_files, len(new_files)))
 
 def __collect_completed_files(batch_items, all_processed):
@@ -709,4 +828,3 @@ def __build_vector_indices(ctx, turn):
     ctx.index.build_vector_index("stage")
     ctx.index.build_vector_index("workdir")
     step.done("Search index ready")
-
