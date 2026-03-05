@@ -22,11 +22,17 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 
 	for name, providerCfg := range r.providers {
 		domainProvider := &domainConfig.ProviderConfig{
-			Type:       providerCfg.Type,
-			BaseURL:    providerCfg.BaseURL,
-			APIKey:     providerCfg.APIKey,
-			Tokenizer:  providerCfg.Tokenizer,
-			RetryCount: providerCfg.RetryCount,
+			Type:                 providerCfg.Type,
+			BaseURL:              providerCfg.BaseURL,
+			APIKey:               providerCfg.APIKey,
+			Tokenizer:            providerCfg.Tokenizer,
+			RetryCount:           providerCfg.RetryCount,
+			AppID:                providerCfg.AppID,
+			EditorVersion:        providerCfg.EditorVersion,
+			EditorPluginVersion:  providerCfg.EditorPluginVersion,
+			UserAgent:            providerCfg.UserAgent,
+			CopilotIntegrationID: providerCfg.CopilotIntegrationID,
+			OpenAIOrganization:   providerCfg.OpenAIOrganization,
 		}
 
 		baseConfig.Providers[name] = domainProvider
@@ -98,6 +104,15 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 // HasConfiguration returns true if any Starlark configuration has been defined.
 func (r *Runtime) HasConfiguration() bool {
 	return len(r.providers) > 0 || len(r.models) > 0 || len(r.presets) > 0
+}
+
+// Providers returns a copy of the provider configurations registered via Starlark scripts.
+func (r *Runtime) Providers() map[string]ProviderConfig {
+	result := make(map[string]ProviderConfig, len(r.providers))
+	for k, v := range r.providers {
+		result[k] = v
+	}
+	return result
 }
 
 // Helper functions for pointer conversion

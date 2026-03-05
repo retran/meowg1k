@@ -7,6 +7,17 @@
 # PROVIDERS
 # ==============================================================================
 
+meow.provider("copilot",
+    type="github-copilot",
+    app_id="Iv1.b507a08c87ecfe98",
+    editor_version="Neovim/0.6.1",
+    editor_plugin_version="copilot.vim/1.16.0",
+    user_agent="GithubCopilot/1.155.0",
+    copilot_integration_id="vscode-chat",
+    openai_organization="github-copilot",
+    openai_intent="conversation-panel"
+)
+
 meow.provider("gemini",
     type="gemini",
     api_key=env.get("MEOW_GEMINI_API_KEY")
@@ -16,18 +27,18 @@ meow.provider("gemini",
 # MODELS
 # ==============================================================================
 
-meow.model("gemini-flash",
-    provider="gemini",
-    model="gemini-3-flash-preview",
-    max_input_tokens=1048576,
-    max_output_tokens=65536
+meow.model("copilot-sonnet",
+    provider="copilot",
+    model="claude-sonnet-4.6",
+    max_input_tokens=200000,
+    max_output_tokens=64000
 )
 
-meow.model("gemini-pro",
-    provider="gemini",
-    model="gemini-3-pro-preview",
-    max_input_tokens=1048576,
-    max_output_tokens=65536
+meow.model("copilot-haiku",
+    provider="copilot",
+    model="claude-haiku-4.5",
+    max_input_tokens=200000,
+    max_output_tokens=64000
 )
 
 meow.model("gemini-embeddings",
@@ -41,12 +52,12 @@ meow.model("gemini-embeddings",
 # ==============================================================================
 
 meow.preset("fast",
-    model="gemini-flash",
+    model="copilot-haiku",
     temperature=0.2
 )
 
 meow.preset("smart",
-    model="gemini-pro",
+    model="copilot-sonnet",
     temperature=0.2
 )
 

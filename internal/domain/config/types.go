@@ -30,13 +30,19 @@ type FilterConfig struct {
 
 // ProviderConfig defines shared provider settings used by models.
 type ProviderConfig struct {
-	Limits     *ModelLimits     `yaml:"limits" mapstructure:"limits"`
-	RateLimit  *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Type       string           `yaml:"type" mapstructure:"type"`
-	BaseURL    string           `yaml:"base_url" mapstructure:"base_url"`
-	APIKey     string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
-	Tokenizer  string           `yaml:"tokenizer" mapstructure:"tokenizer"`
-	RetryCount int              `yaml:"retry_count" mapstructure:"retry_count"`
+	Limits               *ModelLimits     `yaml:"limits" mapstructure:"limits"`
+	RateLimit            *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Type                 string           `yaml:"type" mapstructure:"type"`
+	BaseURL              string           `yaml:"base_url" mapstructure:"base_url"`
+	APIKey               string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
+	Tokenizer            string           `yaml:"tokenizer" mapstructure:"tokenizer"`
+	AppID                string           `yaml:"-" mapstructure:"-"` // Not serialized — passed at runtime
+	EditorVersion        string           `yaml:"-" mapstructure:"-"`
+	EditorPluginVersion  string           `yaml:"-" mapstructure:"-"`
+	UserAgent            string           `yaml:"-" mapstructure:"-"`
+	CopilotIntegrationID string           `yaml:"-" mapstructure:"-"`
+	OpenAIOrganization   string           `yaml:"-" mapstructure:"-"`
+	RetryCount           int              `yaml:"retry_count" mapstructure:"retry_count"`
 }
 
 // ModelConfig defines an LLM API instance with connection parameters.
