@@ -171,6 +171,8 @@ func (f *Factory) buildGenerationGateway(ctx context.Context, resolvedPreset *pr
 		return nil, fmt.Errorf("voyage provider only supports embeddings, not content generation")
 	case provider.OpenAICompatible:
 		return f.newOpenAICompatibleGenerationGateway(resolvedPreset)
+	case provider.GitHubCopilot:
+		return f.newCopilotGenerationGateway(ctx, resolvedPreset)
 	default:
 		return nil, fmt.Errorf("provider must be specified for model %q", resolvedPreset.Model)
 	}
@@ -192,6 +194,8 @@ func (f *Factory) buildEmbeddingsGateway(ctx context.Context, resolvedPreset *pr
 		return f.newOpenRouterEmbeddingsGateway(resolvedPreset)
 	case provider.Voyage:
 		return f.newVoyageEmbeddingsGateway(resolvedPreset)
+	case provider.GitHubCopilot:
+		return nil, fmt.Errorf("github-copilot provider does not support embeddings")
 	default:
 		return nil, fmt.Errorf("provider must be specified for embeddings model %q", resolvedPreset.Model)
 	}
@@ -331,6 +335,24 @@ func (f *Factory) newVoyageEmbeddingsGateway(resolvedPreset *preset.ResolvedPres
 	gateway, err := newVoyageGateway(resolvedPreset.APIKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
+	}
+	return gateway, nil
+}
+
+func (f *Factory) newCopilotGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
+	gateway, err := newCopilotGateway(ctx, copilotGatewayOptions{
+		BaseURL:             resolvedPreset.BaseURL,
+		AppID:               resolvedPreset.AppID,
+		EditorVersion:       resolvedPreset.EditorVersion,
+		EditorPluginVersion: resolvedPreset.EditorPluginVersion,
+		UserAgent:           resolvedPreset.UserAgent,
+		IntegrationID:       resolvedPreset.CopilotIntegrationID,
+		OpenAIOrganization:  resolvedPreset.OpenAIOrganization,
+		HTTPClient:          httpClient,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
 	return gateway, nil
 }

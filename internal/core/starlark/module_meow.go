@@ -54,6 +54,30 @@ func (r *Runtime) meowProvider(thread *starlark.Thread, b *starlark.Builtin, arg
 			if s, ok := kv[1].(starlark.String); ok {
 				config.APIKey = string(s)
 			}
+		case "app_id":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.AppID = string(s)
+			}
+		case "editor_version":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.EditorVersion = string(s)
+			}
+		case "editor_plugin_version":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.EditorPluginVersion = string(s)
+			}
+		case "user_agent":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.UserAgent = string(s)
+			}
+		case "copilot_integration_id":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.CopilotIntegrationID = string(s)
+			}
+		case "openai_organization":
+			if s, ok := kv[1].(starlark.String); ok {
+				config.OpenAIOrganization = string(s)
+			}
 		case "tokenizer":
 			if s, ok := kv[1].(starlark.String); ok {
 				config.Tokenizer = string(s)

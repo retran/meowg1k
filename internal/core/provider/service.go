@@ -98,6 +98,18 @@ func NewService() *Service {
 				MaxOutputTokens: 4096,
 				DefaultTimeout:  5 * time.Minute,
 			},
+			provider.GitHubCopilot: {
+				Type:            provider.GitHubCopilot,
+				Name:            "GitHub Copilot",
+				DefaultBaseURL:  "https://api.githubcopilot.com",
+				DefaultEnvVar:   "",
+				RequiresAPIKey:  false,
+				RequiresBaseURL: false,
+				MaxInputTokens:  200000,
+				MaxOutputTokens: 64000,
+				DefaultTimeout:  5 * time.Minute,
+				Tokenizer:       "cl100k_base",
+			},
 		},
 	}
 
