@@ -20,16 +20,22 @@ type RateLimitConfig struct {
 
 // ResolvedModel represents a model instance with all values resolved.
 type ResolvedModel struct {
-	ID              string
-	Provider        provider.Provider
-	Model           string
-	BaseURL         string
-	APIKey          string
-	APIKeyEnv       string
-	Tokenizer       Tokenizer
-	RateLimit       RateLimitConfig
-	MaxInputTokens  int
-	MaxOutputTokens int
+	ID                   string
+	Provider             provider.Provider
+	Model                string
+	BaseURL              string
+	APIKey               string
+	APIKeyEnv            string
+	AppID                string
+	EditorVersion        string
+	EditorPluginVersion  string
+	UserAgent            string
+	CopilotIntegrationID string
+	OpenAIOrganization   string
+	Tokenizer            Tokenizer
+	RateLimit            RateLimitConfig
+	MaxInputTokens       int
+	MaxOutputTokens      int
 }
 
 // Tokenizer represents different tokenizer implementations.

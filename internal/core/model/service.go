@@ -190,6 +190,24 @@ func (s *Service) mergeProviderConfig(resolved *model.ResolvedModel, providerCfg
 			RequestsPerDay:    providerCfg.RateLimit.RequestsPerDay,
 		}
 	}
+	if providerCfg.AppID != "" {
+		resolved.AppID = providerCfg.AppID
+	}
+	if providerCfg.EditorVersion != "" {
+		resolved.EditorVersion = providerCfg.EditorVersion
+	}
+	if providerCfg.EditorPluginVersion != "" {
+		resolved.EditorPluginVersion = providerCfg.EditorPluginVersion
+	}
+	if providerCfg.UserAgent != "" {
+		resolved.UserAgent = providerCfg.UserAgent
+	}
+	if providerCfg.CopilotIntegrationID != "" {
+		resolved.CopilotIntegrationID = providerCfg.CopilotIntegrationID
+	}
+	if providerCfg.OpenAIOrganization != "" {
+		resolved.OpenAIOrganization = providerCfg.OpenAIOrganization
+	}
 }
 
 func (s *Service) mergeModelConfig(resolved *model.ResolvedModel, modelDef *config.ModelConfig, providerDef *provider.Definition) {
