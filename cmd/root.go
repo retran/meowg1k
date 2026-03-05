@@ -65,7 +65,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command cannot be nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit || isAuthCommand(cmd) {
 			return nil
 		}
 
@@ -81,7 +81,7 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("command cannot be nil")
 		}
 
-		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit {
+		if cmd.Name() == "version" || cmd.Name() == "help" || cmd.Name() == commandMeow || cmd.Name() == "completion" || cmd.Name() == commandInit || isAuthCommand(cmd) {
 			return nil
 		}
 
@@ -104,6 +104,17 @@ const (
 	commandInit = "init"
 	commandMeow = "meow"
 )
+
+// isAuthCommand returns true if cmd or any of its ancestors is the "auth" command.
+// This handles subcommands like "auth copilot" where cmd.Name() == "copilot".
+func isAuthCommand(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Name() == commandAuth {
+			return true
+		}
+	}
+	return false
+}
 
 func init() {
 	rootCmd.PersistentFlags().String("workspace", "", "workspace root directory (overrides auto-detection)")

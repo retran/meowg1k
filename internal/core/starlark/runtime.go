@@ -40,12 +40,18 @@ type Runtime struct {
 
 // ProviderConfig stores provider configuration from Starlark
 type ProviderConfig struct {
-	Type       string
-	BaseURL    string
-	APIKey     string
-	Tokenizer  string
-	RetryCount int
-	ExtraOpts  map[string]interface{}
+	Type                 string
+	BaseURL              string
+	APIKey               string
+	Tokenizer            string
+	AppID                string
+	EditorVersion        string
+	EditorPluginVersion  string
+	UserAgent            string
+	CopilotIntegrationID string
+	OpenAIOrganization   string
+	RetryCount           int
+	ExtraOpts            map[string]interface{}
 }
 
 // ModelConfig stores model configuration from Starlark

@@ -26,6 +26,8 @@ const (
 	Anthropic Provider = "anthropic"
 	// Voyage identifies the Voyage AI provider (embeddings only).
 	Voyage Provider = "voyage"
+	// GitHubCopilot identifies the GitHub Copilot provider.
+	GitHubCopilot Provider = "github-copilot"
 )
 
 // Definition defines the characteristics of a provider.
