@@ -22,40 +22,21 @@ type Service struct {
 // The returned client is safe for shared use and should be shared across
 // all gateways that need HTTP connectivity.
 func New() (*Service, error) {
-	// Create HTTP client with configuration optimized for LLM API calls
 	client := &http.Client{
-		// Conservative timeout for long-running LLM API calls
-		// Individual gateways can override this via context deadline if needed
+		// Individual gateways can override this via context deadline if needed.
 		Timeout: 10 * time.Minute,
 
-		// Custom transport with connection pooling optimizations
 		Transport: &http.Transport{
-			// Maximum number of idle connections across all hosts
-			MaxIdleConns: 100,
-
-			// Maximum number of idle connections per host
-			// This prevents overwhelming any single API endpoint
+			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 10,
-
-			// How long to keep idle connections before closing
-			IdleConnTimeout: 90 * time.Second,
-
-			// Enable HTTP/2 by default (will fall back to HTTP/1.1 if not supported)
-			ForceAttemptHTTP2: true,
-
-			// Timeouts for connection establishment
+			IdleConnTimeout:     90 * time.Second,
+			ForceAttemptHTTP2:   true,
 			DialContext: (&net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}).DialContext,
-
-			// TLS handshake timeout
-			TLSHandshakeTimeout: 10 * time.Second,
-
-			// Response header timeout
+			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 30 * time.Second,
-
-			// Expect-Continue timeout
 			ExpectContinueTimeout: 1 * time.Second,
 		},
 	}
@@ -69,8 +50,6 @@ func New() (*Service, error) {
 // The returned client is safe for shared use.
 func (s *Service) Get() *http.Client {
 	if s == nil {
-		// Defensive programming: return a default client if service is nil
-		// This should never happen in production but prevents panics
 		return http.DefaultClient
 	}
 	return s.client
@@ -90,7 +69,6 @@ func (s *Service) GetWithTimeout(timeout time.Duration) *http.Client {
 		return s.client
 	}
 
-	// Clone the transport with adjusted timeouts
 	transport := &http.Transport{
 		MaxIdleConns:          baseTransport.MaxIdleConns,
 		MaxIdleConnsPerHost:   baseTransport.MaxIdleConnsPerHost,
@@ -98,13 +76,9 @@ func (s *Service) GetWithTimeout(timeout time.Duration) *http.Client {
 		ForceAttemptHTTP2:     baseTransport.ForceAttemptHTTP2,
 		TLSHandshakeTimeout:   baseTransport.TLSHandshakeTimeout,
 		ExpectContinueTimeout: baseTransport.ExpectContinueTimeout,
-
-		// Use longer response header timeout to match the overall timeout
-		// This is critical for batch operations that may take a long time
+		// ResponseHeaderTimeout matches the overall timeout for batch operations.
 		ResponseHeaderTimeout: timeout,
-
-		// Reuse the same dialer
-		DialContext: baseTransport.DialContext,
+		DialContext:           baseTransport.DialContext,
 	}
 
 	return &http.Client{
@@ -120,7 +94,6 @@ func (s *Service) Close() error {
 		return nil
 	}
 
-	// Close idle connections
 	if transport, ok := s.client.Transport.(*http.Transport); ok {
 		transport.CloseIdleConnections()
 	}

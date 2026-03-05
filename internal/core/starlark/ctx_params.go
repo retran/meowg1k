@@ -25,12 +25,10 @@ func (c *ContextWithParams) Hash() (uint32, error) { return 0, fmt.Errorf("unhas
 
 // Attr implements starlark.HasAttrs - provides dynamic attribute access
 func (c *ContextWithParams) Attr(name string) (starlark.Value, error) {
-	// First check if it's an injected parameter
 	if val, ok := c.params[name]; ok {
 		return val, nil
 	}
 
-	// Then delegate to base context
 	if hasAttrs, ok := c.baseCtx.(starlark.HasAttrs); ok {
 		return hasAttrs.Attr(name)
 	}
@@ -42,12 +40,10 @@ func (c *ContextWithParams) Attr(name string) (starlark.Value, error) {
 func (c *ContextWithParams) AttrNames() []string {
 	names := make([]string, 0)
 
-	// Add parameter names
 	for name := range c.params {
 		names = append(names, name)
 	}
 
-	// Add base context names
 	if hasAttrs, ok := c.baseCtx.(starlark.HasAttrs); ok {
 		names = append(names, hasAttrs.AttrNames()...)
 	}

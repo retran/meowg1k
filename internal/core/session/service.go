@@ -42,7 +42,6 @@ func (s *Service) CreateSession(ctx context.Context, parentID *string, toolName 
 		return nil, fmt.Errorf("tool name cannot be empty")
 	}
 
-	// Validate parent exists if specified
 	if parentID != nil && *parentID != "" {
 		_, err := s.repository.GetSession(ctx, *parentID)
 		if err != nil {

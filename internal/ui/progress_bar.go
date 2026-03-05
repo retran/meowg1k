@@ -45,7 +45,6 @@ func NewProgressBar(total int, message string, theme Theme, opts RenderOptions, 
 		startTime: time.Now(),
 	}
 
-	// Initial render
 	pb.render()
 
 	return pb
@@ -64,13 +63,11 @@ func (pb *ProgressBar) render() {
 		percentage = (pb.current * 100) / pb.total
 	}
 
-	// Plain/CI mode: milestone output (no bar)
 	if pb.opts.Plain || !pb.opts.Terminal {
 		fmt.Fprintf(pb.writer, "> %s (%d/%d)\n", pb.message, pb.current, pb.total)
 		return
 	}
 
-	// Terminal mode: visual progress bar
 	// Fixed 20-column width (never exceed 30, scale down for small terminals)
 	width := 20
 	if fd := os.Stderr.Fd(); term.IsTerminal(fd) {
@@ -91,7 +88,6 @@ func (pb *ProgressBar) render() {
 		filled = (pb.current * width) / pb.total
 	}
 
-	// Build bar with blocks
 	filledChar := "█"
 	emptyChar := "░"
 
@@ -108,11 +104,10 @@ func (pb *ProgressBar) render() {
 		emptyPart.WriteString(emptyChar)
 	}
 
-	// Style the parts
 	prefixStyle := lipgloss.NewStyle().Foreground(pb.theme.Action)
-	filledStyle := lipgloss.NewStyle().Foreground(pb.theme.Spinner) // Teal
+	filledStyle := lipgloss.NewStyle().Foreground(pb.theme.Spinner)
 	emptyStyle := lipgloss.NewStyle().Foreground(pb.theme.Surface1)
-	percentStyle := lipgloss.NewStyle().Foreground(pb.theme.Thought) // Subtext0
+	percentStyle := lipgloss.NewStyle().Foreground(pb.theme.Thought)
 
 	// Format: › Message [████░░░░░░░░░░░░░░░░] 30%
 	fmt.Fprintf(pb.writer, "\r%s %s [%s%s] %s",
@@ -160,7 +155,6 @@ func (pb *ProgressBar) Done(message string) {
 	pb.current = pb.total
 	duration := time.Since(pb.startTime)
 
-	// Final render - collapse bar into status line
 	if pb.opts.Plain || !pb.opts.Terminal {
 		fmt.Fprintf(pb.writer, "+ %s · %d/%d · %s\n", message, pb.total, pb.total, duration.Round(time.Millisecond))
 	} else {
@@ -182,7 +176,6 @@ func (pb *ProgressBar) Fail(message string) {
 	pb.done = true
 	duration := time.Since(pb.startTime)
 
-	// Final render - collapse bar into error status
 	if pb.opts.Plain || !pb.opts.Terminal {
 		fmt.Fprintf(pb.writer, "- %s at %d/%d · %s\n", message, pb.current, pb.total, duration.Round(time.Millisecond))
 	} else {

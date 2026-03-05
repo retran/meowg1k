@@ -15,16 +15,14 @@ func RenderPanel(content, title, style string, theme Theme, opts RenderOptions) 
 	if theme.Text == "" {
 		theme = DefaultTheme()
 	}
-	
-	// Plain mode: no borders, just title and content
+
 	if opts.Plain || !opts.Terminal || opts.NoBorders {
 		if title != "" {
 			return title + "\n" + content
 		}
 		return content
 	}
-	
-	// Terminal mode: render with borders
+
 	panelStyle := theme.PanelStyle.Copy()
 	color := resolvePanelColor(style, theme)
 	if color != "" && !opts.NoColor {

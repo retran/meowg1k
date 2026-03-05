@@ -224,19 +224,16 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	ctx := m.runtime.ctx
 
-	// Resolve preset
 	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve preset %s: %w", presetName, err)
 	}
 
-	// Create gateway
 	llmGateway, err := m.runtime.llmServices.GatewayFactory.NewGenerationGateway(ctx, presetObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM gateway for preset '%s': %w", presetName, err)
 	}
 
-	// Build conversation history if use_session=True
 	var history []gateway.Message
 	if useSession {
 		history, err = m.loadSessionHistory(ctx)
@@ -245,7 +242,6 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 		}
 	}
 
-	// Build request
 	request := gateway.NewGenerateContentRequest(
 		presetObj.Model,
 		system,
@@ -253,12 +249,10 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 		presetObj.MaxOutputTokens,
 	)
 
-	// Attach history (minus the current user prompt, which is in request already)
 	if len(history) > 0 {
 		request.WithMessages(history)
 	}
 
-	// Apply response format/schema
 	if responseFormat != "" {
 		request.WithResponseFormat(&responseFormat)
 	}
@@ -273,7 +267,6 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	applyPresetParameters(request, presetObj)
 
-	// Execute: streaming or non-streaming
 	var responseText string
 	var usage *gateway.UsageMetadata
 
@@ -311,7 +304,6 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	duration := time.Since(startTime)
 
-	// Persist user message and assistant response in session (only after successful response)
 	if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
 		if err := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); err != nil {
 			log.Printf("session: failed to write user message: %v", err)
@@ -393,7 +385,6 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 
 	ctx := m.runtime.ctx
 
-	// Build tool definitions
 	toolDefinitions := make([]gateway.ToolDefinition, 0, toolsList.Len())
 	toolsByName := make(map[string]*Tool)
 	for i := 0; i < toolsList.Len(); i++ {
@@ -411,19 +402,16 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		})
 	}
 
-	// Resolve preset
 	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve preset %s: %w", presetName, err)
 	}
 
-	// Create gateway
 	llmGateway, err := m.runtime.llmServices.GatewayFactory.NewGenerationGateway(ctx, presetObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM gateway for preset '%s': %w", presetName, err)
 	}
 
-	// Load session history if use_session=True
 	var history []gateway.Message
 	if useSession {
 		history, err = m.loadSessionHistory(ctx)
@@ -432,7 +420,6 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		}
 	}
 
-	// Build the working messages slice: history + current user prompt
 	messages := make([]gateway.Message, 0, len(history)+1)
 	messages = append(messages, history...)
 	messages = append(messages, gateway.Message{
@@ -440,7 +427,6 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		Content: prompt,
 	})
 
-	// makeCallback builds a StreamCallback that forwards events to on_event if provided.
 	makeCallback := func() gateway.StreamCallback {
 		if !stream || onEventFn == nil {
 			return func(_ gateway.StreamEvent) error { return nil }
@@ -452,11 +438,9 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		}
 	}
 
-	// Agentic loop
 	var finalResponse string
 	userMessageWritten := false
 	for iteration := 0; iteration < maxIterations; iteration++ {
-		// Build request
 		request := gateway.NewGenerateContentRequest(
 			presetObj.Model,
 			system,
@@ -478,7 +462,6 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		}
 		applyPresetParameters(request, presetObj)
 
-		// Call LLM
 		startTime := time.Now()
 		var resp *gateway.GenerateContentResponse
 		var callErr error
@@ -500,7 +483,6 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		toolCalls := resp.ToolCalls()
 		responseText := resp.Text()
 
-		// Persist messages in session (user message written once, after first successful LLM call)
 		if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
 			if !userMessageWritten {
 				if wErr := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); wErr != nil {
@@ -540,20 +522,17 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 			}
 		}
 
-		// No tool calls means we're done
 		if len(toolCalls) == 0 {
 			finalResponse = responseText
 			break
 		}
 
-		// Add assistant turn with tool calls to working messages
 		messages = append(messages, gateway.Message{
 			Role:      gateway.MessageRoleAssistant,
 			Content:   responseText,
 			ToolCalls: toolCalls,
 		})
 
-		// Execute each tool call
 		for _, toolCall := range toolCalls {
 			tool, exists := toolsByName[toolCall.Name]
 			if !exists {
@@ -626,20 +605,17 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 		return nil, fmt.Errorf("llm services not configured")
 	}
 
-	// Resolve preset
 	presetObj, err := m.runtime.llmServices.PresetService.Get(domainpreset.Preset(presetName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get preset %s: %w", presetName, err)
 	}
 
-	// Create embeddings gateway
 	ctx := m.runtime.ctx
 	embGateway, err := m.runtime.llmServices.EmbeddingsFactory.NewEmbeddingsGateway(ctx, presetObj)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings gateway: %w", err)
 	}
 
-	// Convert texts to string slice
 	textSlice := make([]string, 0, texts.Len())
 	for i := 0; i < texts.Len(); i++ {
 		if str, ok := texts.Index(i).(starlark.String); ok {
@@ -647,7 +623,6 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 		}
 	}
 
-	// Compute embeddings
 	request := gateway.NewComputeEmbeddingsRequest(
 		presetObj.Model,
 		textSlice,
@@ -668,7 +643,6 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 		return nil, fmt.Errorf("failed to compute embeddings for %d texts with preset '%s': %w", texts.Len(), presetName, err)
 	}
 
-	// Convert embeddings to Starlark list of lists
 	result := make([]starlark.Value, len(embeddings))
 	for i, emb := range embeddings {
 		embList := make([]starlark.Value, len(emb))
@@ -767,13 +741,11 @@ func applyPresetParameters(request *gateway.GenerateContentRequest, preset *doma
 
 // executeToolForAgentic executes a tool with given parameters in the agentic loop context.
 func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, params map[string]any) (starlark.Value, error) {
-	// Convert params map to Starlark values
 	paramsMembers := make(map[string]starlark.Value)
 	for key, value := range params {
 		paramsMembers[key] = convertGoValueToStarlark(value)
 	}
 
-	// Fill in defaults for missing params
 	for paramName, param := range tool.Params {
 		if _, exists := paramsMembers[paramName]; !exists {
 			if param.Default != nil {
@@ -794,12 +766,10 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 		}
 	}
 
-	// Validate parameters
 	if err := ValidateToolParams(m.runtime, m.runtime.registry, tool, paramsMembers); err != nil {
 		return nil, fmt.Errorf("parameter validation failed: %w", err)
 	}
 
-	// Create context for tool execution
 	flagsMembers := make(starlark.StringDict)
 	for k, v := range paramsMembers {
 		flagsMembers[k] = v
@@ -836,7 +806,6 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 	childCtxStruct := starlarkstruct.FromStringDict(starlarkstruct.Default, childCtxMembers)
 	childCtx := CreateContextWithParams(childCtxStruct, paramsMembers)
 
-	// Call the tool handler
 	result, err := starlark.Call(thread, tool.Handler, starlark.Tuple{childCtx}, nil)
 	if err != nil {
 		return nil, err
@@ -860,10 +829,8 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 		return nil, fmt.Errorf("single text exceeds rate limit capacity - text is too large to embed")
 	}
 
-	// Split in half
 	mid := len(texts) / 2
 
-	// Process first half
 	firstReq := gateway.NewComputeEmbeddingsRequest(model, texts[:mid], gateway.RetrievalDocument)
 	firstEmbs, err := embGateway.ComputeEmbeddings(ctx, firstReq)
 	if err != nil {
@@ -873,7 +840,6 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 		return nil, fmt.Errorf("failed to compute embeddings (first half): %w", err)
 	}
 
-	// Process second half
 	secondReq := gateway.NewComputeEmbeddingsRequest(model, texts[mid:], gateway.RetrievalDocument)
 	secondEmbs, err := embGateway.ComputeEmbeddings(ctx, secondReq)
 	if err != nil {
@@ -883,10 +849,8 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 		return nil, fmt.Errorf("failed to compute embeddings (second half): %w", err)
 	}
 
-	// Combine results
 	allEmbeddings := append(firstEmbs, secondEmbs...)
 
-	// Convert to Starlark list of lists
 	result := make([]starlark.Value, len(allEmbeddings))
 	for i, emb := range allEmbeddings {
 		embList := make([]starlark.Value, len(emb))

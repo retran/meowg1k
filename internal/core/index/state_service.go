@@ -32,7 +32,6 @@ func NewStateService(gitService ports.GitService, workspaceService ports.Workspa
 
 // GetHeadState returns the state of files in HEAD.
 func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex.FileState, error) {
-	// Get list of files in HEAD
 	files, err := s.gitService.ListFiles("HEAD")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list files in HEAD: %w", err)
@@ -41,21 +40,17 @@ func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex
 	state := make(map[string]domainindex.FileState, len(files))
 
 	for _, filePath := range files {
-		// Check context cancellation
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("context cancelled while processing HEAD state: %w", err)
 		}
 
-		// Read file content from HEAD
 		content, err := s.gitService.ReadFileAtCommit("HEAD", filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file %s from HEAD: %w", filePath, err)
 		}
 
-		// Convert string to []byte for hash computation
 		contentBytes := []byte(content)
 
-		// Compute content hash
 		hash := computeContentHash(contentBytes)
 
 		state[filePath] = domainindex.FileState{
@@ -69,7 +64,6 @@ func (s *StateService) GetHeadState(ctx context.Context) (map[string]domainindex
 
 // GetStagingState returns the state of files in staging area.
 func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainindex.FileState, error) {
-	// Get list of staged files
 	files, err := s.gitService.ReadStagedFiles()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list staged files: %w", err)
@@ -78,21 +72,17 @@ func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainin
 	state := make(map[string]domainindex.FileState, len(files))
 
 	for _, filePath := range files {
-		// Check context cancellation
 		if err := ctx.Err(); err != nil {
 			return nil, fmt.Errorf("context cancelled while processing staging state: %w", err)
 		}
 
-		// Read file content from staging
 		content, err := s.gitService.ReadStagedFileContent(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read staged file %s: %w", filePath, err)
 		}
 
-		// Convert string to []byte for hash computation
 		contentBytes := []byte(content)
 
-		// Compute content hash
 		hash := computeContentHash(contentBytes)
 
 		state[filePath] = domainindex.FileState{
@@ -108,7 +98,6 @@ func (s *StateService) GetStagingState(ctx context.Context) (map[string]domainin
 func (s *StateService) GetWorkdirState(ctx context.Context) (map[string]domainindex.FileState, error) {
 	state := make(map[string]domainindex.FileState)
 
-	// Get workspace root
 	workspaceRoot, err := s.workspaceService.Get()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workspace root: %w", err)

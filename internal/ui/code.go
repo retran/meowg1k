@@ -21,14 +21,12 @@ func RenderCode(content, language, title string, theme Theme, opts RenderOptions
 // block and passing it through glamour (which uses chroma internally).
 // In plain/CI mode a simple text fence is returned instead.
 func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme Theme, opts RenderOptions) string {
-	// Truncate if requested
 	var wasTruncated bool
 	if maxLines > 0 {
 		content, wasTruncated = TruncateContent(content, maxLines, opts)
 	}
 
 	if opts.Plain || !opts.Terminal {
-		// Plain mode: simple code fence
 		truncateNote := ""
 		if wasTruncated {
 			truncateNote = " (truncated)"
@@ -39,8 +37,8 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 		return fmt.Sprintf("```\n%s\n```", content)
 	}
 
-	// Terminal mode: render via glamour using a fenced markdown block so that
-	// glamour's built-in chroma integration handles syntax highlighting.
+	// Render via glamour using a fenced markdown block so that glamour's
+	// built-in chroma integration handles syntax highlighting.
 	lang := language
 	if lang == "" || lang == "text" {
 		lang = ""
@@ -87,7 +85,6 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 
 	var result strings.Builder
 
-	// Top border with optional title
 	if title != "" {
 		titleStr := fmt.Sprintf(" %s ", title)
 		totalInnerWidth := maxWidth + 2

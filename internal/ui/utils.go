@@ -29,20 +29,16 @@ func IsTerminal(fd uintptr) bool {
 // SupportsUnicode checks if the terminal supports Unicode characters.
 // Checks LANG, LC_ALL, LC_CTYPE environment variables for UTF-8 encoding.
 func SupportsUnicode() bool {
-	// Check common environment variables
 	for _, env := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
 		val := os.Getenv(env)
 		if val != "" {
 			val = strings.ToUpper(val)
-			// Check for UTF-8 encoding
 			if strings.Contains(val, "UTF-8") || strings.Contains(val, "UTF8") {
 				return true
 			}
-			// If explicitly set to C/POSIX, no Unicode support
 			if val == "C" || val == "POSIX" {
 				return false
 			}
-			// If explicitly set to something else without UTF, probably no Unicode
 			if strings.Contains(val, "ASCII") || strings.Contains(val, "ANSI") {
 				return false
 			}
@@ -53,7 +49,6 @@ func SupportsUnicode() bool {
 	term := os.Getenv("TERM")
 	if term != "" {
 		term = strings.ToLower(term)
-		// Modern terminal emulators typically support Unicode
 		if strings.Contains(term, "xterm") ||
 			strings.Contains(term, "screen") ||
 			strings.Contains(term, "tmux") ||
@@ -65,8 +60,7 @@ func SupportsUnicode() bool {
 		}
 	}
 
-	// Default to true for modern systems
-	// Most terminals support UTF-8 nowadays
+	// Default to true: most modern terminals support UTF-8.
 	return true
 }
 

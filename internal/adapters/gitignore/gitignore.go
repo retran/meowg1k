@@ -39,7 +39,6 @@ func NewMatcher(lines []string) *Matcher {
 
 // parsePattern converts a single rule string into a compiled pattern struct.
 func parsePattern(line string) *pattern {
-	// Return nil for empty patterns
 	if line == "" {
 		return nil
 	}

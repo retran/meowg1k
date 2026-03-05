@@ -587,7 +587,6 @@ func uiPrompt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		// Show prompt
 		if defaultValue != "" {
 			fmt.Printf("%s [%s]: ", message, defaultValue)
 		} else {
@@ -597,9 +596,7 @@ func uiPrompt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 		var input string
 		var err error
 
-		// Read input (with or without masking)
 		if isSensitive {
-			// Use huh for masked/password input
 			var inputVal string
 			field := huh.NewInput().
 				Title(message).
@@ -613,7 +610,6 @@ func uiPrompt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 			}
 			input = inputVal
 		} else {
-			// Regular input
 			input, err = reader.ReadString('\n')
 			if err != nil {
 				return nil, err
@@ -622,19 +618,16 @@ func uiPrompt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 
 		input = strings.TrimSpace(input)
 
-		// Use default if empty
 		if input == "" && defaultValue != "" {
 			input = defaultValue
 		}
 
-		// Validate if validator provided
 		if validateFunc != nil {
 			result, err := starlark.Call(thread, validateFunc, starlark.Tuple{starlark.String(input)}, nil)
 			if err != nil {
 				return nil, fmt.Errorf("validation function error: %w", err)
 			}
 
-			// If validator returns non-None, it's an error message
 			if result != starlark.None {
 				errorMsg, ok := starlark.AsString(result)
 				if !ok {
@@ -645,7 +638,6 @@ func uiPrompt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 			}
 		}
 
-		// Valid input
 		return starlark.String(input), nil
 	}
 }
@@ -1095,7 +1087,6 @@ func makeTreeFunc(indent string, writer interface{ Write([]byte) (int, error) })
 			return nil, err
 		}
 
-		// Convert Starlark value to Go interface{}
 		data := starlarkToGo(dataVal)
 
 		rendered := ui.RenderTree(data, title, defaultTheme, defaultRenderOptions)

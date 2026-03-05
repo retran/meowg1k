@@ -122,7 +122,6 @@ func (r *Repository) Purge(ctx context.Context, ttl time.Duration) error {
 	}
 
 	if rowsAffected > 0 {
-		// Could add logging here if needed
 		_ = rowsAffected
 	}
 

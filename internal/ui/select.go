@@ -45,7 +45,6 @@ func RunSelect(opts SelectOptions) (SelectResult, error) {
 		return SelectResult{Canceled: true}, nil
 	}
 
-	// Build huh options from SelectItems.
 	huhOpts := make([]huh.Option[string], len(opts.Items))
 	for i, item := range opts.Items {
 		label := item.Label
@@ -59,7 +58,8 @@ func RunSelect(opts SelectOptions) (SelectResult, error) {
 		huhOpts[i] = huh.NewOption(label, val)
 	}
 
-	// Build a lookup: value → SelectItem (for result mapping).
+	// byValue maps each option's effective value back to its SelectItem for
+	// result construction after the form completes.
 	byValue := make(map[string]SelectItem, len(opts.Items))
 	for _, item := range opts.Items {
 		v := item.Value

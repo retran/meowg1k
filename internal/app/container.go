@@ -143,8 +143,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 	workspaceService := workspace.NewService(commandService)
 
-	// ConfigService now only holds configuration from Starlark scripts
-	// It will be populated by BuildStarlarkCommands during CLI initialization
 	configService, err := adapterConfig.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config service: %w", err)
@@ -170,7 +168,6 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, fmt.Errorf("failed to create db path service: %w", err)
 	}
 
-	// Initialize HTTP client service
 	httpClientService, err := httpclient.New()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP client service: %w", err)
@@ -212,22 +209,20 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", err
 	}
 
-	// Create a minimal workspace service without command service
-	// This resolves workspace root by looking for .meowg1k markers or .git
+	// Create a minimal workspace service without command service;
+	// resolves workspace root by looking for .meowg1k markers or .git.
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get working directory: %w", err)
 	}
 	workspaceService := workspace.NewServiceWithPath(cwd)
 
-	// Get actual workspace root (may differ from cwd)
 	workspaceRoot, err := workspaceService.Get()
 	if err != nil {
-		// If we can't determine workspace, fall back to cwd
 		workspaceRoot = cwd
 	}
 
-	// ConfigService starts empty, will be populated by Starlark scripts
+	// ConfigService starts empty; will be populated by Starlark scripts.
 	configService, err := adapterConfig.NewService()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create config service: %w", err)
@@ -248,7 +243,6 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", fmt.Errorf("failed to create db path service: %w", err)
 	}
 
-	// Initialize HTTP client service
 	httpClientService, err := httpclient.New()
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create HTTP client service: %w", err)
@@ -394,7 +388,6 @@ func (c *Container) purgeCacheOnStartup(cacheRepo ports.CacheRepository) {
 
 // GetCacheRepo returns the cache repository, initializing the database if needed.
 func (c *Container) GetCacheRepo() ports.CacheRepository {
-	// If already set (e.g., in tests), return it directly
 	if c.cacheRepo != nil {
 		return c.cacheRepo
 	}
@@ -470,12 +463,10 @@ func (c *Container) CreateLLMServices() (*starlarkpkg.LLMServices, error) {
 		return nil, fmt.Errorf("failed to create model service: %w", err)
 	}
 
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create gateway factory
 	gatewayFactory, err := adaptergw.NewFactory(
 		c.GetCacheRepo(),
 		c.CommandService,
@@ -497,16 +488,13 @@ func (c *Container) CreateLLMServices() (*starlarkpkg.LLMServices, error) {
 
 // CreateIndexServicesForStarlark creates Index services for Starlark runtime.
 func (c *Container) CreateIndexServicesForStarlark() (*starlarkpkg.IndexServices, error) {
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create repositories
 	indexRepoImpl := indexRepo.NewRepository(c.dbHost)
 	metaRepo := meta.NewRepository(c.dbHost)
 
-	// Create vector index service
 	vectorIndexSvc := vector.NewService(indexRepoImpl, indexRepoImpl, metaRepo)
 
 	return &starlarkpkg.IndexServices{
@@ -518,15 +506,12 @@ func (c *Container) CreateIndexServicesForStarlark() (*starlarkpkg.IndexServices
 
 // CreateSessionService creates the session service for managing tool execution sessions.
 func (c *Container) CreateSessionService() (ports.SessionService, error) {
-	// Initialize database
 	if err := c.InitDB(); err != nil {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// Create session repository
 	sessionRepo := sessionRepo.NewRepository(c.dbHost)
 
-	// Create session service
 	sessionService, err := sessionService.NewService(sessionRepo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session service: %w", err)
@@ -537,7 +522,7 @@ func (c *Container) CreateSessionService() (ports.SessionService, error) {
 
 // getLogDir returns the appropriate log directory for the current OS.
 func getLogDir() (string, error) {
-	// TODO review if this is the best location for logs
+	// TODO: review if this is the best location for logs
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)

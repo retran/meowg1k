@@ -44,7 +44,8 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 	if renderer == nil {
 		var err error
 
-		// Determine base style based on environment to ensure colors/syntax highlighting are preserved
+		// Select the base style based on terminal color capabilities so that
+		// syntax highlighting and colors are preserved in the rendered output.
 		var styleConfig ansi.StyleConfig
 		if noColor {
 			styleConfig = styles.NoTTYStyleConfig
@@ -54,7 +55,8 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 			styleConfig = styles.LightStyleConfig
 		}
 
-		// Apply zero margins for clean output (copy-paste friendly), but keep default indents
+		// Zero out all margins for clean, copy-paste-friendly output while
+		// keeping the default indentation intact.
 		zero := uint(0)
 		styleConfig.Document.Margin = &zero
 		// styleConfig.Document.Indent = &zero // Keep default indent

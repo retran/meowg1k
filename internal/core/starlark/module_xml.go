@@ -29,13 +29,12 @@ func xmlParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 		return nil, err
 	}
 
-	// Parse XML to map using mxj (attributes will have - prefix by default)
+	// Parse XML to map using mxj (attributes will have - prefix by default).
 	m, err := mxj.NewMapXml([]byte(data))
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert map[string]interface{} to Starlark
 	return goToStarlark(map[string]interface{}(m)), nil
 }
 
@@ -50,15 +49,12 @@ func xmlStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		return nil, err
 	}
 
-	// Convert Starlark to Go map
 	goValue := starlarkToGo(value)
 
-	// Wrap in root element if specified
 	var m mxj.Map
 	if root != "" {
 		m = mxj.Map{root: goValue}
 	} else {
-		// Value should be a map with a single key as root
 		if mapVal, ok := goValue.(map[string]interface{}); ok {
 			m = mxj.Map(mapVal)
 		} else {
@@ -66,7 +62,6 @@ func xmlStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 		}
 	}
 
-	// Convert to XML
 	var xmlBytes []byte
 	var err error
 

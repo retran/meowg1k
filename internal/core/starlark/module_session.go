@@ -148,7 +148,6 @@ func (m *SessionModule) getAllMetadataMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get metadata: %w", err)
 		}
 
-		// Convert to Starlark dict
 		dict := starlark.NewDict(len(metadata))
 		for k, v := range metadata {
 			if err := dict.SetKey(starlark.String(k), starlark.String(v)); err != nil {
@@ -173,7 +172,6 @@ func (m *SessionModule) getChildrenMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get child sessions: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(children))
 		for i, child := range children {
 			childDict := starlark.NewDict(4)
@@ -231,7 +229,6 @@ func (m *SessionModule) getEventsMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to get events: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(events))
 		for i, event := range events {
 			eventDict := starlark.NewDict(5)
@@ -260,7 +257,6 @@ func (m *SessionModule) markObsoleteMethod() *starlark.Builtin {
 			return nil, err
 		}
 
-		// Convert Starlark list to Go slice
 		eventIDs := make([]string, eventIDsList.Len())
 		iter := eventIDsList.Iterate()
 		defer iter.Done()
@@ -338,7 +334,6 @@ func (m *SessionModule) listAllMethod() *starlark.Builtin {
 			return nil, fmt.Errorf("failed to list sessions: %w", err)
 		}
 
-		// Convert to Starlark list of dicts
 		result := make([]starlark.Value, len(sessions))
 		for i, sess := range sessions {
 			sessDict := starlark.NewDict(5)
@@ -411,7 +406,6 @@ func (m *SessionModule) getByIDMethod() *starlark.Builtin {
 			return starlark.None, nil // Return None if not found
 		}
 
-		// Convert to Starlark dict
 		sessDict := starlark.NewDict(5)
 		sessDict.SetKey(starlark.String("id"), starlark.String(sess.ID))
 		sessDict.SetKey(starlark.String("tool_name"), starlark.String(sess.ToolName))

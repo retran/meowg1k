@@ -74,7 +74,6 @@ func (m pagerModel) View() string {
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n")
 
-	// Footer: scroll percentage
 	percent := int(m.viewport.ScrollPercent() * 100)
 	footerStyle := lipgloss.NewStyle().Faint(true)
 	b.WriteString(footerStyle.Render(fmt.Sprintf("  %d%%  ↑/↓ scroll  q quit", percent)))
@@ -100,7 +99,6 @@ func (m pagerModel) buildContent() string {
 func RenderWithPager(content, title string, lineNumbers bool, opts RenderOptions) error {
 	lines := strings.Split(content, "\n")
 
-	// In plain mode or short content, just print directly.
 	if opts.Plain || !opts.Terminal || len(lines) <= 30 {
 		if title != "" {
 			fmt.Fprintf(os.Stderr, "=== %s ===\n", title)
@@ -138,7 +136,6 @@ func TruncateContent(content string, maxLines int, opts RenderOptions) (string, 
 		return content, false
 	}
 
-	// Truncate and add indicator
 	truncated := strings.Join(lines[:maxLines], "\n")
 
 	var indicator string

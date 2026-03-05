@@ -66,13 +66,11 @@ func (g *cachingGenerationGateway) GenerateContent(
 	encoded, err := json.Marshal(result)
 	if err == nil {
 		if err := g.cache.Set(ctx, cacheKey, string(encoded)); err != nil {
-			// Log error but don't fail the request
 			// TODO: add logging when logger is available in this context
 			_ = err
 		}
 	}
 	if err != nil {
-		// Log error but don't fail the request
 		// TODO: add logging when logger is available in this context
 		_ = err
 	}
@@ -136,7 +134,6 @@ func (g *cachingGenerationGateway) GenerateContentStream(
 		}
 	}
 
-	// Forward events directly to the outer callback while streaming.
 	result, err := g.gateway.GenerateContentStream(ctx, request, callback)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream content: %w", err)

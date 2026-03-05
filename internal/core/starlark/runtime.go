@@ -97,10 +97,7 @@ func (r *Runtime) SetContext(ctx context.Context) {
 
 // initModules registers all built-in modules.
 func (r *Runtime) initModules() {
-	// meow module for command registration
 	r.predeclared["meow"] = r.createMeowModule()
-
-	// env module is exposed globally for configuration
 	r.predeclared["env"] = NewEnvModule()
 
 	// Note: All other operational modules (git, fs, llm, shell, index, json,
@@ -135,12 +132,10 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 	cache := make(map[string]starlark.StringDict)
 
 	return func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
-		// Check cache first
 		if dict, ok := cache[module]; ok {
 			return dict, nil
 		}
 
-		// Resolve module path
 		var modulePath string
 		if strings.HasPrefix(module, "//") {
 			// Bazel-style absolute path from workspace root: //packages/foo/bar.star
@@ -153,7 +148,6 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 			modulePath = filepath.Join(filepath.Dir(currentFile), module)
 		}
 
-		// Read module content
 		content, err := os.ReadFile(modulePath)
 		if err != nil {
 			// If not found and using // prefix, try system config directory
@@ -172,19 +166,16 @@ func (r *Runtime) makeLoadFunc(currentFile string) func(*starlark.Thread, string
 			}
 		}
 
-		// Create a new thread for the loaded module with recursive load support
 		moduleThread := &starlark.Thread{
 			Name: "load:" + modulePath,
 			Load: r.makeLoadFunc(modulePath), // Allow nested loads
 		}
 
-		// Execute module and return its globals
 		globals, err := starlark.ExecFile(moduleThread, modulePath, content, r.predeclared)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute module %s: %w", module, err)
 		}
 
-		// Cache the result
 		cache[module] = globals
 
 		return globals, nil
