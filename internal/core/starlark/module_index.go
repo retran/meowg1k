@@ -13,6 +13,7 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 
+	"github.com/retran/meowg1k/internal/core/vector"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 	"github.com/retran/meowg1k/internal/ports"
@@ -23,6 +24,7 @@ type IndexServices struct {
 	IndexRepo          ports.IndexRepository
 	SnapshotRepo       ports.SnapshotRepository
 	VectorIndexService ports.VectorIndexService
+	SearchService      vector.Searcher
 }
 
 // SetIndexServices configures the index module with required services.
@@ -39,6 +41,7 @@ func (r *Runtime) createIndexModule() starlark.Value {
 		"link_snapshot":      starlark.NewBuiltin("link_snapshot", r.indexLinkSnapshot),
 		"clear_snapshot":     starlark.NewBuiltin("clear_snapshot", r.indexClearSnapshot),
 		"build_vector_index": starlark.NewBuiltin("build_vector_index", r.indexBuildVectorIndex),
+		"search":             starlark.NewBuiltin("search", r.indexSearch),
 
 		// Constants - Chunking strategies
 		"STRATEGY_FIXED":    starlark.String("fixed"),
@@ -266,6 +269,176 @@ func (r *Runtime) indexBuildVectorIndex(thread *starlark.Thread, b *starlark.Bui
 	}
 
 	return starlark.None, nil
+}
+
+// indexSearch implements index.search().
+// Performs vector similarity search across the given snapshots.
+//
+//	search(embedding, snapshots, top_k, min_score) → list of structs
+//	  embedding: list of floats (pre-computed query embedding from ctx.llm.embed)
+//	  snapshots: list of snapshot name strings
+//	  top_k:     int, maximum results per snapshot
+//	  min_score: float, minimum cosine similarity threshold (0.0–1.0)
+//
+// Returns a list of structs with fields: file_path, start_line, end_line, score, content.
+func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var embeddingList *starlark.List
+	var snapshotsList *starlark.List
+	var topK int
+	var minScore starlark.Float
+
+	if err := starlark.UnpackArgs(
+		b.Name(), args, kwargs,
+		"embedding", &embeddingList,
+		"snapshots", &snapshotsList,
+		"top_k", &topK,
+		"min_score", &minScore,
+	); err != nil {
+		return nil, err
+	}
+
+	if r.indexServices == nil || r.indexServices.SearchService == nil {
+		return nil, fmt.Errorf("index search service not configured")
+	}
+	if r.indexServices.IndexRepo == nil {
+		return nil, fmt.Errorf("index repository not configured")
+	}
+
+	// Convert Starlark embedding list to gateway.Embedding
+	queryEmbedding, err := convertStarlarkListToEmbedding(embeddingList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert embedding: %w", err)
+	}
+
+	// Collect snapshot name strings
+	snapshots := make([]string, 0, snapshotsList.Len())
+	for i := 0; i < snapshotsList.Len(); i++ {
+		s, ok := snapshotsList.Index(i).(starlark.String)
+		if !ok {
+			return nil, fmt.Errorf("snapshots[%d] is not a string", i)
+		}
+		snapshots = append(snapshots, string(s))
+	}
+
+	ctx := context.Background()
+	threshold := float32(minScore)
+
+	// Search each snapshot, deduplicate by chunk ID keeping best score
+	type bestResult struct {
+		score        float32
+		snapshotName string
+	}
+	best := make(map[int64]bestResult)
+
+	for _, snap := range snapshots {
+		internalName := mapSnapshotName(snap)
+		results, err := r.indexServices.SearchService.Search(ctx, internalName, queryEmbedding, topK)
+		if err != nil {
+			// Skip snapshots with no index (not built yet) rather than failing
+			continue
+		}
+		for _, qr := range results {
+			if qr.Score < threshold {
+				continue
+			}
+			if prev, exists := best[qr.ChunkID]; !exists || qr.Score > prev.score {
+				best[qr.ChunkID] = bestResult{score: qr.Score, snapshotName: qr.SnapshotName}
+			}
+		}
+	}
+
+	if len(best) == 0 {
+		return starlark.NewList(nil), nil
+	}
+
+	// Collect chunk IDs
+	chunkIDs := make([]int64, 0, len(best))
+	for id := range best {
+		chunkIDs = append(chunkIDs, id)
+	}
+
+	// Batch-fetch chunks
+	chunks, err := r.indexServices.IndexRepo.GetChunksByIDs(ctx, chunkIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch chunks: %w", err)
+	}
+
+	// Collect version IDs for path resolution
+	versionIDSet := make(map[int64]struct{})
+	for _, c := range chunks {
+		versionIDSet[c.DocumentVersionID] = struct{}{}
+	}
+	versionIDs := make([]int64, 0, len(versionIDSet))
+	for id := range versionIDSet {
+		versionIDs = append(versionIDs, id)
+	}
+
+	versions, err := r.indexServices.IndexRepo.GetVersionsByIDs(ctx, versionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch document versions: %w", err)
+	}
+
+	versionByID := make(map[int64]domainindex.DocumentVersion, len(versions))
+	for _, v := range versions {
+		versionByID[v.ID] = v
+	}
+
+	// Build result list, sorted by score descending
+	type searchResult struct {
+		filePath  string
+		startLine int
+		endLine   int
+		score     float32
+		content   string
+	}
+	resultList := make([]searchResult, 0, len(chunks))
+
+	for _, c := range chunks {
+		b, ok := best[c.ID]
+		if !ok {
+			continue
+		}
+		v, ok := versionByID[c.DocumentVersionID]
+		if !ok {
+			continue
+		}
+		resultList = append(resultList, searchResult{
+			filePath:  v.FilePath,
+			startLine: c.StartLine,
+			endLine:   c.EndLine,
+			score:     b.score,
+			content:   c.TextContent,
+		})
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(resultList); i++ {
+		for j := i + 1; j < len(resultList); j++ {
+			if resultList[j].score > resultList[i].score {
+				resultList[i], resultList[j] = resultList[j], resultList[i]
+			}
+		}
+	}
+
+	// Trim to top_k
+	if len(resultList) > topK {
+		resultList = resultList[:topK]
+	}
+
+	// Build Starlark list of structs
+	out := make([]starlark.Value, len(resultList))
+	for i, r := range resultList {
+		members := starlark.StringDict{
+			"file_path":  starlark.String(r.filePath),
+			"start_line": starlark.MakeInt(r.startLine),
+			"end_line":   starlark.MakeInt(r.endLine),
+			"score":      starlark.Float(r.score),
+			"content":    starlark.String(r.content),
+		}
+		out[i] = starlarkstruct.FromStringDict(starlarkstruct.Default, members)
+	}
+
+	return starlark.NewList(out), nil
 }
 
 // Helper functions
