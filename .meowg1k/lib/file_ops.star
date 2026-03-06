@@ -342,12 +342,26 @@ def list_directory_handler(ctx):
     return ctx.json.stringify(files)
 
 def search_text_handler(ctx):
-    """Search for text pattern in files using grep."""
+    """Search for a regex pattern across files using fs.grep."""
     pattern = ctx.pattern
     path = getattr(ctx, "path", ".")
+    glob = getattr(ctx, "glob", "*")
 
-    results = ctx.fs.grep(pattern, path)
-    return ctx.json.stringify(results)
+    matches = ctx.fs.grep(pattern, root=path, glob=glob)
+
+    lines = []
+    for m in matches:
+        lines.append(m.file + ":" + str(m.line) + ": " + m.text)
+
+    result = ""
+    for l in lines:
+        if result:
+            result = result + "\n"
+        result = result + l
+
+    if not result:
+        return "No matches found"
+    return result
 
 def replace_text_handler(ctx):
     """Replace all occurrences of text in a file."""
@@ -426,8 +440,9 @@ search_text = meow.tool(
     name="search_text",
     description="Search for text pattern in files",
     params={
-        "pattern": meow.param("string", desc="Text pattern or regex to search for", required=True),
+        "pattern": meow.param("string", desc="Regex pattern to search for", required=True),
         "path": meow.param("string", desc="Directory to search in", default="."),
+        "glob": meow.param("string", desc="Filename glob filter (e.g. '*.go', '*.py')", default="*"),
     },
     handler=search_text_handler,
 )

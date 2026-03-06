@@ -85,6 +85,12 @@ search_setup()
 load("//commands/code.star", code_setup = "setup")
 code_setup(preset="smart")
 
+load("//commands/new_command.star", new_command_setup = "setup")
+new_command_setup(preset="smart")
+
+load("//commands/review.star", review_setup = "setup")
+review_setup(preset="smart", summarize_preset="fast")
+
 # ==============================================================================
 # EXAMPLE COMMANDS (Structured Outputs)
 # ==============================================================================

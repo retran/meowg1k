@@ -39,8 +39,7 @@ load("//lib/code_search.star", "code_search")
 load("//lib/memory.star",
      "save_context", "recall_context", "list_context",
      "summarize_history", "get_session_info")
-load("//lib/ui_helpers.star", "make_agentic_stream_handler")
-load("//lib/compaction.star", "maybe_compact")
+load("//lib/agent.star", "run_agent_turn")
 load("//lib/help.star", "build_preset_desc")
 
 # ==============================================================================
@@ -91,9 +90,9 @@ You have access to the following tool groups:
    with save_context so you can recall them if the session is long.
 3. **Edit surgically**: prefer edit_file (first-occurrence) over replace_text
    (all-occurrences) unless you intentionally want every instance changed.
-5. **Verify changes**: after editing files, run relevant tests or builds with
+4. **Verify changes**: after editing files, run relevant tests or builds with
    shell_exec to confirm correctness.
-6. **Report clearly**: when done, summarise what was changed and why.
+5. **Report clearly**: when done, summarise what was changed and why.
 
 ## Output Format
 - Think step-by-step in your responses before calling tools.
@@ -132,60 +131,14 @@ def setup(preset=None):
     ]
 
     def handle_code(ctx):
-        task = ctx.task
-        active_preset = ctx.preset
-        max_steps = ctx.max_steps
-
-        # --- Merge stdin context ---
-        full_task = task
-        stdin_len = 0
-        if ctx.stdin.is_piped():
-            stdin_content = ctx.stdin.read().strip()
-            if stdin_content:
-                stdin_len = len(stdin_content)
-                full_task = task + "\n\n### Additional context (stdin):\n" + stdin_content
-
-        # --- UI turn ---
-        turn = ctx.ui.assistant_turn()
-
-        # --- Phase 1: prepare ---
-        prep_step = turn.step("Preparing")
-        task_preview = task if len(task) <= 60 else task[:57] + "..."
-        prep_step.info("Task: " + task_preview)
-        prep_step.info("Preset: " + active_preset)
-        prep_step.info("Max steps: " + str(max_steps))
-        if stdin_len > 0:
-            prep_step.info("Stdin context: " + str(stdin_len) + " chars")
-
-        # --- Compact if session is already long (e.g. re-run in same session) ---
-        compact_summary = maybe_compact(ctx, preset=active_preset, threshold=60)
-        if compact_summary:
-            prep_step.info("History compacted")
-
-        prep_step.done()
-
-        on_event = make_agentic_stream_handler(turn)
-
-        # Build prompt, prepending compaction summary when present
-        prompt = full_task
-        if compact_summary:
-            prompt = ("## Compacted session history\n\n" + compact_summary +
-                      "\n\n---\n\n## Current task\n\n" + full_task)
-
-        # --- Run the agentic loop ---
-        result = ctx.llm.agent_turn(
-            prompt=prompt,
-            preset=active_preset,
+        run_agent_turn(
+            ctx=ctx,
+            task=ctx.task,
+            preset=ctx.preset,
             system=_SYSTEM_PROMPT,
             tools=_ALL_TOOLS,
-            max_iterations=max_steps,
-            on_tool_error="return",
-            stream=True,
-            on_event=on_event,
+            max_steps=ctx.max_steps,
         )
-
-        turn.done()
-        ctx.output.writeline(result)
 
     code_command = meow.tool(
         name="code",

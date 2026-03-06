@@ -4,10 +4,13 @@
 package starlark
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -33,6 +36,7 @@ func (r *Runtime) createFSModule() starlark.Value {
 		"listdir": starlark.NewBuiltin("listdir", r.fsListdir),
 		"chmod":   starlark.NewBuiltin("chmod", r.fsChmod),
 		"touch":   starlark.NewBuiltin("touch", r.fsTouch),
+		"grep":    starlark.NewBuiltin("grep", r.fsGrep),
 	})
 }
 
@@ -464,4 +468,108 @@ func (r *Runtime) fsTouch(thread *starlark.Thread, b *starlark.Builtin, args sta
 	}
 
 	return starlark.Bool(true), nil
+}
+
+// fsGrep implements fs.grep().
+// Recursively searches files under root for lines matching a regexp pattern.
+//
+// Signature:
+//
+//	fs.grep(pattern, root=".", glob="*", ignore_case=False, max_matches=0)
+//
+// Returns a list of structs, each with fields: file (str), line (int), text (str).
+// max_matches=0 means unlimited.
+func (r *Runtime) fsGrep(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var (
+		pattern    string
+		root       string = "."
+		glob       string = "*"
+		ignoreCase bool   = false
+		maxMatches int    = 0
+	)
+
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"pattern", &pattern,
+		"root?", &root,
+		"glob?", &glob,
+		"ignore_case?", &ignoreCase,
+		"max_matches?", &maxMatches,
+	); err != nil {
+		return nil, err
+	}
+
+	if !filepath.IsAbs(root) {
+		root = filepath.Join(r.workingDir, root)
+	}
+
+	rePattern := pattern
+	if ignoreCase {
+		rePattern = "(?i)" + pattern
+	}
+
+	re, err := regexp.Compile(rePattern)
+	if err != nil {
+		return nil, fmt.Errorf("fs.grep: invalid pattern %q: %w", pattern, err)
+	}
+
+	results := make([]starlark.Value, 0)
+	total := 0
+
+	walkErr := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil //nolint:nilerr // skip unreadable entries
+		}
+		if info.IsDir() {
+			// Skip hidden directories (e.g. .git) for performance
+			if strings.HasPrefix(info.Name(), ".") && path != root {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Apply glob filter against the base filename
+		if glob != "" && glob != "*" {
+			matched, matchErr := doublestar.Match(glob, filepath.Base(path))
+			if matchErr != nil || !matched {
+				return nil
+			}
+		}
+
+		f, openErr := os.Open(path)
+		if openErr != nil {
+			return nil //nolint:nilerr // skip unreadable files
+		}
+		defer f.Close()
+
+		rel, relErr := filepath.Rel(r.workingDir, path)
+		if relErr != nil {
+			rel = path
+		}
+
+		scanner := bufio.NewScanner(f)
+		lineNum := 0
+		for scanner.Scan() {
+			lineNum++
+			text := scanner.Text()
+			if re.MatchString(text) {
+				match := starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
+					"file": starlark.String(rel),
+					"line": starlark.MakeInt(lineNum),
+					"text": starlark.String(text),
+				})
+				results = append(results, match)
+				total++
+				if maxMatches > 0 && total >= maxMatches {
+					return filepath.SkipAll
+				}
+			}
+		}
+		return nil
+	})
+
+	if walkErr != nil && walkErr != filepath.SkipAll {
+		return nil, fmt.Errorf("fs.grep: walk failed: %w", walkErr)
+	}
+
+	return starlark.NewList(results), nil
 }

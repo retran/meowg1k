@@ -200,10 +200,6 @@ def _tool_step_label(tool_name, args):
         path = args.get("path", "")
         if path:
             return "Writing " + _short(path, 60)
-    elif tool_name == "file_editor":
-        path = args.get("path", "")
-        if path:
-            return "Editing " + _short(path, 60)
     elif tool_name == "edit_file":
         path = args.get("path", "")
         if path:
@@ -225,8 +221,12 @@ def _tool_step_label(tool_name, args):
     elif tool_name == "search_text":
         pattern = args.get("pattern", "")
         path = args.get("path", ".")
+        glob = args.get("glob", "*")
         if pattern:
-            return "Searching " + _short(path, 30) + ": " + _short(pattern, 30)
+            label = "Searching " + _short(path, 25) + ": " + _short(pattern, 25)
+            if glob and glob != "*":
+                label = label + " [" + _short(glob, 10) + "]"
+            return label
     elif tool_name == "shell_exec":
         command = args.get("command", "")
         if command:
