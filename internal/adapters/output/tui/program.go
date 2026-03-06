@@ -53,7 +53,8 @@ const (
 // liveStep is one step inside the live assistant turn.
 type liveStep struct {
 	id        string
-	text      string
+	text      string // original label — never overwritten
+	summary   string // optional suffix shown after label when done
 	info      []string
 	done      bool
 	ok        bool
@@ -61,30 +62,69 @@ type liveStep struct {
 	elapsed   time.Duration
 }
 
-// liveSubTurn is a nested group inside a liveTurn.
-// It has its own steps and stream, rendered indented below the parent.
-type liveSubTurn struct {
-	label      string
-	steps      []*liveStep
-	streamBuf  strings.Builder
+// liveSubTurnItem is one ordered entry inside a liveSubTurn — either a step
+// or a rendered stream segment.  Exactly one of step/streamText is set.
+// streamText holds already-rendered (or raw) content for a sealed segment;
+// streamBuf holds the still-accumulating current segment.
+type liveSubTurnItem struct {
+	step       *liveStep
+	streamBuf  *strings.Builder // non-nil while this segment is still open
 	streamDone bool
-	streamText string
-	done       bool
+	streamText string // populated once the segment is sealed
 }
 
-// liveTurnItem is one ordered entry in a liveTurn — either a top-level step
-// or a subturn.  Exactly one of step/subturn is non-nil.
+// liveSubTurn is a nested group inside a liveTurn.
+// Items are stored in insertion order so that stream segments and steps
+// interleave exactly as they arrived.
+type liveSubTurn struct {
+	label string
+	items []*liveSubTurnItem
+	done  bool
+}
+
+// activeStreamItem returns the last stream item in the subturn if it is still
+// accumulating (not yet sealed), otherwise nil.
+func (st *liveSubTurn) activeStreamItem() *liveSubTurnItem {
+	if len(st.items) == 0 {
+		return nil
+	}
+	last := st.items[len(st.items)-1]
+	if last.streamBuf != nil && !last.streamDone {
+		return last
+	}
+	return nil
+}
+
+// liveTurnItem is one ordered entry in a liveTurn — a top-level step,
+// a subturn, or a stream segment.  Exactly one field is non-nil/active.
 type liveTurnItem struct {
 	step    *liveStep
 	subturn *liveSubTurn
+	// stream segment fields (mirrors liveSubTurnItem)
+	streamBuf  *strings.Builder // non-nil while accumulating
+	streamDone bool
+	streamText string // populated once sealed
 }
 
 // liveTurn holds the mutable state of the current (last, live) assistant turn.
+// Items are stored in insertion order so that stream segments, steps, and
+// subturns interleave exactly as they arrived.
 type liveTurn struct {
-	items      []*liveTurnItem // ordered: steps and subturns interleaved
-	streamBuf  strings.Builder // raw accumulated tokens
-	streamDone bool
-	streamText string // rendered markdown after sealing
+	items  []*liveTurnItem
+	active bool // true from BeginAssistantTurnMsg until EndTurnMsg
+}
+
+// activeStreamItem returns the last item if it is an open stream segment,
+// otherwise nil.
+func (lt *liveTurn) activeStreamItem() *liveTurnItem {
+	if len(lt.items) == 0 {
+		return nil
+	}
+	last := lt.items[len(lt.items)-1]
+	if last.streamBuf != nil && !last.streamDone {
+		return last
+	}
+	return nil
 }
 
 // activeSubTurn returns the last subturn if it is still open, otherwise nil.
@@ -215,9 +255,9 @@ func (m *model) findLiveTurn() *liveTurn {
 // subturn first, then the parent turn's own steps.
 func (lt *liveTurn) findStep(id string) *liveStep {
 	if st := lt.activeSubTurn(); st != nil {
-		for _, s := range st.steps {
-			if s.id == id {
-				return s
+		for _, item := range st.items {
+			if item.step != nil && item.step.id == id {
+				return item.step
 			}
 		}
 	}
@@ -237,14 +277,38 @@ func (lt *liveTurn) hasActiveStep() bool {
 			if !item.subturn.done {
 				return true
 			}
-			for _, s := range item.subturn.steps {
-				if !s.done {
+			for _, si := range item.subturn.items {
+				if si.step != nil && !si.step.done {
 					return true
 				}
 			}
 		}
 		if item.step != nil && !item.step.done {
 			return true
+		}
+	}
+	return false
+}
+
+// isActive returns true if the live turn should animate: the turn is open,
+// or there is an open step/subturn, or an open (still-accumulating) stream segment.
+func (lt *liveTurn) isActive() bool {
+	if lt.active {
+		return true
+	}
+	if lt.hasActiveStep() {
+		return true
+	}
+	// Check for an open stream segment at the turn level.
+	if lt.activeStreamItem() != nil {
+		return true
+	}
+	// Check for an open stream segment inside the active subturn.
+	for _, item := range lt.items {
+		if item.subturn != nil && !item.subturn.done {
+			if item.subturn.activeStreamItem() != nil {
+				return true
+			}
 		}
 	}
 	return false
@@ -260,6 +324,7 @@ func (m *model) sealLiveTurn(summary string) {
 		return
 	}
 	lt := b.live
+	lt.active = false
 	// Seal any open subturn first.
 	if st := lt.activeSubTurn(); st != nil {
 		sealSubTurn(st)
@@ -283,29 +348,53 @@ func sealSubTurn(st *liveSubTurn) {
 	st.done = true
 }
 
-// renderLiveTurn converts a liveTurn to a frozen string.
+// renderLiveTurn converts a liveTurn to a string, rendering items in
+// insertion order so that stream segments, steps, and subturns appear
+// exactly as they arrived.
 func (m *model) renderLiveTurn(lt *liveTurn) string {
 	var sb strings.Builder
 	for _, item := range lt.items {
-		if item.step != nil {
+		switch {
+		case item.step != nil:
 			sb.WriteString(m.renderStep(item.step))
-		} else if item.subturn != nil {
+		case item.subturn != nil:
 			sb.WriteString(m.renderSubTurn(item.subturn))
+		default:
+			// Stream segment.
+			var streamContent string
+			if item.streamDone {
+				streamContent = item.streamText
+			} else if item.streamBuf != nil && item.streamBuf.Len() > 0 {
+				raw := item.streamBuf.String()
+				if rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor); err == nil {
+					streamContent = rendered
+				} else {
+					streamContent = raw
+				}
+			}
+			if streamContent != "" {
+				sb.WriteString(streamContent)
+			}
+			// Show spinner after an open (still-accumulating) stream segment.
+			if !item.streamDone && item.streamBuf != nil {
+				sb.WriteString(m.spinner.View() + "\n")
+			}
 		}
 	}
-	if lt.streamDone && lt.streamText != "" {
-		sb.WriteString(lt.streamText)
-	} else if !lt.streamDone && lt.streamBuf.Len() > 0 {
-		if rendered, err := ui.RenderMarkdown(lt.streamBuf.String(), ui.TerminalWidth(m.width), m.noColor); err == nil {
-			sb.WriteString(rendered)
-		} else {
-			sb.WriteString(lt.streamBuf.String())
-		}
+	// Show a waiting spinner whenever the turn is still active but nothing is
+	// currently in motion (no open step, no open stream segment).  This covers:
+	//   • the gap before the first token/step arrives (items is empty)
+	//   • the gap between a completed step and the next token/step (e.g. after
+	//     "Preparing" done, before agent_turn sends its first event)
+	if lt.active && !lt.hasActiveStep() && lt.activeStreamItem() == nil {
+		sb.WriteString(m.spinner.View() + "\n")
 	}
 	return sb.String()
 }
 
 // renderSubTurn renders a nested subturn, indented with a label header.
+// Items are rendered in insertion order so that stream segments and steps
+// appear exactly as they arrived.
 func (m *model) renderSubTurn(st *liveSubTurn) string {
 	var sb strings.Builder
 
@@ -319,28 +408,33 @@ func (m *model) renderSubTurn(st *liveSubTurn) string {
 	}
 	sb.WriteString(prefix + labelStyle.Render(st.label) + "\n")
 
-	// Steps inside the subturn — indent by 2 spaces relative to parent.
-	for _, s := range st.steps {
-		sb.WriteString("    " + m.renderStep(s))
-	}
-
-	// Stream content inside the subturn — indented by 4 spaces.
+	const indent = "    "
 	const streamIndent = "    "
-	var streamContent string
-	if st.streamDone {
-		streamContent = st.streamText
-	} else if st.streamBuf.Len() > 0 {
-		if rendered, err := ui.RenderMarkdown(st.streamBuf.String(), ui.TerminalWidth(m.width), m.noColor); err == nil {
-			streamContent = rendered
-		} else {
-			streamContent = st.streamBuf.String()
+
+	// Render items in arrival order.
+	for _, item := range st.items {
+		if item.step != nil {
+			sb.WriteString(indent + m.renderStep(item.step))
+			continue
 		}
-	}
-	if streamContent != "" {
-		for _, line := range strings.Split(strings.TrimRight(streamContent, "\n"), "\n") {
-			sb.WriteString(streamIndent + line + "\n")
+		// Stream segment.
+		var streamContent string
+		if item.streamDone {
+			streamContent = item.streamText
+		} else if item.streamBuf != nil && item.streamBuf.Len() > 0 {
+			raw := item.streamBuf.String()
+			if rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor); err == nil {
+				streamContent = rendered
+			} else {
+				streamContent = raw
+			}
 		}
-		sb.WriteByte('\n')
+		if streamContent != "" {
+			for _, line := range strings.Split(strings.TrimRight(streamContent, "\n"), "\n") {
+				sb.WriteString(streamIndent + line + "\n")
+			}
+			sb.WriteByte('\n')
+		}
 	}
 
 	return sb.String()
@@ -358,20 +452,20 @@ func (m *model) renderStep(s *liveStep) string {
 	} else {
 		icon = m.spinner.View()
 	}
-	elapsed := ""
+
+	label := s.text
+	suffix := ""
 	if s.done {
-		elapsed = fmt.Sprintf(" [%s]", s.elapsed.Round(time.Millisecond))
+		suffix = fmt.Sprintf(" [%s]", s.elapsed.Round(time.Millisecond))
+		if s.summary != "" {
+			suffix += " — " + s.summary
+		}
 	}
-	line := fmt.Sprintf("%s %s%s\n", icon, s.text, elapsed)
+
 	var sb strings.Builder
-	sb.WriteString(line)
+	sb.WriteString(fmt.Sprintf("%s %s%s\n", icon, label, suffix))
 	for _, info := range s.info {
 		sb.WriteString("  " + m.theme.StatusInfo.Render("· "+info) + "\n")
-	}
-	if s.done && s.ok && s.text != "" {
-		// no-op, summary was already embedded in text
-	} else if s.done && !s.ok {
-		// fail is already in text
 	}
 	return sb.String()
 }
@@ -424,8 +518,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		// Only animate when there is an active live turn with open steps.
-		if lt := m.findLiveTurn(); lt != nil && lt.hasActiveStep() {
+		// Animate whenever the live turn is active (open steps OR streaming).
+		if lt := m.findLiveTurn(); lt != nil && lt.isActive() {
 			m.rebuildViewportContent()
 			return m, cmd
 		}
@@ -444,7 +538,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BeginAssistantTurnMsg:
 		// Seal any existing live turn first (shouldn't normally happen).
 		m.sealLiveTurn("")
-		lt := &liveTurn{}
+		lt := &liveTurn{active: true}
 		m.blocks = append(m.blocks, &block{kind: liveTurnBlock, live: lt})
 		m.rebuildViewportContent()
 
@@ -452,7 +546,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		lt := m.findLiveTurn()
 		if lt == nil {
 			// Auto-create live turn if missing.
-			lt = &liveTurn{}
+			lt = &liveTurn{active: true}
 			m.blocks = append(m.blocks, &block{kind: liveTurnBlock, live: lt})
 		}
 		newStep := &liveStep{
@@ -461,8 +555,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			startTime: time.Now(),
 		}
 		if st := lt.activeSubTurn(); st != nil {
-			st.steps = append(st.steps, newStep)
+			// Seal any open stream segment before appending the step.
+			if si := st.activeStreamItem(); si != nil {
+				raw := si.streamBuf.String()
+				if raw != "" {
+					rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
+					if err != nil {
+						rendered = raw
+					}
+					si.streamText = rendered
+				}
+				si.streamDone = true
+				si.streamBuf = nil
+			}
+			st.items = append(st.items, &liveSubTurnItem{step: newStep})
 		} else {
+			// Seal any open stream item on the turn before appending the step.
+			if ti := lt.activeStreamItem(); ti != nil {
+				raw := ti.streamBuf.String()
+				if raw != "" {
+					rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
+					if err != nil {
+						rendered = raw
+					}
+					ti.streamText = rendered
+				}
+				ti.streamDone = true
+				ti.streamBuf = nil
+			}
 			lt.items = append(lt.items, &liveTurnItem{step: newStep})
 		}
 		m.rebuildViewportContent()
@@ -490,7 +610,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.ok = msg.OK
 				s.elapsed = time.Since(s.startTime)
 				if msg.Summary != "" {
-					s.text = msg.Summary
+					s.summary = msg.Summary
 				}
 				m.rebuildViewportContent()
 			}
@@ -499,7 +619,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BeginSubTurnMsg:
 		lt := m.findLiveTurn()
 		if lt == nil {
-			lt = &liveTurn{}
+			lt = &liveTurn{active: true}
 			m.blocks = append(m.blocks, &block{kind: liveTurnBlock, live: lt})
 		}
 		lt.items = append(lt.items, &liveTurnItem{subturn: &liveSubTurn{label: msg.Label}})
@@ -508,18 +628,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case EndSubTurnMsg:
 		if lt := m.findLiveTurn(); lt != nil {
 			if st := lt.activeSubTurn(); st != nil {
-				// Seal stream text before marking done.
-				if !st.streamDone {
-					raw := st.streamBuf.String()
+				// Seal any still-open stream segment.
+				if si := st.activeStreamItem(); si != nil {
+					raw := si.streamBuf.String()
 					if raw != "" {
 						rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
 						if err != nil {
 							rendered = raw
 						}
-						st.streamText = rendered
+						si.streamText = rendered
 					}
-					st.streamBuf.Reset()
-					st.streamDone = true
+					si.streamDone = true
+					si.streamBuf = nil
 				}
 				st.done = true
 				m.rebuildViewportContent()
@@ -529,43 +649,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TokenDeltaMsg:
 		lt := m.findLiveTurn()
 		if lt == nil {
-			lt = &liveTurn{}
+			lt = &liveTurn{active: true}
 			m.blocks = append(m.blocks, &block{kind: liveTurnBlock, live: lt})
 		}
 		if st := lt.activeSubTurn(); st != nil {
-			st.streamBuf.WriteString(msg.Text)
+			// Append to the current open stream segment, or open a new one.
+			si := st.activeStreamItem()
+			if si == nil {
+				si = &liveSubTurnItem{streamBuf: &strings.Builder{}}
+				st.items = append(st.items, si)
+			}
+			si.streamBuf.WriteString(msg.Text)
 		} else {
-			lt.streamBuf.WriteString(msg.Text)
+			// Append to the current open stream item on the turn, or open a new one.
+			ti := lt.activeStreamItem()
+			if ti == nil {
+				ti = &liveTurnItem{streamBuf: &strings.Builder{}}
+				lt.items = append(lt.items, ti)
+			}
+			ti.streamBuf.WriteString(msg.Text)
 		}
 		m.rebuildViewportContent()
 
 	case StreamDoneMsg:
 		if lt := m.findLiveTurn(); lt != nil {
 			if st := lt.activeSubTurn(); st != nil {
-				// Seal the subturn's stream.
-				if !st.streamDone {
-					raw := st.streamBuf.String()
+				// Seal the active stream segment in the subturn.
+				if si := st.activeStreamItem(); si != nil {
+					raw := si.streamBuf.String()
 					if raw != "" {
 						rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
 						if err != nil {
 							rendered = raw
 						}
-						st.streamText = rendered
+						si.streamText = rendered
 					}
-					st.streamBuf.Reset()
-					st.streamDone = true
+					si.streamDone = true
+					si.streamBuf = nil
 				}
-			} else if !lt.streamDone {
-				raw := lt.streamBuf.String()
-				if raw != "" {
-					rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
-					if err != nil {
-						rendered = raw
+			} else {
+				// Seal the active stream item on the turn.
+				if ti := lt.activeStreamItem(); ti != nil {
+					raw := ti.streamBuf.String()
+					if raw != "" {
+						rendered, err := ui.RenderMarkdown(raw, ui.TerminalWidth(m.width), m.noColor)
+						if err != nil {
+							rendered = raw
+						}
+						ti.streamText = rendered
 					}
-					lt.streamText = rendered
+					ti.streamDone = true
+					ti.streamBuf = nil
 				}
-				lt.streamBuf.Reset()
-				lt.streamDone = true
 			}
 			m.rebuildViewportContent()
 		}

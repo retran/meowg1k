@@ -274,7 +274,7 @@ Specialized modules provide:
 
 def shell_exec_handler(ctx):
     """Execute a shell command and return output."""
-    command = ctx.params["command"]
+    command = ctx.command
     result = ctx.shell.exec(command)
     return result
 

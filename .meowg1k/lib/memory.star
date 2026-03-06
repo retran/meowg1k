@@ -930,17 +930,17 @@ count = recall(ctx, "counter", "0")
 
 def save_context_handler(ctx):
     """Save context to session metadata"""
-    key = ctx.params["key"]
-    value = ctx.params["value"]
-    
+    key = ctx.key
+    value = ctx.value
+
     # Store as metadata
     ctx.session.set_metadata("context_" + key, value)
     return "Saved context: " + key
 
 def recall_context_handler(ctx):
     """Recall context from session metadata"""
-    key = ctx.params["key"]
-    
+    key = ctx.key
+
     # Retrieve from metadata
     value = ctx.session.get_metadata("context_" + key)
     if value == None:
@@ -950,38 +950,38 @@ def recall_context_handler(ctx):
 def list_context_handler(ctx):
     """List all saved context keys"""
     all_metadata = ctx.session.get_all_metadata()
-    
+
     context_keys = []
     for key in all_metadata:
         if key.startswith("context_"):
             actual_key = key[8:]  # Remove "context_" prefix
             context_keys.append(actual_key)
-    
-    return ctx.json.encode(context_keys)
+
+    return ctx.json.stringify(context_keys)
 
 def summarize_history_handler(ctx):
     """Summarize session history for context window management"""
-    limit = ctx.params.get("limit", 50)
-    
+    limit = getattr(ctx, "limit", 50)
+
     # Get recent events
     events = ctx.session.get_events(limit=limit, offset=0)
-    
+
     # Build history text
     history_text = ""
     for event in events:
         event_type = event.get("type", "unknown")
         content = event.get("content", "")
-        
+
         if event_type == "user_message":
             history_text = history_text + "User: " + content + "\n\n"
         elif event_type == "assistant_message":
             history_text = history_text + "Assistant: " + content + "\n\n"
         elif event_type == "tool_result":
             history_text = history_text + "Tool result: " + content + "\n\n"
-    
+
     if history_text == "":
         return "No history available"
-    
+
     # Ask LLM to summarize
     system_prompt = """Summarize the conversation history concisely.
 Focus on:
@@ -991,13 +991,13 @@ Focus on:
 - Pending tasks
 
 Keep it under 200 words."""
-    
+
     summary = ctx.llm.chat(
         prompt="Summarize this conversation:\n\n" + history_text,
         system=system_prompt,
         preset="fast"
     )
-    
+
     return summary
 
 def get_session_info_handler(ctx):
@@ -1006,13 +1006,13 @@ def get_session_info_handler(ctx):
     tool_name = ctx.session.tool_name()
     status = ctx.session.status()
     parent_id = ctx.session.parent_id()
-    
+
     # Get metadata
     metadata = ctx.session.get_all_metadata()
-    
+
     # Get children
     children = ctx.session.get_children()
-    
+
     # Build info dict
     info = {
         "id": session_id,
@@ -1022,16 +1022,16 @@ def get_session_info_handler(ctx):
         "metadata_count": len(metadata),
         "children_count": len(children),
     }
-    
-    return ctx.json.encode(info)
+
+    return ctx.json.stringify(info)
 
 # Tool definitions
 save_context = meow.tool(
     name="save_context",
     description="Save context/state to session metadata for later recall",
     params={
-        "key": meow.param("string", description="Context key/name", required=True),
-        "value": meow.param("string", description="Context value to save", required=True),
+        "key": meow.param("string", desc="Context key/name", required=True),
+        "value": meow.param("string", desc="Context value to save", required=True),
     },
     handler=save_context_handler,
 )
@@ -1040,7 +1040,7 @@ recall_context = meow.tool(
     name="recall_context",
     description="Recall previously saved context from session metadata",
     params={
-        "key": meow.param("string", description="Context key/name to recall", required=True),
+        "key": meow.param("string", desc="Context key/name to recall", required=True),
     },
     handler=recall_context_handler,
 )
@@ -1056,7 +1056,7 @@ summarize_history = meow.tool(
     name="summarize_history",
     description="Summarize session history to reduce context window usage",
     params={
-        "limit": meow.param("int", description="Number of recent events to summarize", default=50),
+        "limit": meow.param("int", desc="Number of recent events to summarize", default=50),
     },
     handler=summarize_history_handler,
 )

@@ -30,14 +30,14 @@ meow.provider("gemini",
 meow.model("copilot-sonnet",
     provider="copilot",
     model="claude-sonnet-4.6",
-    max_input_tokens=200000,
+    max_input_tokens=128000,
     max_output_tokens=64000
 )
 
 meow.model("copilot-haiku",
     provider="copilot",
     model="claude-haiku-4.5",
-    max_input_tokens=200000,
+    max_input_tokens=128000,
     max_output_tokens=64000
 )
 
@@ -81,6 +81,12 @@ pr_setup(preset="smart", summarize_preset="fast")
 
 load("//commands/search.star", search_setup = "setup")
 search_setup()
+
+load("//commands/code.star", code_setup = "setup")
+code_setup(preset="smart")
+
+load("//commands/new_command.star", new_command_setup = "setup")
+new_command_setup(preset="smart")
 
 # ==============================================================================
 # EXAMPLE COMMANDS (Structured Outputs)
