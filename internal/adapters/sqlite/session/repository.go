@@ -198,7 +198,7 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 		}
 
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO tool_calls (id, event_id, name, params) VALUES (?, ?, ?, ?)`,
+			`INSERT OR IGNORE INTO tool_calls (id, event_id, name, params) VALUES (?, ?, ?, ?)`,
 			tc.ID, e.ID, tc.Name, string(paramsJSON),
 		)
 		if err != nil {

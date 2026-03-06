@@ -6,6 +6,7 @@ package starlark
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1173,6 +1174,138 @@ func TestFSGlobErrors(t *testing.T) {
 	t.Run("invalid glob pattern", func(t *testing.T) {
 		args := starlark.Tuple{starlark.String("[")} // Invalid glob pattern
 		_, err := runtime.fsGlob(thread, starlark.NewBuiltin("glob", nil), args, nil)
+		assert.Error(t, err)
+	})
+}
+
+// TestFSGrep tests fs.grep() function
+func TestFSGrep(t *testing.T) {
+	setup := func(dir string) error {
+		if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\n\nfunc Hello() {}\nfunc World() {}\n"), 0644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello world\ngoodbye\n"), 0644); err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dir, "sub", "c.go"), []byte("package sub\n\nfunc Hello() string { return \"hello\" }\n"), 0644); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	t.Run("basic pattern match", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, setup(tmpDir))
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("Hello")}
+		result, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, nil)
+		require.NoError(t, err)
+
+		list, ok := result.(*starlark.List)
+		require.True(t, ok)
+		// a.go line 3, b.txt line 1 (hello, case-sensitive no match), sub/c.go line 3
+		assert.Equal(t, 2, list.Len(), "should match Hello in a.go and sub/c.go")
+
+		first, ok := list.Index(0).(*starlarkstruct.Struct)
+		require.True(t, ok)
+		fileVal, err := first.Attr("file")
+		require.NoError(t, err)
+		assert.Equal(t, "a.go", string(fileVal.(starlark.String)))
+
+		lineVal, err := first.Attr("line")
+		require.NoError(t, err)
+		lineInt, ok := lineVal.(starlark.Int)
+		require.True(t, ok)
+		n, _ := lineInt.Int64()
+		assert.Equal(t, int64(3), n)
+	})
+
+	t.Run("ignore_case", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, setup(tmpDir))
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("hello")}
+		kwargs := []starlark.Tuple{{starlark.String("ignore_case"), starlark.Bool(true)}}
+		result, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, kwargs)
+		require.NoError(t, err)
+
+		list, ok := result.(*starlark.List)
+		require.True(t, ok)
+		// a.go: "func Hello()" x2, b.txt: "hello world", sub/c.go: Hello + "hello"
+		assert.GreaterOrEqual(t, list.Len(), 3)
+	})
+
+	t.Run("glob filter", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, setup(tmpDir))
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("hello")}
+		kwargs := []starlark.Tuple{
+			{starlark.String("ignore_case"), starlark.Bool(true)},
+			{starlark.String("glob"), starlark.String("*.go")},
+		}
+		result, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, kwargs)
+		require.NoError(t, err)
+
+		list, ok := result.(*starlark.List)
+		require.True(t, ok)
+		// Only .go files should be searched — no b.txt results
+		for i := 0; i < list.Len(); i++ {
+			s, ok := list.Index(i).(*starlarkstruct.Struct)
+			require.True(t, ok)
+			fv, err := s.Attr("file")
+			require.NoError(t, err)
+			assert.True(t, strings.HasSuffix(string(fv.(starlark.String)), ".go"))
+		}
+	})
+
+	t.Run("max_matches limit", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, setup(tmpDir))
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("func")}
+		kwargs := []starlark.Tuple{{starlark.String("max_matches"), starlark.MakeInt(2)}}
+		result, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, kwargs)
+		require.NoError(t, err)
+
+		list, ok := result.(*starlark.List)
+		require.True(t, ok)
+		assert.Equal(t, 2, list.Len())
+	})
+
+	t.Run("no matches returns empty list", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		require.NoError(t, setup(tmpDir))
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("ZZZNOMATCH")}
+		result, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, nil)
+		require.NoError(t, err)
+
+		list, ok := result.(*starlark.List)
+		require.True(t, ok)
+		assert.Equal(t, 0, list.Len())
+	})
+
+	t.Run("invalid regexp returns error", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		rt := NewRuntime(tmpDir)
+		thread := &starlark.Thread{Name: "test"}
+
+		args := starlark.Tuple{starlark.String("[")} // invalid regexp
+		_, err := rt.fsGrep(thread, starlark.NewBuiltin("grep", nil), args, nil)
 		assert.Error(t, err)
 	})
 }
