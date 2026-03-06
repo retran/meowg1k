@@ -613,6 +613,10 @@ const (
 	StreamEventToolCallEnd
 	// StreamEventToolCallError represents an error during tool execution.
 	StreamEventToolCallError
+	// StreamEventIterationStart signals the start of an agent loop iteration.
+	StreamEventIterationStart
+	// StreamEventIterationEnd signals the end of an agent loop iteration.
+	StreamEventIterationEnd
 )
 
 // StreamEvent represents a single event in a streaming LLM response.
@@ -626,6 +630,7 @@ type StreamEvent struct {
 	ToolID      string          `json:"tool_id,omitempty"`
 	Arguments   map[string]any  `json:"arguments,omitempty"`
 	DurationMS  int64           `json:"duration_ms,omitempty"`
+	Iteration   int             `json:"iteration,omitempty"`
 }
 
 // StreamCallback is called for each streaming event.

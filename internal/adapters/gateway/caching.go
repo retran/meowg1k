@@ -156,12 +156,22 @@ func (g *cachingGenerationGateway) createCacheKey(request *gateway.GenerateConte
 	if err != nil {
 		toolsJSON = ""
 	}
+
+	// Include message history in the key so each conversation turn gets a distinct entry.
+	messagesJSON := ""
+	if msgs := request.Messages(); len(msgs) > 0 {
+		if encoded, encErr := json.Marshal(msgs); encErr == nil {
+			messagesJSON = string(encoded)
+		}
+	}
+
 	data := fmt.Sprintf(
-		"gen:%s:%s:%s:%s:%d",
+		"gen:%s:%s:%s:%s:%s:%d",
 		request.Model(),
 		request.SystemPrompt(),
 		request.UserPrompt(),
 		toolsJSON,
+		messagesJSON,
 		request.MaxOutputTokens(),
 	)
 

@@ -105,7 +105,7 @@ func NewService() *Service {
 				DefaultEnvVar:   "",
 				RequiresAPIKey:  false,
 				RequiresBaseURL: false,
-				MaxInputTokens:  200000,
+				MaxInputTokens:  128000,
 				MaxOutputTokens: 64000,
 				DefaultTimeout:  5 * time.Minute,
 				Tokenizer:       "cl100k_base",
