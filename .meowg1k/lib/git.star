@@ -363,7 +363,7 @@ def git_status_handler(ctx):
 
 def git_diff_handler(ctx):
     """Get git diff for staged or unstaged changes."""
-    staged = ctx.params.get("staged", False)
+    staged = getattr(ctx, "staged", False)
     diff = ctx.git.diff(staged=staged)
     return diff
 

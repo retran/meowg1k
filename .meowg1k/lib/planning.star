@@ -797,135 +797,265 @@ def quick_task_handler(ctx):
 **Documentation:** Complete ✅
 """
 
-def create_plan_handler(ctx):
-    """Generate a task plan using LLM"""
-    goal = ctx.params["goal"]
-    context = ctx.params.get("context", "")
-    
-    system_prompt = """You are a task planning assistant. Given a goal, break it down into specific, actionable steps.
-Return your plan as a JSON array of steps, where each step has:
-- "action": What to do
-- "tool": Which tool to use (if applicable)
-- "reasoning": Why this step is needed
+# Exploration-only tools: read + search, no write/shell/git
+# (loaded here; _EXPLORE_TOOLS list is assembled after tool objects are defined below)
+load("//lib/file_ops.star",
+     _plan_file_reader="file_reader",
+     _plan_file_exists="file_exists",
+     _plan_list_directory="list_directory",
+     _plan_search_text="search_text")
+load("//lib/code_search.star", _plan_code_search="code_search")
+
+# ==============================================================================
+# Handlers
+# ==============================================================================
+
+_PLANNER_SYSTEM = """You are an expert software planning agent.
+
+Your job is to produce a concrete, actionable plan for the coding task described
+below. Before writing the plan you MUST explore the codebase so that every step
+references real files, functions, and patterns — not generic guesses.
+
+## Exploration tools available to you
+- file_reader       — read a file
+- file_writer       — NOT available (read-only phase)
+- list_directory    — list files matching a glob pattern
+- search_text       — grep for a regex across files
+- file_exists       — check whether a path exists
+- code_search       — semantic vector search (use if index exists)
+
+## Output format (REQUIRED)
+After exploring, output ONLY a JSON array — no prose, no markdown fences.
+Each element must have exactly these keys:
+  "action"     — one concrete thing to do
+  "tool"       — primary tool to use (or "" if none)
+  "reasoning"  — one sentence explaining why this step is needed
 
 Example:
 [
-  {"action": "Read main.go file", "tool": "file_reader", "reasoning": "Need to understand entry point"},
-  {"action": "Search for API endpoints", "tool": "code_search", "reasoning": "Map out the API surface"}
+  {"action": "Read internal/adapters/gateway/anthropic.go", "tool": "file_reader", "reasoning": "Understand the existing provider shape before adding a new one"},
+  {"action": "Search for all implementations of GatewayProvider interface", "tool": "search_text", "reasoning": "Find every file that needs to change"},
+  {"action": "Add new provider file internal/adapters/gateway/openrouter.go", "tool": "file_writer", "reasoning": "Implement the new provider"}
 ]
 """
-    
+
+_DECOMPOSE_SYSTEM = """You are an expert software architect.
+
+Your job is to break down a complex coding task into smaller, independent
+subtasks. Before decomposing you MUST explore the codebase so each subtask
+maps to real code locations.
+
+## Exploration tools
+- file_reader, list_directory, search_text, file_exists, code_search
+
+## Output format (REQUIRED)
+Output ONLY a JSON object — no prose, no markdown fences:
+{
+  "task": "<original task>",
+  "subtasks": ["<subtask 1>", "<subtask 2>", ...],
+  "dependencies": {"1": [], "2": ["1"], ...}
+}
+Keys in "dependencies" are 0-based subtask indices (as strings).
+Omit "dependencies" if all subtasks are independent.
+"""
+
+_EXECUTOR_SYSTEM = """You are an expert coding agent executing a pre-approved plan.
+
+Follow the plan steps in order. Use the available tools to implement each step.
+After completing all steps, output a concise markdown summary:
+- What was done
+- Files created / modified
+- Any errors encountered and how they were resolved
+"""
+
+def create_plan_handler(ctx):
+    """Explore the codebase, then generate a grounded task plan."""
+    goal = ctx.goal
+    context = getattr(ctx, "context", "")
+
     prompt = "Goal: " + goal
-    if context != "":
-        prompt = prompt + "\n\nContext:\n" + context
-    
-    response = ctx.llm.chat(prompt=prompt, system=system_prompt, preset="smart")
-    
-    # Try to parse as JSON
-    plan = ctx.json.decode(response)
+    if context:
+        prompt = prompt + "\n\nAdditional context:\n" + context
+    prompt = prompt + "\n\nExplore the codebase as needed, then output the JSON plan."
+
+    result = ctx.llm.agent_turn(
+        prompt=prompt,
+        system=_PLANNER_SYSTEM,
+        tools=_EXPLORE_TOOLS,
+        preset="smart",
+        max_iterations=20,
+        on_tool_error="return",
+    )
+
+    # result should be a JSON array; validate it parses
+    plan = ctx.json.decode(result)
     return ctx.json.encode(plan)
 
 def execute_plan_handler(ctx):
-    """Execute a plan step by step using agentic loop"""
-    plan_json = ctx.params["plan"]
-    tools_list = ctx.params.get("tools", [])
-    
-    # Parse plan
+    """Execute a JSON plan step-by-step using the full tool set."""
+    plan_json = ctx.plan
+    tools_list = getattr(ctx, "tools", [])
+
     plan = ctx.json.decode(plan_json)
-    
-    # Build execution prompt
+
     steps_text = ""
     for i, step in enumerate(plan):
-        steps_text = steps_text + str(i + 1) + ". " + step.get("action", "Unknown") + "\n"
-    
-    system_prompt = """You are a task executor. Follow the plan step by step, using the available tools.
-After completing all steps, provide a summary of what was accomplished.
+        action = step.get("action", "Unknown")
+        tool = step.get("tool", "")
+        reasoning = step.get("reasoning", "")
+        line = str(i + 1) + ". " + action
+        if tool:
+            line = line + "  [tool: " + tool + "]"
+        if reasoning:
+            line = line + "\n   Reason: " + reasoning
+        steps_text = steps_text + line + "\n"
 
-Plan:
-""" + steps_text
-    
-    prompt = "Execute the plan above step by step. Use the available tools as needed."
-    
+    prompt = ("Execute this plan step by step.\n\n" +
+              "## Plan\n\n" + steps_text + "\n" +
+              "Work through each step in order. Use tools as indicated. " +
+              "After all steps are done, output a summary.")
+
     result = ctx.llm.agent_turn(
         tools=tools_list,
         prompt=prompt,
-        system=system_prompt,
+        system=_EXECUTOR_SYSTEM,
         preset="smart",
-        max_iterations=50
+        max_iterations=50,
+        on_tool_error="return",
     )
-    
+
     return result
 
 def decompose_task_handler(ctx):
-    """Decompose a complex task into subtasks"""
-    task = ctx.params["task"]
-    max_depth = ctx.params.get("max_depth", 2)
-    
-    system_prompt = """Break down the given task into smaller, manageable subtasks.
-Return a JSON structure with:
-- "task": Original task
-- "subtasks": Array of subtask descriptions
-- "dependencies": Which subtasks depend on others (optional)
+    """Explore the codebase, then decompose a task into subtasks."""
+    task = ctx.task
 
-Keep decomposition practical and actionable."""
-    
-    prompt = "Decompose this task: " + task
-    
-    response = ctx.llm.chat(prompt=prompt, system=system_prompt, preset="smart")
-    return response
+    prompt = ("Task: " + task + "\n\n" +
+              "Explore the codebase as needed, then output the JSON decomposition.")
 
+    result = ctx.llm.agent_turn(
+        prompt=prompt,
+        system=_DECOMPOSE_SYSTEM,
+        tools=_EXPLORE_TOOLS,
+        preset="smart",
+        max_iterations=20,
+        on_tool_error="return",
+    )
+
+    # Validate it parses as JSON
+    ctx.json.decode(result)
+    return result
+
+# ==============================================================================
 # Tool definitions
+# ==============================================================================
+
 create_plan = meow.tool(
     name="create_plan",
-    description="Generate a detailed task plan from a high-level goal using LLM",
+    description=(
+        "Explore the codebase and generate a detailed, grounded task plan. " +
+        "The planner reads real files before writing steps, so every action " +
+        "references actual code locations."
+    ),
     params={
-        "goal": meow.param("string", description="The high-level goal to plan for", required=True),
-        "context": meow.param("string", description="Additional context for planning", default=""),
+        "goal": meow.param("string", desc="The high-level goal to plan for", required=True),
+        "context": meow.param("string", desc="Additional context for planning", default=""),
     },
     handler=create_plan_handler,
 )
 
 execute_plan = meow.tool(
     name="execute_plan",
-    description="Execute a task plan using agentic loop with available tools",
+    description="Execute a JSON task plan step-by-step using an agentic loop.",
     params={
-        "plan": meow.param("string", description="JSON-encoded plan to execute", required=True),
-        "tools": meow.param("string", description="List of tools to use", default="[]"),
+        "plan": meow.param("string", desc="JSON-encoded plan (from create_plan)", required=True),
+        "tools": meow.param("string", desc="List of tool objects to make available", default="[]"),
     },
     handler=execute_plan_handler,
 )
 
 decompose_task = meow.tool(
     name="decompose_task",
-    description="Break down a complex task into smaller subtasks",
+    description=(
+        "Explore the codebase and break a complex task into concrete subtasks " +
+        "with dependency information."
+    ),
     params={
-        "task": meow.param("string", description="Task to decompose", required=True),
-        "max_depth": meow.param("int", description="Maximum decomposition depth", default=2),
+        "task": meow.param("string", desc="Task to decompose", required=True),
+        "max_depth": meow.param("int", desc="Maximum decomposition depth", default=2),
     },
     handler=decompose_task_handler,
 )
 
-# Helper function for creating plans
+# ==============================================================================
+# _EXPLORE_TOOLS: read-only tools available to the planner/decomposer agents
+# ==============================================================================
+
+_EXPLORE_TOOLS = [
+    _plan_file_reader,
+    _plan_file_exists,
+    _plan_list_directory,
+    _plan_search_text,
+    _plan_code_search,
+]
+
+# ==============================================================================
+# plan_and_execute helper
+# ==============================================================================
+
 def plan_and_execute(ctx, goal, tools, context=""):
-    """High-level helper: plan and execute a goal in one step"""
+    """High-level helper: explore → plan → execute in one call.
+
+    Args:
+        ctx:     Handler context.
+        goal:    High-level goal string.
+        tools:   List of tool objects available during execution.
+        context: Optional extra context string.
+
+    Returns:
+        Execution result string.
+    """
     ctx.ui.info("Planning: " + goal)
-    
-    # Create plan
-    plan_json = create_plan.handler(ctx)
+
+    prompt = "Goal: " + goal
+    if context:
+        prompt = prompt + "\n\nAdditional context:\n" + context
+    prompt = prompt + "\n\nExplore the codebase as needed, then output the JSON plan."
+
+    plan_json = ctx.llm.agent_turn(
+        prompt=prompt,
+        system=_PLANNER_SYSTEM,
+        tools=_EXPLORE_TOOLS,
+        preset="smart",
+        max_iterations=20,
+        on_tool_error="return",
+    )
+
     plan = ctx.json.decode(plan_json)
-    
+
     ctx.ui.info("Plan created with " + str(len(plan)) + " steps")
     for i, step in enumerate(plan):
         ctx.ui.info("  " + str(i + 1) + ". " + step.get("action", "Unknown"))
-    
-    # Execute plan
+
+    steps_text = ""
+    for i, step in enumerate(plan):
+        action = step.get("action", "Unknown")
+        tool = step.get("tool", "")
+        line = str(i + 1) + ". " + action
+        if tool:
+            line = line + "  [tool: " + tool + "]"
+        steps_text = steps_text + line + "\n"
+
     ctx.ui.info("Executing plan...")
+
     result = ctx.llm.agent_turn(
         tools=tools,
-        prompt="Execute this plan: " + plan_json,
-        system="You are a task executor. Follow the plan step by step.",
+        prompt=("Execute this plan step by step.\n\n## Plan\n\n" + steps_text +
+                "\nAfter all steps are done, output a summary."),
+        system=_EXECUTOR_SYSTEM,
         preset="smart",
-        max_iterations=50
+        max_iterations=50,
+        on_tool_error="return",
     )
-    
+
     return result

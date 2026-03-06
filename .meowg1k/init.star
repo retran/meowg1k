@@ -82,6 +82,9 @@ pr_setup(preset="smart", summarize_preset="fast")
 load("//commands/search.star", search_setup = "setup")
 search_setup()
 
+load("//commands/code.star", code_setup = "setup")
+code_setup(preset="smart")
+
 # ==============================================================================
 # EXAMPLE COMMANDS (Structured Outputs)
 # ==============================================================================

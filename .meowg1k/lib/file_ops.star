@@ -317,48 +317,68 @@ except:
 
 def file_reader_handler(ctx):
     """Read complete contents of a file."""
-    path = ctx.params["path"]
+    path = ctx.path
     return ctx.fs.read(path)
 
 def file_writer_handler(ctx):
     """Write content to a file, creating or overwriting."""
-    path = ctx.params["path"]
-    content = ctx.params["content"]
+    path = ctx.path
+    content = ctx.content
     ctx.fs.write(path, content)
     return "Successfully wrote to " + path
 
 def file_exists_handler(ctx):
     """Check if a file or directory exists."""
-    path = ctx.params["path"]
+    path = ctx.path
     exists = ctx.fs.exists(path)
     return str(exists)
 
 def list_directory_handler(ctx):
     """List files in a directory matching a glob pattern."""
-    path = ctx.params.get("path", ".")
-    pattern = ctx.params.get("pattern", "*")
-    
+    path = getattr(ctx, "path", ".")
+    pattern = getattr(ctx, "pattern", "*")
+
     files = ctx.fs.glob(path + "/" + pattern)
     return ctx.json.encode(files)
 
 def search_text_handler(ctx):
     """Search for text pattern in files using grep."""
-    pattern = ctx.params["pattern"]
-    path = ctx.params.get("path", ".")
-    
+    pattern = ctx.pattern
+    path = getattr(ctx, "path", ".")
+
     results = ctx.fs.grep(pattern, path)
     return ctx.json.encode(results)
 
 def replace_text_handler(ctx):
     """Replace all occurrences of text in a file."""
-    path = ctx.params["path"]
-    old_text = ctx.params["old"]
-    new_text = ctx.params["new"]
-    
+    path = ctx.path
+    old_text = ctx.old
+    new_text = ctx.new
+
     content = ctx.fs.read(path)
     new_content = content.replace(old_text, new_text)
     ctx.fs.write(path, new_content)
     return "Replaced text in " + path
+
+def edit_file_handler(ctx):
+    """Replace the first occurrence of old_text with new_text in a file.
+
+    Unlike replace_text, this only replaces the FIRST match, making it safe
+    for surgical edits when the same text appears multiple times in a file.
+    Returns an error string (not a hard failure) if the text is not found so
+    the agent can retry with different context.
+    """
+    path = ctx.path
+    old_text = ctx.old
+    new_text = ctx.new
+
+    content = ctx.fs.read(path)
+    idx = content.find(old_text)
+    if idx == -1:
+        return "ERROR: text not found in " + path + " — verify the exact text to replace"
+    new_content = content[:idx] + new_text + content[idx + len(old_text):]
+    ctx.fs.write(path, new_content)
+    return "Edited " + path + " (replaced first occurrence)"
 
 # ==============================================================================
 # TOOL DEFINITIONS
@@ -414,7 +434,7 @@ search_text = meow.tool(
 
 replace_text = meow.tool(
     name="replace_text",
-    description="Replace text in a file",
+    description="Replace ALL occurrences of text in a file",
     params={
         "path": meow.param("string", desc="Path to the file", required=True),
         "old": meow.param("string", desc="Text to replace", required=True),
@@ -423,9 +443,20 @@ replace_text = meow.tool(
     handler=replace_text_handler,
 )
 
+edit_file = meow.tool(
+    name="edit_file",
+    description="Replace the FIRST occurrence of old text with new text in a file. Prefer this over replace_text for surgical edits. Returns an error string if the text is not found.",
+    params={
+        "path": meow.param("string", desc="Path to the file to edit", required=True),
+        "old": meow.param("string", desc="Exact text to find and replace (first occurrence only)", required=True),
+        "new": meow.param("string", desc="Replacement text", required=True),
+    },
+    handler=edit_file_handler,
+)
+
 # ==============================================================================
 # TOOL SETS
 # ==============================================================================
 
 # All file operation tools
-file_tools = [file_reader, file_writer, file_exists, list_directory, search_text, replace_text]
+file_tools = [file_reader, file_writer, file_exists, list_directory, search_text, replace_text, edit_file]

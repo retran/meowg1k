@@ -15,6 +15,7 @@ import (
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 
+	"github.com/google/uuid"
 	gatewayimpl "github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/core/model"
 	"github.com/retran/meowg1k/internal/domain/gateway"
@@ -490,6 +491,21 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 				}
 				userMessageWritten = true
 			}
+
+			// Deduplicate tool calls by ID (some providers, e.g. Copilot/Claude,
+			// may emit duplicate streaming chunks with the same ID).
+			seenIDs := make(map[string]bool, len(toolCalls))
+			deduped := make([]gateway.ToolCall, 0, len(toolCalls))
+			for _, tc := range toolCalls {
+				if tc.ID == "" {
+					tc.ID = uuid.New().String()
+				}
+				if !seenIDs[tc.ID] {
+					seenIDs[tc.ID] = true
+					deduped = append(deduped, tc)
+				}
+			}
+			toolCalls = deduped
 
 			sessionToolCalls := make([]session.ToolCall, 0, len(toolCalls))
 			for _, tc := range toolCalls {
