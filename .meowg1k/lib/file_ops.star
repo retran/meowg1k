@@ -339,7 +339,7 @@ def list_directory_handler(ctx):
     pattern = getattr(ctx, "pattern", "*")
 
     files = ctx.fs.glob(path + "/" + pattern)
-    return ctx.json.encode(files)
+    return ctx.json.stringify(files)
 
 def search_text_handler(ctx):
     """Search for text pattern in files using grep."""
@@ -347,7 +347,7 @@ def search_text_handler(ctx):
     path = getattr(ctx, "path", ".")
 
     results = ctx.fs.grep(pattern, path)
-    return ctx.json.encode(results)
+    return ctx.json.stringify(results)
 
 def replace_text_handler(ctx):
     """Replace all occurrences of text in a file."""

@@ -359,7 +359,7 @@ def review_staged_files(ctx):
 def git_status_handler(ctx):
     """Get current git repository status."""
     status = ctx.git.status()
-    return ctx.json.encode(status)
+    return ctx.json.stringify(status)
 
 def git_diff_handler(ctx):
     """Get git diff for staged or unstaged changes."""

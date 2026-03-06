@@ -30,14 +30,14 @@ meow.provider("gemini",
 meow.model("copilot-sonnet",
     provider="copilot",
     model="claude-sonnet-4.6",
-    max_input_tokens=200000,
+    max_input_tokens=128000,
     max_output_tokens=64000
 )
 
 meow.model("copilot-haiku",
     provider="copilot",
     model="claude-haiku-4.5",
-    max_input_tokens=200000,
+    max_input_tokens=128000,
     max_output_tokens=64000
 )
 

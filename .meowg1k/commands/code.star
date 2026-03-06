@@ -2,11 +2,10 @@
 # Code Command - AI Coding Agent
 # ==============================================================================
 """
-Autonomous AI coding agent that can explore, plan, implement and fix code.
+Autonomous AI coding agent that can explore, implement and fix code.
 
 FEATURES:
   - Full agentic loop: the agent decides which tools to call and when to stop
-  - Planning support: create_plan / decompose_task / execute_plan tools
   - Memory: save_context / recall_context / list_context tools for state across steps
   - File operations: read, write, edit (first-occurrence), search, replace, list
   - Shell execution: run build commands, tests, linters
@@ -40,7 +39,6 @@ load("//lib/code_search.star", "code_search")
 load("//lib/memory.star",
      "save_context", "recall_context", "list_context",
      "summarize_history", "get_session_info")
-load("//lib/planning.star", "create_plan", "decompose_task", "execute_plan")
 load("//lib/ui_helpers.star", "make_agentic_stream_handler")
 load("//lib/compaction.star", "maybe_compact")
 load("//lib/help.star", "build_preset_desc")
@@ -78,11 +76,6 @@ You have access to the following tool groups:
 ### Semantic Search
 - code_search       — vector-based semantic search (requires built index)
 
-### Planning
-- create_plan       — generate a step-by-step plan from a goal (returns JSON)
-- decompose_task    — break a complex task into subtasks (returns JSON)
-- execute_plan      — run a plan using a sub-agentic loop
-
 ### Memory (within this session)
 - save_context      — persist a key/value string to session metadata
 - recall_context    — retrieve a previously saved value (returns "" if missing)
@@ -94,11 +87,9 @@ You have access to the following tool groups:
 
 1. **Explore first**: before changing anything, read relevant files and understand
    the current state.
-2. **Plan complex work**: for tasks with multiple steps, use create_plan or
-   decompose_task, then follow the plan.
-3. **Use memory**: save intermediate results (file lists, error counts, decisions)
+2. **Use memory**: save intermediate results (file lists, error counts, decisions)
    with save_context so you can recall them if the session is long.
-4. **Edit surgically**: prefer edit_file (first-occurrence) over replace_text
+3. **Edit surgically**: prefer edit_file (first-occurrence) over replace_text
    (all-occurrences) unless you intentionally want every instance changed.
 5. **Verify changes**: after editing files, run relevant tests or builds with
    shell_exec to confirm correctness.
@@ -135,8 +126,6 @@ def setup(preset=None):
         git_status, git_diff,
         # Semantic search
         code_search,
-        # Planning
-        create_plan, decompose_task, execute_plan,
         # Memory
         save_context, recall_context, list_context,
         summarize_history, get_session_info,
@@ -149,18 +138,33 @@ def setup(preset=None):
 
         # --- Merge stdin context ---
         full_task = task
+        stdin_len = 0
         if ctx.stdin.is_piped():
             stdin_content = ctx.stdin.read().strip()
             if stdin_content:
+                stdin_len = len(stdin_content)
                 full_task = task + "\n\n### Additional context (stdin):\n" + stdin_content
 
         # --- UI turn ---
-        ctx.ui.user_turn(full_task)
         turn = ctx.ui.assistant_turn()
-        on_event = make_agentic_stream_handler(turn)
+
+        # --- Phase 1: prepare ---
+        prep_step = turn.step("Preparing")
+        task_preview = task if len(task) <= 60 else task[:57] + "..."
+        prep_step.info("Task: " + task_preview)
+        prep_step.info("Preset: " + active_preset)
+        prep_step.info("Max steps: " + str(max_steps))
+        if stdin_len > 0:
+            prep_step.info("Stdin context: " + str(stdin_len) + " chars")
 
         # --- Compact if session is already long (e.g. re-run in same session) ---
         compact_summary = maybe_compact(ctx, preset=active_preset, threshold=60)
+        if compact_summary:
+            prep_step.info("History compacted")
+
+        prep_step.done()
+
+        on_event = make_agentic_stream_handler(turn)
 
         # Build prompt, prepending compaction summary when present
         prompt = full_task
@@ -185,7 +189,7 @@ def setup(preset=None):
 
     code_command = meow.tool(
         name="code",
-        description="Autonomous AI coding agent: explore, plan, implement and fix code.",
+        description="Autonomous AI coding agent: explore, implement and fix code.",
         params={
             "task": meow.param(
                 "string",

@@ -957,7 +957,7 @@ def list_context_handler(ctx):
             actual_key = key[8:]  # Remove "context_" prefix
             context_keys.append(actual_key)
 
-    return ctx.json.encode(context_keys)
+    return ctx.json.stringify(context_keys)
 
 def summarize_history_handler(ctx):
     """Summarize session history for context window management"""
@@ -1023,7 +1023,7 @@ def get_session_info_handler(ctx):
         "children_count": len(children),
     }
 
-    return ctx.json.encode(info)
+    return ctx.json.stringify(info)
 
 # Tool definitions
 save_context = meow.tool(

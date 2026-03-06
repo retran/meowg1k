@@ -371,7 +371,7 @@ def code_search_handler(ctx):
     limit = getattr(ctx, "limit", 5)
 
     results = ctx.index.search(query, limit=limit)
-    return ctx.json.encode(results)
+    return ctx.json.stringify(results)
 
 # ==============================================================================
 # TOOL DEFINITIONS

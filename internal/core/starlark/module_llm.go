@@ -132,6 +132,10 @@ func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict {
 		kindStr = "tool_call_end"
 	case gateway.StreamEventToolCallError:
 		kindStr = "tool_call_error"
+	case gateway.StreamEventIterationStart:
+		kindStr = "iteration_start"
+	case gateway.StreamEventIterationEnd:
+		kindStr = "iteration_end"
 	default:
 		kindStr = "unknown"
 	}
@@ -168,6 +172,8 @@ func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict {
 		if event.Kind == gateway.StreamEventToolCallError {
 			d.SetKey(starlark.String("error"), starlark.String(event.Error)) //nolint:errcheck
 		}
+	case gateway.StreamEventIterationStart, gateway.StreamEventIterationEnd:
+		d.SetKey(starlark.String("iteration"), starlark.MakeInt(event.Iteration)) //nolint:errcheck
 	}
 
 	return d
@@ -439,9 +445,21 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		}
 	}
 
+	emitEvent := func(event gateway.StreamEvent) {
+		if !stream || onEventFn == nil {
+			return
+		}
+		eventDict := streamEventToStarlark(event)
+		starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil) //nolint:errcheck
+	}
+
 	var finalResponse string
 	userMessageWritten := false
 	for iteration := 0; iteration < maxIterations; iteration++ {
+		emitEvent(gateway.StreamEvent{
+			Kind:      gateway.StreamEventIterationStart,
+			Iteration: iteration,
+		})
 		request := gateway.NewGenerateContentRequest(
 			presetObj.Model,
 			system,
@@ -540,6 +558,10 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 
 		if len(toolCalls) == 0 {
 			finalResponse = responseText
+			emitEvent(gateway.StreamEvent{
+				Kind:      gateway.StreamEventIterationEnd,
+				Iteration: iteration,
+			})
 			break
 		}
 
@@ -553,6 +575,13 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 			tool, exists := toolsByName[toolCall.Name]
 			if !exists {
 				errorMsg := fmt.Sprintf("Tool '%s' not found", toolCall.Name)
+				emitEvent(gateway.StreamEvent{
+					Kind:      gateway.StreamEventToolCallError,
+					ToolName:  toolCall.Name,
+					ToolID:    toolCall.ID,
+					Arguments: toolCall.Arguments,
+					Error:     errorMsg,
+				})
 				if onToolError == "abort" {
 					return nil, fmt.Errorf("tool '%s' not found", toolCall.Name)
 				}
@@ -570,16 +599,40 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 				continue
 			}
 
+			emitEvent(gateway.StreamEvent{
+				Kind:      gateway.StreamEventToolCallStart,
+				ToolName:  toolCall.Name,
+				ToolID:    toolCall.ID,
+				Arguments: toolCall.Arguments,
+			})
+
+			toolStart := time.Now()
 			result, toolErr := m.executeToolForAgentic(thread, tool, toolCall.Arguments)
+			toolDuration := time.Since(toolStart).Milliseconds()
 
 			var resultContent string
 			if toolErr != nil {
 				resultContent = fmt.Sprintf("Error: %s", toolErr.Error())
+				emitEvent(gateway.StreamEvent{
+					Kind:       gateway.StreamEventToolCallError,
+					ToolName:   toolCall.Name,
+					ToolID:     toolCall.ID,
+					Arguments:  toolCall.Arguments,
+					Error:      toolErr.Error(),
+					DurationMS: toolDuration,
+				})
 				if onToolError == "abort" {
 					return nil, fmt.Errorf("tool '%s' failed: %w", toolCall.Name, toolErr)
 				}
 			} else {
 				resultContent = result.String()
+				emitEvent(gateway.StreamEvent{
+					Kind:       gateway.StreamEventToolCallEnd,
+					ToolName:   toolCall.Name,
+					ToolID:     toolCall.ID,
+					Arguments:  toolCall.Arguments,
+					DurationMS: toolDuration,
+				})
 			}
 
 			if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
@@ -595,6 +648,10 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 				ToolName:   toolCall.Name,
 			})
 		}
+		emitEvent(gateway.StreamEvent{
+			Kind:      gateway.StreamEventIterationEnd,
+			Iteration: iteration,
+		})
 	}
 
 	if finalResponse == "" {
