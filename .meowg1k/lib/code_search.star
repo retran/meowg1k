@@ -367,11 +367,11 @@ def code_qa_system(ctx, question):
 
 def code_search_handler(ctx):
     """Search code semantically using vector embeddings."""
-    query = ctx.params["query"]
-    limit = ctx.params.get("limit", 5)
-    
+    query = ctx.query
+    limit = getattr(ctx, "limit", 5)
+
     results = ctx.index.search(query, limit=limit)
-    return ctx.json.encode(results)
+    return ctx.json.stringify(results)
 
 # ==============================================================================
 # TOOL DEFINITIONS

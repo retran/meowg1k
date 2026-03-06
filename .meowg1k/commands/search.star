@@ -390,7 +390,7 @@ def setup(default_limit=None, default_threshold=None, default_ask_threshold=None
         search_step.done("{} matches".format(len(results)))
 
         if format == "json":
-            ctx.output.writeline(ctx.json.encode(results))
+            ctx.output.writeline(ctx.json.stringify(results))
         elif full:
             ctx.output.writeline("")
             ctx.output.writeline("Search results for '{}' ({} matches):".format(query, len(results)))
