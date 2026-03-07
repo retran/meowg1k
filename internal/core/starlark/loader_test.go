@@ -23,9 +23,16 @@ func TestNewLoaderService(t *testing.T) {
 }
 
 func TestLoaderService_LoadAll(t *testing.T) {
-	t.Run("loads system init if it exists", func(t *testing.T) {
+	t.Run("loads system init if it exists and no project init", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+
+		projectDir := t.TempDir()
+
+		// Change to project directory (no .meowg1k dir)
+		originalWd, _ := os.Getwd()
+		defer os.Chdir(originalWd)
+		os.Chdir(projectDir)
 
 		// Create system init.star
 		systemConfigDir := filepath.Join(homeDir, ".config", "meowg1k")
@@ -33,18 +40,21 @@ func TestLoaderService_LoadAll(t *testing.T) {
 		require.NoError(t, err)
 
 		systemInit := filepath.Join(systemConfigDir, "init.star")
-		scriptContent := `
+		systemContent := `
 # System config
-x = "system"
+meow.provider("system-provider", type="openai", api_key="system-key")
 `
-		err = os.WriteFile(systemInit, []byte(scriptContent), 0o644)
+		err = os.WriteFile(systemInit, []byte(systemContent), 0o644)
 		require.NoError(t, err)
 
-		runtime := NewRuntime(t.TempDir())
+		runtime := NewRuntime(projectDir)
 		loader := NewLoaderService(runtime)
 
 		err = loader.LoadAll()
 		assert.NoError(t, err)
+
+		// System provider should be loaded since there is no project config
+		assert.Contains(t, runtime.providers, "system-provider")
 	})
 
 	t.Run("loads project init if it exists", func(t *testing.T) {
@@ -75,7 +85,7 @@ y = "project"
 		assert.NoError(t, err)
 	})
 
-	t.Run("loads both system and project init in order", func(t *testing.T) {
+	t.Run("loads project init and skips system init when both exist", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
 
@@ -93,21 +103,21 @@ y = "project"
 
 		systemInit := filepath.Join(systemConfigDir, "init.star")
 		systemContent := `
-# System config
-meow.provider("test-provider", type="openai", api_key="system-key")
+# System config — should NOT be loaded
+meow.provider("system-only-provider", type="openai", api_key="system-key")
 `
 		err = os.WriteFile(systemInit, []byte(systemContent), 0o644)
 		require.NoError(t, err)
 
-		// Create project init.star that overrides the provider
+		// Create project init.star with a different provider name
 		projectConfigDir := filepath.Join(projectDir, ".meowg1k")
 		err = os.MkdirAll(projectConfigDir, 0o755)
 		require.NoError(t, err)
 
 		projectInit := filepath.Join(projectConfigDir, "init.star")
 		projectContent := `
-# Project config - overrides system
-meow.provider("test-provider", type="anthropic", api_key="project-key")
+# Project config — should be the only config loaded
+meow.provider("project-only-provider", type="anthropic", api_key="project-key")
 `
 		err = os.WriteFile(projectInit, []byte(projectContent), 0o644)
 		require.NoError(t, err)
@@ -118,10 +128,10 @@ meow.provider("test-provider", type="anthropic", api_key="project-key")
 		err = loader.LoadAll()
 		assert.NoError(t, err)
 
-		// Verify project config overrode system config
-		assert.Contains(t, runtime.providers, "test-provider")
-		assert.Equal(t, "anthropic", runtime.providers["test-provider"].Type)
-		assert.Equal(t, "project-key", runtime.providers["test-provider"].APIKey)
+		// Project provider must be loaded
+		assert.Contains(t, runtime.providers, "project-only-provider")
+		// System provider must NOT be loaded
+		assert.NotContains(t, runtime.providers, "system-only-provider")
 	})
 
 	t.Run("succeeds when no init files exist", func(t *testing.T) {
