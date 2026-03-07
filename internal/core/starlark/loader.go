@@ -21,21 +21,23 @@ func NewLoaderService(runtime *Runtime) *LoaderService {
 	}
 }
 
-// LoadAll loads scripts in order: system init.star → project init.star
+// LoadAll loads config with priority: project init.star if found, otherwise system init.star.
+// If neither exists, nothing is loaded.
 func (l *LoaderService) LoadAll() error {
-	// 1. Load system init.star
-	systemInit := l.getSystemInitPath()
-	if _, err := os.Stat(systemInit); err == nil {
-		if err := l.loadScript(systemInit); err != nil {
-			return fmt.Errorf("failed to load system init: %w", err)
-		}
-	}
-
-	// 2. Load project init.star (overrides system config)
+	// 1. Try project init.star first
 	projectInit := l.getProjectInitPath()
 	if _, err := os.Stat(projectInit); err == nil {
 		if err := l.loadScript(projectInit); err != nil {
 			return fmt.Errorf("failed to load project init: %w", err)
+		}
+		return nil
+	}
+
+	// 2. Fall back to system init.star
+	systemInit := l.getSystemInitPath()
+	if _, err := os.Stat(systemInit); err == nil {
+		if err := l.loadScript(systemInit); err != nil {
+			return fmt.Errorf("failed to load system init: %w", err)
 		}
 	}
 
