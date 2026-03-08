@@ -182,7 +182,7 @@ func (c *Client) Complete(ctx context.Context, req *CompletionRequest) (*Complet
 		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 
-	resp, err := c.httpClient.Do(httpReq) //nolint:gosec // G704: SSRF risk accepted; URL is user-configured
+	resp, err := c.httpClient.Do(httpReq) // SSRF risk accepted; URL is user-configured
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
@@ -237,7 +237,7 @@ func (c *Client) Embedding(ctx context.Context, req *EmbeddingRequest) (*Embeddi
 		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 
-	resp, err := c.httpClient.Do(httpReq) //nolint:gosec // G704: SSRF risk accepted; URL is user-configured
+	resp, err := c.httpClient.Do(httpReq) // SSRF risk accepted; URL is user-configured
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}
@@ -341,7 +341,7 @@ func (c *Client) sendEmbeddingBatchRequest(ctx context.Context, req *EmbeddingRe
 		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
 
-	resp, err := c.httpClient.Do(httpReq) //nolint:gosec // G704: SSRF risk accepted; URL is user-configured
+	resp, err := c.httpClient.Do(httpReq) // SSRF risk accepted; URL is user-configured
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request to %q: %w", url, err)
 	}

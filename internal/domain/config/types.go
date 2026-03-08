@@ -34,7 +34,7 @@ type ProviderConfig struct {
 	RateLimit            *RateLimitConfig `yaml:"rate_limit" mapstructure:"rate_limit"`
 	Type                 string           `yaml:"type" mapstructure:"type"`
 	BaseURL              string           `yaml:"base_url" mapstructure:"base_url"`
-	APIKey               string           `yaml:"-" mapstructure:"-"` //nolint:gosec // Direct API key (not serialized)
+	APIKey               string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
 	Tokenizer            string           `yaml:"tokenizer" mapstructure:"tokenizer"`
 	AppID                string           `yaml:"-" mapstructure:"-"` // Not serialized — passed at runtime
 	EditorVersion        string           `yaml:"-" mapstructure:"-"`
@@ -53,7 +53,7 @@ type ModelConfig struct {
 	Provider  string           `yaml:"provider" mapstructure:"provider"`
 	Model     string           `yaml:"model" mapstructure:"model"`
 	BaseURL   string           `yaml:"base_url" mapstructure:"base_url"`
-	APIKey    string           `yaml:"-" mapstructure:"-"` //nolint:gosec // Direct API key (not serialized)
+	APIKey    string           `yaml:"-" mapstructure:"-"` // Direct API key (not serialized)
 	Tokenizer string           `yaml:"tokenizer" mapstructure:"tokenizer"`
 }
 

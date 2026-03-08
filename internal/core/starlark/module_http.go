@@ -239,7 +239,7 @@ func executeHTTPRequest(req *http.Request, timeout int, urlStr string) (starlark
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	resp, err := client.Do(req) //nolint:gosec // URL is user-provided by design
+	resp, err := client.Do(req) // URL is user-provided by design
 	if err != nil {
 		return nil, fmt.Errorf("HTTP %s request to '%s' failed: %w", req.Method, urlStr, err)
 	}

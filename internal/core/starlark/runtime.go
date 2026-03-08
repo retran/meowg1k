@@ -41,7 +41,7 @@ type ProviderConfig struct {
 	ExtraOpts            map[string]interface{}
 	Type                 string
 	BaseURL              string
-	APIKey               string //nolint:gosec // API key is user-provided configuration, not a hardcoded secret
+	APIKey               string // API key is user-provided configuration, not a hardcoded secret
 	Tokenizer            string
 	AppID                string
 	EditorVersion        string

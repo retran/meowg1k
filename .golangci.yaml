@@ -90,6 +90,10 @@ linters:
     gosec:
       excludes:
         - G104          # Unhandled errors (covered by errcheck)
+        - G117          # Exported struct fields matching secret pattern (false positive for config types)
+        - G703          # Path traversal via taint analysis (paths are internally derived)
+        - G704          # SSRF via taint analysis (URLs are validated or user-configured)
+        - G705          # XSS via taint analysis (stderr output is safe)
 
     revive:
       severity: warning
@@ -171,6 +175,11 @@ linters:
         linters:
           - gocyclo
           - funlen
+
+      # Package named "version" intentionally shadows stdlib for build metadata
+      - path: "internal/version/version\\.go"
+        linters:
+          - revive
 
 formatters:
   enable:

@@ -696,7 +696,7 @@ func uiPrompt(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple,
 				if !ok {
 					return nil, fmt.Errorf("validator must return string or None")
 				}
-				fmt.Fprintf(os.Stderr, "✗ %s\n", errorMsg) //nolint:gosec // G705: validation error message is safe to display
+				fmt.Fprintf(os.Stderr, "✗ %s\n", errorMsg) // validation error message is safe to display
 				continue                                   // Ask again
 			}
 		}

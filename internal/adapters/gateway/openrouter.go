@@ -167,7 +167,7 @@ func (g *openrouterGateway) GenerateContent(
 		httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
 		httpReq.Header.Set("X-Title", "meowg1k")
 
-		resp, err := g.client.Do(httpReq) //nolint:gosec // URL is constructed from g.baseURL validated in NewOpenRouterGateway constructor.
+		resp, err := g.client.Do(httpReq) // URL is constructed from g.baseURL validated in NewOpenRouterGateway constructor.
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute openrouter HTTP request: %w", err)
 		}

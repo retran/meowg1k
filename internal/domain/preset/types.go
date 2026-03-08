@@ -42,7 +42,7 @@ type ResolvedPreset struct {
 	Provider             provider.Provider
 	Name                 string
 	APIKeyEnv            string
-	APIKey               string //nolint:gosec // API key field for preset configuration, not a hardcoded credential
+	APIKey               string // API key field for preset configuration, not a hardcoded credential
 	AppID                string
 	EditorVersion        string
 	EditorPluginVersion  string

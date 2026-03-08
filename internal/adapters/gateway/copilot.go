@@ -179,7 +179,7 @@ func (g *copilotGateway) refreshTokenIfNeeded(ctx context.Context) error {
 	g.setEditorHeaders(req)
 	req.Header.Set("Authorization", "token "+g.githubToken)
 
-	resp, err := g.client.Do(req) //nolint:gosec // URL is the hardcoded copilotGitHubAPIEndpoint constant, SSRF not applicable.
+	resp, err := g.client.Do(req) // URL is the hardcoded copilotGitHubAPIEndpoint constant, SSRF not applicable.
 	if err != nil {
 		return fmt.Errorf("token exchange request failed: %w", err)
 	}
@@ -392,7 +392,7 @@ func (g *copilotGateway) doGenerateContent(ctx context.Context, request *gateway
 		return nil, err
 	}
 
-	resp, err := g.client.Do(httpReq) //nolint:gosec // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
+	resp, err := g.client.Do(httpReq) // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request to GitHub Copilot API failed: %w", err)
 	}
@@ -454,7 +454,7 @@ func (g *copilotGateway) GenerateContentStream(
 		return nil, err
 	}
 
-	resp, err := g.client.Do(httpReq) //nolint:gosec // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
+	resp, err := g.client.Do(httpReq) // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
 	if err != nil {
 		wrappedErr := fmt.Errorf("HTTP request to GitHub Copilot API failed: %w", err)
 		notifyStreamError(callback, wrappedErr)

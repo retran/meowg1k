@@ -187,7 +187,7 @@ func requestDeviceCode(ctx context.Context, client *http.Client, appID string) (
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) //nolint:gosec // G704: URL validated by validateGitHubURL before use
+	resp, err := client.Do(req) // URL validated by validateGitHubURL before use
 	if err != nil {
 		return nil, fmt.Errorf("device code request failed: %w", err)
 	}
@@ -295,7 +295,7 @@ func pollCopilotToken(ctx context.Context, client *http.Client, appID, deviceCod
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) //nolint:gosec // G704: URL validated by validateGitHubURL before use
+	resp, err := client.Do(req) // URL validated by validateGitHubURL before use
 	if err != nil {
 		return "", false, fmt.Errorf("poll request failed: %w", err)
 	}

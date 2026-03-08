@@ -81,7 +81,7 @@ func determineMainDBPath() (string, error) {
 	// Try XDG_DATA_HOME first
 	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
 		dbDir := filepath.Join(xdgDataHome, "meowg1k")
-		err := os.MkdirAll(dbDir, 0o750) //nolint:gosec // G703: path derived from env variable; user-controlled is acceptable
+		err := os.MkdirAll(dbDir, 0o750) // path derived from env variable; user-controlled is acceptable
 		if err == nil {
 			return filepath.Join(dbDir, "meowg1k.db"), nil
 		}
@@ -91,7 +91,7 @@ func determineMainDBPath() (string, error) {
 	// Try HOME/.local/share as fallback
 	if home := os.Getenv("HOME"); home != "" {
 		dbDir := filepath.Join(home, ".local", "share", "meowg1k")
-		err := os.MkdirAll(dbDir, 0o750) //nolint:gosec // G703: path derived from HOME env variable; user-controlled is acceptable
+		err := os.MkdirAll(dbDir, 0o750) // path derived from HOME env variable; user-controlled is acceptable
 		if err == nil {
 			return filepath.Join(dbDir, "meowg1k.db"), nil
 		}

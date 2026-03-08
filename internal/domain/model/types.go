@@ -24,7 +24,7 @@ type ResolvedModel struct {
 	Provider             provider.Provider
 	Model                string
 	BaseURL              string
-	APIKey               string //nolint:gosec // API key field for model configuration, not a hardcoded credential
+	APIKey               string // API key field for model configuration, not a hardcoded credential
 	APIKeyEnv            string
 	AppID                string
 	EditorVersion        string

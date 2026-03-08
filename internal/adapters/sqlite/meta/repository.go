@@ -351,14 +351,14 @@ func (r *Repository) writeBlob(dir, name string, data []byte) error {
 		return fmt.Errorf("failed to create temp blob file: %w", err)
 	}
 	defer func() {
-		_ = os.Remove(tmpFile.Name()) //nolint:errcheck,gosec // G703: cleanup using derived path; errcheck: defer cleanup errors are not critical
+		_ = os.Remove(tmpFile.Name()) //nolint:errcheck // defer cleanup errors are not critical
 	}()
 
 	if err := writeAndSync(tmpFile, data); err != nil {
 		return err
 	}
 
-	if err := os.Chmod(tmpFile.Name(), defaultBlobFilePerms); err != nil { //nolint:gosec // G703: path derived from os.CreateTemp
+	if err := os.Chmod(tmpFile.Name(), defaultBlobFilePerms); err != nil { // path derived from os.CreateTemp
 		return fmt.Errorf("failed to set blob file permissions: %w", err)
 	}
 
@@ -385,7 +385,7 @@ func writeAndSync(file *os.File, data []byte) error {
 }
 
 func replaceFile(sourcePath, destPath string) error {
-	if err := os.Rename(sourcePath, destPath); err == nil { //nolint:gosec // G703: paths are internally derived
+	if err := os.Rename(sourcePath, destPath); err == nil { // paths are internally derived
 		return nil
 	} else if !errors.Is(err, os.ErrExist) {
 		return fmt.Errorf("failed to finalize blob file: %w", err)
@@ -394,7 +394,7 @@ func replaceFile(sourcePath, destPath string) error {
 	if remErr := os.Remove(destPath); remErr != nil && !errors.Is(remErr, os.ErrNotExist) {
 		return fmt.Errorf("failed to replace existing blob file: %w", remErr)
 	}
-	if err := os.Rename(sourcePath, destPath); err != nil { //nolint:gosec // G703: path traversal is not possible here as paths are constructed from validated workspace paths
+	if err := os.Rename(sourcePath, destPath); err != nil { // paths are constructed from validated workspace paths
 		return fmt.Errorf("failed to finalize blob file: %w", err)
 	}
 
