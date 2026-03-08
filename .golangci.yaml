@@ -33,7 +33,7 @@ linters:
     - nestif            # Nesting depth
     - dupl              # Duplicate code detection
     - maintidx          # Maintainability index
-    
+
     # ============================================================
     # Best Practices
     # ============================================================
@@ -61,7 +61,7 @@ linters:
     - whitespace        # Whitespace issues
     - godot             # Comment punctuation
     - misspell          # Spelling errors
-    
+
     # ============================================================
     # Loop & Copy Safety
     # ============================================================
@@ -158,14 +158,14 @@ linters:
           - wrapcheck
           - thelper
           - maintidx
-      
+
       # Relax linting for generated code
       - path: "zz_generated.*\\.go"
         linters:
           - dupl
           - gocyclo
           - maintidx
-      
+
       # Relax linting for main.go files
       - path: "cmd/.*/main\\.go"
         linters:
