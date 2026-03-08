@@ -443,9 +443,11 @@ func buildContextMembers(
 	}
 }
 
-// logSessionWarning writes a session lifecycle warning to stderr.
+// logSessionWarning writes a session lifecycle warning to stderr, only when err is non-nil.
 func logSessionWarning(msg string, err error) {
-	fmt.Fprintf(os.Stderr, "warning: %s: %v\n", msg, err)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %s: %v\n", msg, err)
+	}
 }
 
 // checkContextCancelled returns an error if the context is done.

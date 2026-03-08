@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"context"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -418,17 +421,38 @@ func TestCheckContextCancelled_CancelledContext(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestLogSessionWarning_NoError(t *testing.T) {
-	// logSessionWarning writes to os.Stderr; just verify it doesn't panic.
-	assert.NotPanics(t, func() {
-		logSessionWarning("test warning", nil)
-	})
+	// logSessionWarning should be a no-op when err is nil — no output, no panic.
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stderr = w
+
+	logSessionWarning("test warning", nil)
+
+	w.Close()
+	os.Stderr = old
+
+	var buf strings.Builder
+	_, _ = io.Copy(&buf, r)
+	assert.Empty(t, buf.String(), "expected no output when err is nil")
 }
 
 func TestLogSessionWarning_WithError(t *testing.T) {
-	anErr := assert.AnError
-	assert.NotPanics(t, func() {
-		logSessionWarning("something failed", anErr)
-	})
+	// logSessionWarning should write to stderr when err is non-nil.
+	old := os.Stderr
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stderr = w
+
+	logSessionWarning("something failed", assert.AnError)
+
+	w.Close()
+	os.Stderr = old
+
+	var buf strings.Builder
+	_, _ = io.Copy(&buf, r)
+	assert.Contains(t, buf.String(), "something failed")
+	assert.Contains(t, buf.String(), assert.AnError.Error())
 }
 
 // ---------------------------------------------------------------------------
