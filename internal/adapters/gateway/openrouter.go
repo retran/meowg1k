@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -60,23 +60,23 @@ type openrouterMessage struct {
 }
 
 type openrouterRequest struct {
-	Messages          *[]openrouterMessage `json:"messages"`
-	Stop              *[]string            `json:"stop,omitempty"`
+	Temperature       *float64             `json:"temperature,omitempty"`
+	TopP              *float64             `json:"top_p,omitempty"`
 	Tools             *[]openrouterTool    `json:"tools,omitempty"`
 	Model             *string              `json:"model"`
 	ToolChoice        *string              `json:"tool_choice,omitempty"`
 	FrequencyPenalty  *float64             `json:"frequency_penalty,omitempty"`
 	PresencePenalty   *float64             `json:"presence_penalty,omitempty"`
 	RepetitionPenalty *float64             `json:"repetition_penalty,omitempty"`
-	Temperature       *float64             `json:"temperature,omitempty"`
-	TopP              *float64             `json:"top_p,omitempty"`
+	Stop              *[]string            `json:"stop,omitempty"`
 	TopA              *float64             `json:"top_a,omitempty"`
+	Messages          *[]openrouterMessage `json:"messages"`
 	MinP              *float64             `json:"min_p,omitempty"`
 	N                 *int                 `json:"n,omitempty"`
 	Seed              *int                 `json:"seed,omitempty"`
 	TopK              *int                 `json:"top_k,omitempty"`
-	MaxTokens         int                  `json:"max_tokens,omitempty"`
 	ResponseFormat    map[string]any       `json:"response_format,omitempty"`
+	MaxTokens         int                  `json:"max_tokens,omitempty"`
 }
 
 type openrouterTool struct {
@@ -115,12 +115,12 @@ type openrouterResponse struct {
 		Type    string `json:"type"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
-	Choices []openrouterChoice `json:"choices"`
-	Usage   *struct {
+	Usage *struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage,omitempty"`
+	Choices []openrouterChoice `json:"choices"`
 }
 
 // GenerateContent sends a content generation request to OpenRouter API.
@@ -167,9 +167,9 @@ func (g *openrouterGateway) GenerateContent(
 		httpReq.Header.Set("HTTP-Referer", "https://github.com/retran/meowg1k")
 		httpReq.Header.Set("X-Title", "meowg1k")
 
-		resp, err := g.client.Do(httpReq)
+		resp, err := g.client.Do(httpReq) //nolint:gosec // URL is constructed from g.baseURL validated in NewOpenRouterGateway constructor.
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to execute openrouter HTTP request: %w", err)
 		}
 		defer func() { _ = resp.Body.Close() }() //nolint:errcheck // Defer close errors are not critical
 
@@ -451,7 +451,9 @@ func (g *openrouterGateway) GenerateContentStream(
 	resp, err := g.GenerateContent(ctx, request)
 	if err != nil {
 		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+			if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false}); cbErr != nil {
+				return nil, fmt.Errorf("%w; stream callback error: %w", err, cbErr)
+			}
 		}
 		return nil, err
 	}
@@ -461,7 +463,7 @@ func (g *openrouterGateway) GenerateContentStream(
 // CountTokens estimates token count for OpenRouter models.
 // Since OpenRouter is a proxy to various providers, we use character-based estimation:
 // approximately (chars + 2) / 3 for better accuracy.
-func (g *openrouterGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+func (g *openrouterGateway) CountTokens(_ context.Context, _ string, texts []string) (int, error) {
 	if g == nil {
 		return 0, fmt.Errorf("openrouter gateway is nil")
 	}

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package vector
@@ -16,7 +16,7 @@ import (
 	"github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// Mock implementations for testing
+// Mock implementations for testing.
 
 type mockMetaRepository struct {
 	GetValueFunc    func(ctx context.Context, key string) ([]byte, error)

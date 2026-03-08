@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -12,7 +12,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// TestMeowModuleCreation tests createMeowModule function
+// TestMeowModuleCreation tests createMeowModule function.
 func TestMeowModuleCreation(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	module := runtime.createMeowModule()
@@ -52,7 +52,7 @@ func TestMeowModuleCreation(t *testing.T) {
 	require.NotNil(t, command)
 }
 
-// TestMeowProvider tests provider registration
+// TestMeowProvider tests provider registration.
 func TestMeowProvider(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -116,7 +116,7 @@ func TestMeowProvider(t *testing.T) {
 	})
 }
 
-// TestMeowProviderErrors tests error cases for provider registration
+// TestMeowProviderErrors tests error cases for provider registration.
 func TestMeowProviderErrors(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -148,7 +148,7 @@ func TestMeowProviderErrors(t *testing.T) {
 	})
 }
 
-// TestMeowModel tests model registration
+// TestMeowModel tests model registration.
 func TestMeowModel(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -215,7 +215,7 @@ func TestMeowModel(t *testing.T) {
 	})
 }
 
-// TestMeowModelErrors tests error cases for model registration
+// TestMeowModelErrors tests error cases for model registration.
 func TestMeowModelErrors(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -247,7 +247,7 @@ func TestMeowModelErrors(t *testing.T) {
 	})
 }
 
-// TestMeowPreset tests preset registration
+// TestMeowPreset tests preset registration.
 func TestMeowPreset(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -315,7 +315,7 @@ func TestMeowPreset(t *testing.T) {
 	})
 }
 
-// TestMeowPresetErrors tests error cases for preset registration
+// TestMeowPresetErrors tests error cases for preset registration.
 func TestMeowPresetErrors(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -347,7 +347,7 @@ func TestMeowPresetErrors(t *testing.T) {
 	})
 }
 
-// TestMeowPresets tests listing registered presets
+// TestMeowPresets tests listing registered presets.
 func TestMeowPresets(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -378,7 +378,7 @@ func TestMeowPresets(t *testing.T) {
 	assert.True(t, presetNames["preset3"])
 }
 
-// TestMeowPresetsErrors tests error cases for presets listing
+// TestMeowPresetsErrors tests error cases for presets listing.
 func TestMeowPresetsErrors(t *testing.T) {
 	runtime := NewRuntime("/tmp")
 	thread := &starlark.Thread{Name: "test"}
@@ -393,12 +393,12 @@ func TestMeowPresetsErrors(t *testing.T) {
 	})
 }
 
-// TestStarlarkToGo tests the starlarkToGo conversion function
+// TestStarlarkToGo tests the starlarkToGo conversion function.
 func TestStarlarkToGo(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    starlark.Value
 		expected interface{}
+		name     string
 	}{
 		{
 			name:     "string",
@@ -435,7 +435,7 @@ func TestStarlarkToGo(t *testing.T) {
 	}
 }
 
-// TestStarlarkToGoComplexTypes tests complex type conversions
+// TestStarlarkToGoComplexTypes tests complex type conversions.
 func TestStarlarkToGoComplexTypes(t *testing.T) {
 	t.Run("list conversion", func(t *testing.T) {
 		list := starlark.NewList([]starlark.Value{

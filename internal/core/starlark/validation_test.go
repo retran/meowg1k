@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
 func TestValidateToolParamsRegex(t *testing.T) {
@@ -67,15 +68,15 @@ func TestValidateToolParamsChoices(t *testing.T) {
 
 func TestValidateToolParamsRange(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
-	min := 1.0
-	max := 5.0
+	minVal := 1.0
+	maxVal := 5.0
 	tool := &Tool{
 		Name: "search",
 		Params: map[string]*Param{
 			"limit": {
 				Type: "int",
-				Min:  &min,
-				Max:  &max,
+				Min:  &minVal,
+				Max:  &maxVal,
 			},
 		},
 	}
@@ -200,7 +201,7 @@ func TestValidateToolParamsRejectsWhitespaceOnlyInput(t *testing.T) {
 func mustLoadFunction(t *testing.T, src, name string) *starlark.Function {
 	t.Helper()
 	thread := &starlark.Thread{Name: "validator-test"}
-	globals, err := starlark.ExecFile(thread, name+".star", src, nil)
+	globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, name+".star", src, nil)
 	if err != nil {
 		t.Fatalf("failed to load function: %v", err)
 	}
@@ -212,7 +213,7 @@ func mustLoadFunction(t *testing.T, src, name string) *starlark.Function {
 	return fn
 }
 
-// TestParamValidationError_Error tests the Error method
+// TestParamValidationError_Error tests the Error method.
 func TestParamValidationError_Error(t *testing.T) {
 	err := &ParamValidationError{
 		Param:  "max_results",
@@ -225,7 +226,7 @@ func TestParamValidationError_Error(t *testing.T) {
 	assert.Contains(t, msg, "invalid")
 }
 
-// TestValidateToolParams_EmptyTool tests validation with nil tool
+// TestValidateToolParams_EmptyTool tests validation with nil tool.
 func TestValidateToolParams_EmptyTool(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -234,7 +235,7 @@ func TestValidateToolParams_EmptyTool(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestValidateToolParams_MinMaxLength tests min/max length constraints
+// TestValidateToolParams_MinMaxLength tests min/max length constraints.
 func TestValidateToolParams_MinMaxLength(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -303,7 +304,7 @@ func TestValidateToolParams_MinMaxLength(t *testing.T) {
 	})
 }
 
-// TestValidateToolParams_TypeConversion tests type conversion errors
+// TestValidateToolParams_TypeConversion tests type conversion errors.
 func TestValidateToolParams_TypeConversion(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -358,7 +359,7 @@ func TestValidateToolParams_TypeConversion(t *testing.T) {
 	})
 }
 
-// TestValidateToolParams_OptionalParameters tests optional parameter handling
+// TestValidateToolParams_OptionalParameters tests optional parameter handling.
 func TestValidateToolParams_OptionalParameters(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -393,12 +394,12 @@ func TestValidateToolParams_OptionalParameters(t *testing.T) {
 	})
 }
 
-// TestZeroValueForType tests the zeroValueForType helper function
+// TestZeroValueForType tests the zeroValueForType helper function.
 func TestZeroValueForType(t *testing.T) {
 	tests := []struct {
+		expected  starlark.Value
 		name      string
 		paramType string
-		expected  starlark.Value
 	}{
 		{
 			name:      "bool type returns False",
@@ -444,7 +445,7 @@ func TestZeroValueForType(t *testing.T) {
 // Phase 4 Tests: Comprehensive validation coverage for 75% target
 // ============================================================================
 
-// TestConvertParamValue_EdgeCases tests all type conversion branches
+// TestConvertParamValue_EdgeCases tests all type conversion branches.
 func TestConvertParamValue_EdgeCases(t *testing.T) {
 	t.Run("string with None", func(t *testing.T) {
 		param := &Param{Type: "string"}
@@ -497,7 +498,7 @@ func TestConvertParamValue_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestInterpretValidatorResult_AllBranches tests all result interpretation logic
+// TestInterpretValidatorResult_AllBranches tests all result interpretation logic.
 func TestInterpretValidatorResult_AllBranches(t *testing.T) {
 	t.Run("None means success", func(t *testing.T) {
 		err := interpretValidatorResult(starlark.None, "test_validator")
@@ -549,7 +550,7 @@ func TestInterpretValidatorResult_AllBranches(t *testing.T) {
 	})
 }
 
-// TestRunDynamicValidators_ErrorPaths tests error handling in dynamic validation
+// TestRunDynamicValidators_ErrorPaths tests error handling in dynamic validation.
 func TestRunDynamicValidators_ErrorPaths(t *testing.T) {
 	t.Run("no validators returns nil", func(t *testing.T) {
 		runtime := NewRuntime(t.TempDir())
@@ -661,7 +662,7 @@ def handler(ctx):
 	})
 }
 
-// TestRunValidatorTool_EdgeCases tests validator tool execution edge cases
+// TestRunValidatorTool_EdgeCases tests validator tool execution edge cases.
 func TestRunValidatorTool_EdgeCases(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -756,7 +757,7 @@ def handler(ctx):
 	})
 }
 
-// TestRunValidatorFunction_EdgeCases tests validator function execution
+// TestRunValidatorFunction_EdgeCases tests validator function execution.
 func TestRunValidatorFunction_EdgeCases(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -786,7 +787,7 @@ def handler(ctx):
 	})
 }
 
-// TestCreateValidatorContext_EdgeCases tests context creation for validators
+// TestCreateValidatorContext_EdgeCases tests context creation for validators.
 func TestCreateValidatorContext_EdgeCases(t *testing.T) {
 	t.Run("nil runtime", func(t *testing.T) {
 		flags := starlark.StringDict{"value": starlark.String("test")}
@@ -833,7 +834,7 @@ func TestCreateValidatorContext_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestNormalizeValue tests value normalization
+// TestNormalizeValue tests value normalization.
 func TestNormalizeValue(t *testing.T) {
 	t.Run("nil becomes None", func(t *testing.T) {
 		result := normalizeValue(nil)
@@ -847,7 +848,7 @@ func TestNormalizeValue(t *testing.T) {
 	})
 }
 
-// TestIsValueProvided tests value presence detection
+// TestIsValueProvided tests value presence detection.
 func TestIsValueProvided(t *testing.T) {
 	t.Run("nil is not provided", func(t *testing.T) {
 		param := &Param{Type: "string"}
@@ -880,7 +881,7 @@ func TestIsValueProvided(t *testing.T) {
 	})
 }
 
-// TestSanitizeParamValue_EdgeCases tests sanitization edge cases
+// TestSanitizeParamValue_EdgeCases tests sanitization edge cases.
 func TestSanitizeParamValue_EdgeCases(t *testing.T) {
 	t.Run("nil param returns value unchanged", func(t *testing.T) {
 		value := starlark.String("  test  ")
@@ -923,7 +924,7 @@ func TestSanitizeParamValue_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestToFloat64_EdgeCases tests numeric conversion
+// TestToFloat64_EdgeCases tests numeric conversion.
 func TestToFloat64_EdgeCases(t *testing.T) {
 	t.Run("int converts", func(t *testing.T) {
 		result, err := toFloat64(int(42))
@@ -965,7 +966,7 @@ func TestToFloat64_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestValueInChoices tests choice validation
+// TestValueInChoices tests choice validation.
 func TestValueInChoices(t *testing.T) {
 	t.Run("value in choices", func(t *testing.T) {
 		choices := []any{"foo", "bar", "baz"}
@@ -989,7 +990,7 @@ func TestValueInChoices(t *testing.T) {
 	})
 }
 
-// TestRunStaticChecks_TypeMismatches tests error handling for type mismatches
+// TestRunStaticChecks_TypeMismatches tests error handling for type mismatches.
 func TestRunStaticChecks_TypeMismatches(t *testing.T) {
 	t.Run("pattern on non-string", func(t *testing.T) {
 		param := &Param{
@@ -1024,10 +1025,10 @@ func TestRunStaticChecks_TypeMismatches(t *testing.T) {
 	})
 
 	t.Run("min on non-numeric", func(t *testing.T) {
-		min := 1.0
+		minVal := 1.0
 		param := &Param{
 			Type: "string",
-			Min:  &min,
+			Min:  &minVal,
 		}
 		err := runStaticChecks("test", param, "not a number")
 		assert.Error(t, err)
@@ -1035,10 +1036,10 @@ func TestRunStaticChecks_TypeMismatches(t *testing.T) {
 	})
 
 	t.Run("max on non-numeric", func(t *testing.T) {
-		max := 10.0
+		maxVal := 10.0
 		param := &Param{
 			Type: "string",
-			Max:  &max,
+			Max:  &maxVal,
 		}
 		err := runStaticChecks("test", param, "not a number")
 		assert.Error(t, err)

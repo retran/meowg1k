@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package config
@@ -6,12 +6,13 @@ package config
 import (
 	"testing"
 
-	"github.com/retran/meowg1k/internal/domain/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/retran/meowg1k/internal/domain/config"
 )
 
-// TestNewService tests creating a new config service
+// TestNewService tests creating a new config service.
 func TestNewService(t *testing.T) {
 	service, err := NewService()
 	require.NoError(t, err)
@@ -31,7 +32,7 @@ func TestNewService(t *testing.T) {
 	assert.Empty(t, cfg.Presets, "Presets should be empty initially")
 }
 
-// TestGet tests retrieving configuration
+// TestGet tests retrieving configuration.
 func TestGet(t *testing.T) {
 	t.Run("normal service", func(t *testing.T) {
 		service, err := NewService()
@@ -51,7 +52,7 @@ func TestGet(t *testing.T) {
 	})
 }
 
-// TestOverride tests overriding configuration
+// TestOverride tests overriding configuration.
 func TestOverride(t *testing.T) {
 	t.Run("successful override", func(t *testing.T) {
 		service, err := NewService()
@@ -117,7 +118,7 @@ func TestOverride(t *testing.T) {
 	})
 }
 
-// TestOverrideMultipleTimes tests overriding config multiple times
+// TestOverrideMultipleTimes tests overriding config multiple times.
 func TestOverrideMultipleTimes(t *testing.T) {
 	service, err := NewService()
 	require.NoError(t, err)
@@ -156,7 +157,7 @@ func TestOverrideMultipleTimes(t *testing.T) {
 	assert.Contains(t, retrieved.Providers, "provider2")
 }
 
-// TestOverrideWithComplexConfig tests overriding with full config structure
+// TestOverrideWithComplexConfig tests overriding with full config structure.
 func TestOverrideWithComplexConfig(t *testing.T) {
 	service, err := NewService()
 	require.NoError(t, err)
@@ -241,7 +242,7 @@ func TestOverrideWithComplexConfig(t *testing.T) {
 	assert.Contains(t, retrieved.Filter.Ignore, "*.log")
 }
 
-// TestOverrideWithEmptyMaps tests overriding with empty but initialized maps
+// TestOverrideWithEmptyMaps tests overriding with empty but initialized maps.
 func TestOverrideWithEmptyMaps(t *testing.T) {
 	service, err := NewService()
 	require.NoError(t, err)
@@ -271,7 +272,7 @@ func TestOverrideWithEmptyMaps(t *testing.T) {
 	assert.Empty(t, retrieved.Providers, "Providers should be empty after override with empty map")
 }
 
-// TestServiceConcurrency tests that service operations are safe
+// TestServiceConcurrency tests that service operations are safe.
 func TestServiceConcurrency(t *testing.T) {
 	service, err := NewService()
 	require.NoError(t, err)

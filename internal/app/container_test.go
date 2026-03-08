@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package app
@@ -872,8 +872,8 @@ func TestGetHTTPClientService(t *testing.T) {
 
 func TestMaxPresetCacheTTL(t *testing.T) {
 	tests := []struct {
-		name     string
 		cfg      *domainConfig.Config
+		name     string
 		expected time.Duration
 	}{
 		{
@@ -985,7 +985,7 @@ func TestGetCacheRepo(t *testing.T) {
 	}
 }
 
-// Mock HTTP client service for testing
+// Mock HTTP client service for testing.
 type mockHTTPClientService struct{}
 
 func (m *mockHTTPClientService) Get() *http.Client {

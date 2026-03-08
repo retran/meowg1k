@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package gateway defines domain types for LLM gateway interactions including requests, responses, and embeddings.
@@ -116,9 +116,9 @@ type UsageMetadata struct {
 
 // GenerateContentResponse represents an ordered model response.
 type GenerateContentResponse struct {
+	Usage      *UsageMetadata `json:"usage,omitempty"`
 	Blocks     []ContentBlock `json:"blocks,omitempty"`
 	TokenCount int            `json:"token_count,omitempty"` // Deprecated: use Usage.TotalTokens
-	Usage      *UsageMetadata `json:"usage,omitempty"`
 }
 
 // Text returns all text content blocks concatenated.
@@ -621,16 +621,16 @@ const (
 
 // StreamEvent represents a single event in a streaming LLM response.
 type StreamEvent struct {
-	Kind        StreamEventKind `json:"kind"`
-	Delta       string          `json:"delta,omitempty"`
 	Usage       *UsageMetadata  `json:"usage,omitempty"`
+	Arguments   map[string]any  `json:"arguments,omitempty"`
+	Delta       string          `json:"delta,omitempty"`
 	Error       string          `json:"error,omitempty"`
-	Recoverable bool            `json:"recoverable,omitempty"`
 	ToolName    string          `json:"tool_name,omitempty"`
 	ToolID      string          `json:"tool_id,omitempty"`
-	Arguments   map[string]any  `json:"arguments,omitempty"`
 	DurationMS  int64           `json:"duration_ms,omitempty"`
+	Kind        StreamEventKind `json:"kind"`
 	Iteration   int             `json:"iteration,omitempty"`
+	Recoverable bool            `json:"recoverable,omitempty"`
 }
 
 // StreamCallback is called for each streaming event.

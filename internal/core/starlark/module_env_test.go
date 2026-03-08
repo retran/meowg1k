@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -12,7 +12,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// TestEnvGet tests env.get() function
+// TestEnvGet tests env.get() function.
 func TestEnvGet(t *testing.T) {
 	// Set a test environment variable
 	testKey := "MEOWG1K_TEST_VAR"
@@ -35,7 +35,7 @@ func TestEnvGet(t *testing.T) {
 	assert.Equal(t, testValue, string(resultStr))
 }
 
-// TestEnvGetNonExistent tests env.get() with non-existent variable
+// TestEnvGetNonExistent tests env.get() with non-existent variable.
 func TestEnvGetNonExistent(t *testing.T) {
 	envModule := NewEnvModule()
 	getFunc := envModule.Members["get"]
@@ -50,7 +50,7 @@ func TestEnvGetNonExistent(t *testing.T) {
 	assert.Equal(t, starlark.None, result)
 }
 
-// TestEnvGetWithDefault tests env.get() with default value
+// TestEnvGetWithDefault tests env.get() with default value.
 func TestEnvGetWithDefault(t *testing.T) {
 	envModule := NewEnvModule()
 	getFunc := envModule.Members["get"]
@@ -70,7 +70,7 @@ func TestEnvGetWithDefault(t *testing.T) {
 	assert.Equal(t, "default_value", string(resultStr))
 }
 
-// TestEnvSet tests env.set() function
+// TestEnvSet tests env.set() function.
 func TestEnvSet(t *testing.T) {
 	testKey := "MEOWG1K_TEST_SET_VAR"
 	testValue := "new_value_456"
@@ -95,7 +95,7 @@ func TestEnvSet(t *testing.T) {
 	assert.Equal(t, testValue, actualValue)
 }
 
-// TestEnvSetOverwrite tests env.set() overwrites existing variable
+// TestEnvSetOverwrite tests env.set() overwrites existing variable.
 func TestEnvSetOverwrite(t *testing.T) {
 	testKey := "MEOWG1K_TEST_OVERWRITE_VAR"
 	originalValue := "original_value"
@@ -123,7 +123,7 @@ func TestEnvSetOverwrite(t *testing.T) {
 	assert.Equal(t, newValue, actualValue)
 }
 
-// TestEnvList tests env.list() function
+// TestEnvList tests env.list() function.
 func TestEnvList(t *testing.T) {
 	// Set a couple of test variables
 	testKey1 := "MEOWG1K_TEST_LIST_VAR1"
@@ -165,7 +165,7 @@ func TestEnvList(t *testing.T) {
 	assert.Greater(t, dict.Len(), 0)
 }
 
-// TestEnvListEmpty tests env.list() returns dict even if env is minimal
+// TestEnvListEmpty tests env.list() returns dict even if env is minimal.
 func TestEnvListEmpty(t *testing.T) {
 	envModule := NewEnvModule()
 	listFunc := envModule.Members["list"]
@@ -182,7 +182,7 @@ func TestEnvListEmpty(t *testing.T) {
 	assert.Greater(t, dict.Len(), 0)
 }
 
-// TestEnvGetSetIntegration tests getting and setting in sequence
+// TestEnvGetSetIntegration tests getting and setting in sequence.
 func TestEnvGetSetIntegration(t *testing.T) {
 	testKey := "MEOWG1K_INTEGRATION_VAR"
 	testValue := "integration_value"
@@ -217,7 +217,7 @@ func TestEnvGetSetIntegration(t *testing.T) {
 	assert.Equal(t, testValue, string(resultStr))
 }
 
-// TestEnvGetErrors tests error cases for env.get()
+// TestEnvGetErrors tests error cases for env.get().
 func TestEnvGetErrors(t *testing.T) {
 	envModule := NewEnvModule()
 	getFunc := envModule.Members["get"]
@@ -233,7 +233,7 @@ func TestEnvGetErrors(t *testing.T) {
 	assert.Error(t, err, "should error with non-string argument")
 }
 
-// TestEnvSetErrors tests error cases for env.set()
+// TestEnvSetErrors tests error cases for env.set().
 func TestEnvSetErrors(t *testing.T) {
 	envModule := NewEnvModule()
 	setFunc := envModule.Members["set"]
@@ -258,7 +258,7 @@ func TestEnvSetErrors(t *testing.T) {
 	assert.Error(t, err, "should error with too many arguments")
 }
 
-// TestEnvListErrors tests error cases for env.list()
+// TestEnvListErrors tests error cases for env.list().
 func TestEnvListErrors(t *testing.T) {
 	envModule := NewEnvModule()
 	listFunc := envModule.Members["list"]

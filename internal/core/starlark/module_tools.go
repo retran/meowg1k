@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -11,35 +11,51 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// ParamValue wraps a Param for use in Starlark
+// ParamValue wraps a Param for use in Starlark.
 type ParamValue struct {
 	Param *Param
 }
 
 var _ starlark.Value = (*ParamValue)(nil)
 
-func (p *ParamValue) String() string        { return fmt.Sprintf("Param(%s)", p.Param.Type) }
-func (p *ParamValue) Type() string          { return "param" }
-func (p *ParamValue) Freeze()               {}
-func (p *ParamValue) Truth() starlark.Bool  { return starlark.True }
+func (p *ParamValue) String() string { return fmt.Sprintf("Param(%s)", p.Param.Type) }
+
+// Type returns the Starlark type name for ParamValue.
+func (p *ParamValue) Type() string { return "param" }
+
+// Freeze is a no-op since ParamValue has no mutable state.
+func (p *ParamValue) Freeze() {}
+
+// Truth returns True since a param value is always truthy.
+func (p *ParamValue) Truth() starlark.Bool { return starlark.True }
+
+// Hash returns an error since params are not hashable.
 func (p *ParamValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: param") }
 
-// ToolValue wraps a Tool for use in Starlark
+// ToolValue wraps a Tool for use in Starlark.
 type ToolValue struct {
 	Tool *Tool
 }
 
 var _ starlark.Value = (*ToolValue)(nil)
 
-func (t *ToolValue) String() string        { return fmt.Sprintf("Tool(%s)", t.Tool.Name) }
-func (t *ToolValue) Type() string          { return "tool" }
-func (t *ToolValue) Freeze()               {}
-func (t *ToolValue) Truth() starlark.Bool  { return starlark.True }
+func (t *ToolValue) String() string { return fmt.Sprintf("Tool(%s)", t.Tool.Name) }
+
+// Type returns the Starlark type name for ToolValue.
+func (t *ToolValue) Type() string { return "tool" }
+
+// Freeze is a no-op since ToolValue has no mutable state.
+func (t *ToolValue) Freeze() {}
+
+// Truth returns True since a tool value is always truthy.
+func (t *ToolValue) Truth() starlark.Bool { return starlark.True }
+
+// Hash returns an error since tools are not hashable.
 func (t *ToolValue) Hash() (uint32, error) { return 0, fmt.Errorf("unhashable: tool") }
 
-// CreateParamFunction creates the meow.param() builtin
-func CreateParamFunction() *starlark.Builtin {
-	return starlark.NewBuiltin("param", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// CreateParamFunction creates the meow.param() builtin.
+func CreateParamFunction() *starlark.Builtin { //nolint:gocognit,gocyclo // complexity inherent in validating all param types and constraints
+	return starlark.NewBuiltin("param", func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if args.Len() < 1 {
 			return nil, fmt.Errorf("param() requires type as first argument")
 		}
@@ -139,9 +155,9 @@ func CreateParamFunction() *starlark.Builtin {
 	})
 }
 
-// CreateToolFunction creates the meow.tool() builtin
-func CreateToolFunction(registry *Registry) *starlark.Builtin {
-	return starlark.NewBuiltin("tool", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// CreateToolFunction creates the meow.tool() builtin.
+func CreateToolFunction(registry *Registry) *starlark.Builtin { //nolint:gocognit,gocyclo // complexity inherent in assembling tool with all optional configuration
+	return starlark.NewBuiltin("tool", func(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		tool := &Tool{
 			Params: make(map[string]*Param),
 		}
@@ -203,9 +219,9 @@ func CreateToolFunction(registry *Registry) *starlark.Builtin {
 	})
 }
 
-// CreateCommandFunction creates the meow.command() builtin for auto-mapping tools to commands
-func CreateCommandFunction(registry *Registry) *starlark.Builtin {
-	return starlark.NewBuiltin("command", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// CreateCommandFunction creates the meow.command() builtin for auto-mapping tools to commands.
+func CreateCommandFunction(registry *Registry) *starlark.Builtin { //nolint:gocognit // complexity inherent in mapping tool parameters to CLI flags
+	return starlark.NewBuiltin("command", func(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		var toolVal *ToolValue
 		var nameOverride string
 
@@ -247,7 +263,7 @@ func CreateCommandFunction(registry *Registry) *starlark.Builtin {
 	})
 }
 
-// CreateToolsModule creates the enhanced meow module with tool support
+// CreateToolsModule creates the enhanced meow module with tool support.
 func CreateToolsModule(registry *Registry) *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "meow_tools",
@@ -305,7 +321,7 @@ func convertIntConstraint(value starlark.Value) (int, error) {
 	}
 }
 
-// Helper function to convert Starlark values to Go values
+// Helper function to convert Starlark values to Go values.
 func convertStarlarkValue(v starlark.Value) any {
 	switch val := v.(type) {
 	case starlark.String:

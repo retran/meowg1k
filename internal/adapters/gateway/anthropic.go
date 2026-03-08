@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -70,92 +70,96 @@ func (g *anthropicGateway) GenerateContent(
 	}
 
 	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
-
-		messages := g.mapMessages(request)
-		if len(messages) == 0 {
-			messages = []anthropic.MessageParam{
-				anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
-			}
-		}
-
-		params := anthropic.MessageNewParams{
-			Model:     anthropic.Model(model),
-			Messages:  messages,
-			MaxTokens: int64(request.MaxOutputTokens()),
-		}
-		if tools := request.Tools(); len(tools) > 0 {
-			params.Tools = buildAnthropicTools(tools)
-			params.ToolChoice = anthropic.ToolChoiceUnionParam{
-				OfAuto: &anthropic.ToolChoiceAutoParam{Type: "auto"},
-			}
-		}
-
-		if systemPrompt := request.SystemPrompt(); systemPrompt != "" {
-			params.System = []anthropic.TextBlockParam{
-				{Text: systemPrompt},
-			}
-		}
-
-		if temperature := request.Temperature(); temperature != nil {
-			params.Temperature = anthropic.Float(*temperature)
-		}
-
-		if topP := request.TopP(); topP != nil {
-			params.TopP = anthropic.Float(*topP)
-		}
-
-		if topK := request.TopK(); topK != nil {
-			params.TopK = anthropic.Int(int64(*topK))
-		}
-
-		if stop := request.Stop(); len(stop) > 0 {
-			params.StopSequences = stop
-		}
-
-		// Apply response schema if provided (Anthropic supports structured outputs)
-		if responseSchema := request.ResponseSchema(); responseSchema != nil {
-			// Convert schema to tool use pattern for Anthropic
-			inputSchema := buildToolInputSchema(responseSchema)
-
-			toolDef := &anthropic.ToolParam{
-				Name:        "output",
-				Description: anthropic.String("Generated structured output"),
-				InputSchema: inputSchema,
-			}
-
-			params.Tools = []anthropic.ToolUnionParam{
-				{OfTool: toolDef},
-			}
-			params.ToolChoice = anthropic.ToolChoiceUnionParam{
-				OfTool: &anthropic.ToolChoiceToolParam{
-					Type: "tool",
-					Name: "output",
-				},
-			}
-		}
-
-		response, err := g.client.Messages.New(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(response.Content) == 0 {
-			return nil, fmt.Errorf("no content in response from Anthropic for model %q", model)
-		}
-
-		blocks := parseAnthropicBlocksOrdered(response.Content)
-
-		var usage *gateway.UsageMetadata
-		if response.Usage.InputTokens > 0 || response.Usage.OutputTokens > 0 {
-			usage = &gateway.UsageMetadata{
-				PromptTokens:     int(response.Usage.InputTokens),
-				CompletionTokens: int(response.Usage.OutputTokens),
-				TotalTokens:      int(response.Usage.InputTokens + response.Usage.OutputTokens),
-			}
-		}
-
-		return &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}, nil
+		return g.doGenerateContent(ctx, request, model)
 	}, fmt.Sprintf("Anthropic GenerateContent for model %q", model))
+}
+
+// doGenerateContent performs a single (non-retried) generation request to Anthropic.
+func (g *anthropicGateway) doGenerateContent(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	model string,
+) (*gateway.GenerateContentResponse, error) {
+	messages := g.mapMessages(request)
+	if len(messages) == 0 {
+		messages = []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(request.UserPrompt())),
+		}
+	}
+
+	params := anthropic.MessageNewParams{
+		Model:     anthropic.Model(model),
+		Messages:  messages,
+		MaxTokens: int64(request.MaxOutputTokens()),
+	}
+
+	if tools := request.Tools(); len(tools) > 0 {
+		params.Tools = buildAnthropicTools(tools)
+		params.ToolChoice = anthropic.ToolChoiceUnionParam{
+			OfAuto: &anthropic.ToolChoiceAutoParam{Type: "auto"},
+		}
+	}
+
+	if systemPrompt := request.SystemPrompt(); systemPrompt != "" {
+		params.System = []anthropic.TextBlockParam{
+			{Text: systemPrompt},
+		}
+	}
+
+	if temperature := request.Temperature(); temperature != nil {
+		params.Temperature = anthropic.Float(*temperature)
+	}
+
+	if topP := request.TopP(); topP != nil {
+		params.TopP = anthropic.Float(*topP)
+	}
+
+	if topK := request.TopK(); topK != nil {
+		params.TopK = anthropic.Int(int64(*topK))
+	}
+
+	if stop := request.Stop(); len(stop) > 0 {
+		params.StopSequences = stop
+	}
+
+	// Apply response schema if provided (Anthropic supports structured outputs via tool use).
+	if responseSchema := request.ResponseSchema(); responseSchema != nil {
+		inputSchema := buildToolInputSchema(responseSchema)
+		toolDef := &anthropic.ToolParam{
+			Name:        "output",
+			Description: anthropic.String("Generated structured output"),
+			InputSchema: inputSchema,
+		}
+		params.Tools = []anthropic.ToolUnionParam{{OfTool: toolDef}}
+		params.ToolChoice = anthropic.ToolChoiceUnionParam{
+			OfTool: &anthropic.ToolChoiceToolParam{
+				Type: "tool",
+				Name: "output",
+			},
+		}
+	}
+
+	response, err := g.client.Messages.New(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Anthropic API: %w", err)
+	}
+
+	if len(response.Content) == 0 {
+		return nil, fmt.Errorf("no content in response from Anthropic for model %q", model)
+	}
+
+	blocks := parseAnthropicBlocksOrdered(response.Content)
+
+	var usage *gateway.UsageMetadata
+	if response.Usage.InputTokens > 0 || response.Usage.OutputTokens > 0 {
+		usage = &gateway.UsageMetadata{
+			PromptTokens:     int(response.Usage.InputTokens),
+			CompletionTokens: int(response.Usage.OutputTokens),
+			TotalTokens:      int(response.Usage.InputTokens + response.Usage.OutputTokens),
+		}
+	}
+
+	return &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}, nil
 }
 
 func (g *anthropicGateway) mapMessages(request *gateway.GenerateContentRequest) []anthropic.MessageParam {
@@ -330,7 +334,9 @@ func (g *anthropicGateway) GenerateContentStream(
 	resp, err := g.GenerateContent(ctx, request)
 	if err != nil {
 		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+			if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false}); cbErr != nil {
+				return nil, fmt.Errorf("%w; stream callback error: %w", err, cbErr)
+			}
 		}
 		return nil, err
 	}

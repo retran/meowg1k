@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package session
@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/retran/meowg1k/internal/domain/session"
+)
+
+const (
+	testSessionID = "session-123"
+	testParentID  = "parent-123"
 )
 
 // mockSessionRepository is a mock implementation of ports.SessionRepository.
@@ -38,7 +43,7 @@ func (m *mockSessionRepository) UpdateSession(ctx context.Context, s *session.Se
 	return args.Error(0)
 }
 
-func (m *mockSessionRepository) ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error) {
+func (m *mockSessionRepository) ListSessions(ctx context.Context, filter *session.Filter) ([]*session.Session, error) {
 	args := m.Called(ctx, filter)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -129,7 +134,7 @@ func TestService_CreateSession(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		parentID := "parent-123"
+		parentID := testParentID
 		parentSession := &session.Session{
 			ID:       parentID,
 			ToolName: "parent-tool",
@@ -228,7 +233,7 @@ func TestService_CompleteSession(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		sessionID := "session-123"
+		sessionID := testSessionID
 		existingSession := &session.Session{
 			ID:       sessionID,
 			ToolName: "test-tool",
@@ -277,7 +282,7 @@ func TestService_FailSession(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		sessionID := "session-123"
+		sessionID := testSessionID
 		existingSession := &session.Session{
 			ID:       sessionID,
 			ToolName: "test-tool",
@@ -325,7 +330,7 @@ func TestService_AddUserMessage(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	content := "Hello, world!"
 
 	repo.On("AddEvent", ctx, mock.MatchedBy(func(e *session.Event) bool {
@@ -346,7 +351,7 @@ func TestService_AddAssistantMessage(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	content := "I'll help you with that"
 	toolCalls := []session.ToolCall{
 		{
@@ -377,7 +382,7 @@ func TestService_AddToolResult(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	toolCallID := "call-1"
 	content := "Search results: ..."
 
@@ -400,7 +405,7 @@ func TestService_AddSystemMessage(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	content := "System notification"
 
 	repo.On("AddEvent", ctx, mock.MatchedBy(func(e *session.Event) bool {
@@ -420,7 +425,7 @@ func TestService_GetEvents(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	expectedEvents := []*session.Event{
 		{
 			ID:        "event-1",
@@ -445,7 +450,7 @@ func TestService_GetAllEvents(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	expectedEvents := []*session.Event{
 		{ID: "event-1", SessionID: sessionID},
 		{ID: "event-2", SessionID: sessionID},
@@ -470,7 +475,7 @@ func TestService_ListSessions(t *testing.T) {
 			{ID: "s1", ToolName: "tool-a"},
 			{ID: "s2", ToolName: "tool-b"},
 		}
-		repo.On("ListSessions", ctx, (*session.SessionFilter)(nil)).Return(expected, nil)
+		repo.On("ListSessions", ctx, (*session.Filter)(nil)).Return(expected, nil)
 
 		result, err := svc.ListSessions(ctx, nil)
 		require.NoError(t, err)
@@ -484,7 +489,7 @@ func TestService_ListSessions(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		repo.On("ListSessions", ctx, (*session.SessionFilter)(nil)).Return(nil, errors.New("db error"))
+		repo.On("ListSessions", ctx, (*session.Filter)(nil)).Return(nil, errors.New("db error"))
 
 		result, err := svc.ListSessions(ctx, nil)
 		require.Error(t, err)
@@ -746,13 +751,13 @@ func TestService_GetChildSessions(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	parentID := "parent-123"
+	parentID := testParentID
 	expectedSessions := []*session.Session{
 		{ID: "child-1", ParentID: &parentID},
 		{ID: "child-2", ParentID: &parentID},
 	}
 
-	repo.On("ListSessions", ctx, mock.MatchedBy(func(f *session.SessionFilter) bool {
+	repo.On("ListSessions", ctx, mock.MatchedBy(func(f *session.Filter) bool {
 		return f.ParentID != nil && *f.ParentID == parentID
 	})).Return(expectedSessions, nil)
 
@@ -783,7 +788,7 @@ func TestService_InsertSummary(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	afterEventID := "event-1"
 	summary := "Summary of previous conversation"
 
@@ -800,7 +805,7 @@ func TestService_SetAndGetMetadata(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	key := "user_name"
 	value := "Alice"
 
@@ -822,7 +827,7 @@ func TestService_GetAllMetadata(t *testing.T) {
 	svc, _ := NewService(repo)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	expectedMetadata := map[string]string{
 		"key1": "value1",
 		"key2": "value2",
@@ -844,7 +849,7 @@ func TestService_GetChildMetadata(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		sessionID := "parent-123"
+		sessionID := testParentID
 		childID := "child-456"
 		key := "result"
 		value := "success"
@@ -870,7 +875,7 @@ func TestService_GetChildMetadata(t *testing.T) {
 		svc, _ := NewService(repo)
 		ctx := context.Background()
 
-		sessionID := "parent-123"
+		sessionID := testParentID
 		childID := "child-456"
 		wrongParent := "other-parent"
 		key := "result"

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package workspace
@@ -380,7 +380,7 @@ func TestGetWithEmptyExplicitPath(t *testing.T) {
 	}
 }
 
-// Test NewServiceWithPath
+// Test NewServiceWithPath.
 
 func TestNewServiceWithPath(t *testing.T) {
 	testPath := "/test/workspace/path"
@@ -434,7 +434,7 @@ func TestNewServiceWithPath_NonExistentPath(t *testing.T) {
 	}
 }
 
-// Test fixedPathResolver directly
+// Test fixedPathResolver directly.
 
 func TestFixedPathResolver_GetWorkspacePath(t *testing.T) {
 	testPath := "/some/fixed/path"

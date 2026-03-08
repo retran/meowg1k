@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -11,7 +11,7 @@ import (
 
 // RenderPanel renders a bordered panel with optional title and style.
 // In plain mode (pipe output), renders without borders and padding.
-func RenderPanel(content, title, style string, theme Theme, opts RenderOptions) string {
+func RenderPanel(content, title, style string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	if theme.Text == "" {
 		theme = DefaultTheme()
 	}
@@ -23,7 +23,7 @@ func RenderPanel(content, title, style string, theme Theme, opts RenderOptions) 
 		return content
 	}
 
-	panelStyle := theme.PanelStyle.Copy()
+	panelStyle := theme.PanelStyle
 	color := resolvePanelColor(style, theme)
 	if color != "" && !opts.NoColor {
 		panelStyle = panelStyle.BorderForeground(color)
@@ -42,11 +42,11 @@ func RenderPanel(content, title, style string, theme Theme, opts RenderOptions) 
 }
 
 // RenderPanelLegacy maintains backward compatibility - auto-detects terminal.
-func RenderPanelLegacy(content, title, style string, theme Theme) string {
+func RenderPanelLegacy(content, title, style string, theme Theme) string { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	return RenderPanel(content, title, style, theme, NewRenderOptions())
 }
 
-func resolvePanelColor(style string, theme Theme) lipgloss.Color {
+func resolvePanelColor(style string, theme Theme) lipgloss.Color { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	switch strings.ToLower(strings.TrimSpace(style)) {
 	case "green", "success":
 		return theme.Success

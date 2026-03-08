@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package output
@@ -190,7 +190,7 @@ func TestFlush_NilService(t *testing.T) {
 	}
 }
 
-// TestNewServiceWithOptions
+// TestNewServiceWithOptions tests creating service with options.
 func TestNewServiceWithOptions(t *testing.T) {
 	t.Run("stdout with plain output", func(t *testing.T) {
 		service := NewServiceWithOptions(output.Stdout, true, false)

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chdir into a temp dir for isolated filesystem ops
+// chdir into a temp dir for isolated filesystem ops.
 func withTempDir(t *testing.T) func() {
 	t.Helper()
 	oldwd, _ := os.Getwd()
@@ -59,7 +59,7 @@ func TestUpdateGitignore_PreservesTrailingNewline(t *testing.T) {
 	defer restore()
 
 	// Pre-existing file without trailing newline
-	if err := os.WriteFile(".gitignore", []byte("node_modules"), 0644); err != nil {
+	if err := os.WriteFile(".gitignore", []byte("node_modules"), 0o644); err != nil {
 		t.Fatalf("write .gitignore failed: %v", err)
 	}
 	if err := updateGitignore(); err != nil {
@@ -107,9 +107,9 @@ func TestInitGlobalConfig(t *testing.T) {
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
-		os.MkdirAll(configDir, 0755)
+		os.MkdirAll(configDir, 0o755)
 		initFile := filepath.Join(configDir, "init.star")
-		os.WriteFile(initFile, []byte("existing"), 0644)
+		os.WriteFile(initFile, []byte("existing"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -125,9 +125,9 @@ func TestInitGlobalConfig(t *testing.T) {
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
-		os.MkdirAll(configDir, 0755)
+		os.MkdirAll(configDir, 0o755)
 		initFile := filepath.Join(configDir, "init.star")
-		os.WriteFile(initFile, []byte("old content"), 0644)
+		os.WriteFile(initFile, []byte("old content"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -149,7 +149,7 @@ func TestInitProjectConfig(t *testing.T) {
 		defer restore()
 
 		// Create a .git directory to simulate git repo
-		os.Mkdir(".git", 0755)
+		os.Mkdir(".git", 0o755)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -175,8 +175,8 @@ func TestInitProjectConfig(t *testing.T) {
 		defer restore()
 
 		// Create existing project config
-		os.MkdirAll(".meowg1k", 0755)
-		os.WriteFile(".meowg1k/init.star", []byte("existing"), 0644)
+		os.MkdirAll(".meowg1k", 0o755)
+		os.WriteFile(".meowg1k/init.star", []byte("existing"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))

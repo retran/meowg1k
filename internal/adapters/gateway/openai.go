@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -76,7 +76,7 @@ func (g *openaiGateway) GenerateContent(
 
 		response, err := g.client.Chat.Completions.New(ctx, params)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to call OpenAI chat completions: %w", err)
 		}
 
 		if len(response.Choices) == 0 {
@@ -129,125 +129,163 @@ func (g *openaiGateway) GenerateContentStream(
 	}
 
 	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
-		params := buildOpenAIChatParams(request)
-		if tools := request.Tools(); len(tools) > 0 {
-			params.ToolChoice = openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
-			params.Tools = buildOpenAITools(tools)
-		}
-		// Request usage in the final chunk.
-		params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
-			IncludeUsage: openai.Bool(true),
-		}
-
-		stream := g.client.Chat.Completions.NewStreaming(ctx, params)
-		defer stream.Close()
-
-		// Accumulators for assembling the full response.
-		var textBuilder strings.Builder
-		// tool call accumulators keyed by index
-		type pendingToolCall struct {
-			id   string
-			name string
-			args strings.Builder
-		}
-		pendingTools := make(map[int]*pendingToolCall)
-		var toolCallOrder []int // preserve ordering by index
-
-		var finalUsage *gateway.UsageMetadata
-
-		for stream.Next() {
-			chunk := stream.Current()
-
-			// Usage comes in the last chunk (empty choices).
-			if chunk.Usage.TotalTokens > 0 {
-				finalUsage = &gateway.UsageMetadata{
-					PromptTokens:     int(chunk.Usage.PromptTokens),
-					CompletionTokens: int(chunk.Usage.CompletionTokens),
-					TotalTokens:      int(chunk.Usage.TotalTokens),
-				}
-			}
-
-			if len(chunk.Choices) == 0 {
-				continue
-			}
-
-			delta := chunk.Choices[0].Delta
-
-			// Text delta.
-			if delta.Content != "" {
-				textBuilder.WriteString(delta.Content)
-				if err := callback(gateway.StreamEvent{
-					Kind:  gateway.StreamEventText,
-					Delta: delta.Content,
-				}); err != nil {
-					return nil, err
-				}
-			}
-
-			// Tool call deltas.
-			for i := range delta.ToolCalls {
-				tc := &delta.ToolCalls[i]
-				idx := int(tc.Index)
-
-				if _, exists := pendingTools[idx]; !exists {
-					pendingTools[idx] = &pendingToolCall{}
-					toolCallOrder = append(toolCallOrder, idx)
-				}
-
-				pt := pendingTools[idx]
-				if tc.ID != "" {
-					pt.id = tc.ID
-				}
-				if tc.Function.Name != "" {
-					pt.name = tc.Function.Name
-				}
-				pt.args.WriteString(tc.Function.Arguments)
-			}
-		}
-
-		if err := stream.Err(); err != nil {
-			return nil, err
-		}
-
-		// Build blocks from accumulated data.
-		var toolCalls []gateway.ToolCall
-		for _, idx := range toolCallOrder {
-			pt := pendingTools[idx]
-			args := map[string]any{}
-			if raw := pt.args.String(); raw != "" {
-				if err := json.Unmarshal([]byte(raw), &args); err != nil {
-					args = map[string]any{"_raw": raw}
-				}
-			}
-			toolCalls = append(toolCalls, gateway.ToolCall{
-				ID:        pt.id,
-				Name:      pt.name,
-				Arguments: args,
-			})
-		}
-
-		blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
-		if text := textBuilder.String(); text != "" {
-			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: text})
-		}
-		for i := range toolCalls {
-			call := toolCalls[i]
-			blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
-		}
-
-		resp := &gateway.GenerateContentResponse{Blocks: blocks, Usage: finalUsage}
-
-		// Fire done event.
-		doneEvent := gateway.StreamEvent{Kind: gateway.StreamEventDone}
-		if finalUsage != nil {
-			doneEvent.Usage = finalUsage
-		}
-		if err := callback(doneEvent); err != nil {
-			return nil, err
-		}
-
-		return resp, nil
+		return g.doGenerateContentStream(ctx, request, callback)
 	}, fmt.Sprintf("OpenAI GenerateContentStream for model %q", request.Model()))
+}
+
+// streamAccumulator collects text and tool call deltas from an OpenAI stream.
+type streamAccumulator struct {
+	pendingTools  map[int]*pendingToolCall
+	finalUsage    *gateway.UsageMetadata
+	textBuilder   strings.Builder
+	toolCallOrder []int
+}
+
+// pendingToolCall holds partial tool call data during streaming.
+type pendingToolCall struct {
+	id   string
+	name string
+	args strings.Builder
+}
+
+// newStreamAccumulator creates an initialized stream accumulator.
+func newStreamAccumulator() *streamAccumulator {
+	return &streamAccumulator{
+		pendingTools: make(map[int]*pendingToolCall),
+	}
+}
+
+// doGenerateContentStream performs the actual streaming request and returns the aggregated response.
+// Using a named function allows proper cleanup of the stream via named return values.
+func (g *openaiGateway) doGenerateContentStream(
+	ctx context.Context,
+	request *gateway.GenerateContentRequest,
+	callback gateway.StreamCallback,
+) (resp *gateway.GenerateContentResponse, err error) {
+	params := buildOpenAIChatParams(request)
+	if tools := request.Tools(); len(tools) > 0 {
+		params.ToolChoice = openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: openai.String("auto")}
+		params.Tools = buildOpenAITools(tools)
+	}
+	// Request usage in the final chunk.
+	params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+		IncludeUsage: openai.Bool(true),
+	}
+
+	stream := g.client.Chat.Completions.NewStreaming(ctx, params)
+	defer func() {
+		if closeErr := stream.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("failed to close OpenAI stream: %w", closeErr)
+		}
+	}()
+
+	acc := newStreamAccumulator()
+
+	for stream.Next() {
+		chunk := stream.Current()
+		if processErr := acc.processChunk(&chunk, callback); processErr != nil {
+			return nil, processErr
+		}
+	}
+
+	if streamErr := stream.Err(); streamErr != nil {
+		return nil, fmt.Errorf("failed to get OpenAI stream error: %w", streamErr)
+	}
+
+	return acc.buildResponse(callback)
+}
+
+// processChunk updates the accumulator with data from a stream chunk and fires callbacks.
+func (a *streamAccumulator) processChunk(chunk *openai.ChatCompletionChunk, callback gateway.StreamCallback) error {
+	if chunk.Usage.TotalTokens > 0 {
+		a.finalUsage = &gateway.UsageMetadata{
+			PromptTokens:     int(chunk.Usage.PromptTokens),
+			CompletionTokens: int(chunk.Usage.CompletionTokens),
+			TotalTokens:      int(chunk.Usage.TotalTokens),
+		}
+	}
+
+	if len(chunk.Choices) == 0 {
+		return nil
+	}
+
+	delta := chunk.Choices[0].Delta
+
+	if delta.Content != "" {
+		a.textBuilder.WriteString(delta.Content)
+		if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: delta.Content}); cbErr != nil {
+			return cbErr
+		}
+	}
+
+	for i := range delta.ToolCalls {
+		a.accumulateToolCall(&delta.ToolCalls[i])
+	}
+
+	return nil
+}
+
+// accumulateToolCall merges a tool call delta into the accumulator.
+func (a *streamAccumulator) accumulateToolCall(tc *openai.ChatCompletionChunkChoiceDeltaToolCall) {
+	idx := int(tc.Index)
+	if _, exists := a.pendingTools[idx]; !exists {
+		a.pendingTools[idx] = &pendingToolCall{}
+		a.toolCallOrder = append(a.toolCallOrder, idx)
+	}
+	pt := a.pendingTools[idx]
+	if tc.ID != "" {
+		pt.id = tc.ID
+	}
+	if tc.Function.Name != "" {
+		pt.name = tc.Function.Name
+	}
+	pt.args.WriteString(tc.Function.Arguments)
+}
+
+// buildResponse assembles the final GenerateContentResponse and fires the done callback.
+func (a *streamAccumulator) buildResponse(callback gateway.StreamCallback) (*gateway.GenerateContentResponse, error) {
+	toolCalls := a.buildToolCalls()
+
+	blocks := make([]gateway.ContentBlock, 0, 1+len(toolCalls))
+	if text := a.textBuilder.String(); text != "" {
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: text})
+	}
+	for i := range toolCalls {
+		call := toolCalls[i]
+		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockToolCall, ToolCall: &call})
+	}
+
+	result := &gateway.GenerateContentResponse{Blocks: blocks, Usage: a.finalUsage}
+
+	doneEvent := gateway.StreamEvent{Kind: gateway.StreamEventDone}
+	if a.finalUsage != nil {
+		doneEvent.Usage = a.finalUsage
+	}
+	if cbErr := callback(doneEvent); cbErr != nil {
+		return nil, cbErr
+	}
+
+	return result, nil
+}
+
+// buildToolCalls converts the accumulated pending tool calls into gateway.ToolCall values.
+func (a *streamAccumulator) buildToolCalls() []gateway.ToolCall {
+	toolCalls := make([]gateway.ToolCall, 0, len(a.toolCallOrder))
+	for _, idx := range a.toolCallOrder {
+		pt := a.pendingTools[idx]
+		args := map[string]any{}
+		if raw := pt.args.String(); raw != "" {
+			if jsonErr := json.Unmarshal([]byte(raw), &args); jsonErr != nil {
+				args = map[string]any{"_raw": raw}
+			}
+		}
+		toolCalls = append(toolCalls, gateway.ToolCall{
+			ID:        pt.id,
+			Name:      pt.name,
+			Arguments: args,
+		})
+	}
+	return toolCalls
 }
 
 func buildOpenAIChatParams(request *gateway.GenerateContentRequest) openai.ChatCompletionNewParams {
@@ -288,47 +326,56 @@ func mapOpenAIMessages(msgs []gateway.Message, systemPrompt string) []openai.Cha
 	}
 
 	for i := range msgs {
-		m := &msgs[i]
-		switch m.Role {
-		case gateway.MessageRoleSystem:
-			result = append(result, openai.SystemMessage(m.Content))
-		case gateway.MessageRoleUser:
-			result = append(result, openai.UserMessage(m.Content))
-		case gateway.MessageRoleAssistant:
-			if len(m.ToolCalls) > 0 {
-				toolCalls := make([]openai.ChatCompletionMessageToolCallUnionParam, 0, len(m.ToolCalls))
-				for _, tc := range m.ToolCalls {
-					args, err := json.Marshal(tc.Arguments)
-					if err != nil {
-						args = []byte("{}")
-					}
-					toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
-						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
-							ID: tc.ID,
-							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
-								Name:      tc.Name,
-								Arguments: string(args),
-							},
-						},
-					})
-				}
-				result = append(result, openai.ChatCompletionMessageParamUnion{
-					OfAssistant: &openai.ChatCompletionAssistantMessageParam{
-						Content:   openai.ChatCompletionAssistantMessageParamContentUnion{OfString: openai.String(m.Content)},
-						ToolCalls: toolCalls,
-					},
-				})
-			} else {
-				result = append(result, openai.AssistantMessage(m.Content))
-			}
-		case gateway.MessageRoleTool:
-			result = append(result, openai.ToolMessage(m.Content, m.ToolCallID))
-		default:
-			result = append(result, openai.UserMessage(m.Content))
-		}
+		result = append(result, mapOpenAIMessage(&msgs[i]))
 	}
 
 	return result
+}
+
+// mapOpenAIMessage maps a single gateway.Message to an OpenAI message param.
+func mapOpenAIMessage(m *gateway.Message) openai.ChatCompletionMessageParamUnion {
+	switch m.Role {
+	case gateway.MessageRoleSystem:
+		return openai.SystemMessage(m.Content)
+	case gateway.MessageRoleUser:
+		return openai.UserMessage(m.Content)
+	case gateway.MessageRoleAssistant:
+		return mapOpenAIAssistantMessage(m)
+	case gateway.MessageRoleTool:
+		return openai.ToolMessage(m.Content, m.ToolCallID)
+	default:
+		return openai.UserMessage(m.Content)
+	}
+}
+
+// mapOpenAIAssistantMessage maps an assistant gateway message, handling tool calls if present.
+func mapOpenAIAssistantMessage(m *gateway.Message) openai.ChatCompletionMessageParamUnion {
+	if len(m.ToolCalls) == 0 {
+		return openai.AssistantMessage(m.Content)
+	}
+
+	toolCalls := make([]openai.ChatCompletionMessageToolCallUnionParam, 0, len(m.ToolCalls))
+	for _, tc := range m.ToolCalls {
+		args, err := json.Marshal(tc.Arguments)
+		if err != nil {
+			args = []byte("{}")
+		}
+		toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+			OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+				ID: tc.ID,
+				Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+					Name:      tc.Name,
+					Arguments: string(args),
+				},
+			},
+		})
+	}
+	return openai.ChatCompletionMessageParamUnion{
+		OfAssistant: &openai.ChatCompletionAssistantMessageParam{
+			Content:   openai.ChatCompletionAssistantMessageParamContentUnion{OfString: openai.String(m.Content)},
+			ToolCalls: toolCalls,
+		},
+	}
 }
 
 func buildOpenAITools(tools []gateway.ToolDefinition) []openai.ChatCompletionToolUnionParam {
@@ -533,7 +580,7 @@ func (g *openaiGateway) ComputeEmbeddings(
 
 		response, err := g.client.Embeddings.New(ctx, params)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to call OpenAI embeddings: %w", err)
 		}
 
 		embeddings := make([]gateway.Embedding, 0, len(response.Data))
@@ -548,7 +595,7 @@ func (g *openaiGateway) ComputeEmbeddings(
 // CountTokens estimates the number of tokens in the given text using tiktoken.
 // For embeddings, it concatenates all chunks and counts the total tokens.
 // Returns an error if the model encoding cannot be determined.
-func (g *openaiGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+func (g *openaiGateway) CountTokens(_ context.Context, model string, texts []string) (int, error) {
 	if g == nil {
 		return 0, fmt.Errorf("openai gateway is nil")
 	}

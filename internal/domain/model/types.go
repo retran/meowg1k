@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package model defines domain types for LLM model configurations and capabilities.
@@ -24,7 +24,7 @@ type ResolvedModel struct {
 	Provider             provider.Provider
 	Model                string
 	BaseURL              string
-	APIKey               string
+	APIKey               string //nolint:gosec // API key field for model configuration, not a hardcoded credential
 	APIKeyEnv            string
 	AppID                string
 	EditorVersion        string

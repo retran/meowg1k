@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -14,7 +14,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// MockOutputWriter is a test mock for OutputWriter
+// MockOutputWriter is a test mock for OutputWriter.
 type MockOutputWriter struct {
 	printCalls     []string
 	printLineCalls []string
@@ -234,7 +234,7 @@ func TestOutputModuleWritef(t *testing.T) {
 	})
 }
 
-// TestOutputModuleFunctions verifies all functions are available
+// TestOutputModuleFunctions verifies all functions are available.
 func TestOutputModuleFunctions(t *testing.T) {
 	mock := &MockOutputWriter{}
 	outputModule := NewOutputModule(mock)
@@ -253,7 +253,7 @@ func TestOutputModuleFunctions(t *testing.T) {
 	}
 }
 
-// TestOutputModuleMultipleCalls verifies multiple calls work correctly
+// TestOutputModuleMultipleCalls verifies multiple calls work correctly.
 func TestOutputModuleMultipleCalls(t *testing.T) {
 	mock := &MockOutputWriter{}
 	outputModule := NewOutputModule(mock)
@@ -274,7 +274,7 @@ func TestOutputModuleMultipleCalls(t *testing.T) {
 	assert.Equal(t, "message 2", mock.printCalls[2])
 }
 
-// TestOutputModuleUnicode tests unicode handling
+// TestOutputModuleUnicode tests unicode handling.
 func TestOutputModuleUnicode(t *testing.T) {
 	mock := &MockOutputWriter{}
 	outputModule := NewOutputModule(mock)

@@ -1,46 +1,49 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/charmbracelet/huh"
 )
 
 // SelectItem is a single selectable entry.
 type SelectItem struct {
-	Index   int
 	Label   string
 	Value   string
 	Meta    string
 	Preview string
 	Match   []int
+	Index   int
 	Score   int
 }
 
 // SelectOptions controls select rendering and behavior.
 type SelectOptions struct {
+	Theme        Theme
 	Title        string
-	Items        []SelectItem
-	Multi        bool
-	Fuzzy        bool
-	Limit        int
 	Placeholder  string
 	InitialQuery string
+	Items        []SelectItem
+	Limit        int
+	Multi        bool
+	Fuzzy        bool
 	AllowNew     bool
 	ReturnIndex  bool
-	Theme        Theme
 }
 
 // SelectResult is returned after the selection finishes.
 type SelectResult struct {
-	Canceled bool
 	NewValue string
 	Items    []SelectItem
+	Canceled bool
 }
 
 // RunSelect runs an interactive select prompt using charmbracelet/huh.
-func RunSelect(opts SelectOptions) (SelectResult, error) {
+func RunSelect(opts SelectOptions) (SelectResult, error) { //nolint:gocognit,gocyclo,funlen,gocritic // complexity inherent in interactive selection with multi-select support; hugeParam: SelectOptions passed by value for immutability
 	if len(opts.Items) == 0 {
 		return SelectResult{Canceled: true}, nil
 	}
@@ -74,7 +77,7 @@ func RunSelect(opts SelectOptions) (SelectResult, error) {
 		title = "Select"
 	}
 
-	if opts.Multi {
+	if opts.Multi { //nolint:nestif // nested multi-select vs single-select handling with result mapping
 		var selected []string
 		sel := huh.NewMultiSelect[string]().
 			Title(title).
@@ -93,10 +96,10 @@ func RunSelect(opts SelectOptions) (SelectResult, error) {
 		form := huh.NewForm(huh.NewGroup(sel))
 		err := form.Run()
 		if err != nil {
-			if err == huh.ErrUserAborted {
+			if errors.Is(err, huh.ErrUserAborted) {
 				return SelectResult{Canceled: true}, nil
 			}
-			return SelectResult{}, err
+			return SelectResult{}, fmt.Errorf("multi-select form failed: %w", err)
 		}
 
 		result := SelectResult{}
@@ -121,10 +124,10 @@ func RunSelect(opts SelectOptions) (SelectResult, error) {
 	form := huh.NewForm(huh.NewGroup(sel))
 	err := form.Run()
 	if err != nil {
-		if err == huh.ErrUserAborted {
+		if errors.Is(err, huh.ErrUserAborted) {
 			return SelectResult{Canceled: true}, nil
 		}
-		return SelectResult{}, err
+		return SelectResult{}, fmt.Errorf("single-select form failed: %w", err)
 	}
 
 	if chosen == "" {

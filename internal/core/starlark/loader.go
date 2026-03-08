@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 )
 
-// LoaderService handles loading Starlark scripts from the config hierarchy
+// LoaderService handles loading Starlark scripts from the config hierarchy.
 type LoaderService struct {
 	runtime *Runtime
 }
 
-// NewLoaderService creates a new script loader
+// NewLoaderService creates a new script loader.
 func NewLoaderService(runtime *Runtime) *LoaderService {
 	return &LoaderService{
 		runtime: runtime,
@@ -44,7 +44,7 @@ func (l *LoaderService) LoadAll() error {
 	return nil
 }
 
-// getSystemInitPath returns ~/.config/meowg1k/init.star
+// getSystemInitPath returns ~/.config/meowg1k/init.star.
 func (l *LoaderService) getSystemInitPath() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -53,7 +53,7 @@ func (l *LoaderService) getSystemInitPath() string {
 	return filepath.Join(homeDir, ".config", "meowg1k", "init.star")
 }
 
-// getProjectInitPath returns ./.meowg1k/init.star
+// getProjectInitPath returns ./.meowg1k/init.star.
 func (l *LoaderService) getProjectInitPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -62,7 +62,7 @@ func (l *LoaderService) getProjectInitPath() string {
 	return filepath.Join(cwd, ".meowg1k", "init.star")
 }
 
-// loadScript loads and executes a single Starlark script
+// loadScript loads and executes a single Starlark script.
 func (l *LoaderService) loadScript(path string) error {
 	return l.runtime.LoadScript(path)
 }

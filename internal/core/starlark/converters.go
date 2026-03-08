@@ -1,12 +1,16 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
-import "go.starlark.net/starlark"
+import (
+	"fmt"
+
+	"go.starlark.net/starlark"
+)
 
 // goToStarlark converts a Go value to a Starlark value.
-// Supports: nil, bool, int, int64, float64, string, []interface{}, []map[string]interface{}, map[string]interface{}
+// Supports: nil, bool, int, int64, float64, string, []interface{}, []map[string]interface{}, map[string]interface{}.
 func goToStarlark(v interface{}) starlark.Value {
 	switch val := v.(type) {
 	case nil:
@@ -37,7 +41,7 @@ func goToStarlark(v interface{}) starlark.Value {
 	case map[string]interface{}:
 		dict := starlark.NewDict(len(val))
 		for k, v := range val {
-			dict.SetKey(starlark.String(k), goToStarlark(v))
+			dict.SetKey(starlark.String(k), goToStarlark(v)) //nolint:errcheck // starlark dict operations with known-compatible types
 		}
 		return dict
 	default:
@@ -46,7 +50,7 @@ func goToStarlark(v interface{}) starlark.Value {
 }
 
 // starlarkToGo converts a Starlark value to a Go value.
-// Supports: String, Int, Bool, Float, List, Dict
+// Supports: String, Int, Bool, Float, List, Dict.
 func starlarkToGo(val starlark.Value) any {
 	switch v := val.(type) {
 	case starlark.String:
@@ -75,4 +79,24 @@ func starlarkToGo(val starlark.Value) any {
 	default:
 		return nil
 	}
+}
+
+// parseDataToStarlark unmarshals raw bytes into a Go value using the provided unmarshal func
+// and converts the result to a Starlark value.
+func parseDataToStarlark(funcName string, data string, unmarshal func([]byte, interface{}) error) (starlark.Value, error) {
+	var result interface{}
+	if err := unmarshal([]byte(data), &result); err != nil {
+		return nil, fmt.Errorf("%s: %w", funcName, err)
+	}
+	return goToStarlark(result), nil
+}
+
+// marshalToStarlarkString converts a Starlark value to a string using the provided marshal func.
+func marshalToStarlarkString(funcName string, value starlark.Value, marshal func(interface{}) ([]byte, error)) (starlark.Value, error) {
+	goValue := starlarkToGo(value)
+	data, err := marshal(goValue)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", funcName, err)
+	}
+	return starlark.String(string(data)), nil
 }

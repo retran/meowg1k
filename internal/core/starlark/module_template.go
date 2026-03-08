@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -71,11 +71,11 @@ func (t *Template) AttrNames() []string {
 }
 
 // render implements the Template.render() method.
-func (t *Template) render(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (t *Template) render(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var dataDict *starlark.Dict
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "data", &dataDict); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("template.render: %w", err)
 	}
 
 	data := make(map[string]interface{})
@@ -98,7 +98,7 @@ func (t *Template) render(thread *starlark.Thread, b *starlark.Builtin, args sta
 }
 
 // templateParse implements template.parse().
-func templateParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, workingDir string) (starlark.Value, error) {
+func templateParse(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, workingDir string) (starlark.Value, error) {
 	var text string
 	var name string
 
@@ -106,7 +106,7 @@ func templateParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.T
 		"text", &text,
 		"name?", &name,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("template.parse: %w", err)
 	}
 
 	if name == "" {
@@ -122,18 +122,18 @@ func templateParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.T
 }
 
 // templateLoad implements template.load().
-func templateLoad(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, workingDir string) (starlark.Value, error) {
+func templateLoad(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple, workingDir string) (starlark.Value, error) {
 	var path string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "path", &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("template.load: %w", err)
 	}
 
 	if !filepath.IsAbs(path) {
 		path = filepath.Join(workingDir, path)
 	}
 
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) //nolint:gosec // user-controlled path for template loading
 	if err != nil {
 		return nil, fmt.Errorf("failed to read template file '%s': %w", path, err)
 	}
@@ -148,7 +148,7 @@ func templateLoad(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 }
 
 // starlarkValueToGoInterface converts a Starlark value to a Go interface{} for template rendering.
-func starlarkValueToGoInterface(val starlark.Value) interface{} {
+func starlarkValueToGoInterface(val starlark.Value) interface{} { //nolint:gocognit // complexity inherent in mapping all Starlark value types to Go
 	switch v := val.(type) {
 	case starlark.NoneType:
 		return nil

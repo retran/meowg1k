@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -30,10 +30,10 @@ func TestParseCopilotTokenExpiry(t *testing.T) {
 	past := time.Now().Add(-5 * time.Minute).Unix()
 
 	tests := []struct {
-		name       string
-		token      string
 		wantAfter  time.Time
 		wantBefore time.Time
+		name       string
+		token      string
 	}{
 		{
 			name:       "valid exp field",
@@ -82,16 +82,14 @@ func TestParseCopilotTokenExpiry(t *testing.T) {
 func TestGenerateMachineID(t *testing.T) {
 	t.Parallel()
 
-	id, err := generateMachineID()
-	require.NoError(t, err)
+	id := generateMachineID()
 	// SHA256 hex is 64 characters.
 	assert.Len(t, id, 64)
 	// Must be lowercase hex.
 	assert.Regexp(t, `^[0-9a-f]+$`, id)
 
 	// Stable across calls.
-	id2, err := generateMachineID()
-	require.NoError(t, err)
+	id2 := generateMachineID()
 	assert.Equal(t, id, id2)
 }
 

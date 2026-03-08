@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -12,7 +12,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// NewCSVModule creates the csv module
+// NewCSVModule creates the csv module.
 func NewCSVModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "csv",
@@ -23,15 +23,15 @@ func NewCSVModule() *starlarkstruct.Module {
 	}
 }
 
-// csvParse parses a CSV string into Starlark list of lists or list of dicts
-func csvParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// csvParse parses a CSV string into Starlark list of lists or list of dicts.
+func csvParse(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit // complexity inherent in CSV parsing with multiple format options
 	var (
 		data      string
-		hasHeader bool   = false
-		delimiter string = ","
+		hasHeader = false
+		delimiter = ","
 	)
 	if err := starlark.UnpackArgs("csv.parse", args, kwargs, "data", &data, "has_header?", &hasHeader, "delimiter?", &delimiter); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("csv.parse: %w", err)
 	}
 
 	if len(delimiter) != 1 {
@@ -66,7 +66,7 @@ func csvParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 				if i < len(row) {
 					value = starlark.String(row[i])
 				}
-				dict.SetKey(starlark.String(header), value)
+				dict.SetKey(starlark.String(header), value) //nolint:errcheck // starlark dict operations with known-compatible types
 			}
 			result = append(result, dict)
 		}
@@ -84,15 +84,15 @@ func csvParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	return starlark.NewList(result), nil
 }
 
-// csvStringify converts Starlark list of lists or list of dicts to CSV string
-func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// csvStringify converts Starlark list of lists or list of dicts to CSV string.
+func csvStringify(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo,funlen // complexity inherent in CSV serialization with multiple input formats
 	var (
 		value     starlark.Value
-		delimiter string = ","
+		delimiter = ","
 		headers   *starlark.List
 	)
 	if err := starlark.UnpackArgs("csv.stringify", args, kwargs, "value", &value, "delimiter?", &delimiter, "headers?", &headers); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("csv.stringify: %w", err)
 	}
 
 	if len(delimiter) != 1 {
@@ -159,7 +159,7 @@ func csvStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tu
 				if err != nil {
 					return nil, fmt.Errorf("csv.stringify: failed to get value for key %s: %w", headerKey, err)
 				}
-				if !found {
+				if !found { //nolint:nestif // nested check required to handle missing header column with default value
 					row = append(row, "")
 				} else {
 					val, ok := starlark.AsString(cellValue)

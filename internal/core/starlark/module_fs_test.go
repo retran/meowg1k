@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -16,7 +16,12 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// TestFSWalk tests fs.walk() function
+const (
+	testFileName        = "test.txt"
+	nonexistentFileName = "nonexistent.txt"
+)
+
+// TestFSWalk tests fs.walk() function.
 func TestFSWalk(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -29,16 +34,16 @@ func TestFSWalk(t *testing.T) {
 		{
 			name: "walk directory without pattern",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0o755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "subdir", "file3.txt"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "subdir", "file3.txt"), []byte("test"), 0o644); err != nil {
 					return err
 				}
 				return nil
@@ -51,16 +56,16 @@ func TestFSWalk(t *testing.T) {
 		{
 			name: "walk directory with pattern",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0o755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "subdir", "file3.txt"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "subdir", "file3.txt"), []byte("test"), 0o644); err != nil {
 					return err
 				}
 				return nil
@@ -115,20 +120,20 @@ func TestFSWalk(t *testing.T) {
 	}
 }
 
-// TestFSStat tests fs.stat() function
+// TestFSStat tests fs.stat() function.
 func TestFSStat(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, error)
+		name        string
 		expectError bool
 		checkIsDir  bool
 	}{
 		{
 			name: "stat file",
 			setup: func(dir string) (string, error) {
-				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte("test content"), 0644)
-				return "test.txt", err
+				path := filepath.Join(dir, testFileName)
+				err := os.WriteFile(path, []byte("test content"), 0o644)
+				return testFileName, err
 			},
 			expectError: false,
 			checkIsDir:  false,
@@ -137,7 +142,7 @@ func TestFSStat(t *testing.T) {
 			name: "stat directory",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "testdir")
-				err := os.MkdirAll(path, 0755)
+				err := os.MkdirAll(path, 0o755)
 				return "testdir", err
 			},
 			expectError: false,
@@ -146,7 +151,7 @@ func TestFSStat(t *testing.T) {
 		{
 			name: "stat non-existent file",
 			setup: func(dir string) (string, error) {
-				return "nonexistent.txt", nil
+				return nonexistentFileName, nil
 			},
 			expectError: true,
 		},
@@ -196,7 +201,7 @@ func TestFSStat(t *testing.T) {
 	}
 }
 
-// TestFSListdir tests fs.listdir() function
+// TestFSListdir tests fs.listdir() function.
 func TestFSListdir(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -208,13 +213,13 @@ func TestFSListdir(t *testing.T) {
 		{
 			name: "list directory",
 			setup: func(dir string) error {
-				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file2.go"), []byte("test"), 0o644); err != nil {
 					return err
 				}
-				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, "subdir"), 0o755); err != nil {
 					return err
 				}
 				return nil
@@ -233,7 +238,7 @@ func TestFSListdir(t *testing.T) {
 		{
 			name: "list empty directory",
 			setup: func(dir string) error {
-				return os.MkdirAll(filepath.Join(dir, "empty"), 0755)
+				return os.MkdirAll(filepath.Join(dir, "empty"), 0o755)
 			},
 			path:          "empty",
 			expectedCount: 0,
@@ -267,40 +272,40 @@ func TestFSListdir(t *testing.T) {
 	}
 }
 
-// TestFSChmod tests fs.chmod() function
+// TestFSChmod tests fs.chmod() function.
 func TestFSChmod(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, error)
+		name        string
 		mode        int
 		expectError bool
 	}{
 		{
-			name: "chmod file to 0755",
+			name: "chmod file to 0o755",
 			setup: func(dir string) (string, error) {
-				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte("test"), 0644)
-				return "test.txt", err
+				path := filepath.Join(dir, testFileName)
+				err := os.WriteFile(path, []byte("test"), 0o644)
+				return testFileName, err
 			},
-			mode:        0755,
+			mode:        0o755,
 			expectError: false,
 		},
 		{
-			name: "chmod file to 0644",
+			name: "chmod file to 0o644",
 			setup: func(dir string) (string, error) {
-				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte("test"), 0755)
-				return "test.txt", err
+				path := filepath.Join(dir, testFileName)
+				err := os.WriteFile(path, []byte("test"), 0o755)
+				return testFileName, err
 			},
-			mode:        0644,
+			mode:        0o644,
 			expectError: false,
 		},
 		{
 			name: "chmod non-existent file",
 			setup: func(dir string) (string, error) {
-				return "nonexistent.txt", nil
+				return nonexistentFileName, nil
 			},
-			mode:        0755,
+			mode:        0o755,
 			expectError: true,
 		},
 	}
@@ -341,12 +346,12 @@ func TestFSChmod(t *testing.T) {
 	}
 }
 
-// TestFSTouch tests fs.touch() function
+// TestFSTouch tests fs.touch() function.
 func TestFSTouch(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, error)
 		mtime       *int64
+		name        string
 		expectError bool
 		checkExists bool
 	}{
@@ -363,7 +368,7 @@ func TestFSTouch(t *testing.T) {
 			name: "touch existing file",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "existing.txt")
-				err := os.WriteFile(path, []byte("test"), 0644)
+				err := os.WriteFile(path, []byte("test"), 0o644)
 				return "existing.txt", err
 			},
 			mtime:       nil,
@@ -432,7 +437,7 @@ func TestFSTouch(t *testing.T) {
 	}
 }
 
-// TestFSWalkIntegration tests fs.walk() in an integrated scenario
+// TestFSWalkIntegration tests fs.walk() in an integrated scenario.
 func TestFSWalkIntegration(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -451,8 +456,8 @@ func TestFSWalkIntegration(t *testing.T) {
 
 	for path, content := range structure {
 		fullPath := filepath.Join(tmpDir, path)
-		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0755))
-		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
+		require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))
+		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0o644))
 	}
 
 	runtime := NewRuntime(tmpDir)
@@ -472,20 +477,20 @@ func TestFSWalkIntegration(t *testing.T) {
 	assert.Equal(t, 5, list.Len()) // main.go, cmd/app/main.go, internal/api.go, internal/db.go, test/test.go
 }
 
-// TestFSRead tests fs.read() function
+// TestFSRead tests fs.read() function.
 func TestFSRead(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, string, error)
+		name        string
 		expectError bool
 	}{
 		{
 			name: "read file with relative path",
 			setup: func(dir string) (string, string, error) {
 				content := "Hello, meowg1k!"
-				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte(content), 0644)
-				return "test.txt", content, err
+				path := filepath.Join(dir, testFileName)
+				err := os.WriteFile(path, []byte(content), 0o644)
+				return testFileName, content, err
 			},
 			expectError: false,
 		},
@@ -494,7 +499,7 @@ func TestFSRead(t *testing.T) {
 			setup: func(dir string) (string, string, error) {
 				content := "Absolute path content"
 				path := filepath.Join(dir, "absolute.txt")
-				err := os.WriteFile(path, []byte(content), 0644)
+				err := os.WriteFile(path, []byte(content), 0o644)
 				return path, content, err
 			},
 			expectError: false,
@@ -502,7 +507,7 @@ func TestFSRead(t *testing.T) {
 		{
 			name: "read non-existent file",
 			setup: func(dir string) (string, string, error) {
-				return "nonexistent.txt", "", nil
+				return nonexistentFileName, "", nil
 			},
 			expectError: true,
 		},
@@ -533,7 +538,7 @@ func TestFSRead(t *testing.T) {
 	}
 }
 
-// TestFSWrite tests fs.write() function
+// TestFSWrite tests fs.write() function.
 func TestFSWrite(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -593,18 +598,18 @@ func TestFSWrite(t *testing.T) {
 	}
 }
 
-// TestFSExists tests fs.exists() function
+// TestFSExists tests fs.exists() function.
 func TestFSExists(t *testing.T) {
 	tests := []struct {
-		name     string
 		setup    func(string) (string, error)
+		name     string
 		expected bool
 	}{
 		{
 			name: "existing file",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "exists.txt")
-				err := os.WriteFile(path, []byte("exists"), 0644)
+				err := os.WriteFile(path, []byte("exists"), 0o644)
 				return "exists.txt", err
 			},
 			expected: true,
@@ -612,7 +617,7 @@ func TestFSExists(t *testing.T) {
 		{
 			name: "non-existing file",
 			setup: func(dir string) (string, error) {
-				return "nonexistent.txt", nil
+				return nonexistentFileName, nil
 			},
 			expected: false,
 		},
@@ -620,7 +625,7 @@ func TestFSExists(t *testing.T) {
 			name: "existing directory",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "existingdir")
-				err := os.MkdirAll(path, 0755)
+				err := os.MkdirAll(path, 0o755)
 				return "existingdir", err
 			},
 			expected: true,
@@ -647,7 +652,7 @@ func TestFSExists(t *testing.T) {
 	}
 }
 
-// TestFSMkdir tests fs.mkdir() function
+// TestFSMkdir tests fs.mkdir() function.
 func TestFSMkdir(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -695,18 +700,18 @@ func TestFSMkdir(t *testing.T) {
 	}
 }
 
-// TestFSRemove tests fs.remove() function
+// TestFSRemove tests fs.remove() function.
 func TestFSRemove(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, error)
+		name        string
 		expectError bool
 	}{
 		{
 			name: "remove file",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "remove.txt")
-				err := os.WriteFile(path, []byte("remove me"), 0644)
+				err := os.WriteFile(path, []byte("remove me"), 0o644)
 				return "remove.txt", err
 			},
 			expectError: false,
@@ -715,7 +720,7 @@ func TestFSRemove(t *testing.T) {
 			name: "remove empty directory",
 			setup: func(dir string) (string, error) {
 				path := filepath.Join(dir, "emptydir")
-				err := os.MkdirAll(path, 0755)
+				err := os.MkdirAll(path, 0o755)
 				return "emptydir", err
 			},
 			expectError: false,
@@ -724,10 +729,10 @@ func TestFSRemove(t *testing.T) {
 			name: "remove directory with contents",
 			setup: func(dir string) (string, error) {
 				dirPath := filepath.Join(dir, "fulldir")
-				if err := os.MkdirAll(filepath.Join(dirPath, "subdir"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dirPath, "subdir"), 0o755); err != nil {
 					return "", err
 				}
-				err := os.WriteFile(filepath.Join(dirPath, "file.txt"), []byte("content"), 0644)
+				err := os.WriteFile(filepath.Join(dirPath, "file.txt"), []byte("content"), 0o644)
 				return "fulldir", err
 			},
 			expectError: false,
@@ -764,18 +769,18 @@ func TestFSRemove(t *testing.T) {
 	}
 }
 
-// TestFSCopy tests fs.copy() function
+// TestFSCopy tests fs.copy() function.
 func TestFSCopy(t *testing.T) {
 	tests := []struct {
-		name        string
 		setup       func(string) (string, string, error)
+		name        string
 		expectError bool
 	}{
 		{
 			name: "copy file",
 			setup: func(dir string) (string, string, error) {
 				srcPath := filepath.Join(dir, "source.txt")
-				err := os.WriteFile(srcPath, []byte("copy me"), 0644)
+				err := os.WriteFile(srcPath, []byte("copy me"), 0o644)
 				return "source.txt", "dest.txt", err
 			},
 			expectError: false,
@@ -783,7 +788,7 @@ func TestFSCopy(t *testing.T) {
 		{
 			name: "copy non-existent file",
 			setup: func(dir string) (string, string, error) {
-				return "nonexistent.txt", "dest.txt", nil
+				return nonexistentFileName, "dest.txt", nil
 			},
 			expectError: true,
 		},
@@ -824,7 +829,7 @@ func TestFSCopy(t *testing.T) {
 	}
 }
 
-// TestFSCwd tests fs.cwd() and fs.getcwd() functions
+// TestFSCwd tests fs.cwd() and fs.getcwd() functions.
 func TestFSCwd(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -839,7 +844,7 @@ func TestFSCwd(t *testing.T) {
 	assert.Equal(t, tmpDir, string(cwd))
 }
 
-// TestFSGlob tests fs.glob() function
+// TestFSGlob tests fs.glob() function.
 func TestFSGlob(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -852,13 +857,13 @@ func TestFSGlob(t *testing.T) {
 		{
 			name: "glob txt files",
 			setup: func(dir string) error {
-				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("1"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("1"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("2"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("2"), 0o644); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(dir, "file3.go"), []byte("3"), 0644)
+				return os.WriteFile(filepath.Join(dir, "file3.go"), []byte("3"), 0o644)
 			},
 			pattern:       "*.txt",
 			ignore:        nil,
@@ -868,13 +873,13 @@ func TestFSGlob(t *testing.T) {
 		{
 			name: "glob with ignore pattern",
 			setup: func(dir string) error {
-				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("1"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file1.txt"), []byte("1"), 0o644); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("2"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "file2.txt"), []byte("2"), 0o644); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(dir, "ignore.txt"), []byte("3"), 0644)
+				return os.WriteFile(filepath.Join(dir, "ignore.txt"), []byte("3"), 0o644)
 			},
 			pattern:       "*.txt",
 			ignore:        []string{"ignore.txt"},
@@ -919,28 +924,28 @@ func TestFSGlob(t *testing.T) {
 	}
 }
 
-// TestFSFilter tests fs.filter() function
+// TestFSFilter tests fs.filter() function.
 func TestFSFilter(t *testing.T) {
 	tests := []struct {
-		name          string
 		setup         func(string) error
+		name          string
 		dir           string
 		pattern       string
-		recursive     bool
 		expectedCount int
+		recursive     bool
 		expectError   bool
 	}{
 		{
 			name: "filter non-recursive",
 			setup: func(dir string) error {
 				subdir := filepath.Join(dir, "subdir")
-				if err := os.MkdirAll(subdir, 0755); err != nil {
+				if err := os.MkdirAll(subdir, 0o755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(subdir, "test1.txt"), []byte("1"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(subdir, "test1.txt"), []byte("1"), 0o644); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(subdir, "test2.go"), []byte("2"), 0644)
+				return os.WriteFile(filepath.Join(subdir, "test2.go"), []byte("2"), 0o644)
 			},
 			dir:           "subdir",
 			pattern:       "*.txt",
@@ -951,13 +956,13 @@ func TestFSFilter(t *testing.T) {
 		{
 			name: "filter recursive",
 			setup: func(dir string) error {
-				if err := os.MkdirAll(filepath.Join(dir, "a", "b"), 0755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, "a", "b"), 0o755); err != nil {
 					return err
 				}
-				if err := os.WriteFile(filepath.Join(dir, "a", "test1.txt"), []byte("1"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "a", "test1.txt"), []byte("1"), 0o644); err != nil {
 					return err
 				}
-				return os.WriteFile(filepath.Join(dir, "a", "b", "test2.txt"), []byte("2"), 0644)
+				return os.WriteFile(filepath.Join(dir, "a", "b", "test2.txt"), []byte("2"), 0o644)
 			},
 			dir:           "a",
 			pattern:       "*.txt",
@@ -996,7 +1001,7 @@ func TestFSFilter(t *testing.T) {
 	}
 }
 
-// TestFSWriteErrors tests error cases for fs.write()
+// TestFSWriteErrors tests error cases for fs.write().
 func TestFSWriteErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1009,7 +1014,7 @@ func TestFSWriteErrors(t *testing.T) {
 	})
 
 	t.Run("missing content argument", func(t *testing.T) {
-		args := starlark.Tuple{starlark.String("test.txt")}
+		args := starlark.Tuple{starlark.String(testFileName)}
 		_, err := runtime.fsWrite(thread, starlark.NewBuiltin("write", nil), args, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "content")
@@ -1022,13 +1027,13 @@ func TestFSWriteErrors(t *testing.T) {
 	})
 
 	t.Run("wrong argument type for content", func(t *testing.T) {
-		args := starlark.Tuple{starlark.String("test.txt"), starlark.MakeInt(123)}
+		args := starlark.Tuple{starlark.String(testFileName), starlark.MakeInt(123)}
 		_, err := runtime.fsWrite(thread, starlark.NewBuiltin("write", nil), args, nil)
 		assert.Error(t, err)
 	})
 }
 
-// TestFSMkdirErrors tests error cases for fs.mkdir()
+// TestFSMkdirErrors tests error cases for fs.mkdir().
 func TestFSMkdirErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1047,7 +1052,7 @@ func TestFSMkdirErrors(t *testing.T) {
 	})
 }
 
-// TestFSRemoveErrors tests error cases for fs.remove()
+// TestFSRemoveErrors tests error cases for fs.remove().
 func TestFSRemoveErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1076,7 +1081,7 @@ func TestFSRemoveErrors(t *testing.T) {
 	})
 }
 
-// TestFSCwdErrors tests error cases for fs.cwd()
+// TestFSCwdErrors tests error cases for fs.cwd().
 func TestFSCwdErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1089,7 +1094,7 @@ func TestFSCwdErrors(t *testing.T) {
 	})
 }
 
-// TestFSReadErrors tests error cases for fs.read()
+// TestFSReadErrors tests error cases for fs.read().
 func TestFSReadErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1108,7 +1113,7 @@ func TestFSReadErrors(t *testing.T) {
 	})
 }
 
-// TestFSExistsErrors tests error cases for fs.exists()
+// TestFSExistsErrors tests error cases for fs.exists().
 func TestFSExistsErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1127,7 +1132,7 @@ func TestFSExistsErrors(t *testing.T) {
 	})
 }
 
-// TestFSCopyErrors tests error cases for fs.copy()
+// TestFSCopyErrors tests error cases for fs.copy().
 func TestFSCopyErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1153,7 +1158,7 @@ func TestFSCopyErrors(t *testing.T) {
 	})
 }
 
-// TestFSGlobErrors tests error cases for fs.glob()
+// TestFSGlobErrors tests error cases for fs.glob().
 func TestFSGlobErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	runtime := NewRuntime(tmpDir)
@@ -1178,19 +1183,19 @@ func TestFSGlobErrors(t *testing.T) {
 	})
 }
 
-// TestFSGrep tests fs.grep() function
+// TestFSGrep tests fs.grep() function.
 func TestFSGrep(t *testing.T) {
 	setup := func(dir string) error {
-		if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\n\nfunc Hello() {}\nfunc World() {}\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main\n\nfunc Hello() {}\nfunc World() {}\n"), 0o644); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello world\ngoodbye\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "b.txt"), []byte("hello world\ngoodbye\n"), 0o644); err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(dir, "sub", "c.go"), []byte("package sub\n\nfunc Hello() string { return \"hello\" }\n"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "sub", "c.go"), []byte("package sub\n\nfunc Hello() string { return \"hello\" }\n"), 0o644); err != nil {
 			return err
 		}
 		return nil

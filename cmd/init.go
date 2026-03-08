@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -70,29 +70,39 @@ func initGlobalConfig(cmd *cobra.Command, force bool) error {
 		}
 	}
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	if err := os.WriteFile(initFile, []byte(templates.GlobalInitTemplate), 0644); err != nil {
+	if err := os.WriteFile(initFile, []byte(templates.GlobalInitTemplate), 0o600); err != nil {
 		return fmt.Errorf("failed to write init.star: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "✓ Global configuration created: %s\n", initFile)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "1. Set your API key:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   export OPENAI_API_KEY=\"sk-...\"\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "2. Edit config to add more providers/models:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", initFile)
-	fmt.Fprintf(cmd.OutOrStdout(), "3. Initialize a project:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   cd your-project && meow init\n")
+	out := cmd.OutOrStdout()
+	lines := []string{
+		fmt.Sprintf("✓ Global configuration created: %s\n", initFile),
+		"\nNext steps:\n",
+		"1. Set your API key:\n",
+		"   export OPENAI_API_KEY=\"sk-...\"\n",
+		"2. Edit config to add more providers/models:\n",
+		fmt.Sprintf("   %s\n", initFile),
+		"3. Initialize a project:\n",
+		"   cd your-project && meow init\n",
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprint(out, line); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+	}
 
 	return nil
 }
 
 func initProjectConfig(cmd *cobra.Command, force bool) error {
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
-		fmt.Fprintf(cmd.OutOrStdout(), "⚠ Warning: Not in a git repository\n")
+		if _, printErr := fmt.Fprintf(cmd.OutOrStdout(), "⚠ Warning: Not in a git repository\n"); printErr != nil {
+			return fmt.Errorf("failed to write output: %w", printErr)
+		}
 	}
 
 	projectDir := ".meowg1k"
@@ -104,23 +114,33 @@ func initProjectConfig(cmd *cobra.Command, force bool) error {
 		}
 	}
 
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
+	if err := os.MkdirAll(projectDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 
-	if err := os.WriteFile(initFile, []byte(templates.ProjectInitTemplate), 0644); err != nil {
+	if err := os.WriteFile(initFile, []byte(templates.ProjectInitTemplate), 0o600); err != nil {
 		return fmt.Errorf("failed to write init.star: %w", err)
 	}
 
 	if err := updateGitignore(); err != nil {
-		fmt.Fprintf(cmd.OutOrStderr(), "⚠ Warning: %v\n", err)
+		if _, printErr := fmt.Fprintf(cmd.OutOrStderr(), "⚠ Warning: %v\n", err); printErr != nil {
+			return fmt.Errorf("failed to write output: %w", printErr)
+		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "✓ Project configuration created: %s\n", initFile)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nExample commands available:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "  meow commit              # Generate commit message\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "  meow search -q \"query\"   # Semantic search\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "\nEdit %s to customize!\n", initFile)
+	out := cmd.OutOrStdout()
+	lines := []string{
+		fmt.Sprintf("✓ Project configuration created: %s\n", initFile),
+		"\nExample commands available:\n",
+		"  meow commit              # Generate commit message\n",
+		"  meow search -q \"query\"   # Semantic search\n",
+		fmt.Sprintf("\nEdit %s to customize!\n", initFile),
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprint(out, line); err != nil {
+			return fmt.Errorf("failed to write output: %w", err)
+		}
+	}
 
 	return nil
 }
@@ -142,7 +162,10 @@ func updateGitignore() error {
 	}
 	content += templates.GitignoreEntries
 
-	return os.WriteFile(gitignorePath, []byte(content), 0644)
+	if err := os.WriteFile(gitignorePath, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("failed to write .gitignore: %w", err)
+	}
+	return nil
 }
 
 func init() {

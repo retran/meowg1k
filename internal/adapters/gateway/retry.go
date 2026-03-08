@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -25,21 +25,6 @@ func DefaultRetryConfig() RetryConfig {
 		BaseDelay:  2 * time.Second,
 		MaxDelay:   60 * time.Second,
 	}
-}
-
-// isRateLimitError checks if an error is a rate limit error.
-// Common indicators: 429 status, "rate limit", "quota", "resource_exhausted", "too many requests"
-func isRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := strings.ToLower(err.Error())
-	return strings.Contains(errMsg, "429") ||
-		strings.Contains(errMsg, "rate limit") ||
-		strings.Contains(errMsg, "quota") ||
-		strings.Contains(errMsg, "resource_exhausted") ||
-		strings.Contains(errMsg, "too many requests") ||
-		strings.Contains(errMsg, "too_many_requests")
 }
 
 // isHardQuotaError checks if error indicates hard daily/monthly quota exhaustion.
@@ -73,41 +58,48 @@ func RetryWithBackoff[T any](
 	var zero T
 
 	for attempt := 1; attempt <= config.MaxRetries; attempt++ {
-		// Calculate wait duration with exponential backoff capped at MaxDelay
-		var waitDuration time.Duration
 		if attempt > 1 {
-			// Exponential backoff: baseDelay * 2^(attempt-2)
-			waitDuration = config.BaseDelay * time.Duration(1<<uint(attempt-2))
-			if waitDuration > config.MaxDelay {
-				waitDuration = config.MaxDelay
-			}
-
-			// Wait before retry
-			select {
-			case <-ctx.Done():
-				return zero, fmt.Errorf("retry cancelled: %w", ctx.Err())
-			case <-time.After(waitDuration):
+			if err := waitForRetry(ctx, config, attempt); err != nil {
+				return zero, err
 			}
 		}
 
-		// Execute function
 		result, err := fn(ctx)
 		if err == nil {
 			return result, nil
 		}
 
-		// Check for hard quota errors (don't retry)
 		if isHardQuotaError(err) {
 			return zero, fmt.Errorf("%s: hard quota exceeded - check your billing and plan: %w", errorContext, err)
 		}
 
-		// Last attempt failed
 		if attempt >= config.MaxRetries {
 			return zero, fmt.Errorf("%s: failed after %d attempts: %w", errorContext, attempt, err)
 		}
-
-		// Continue to next retry
 	}
 
 	return zero, fmt.Errorf("%s: failed after %d retries", errorContext, config.MaxRetries)
+}
+
+// waitForRetry waits the appropriate backoff duration before the next retry attempt.
+func waitForRetry(ctx context.Context, config RetryConfig, attempt int) error {
+	// Exponential backoff: baseDelay * 2^(attempt-2), capped to avoid overflow.
+	// attempt is always >= 2 here, so (attempt-2) is non-negative.
+	// Cap shift at 62 to prevent overflow of int64.
+	const maxShift = 62
+	shiftAmount := attempt - 2
+	if shiftAmount > maxShift {
+		shiftAmount = maxShift
+	}
+	waitDuration := config.BaseDelay * time.Duration(int64(1)<<shiftAmount)
+	if waitDuration > config.MaxDelay {
+		waitDuration = config.MaxDelay
+	}
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("retry cancelled: %w", ctx.Err())
+	case <-time.After(waitDuration):
+		return nil
+	}
 }

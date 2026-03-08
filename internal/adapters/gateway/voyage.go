@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -102,7 +102,7 @@ func (g *voyageGateway) ComputeEmbeddings(
 
 		response, err := g.client.CreateEmbeddings(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create voyage embeddings: %w", err)
 		}
 
 		embeddings := make([]gateway.Embedding, 0, len(response.Data))

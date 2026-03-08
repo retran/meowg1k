@@ -1,10 +1,11 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -12,6 +13,12 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+)
+
+const (
+	gitRefStaged = "staged"
+	gitRefHead   = "HEAD"
+	gitRefStage  = "stage"
 )
 
 // createGitModule creates the git built-in module.
@@ -35,31 +42,31 @@ func (r *Runtime) createGitModule() starlark.Value {
 		"untracked_files": starlark.NewBuiltin("untracked_files", r.gitUntrackedFiles),
 
 		// Constants
-		"STAGED":   starlark.String("staged"),
-		"HEAD":     starlark.String("HEAD"),
+		"STAGED":   starlark.String(gitRefStaged),
+		"HEAD":     starlark.String(gitRefHead),
 		"UNSTAGED": starlark.String("unstaged"),
 	})
 }
 
 // gitDiff implements git.diff().
-func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var target string = "staged"
+func (r *Runtime) gitDiff(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var target = gitRefStaged
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "target?", &target); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.diff: %w", err)
 	}
 
 	var diffArgs []string
 	switch target {
-	case "staged":
+	case gitRefStaged:
 		diffArgs = []string{"diff", "--cached"}
-	case "HEAD":
-		diffArgs = []string{"diff", "HEAD"}
+	case gitRefHead:
+		diffArgs = []string{"diff", gitRefHead}
 	default:
 		diffArgs = []string{"diff", target}
 	}
 
-	cmd := exec.Command("git", diffArgs...)
+	cmd := exec.CommandContext(context.Background(), "git", diffArgs...) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -73,8 +80,10 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 	rawDiff := stdout.String()
 
 	// Get list of changed files using --name-only for reliable parsing
-	nameOnlyArgs := append(diffArgs, "--name-only")
-	nameCmd := exec.Command("git", nameOnlyArgs...)
+	nameOnlyArgs := make([]string, len(diffArgs)+1)
+	copy(nameOnlyArgs, diffArgs)
+	nameOnlyArgs[len(diffArgs)] = "--name-only"
+	nameCmd := exec.CommandContext(context.Background(), "git", nameOnlyArgs...) //nolint:gosec // git commands are user-controlled
 	nameCmd.Dir = r.workingDir
 
 	var nameStdout, nameStderr bytes.Buffer
@@ -105,7 +114,7 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 	filesList := starlark.NewList(make([]starlark.Value, len(files)))
 	for i, f := range files {
-		filesList.SetIndex(i, starlark.String(f))
+		filesList.SetIndex(i, starlark.String(f)) //nolint:errcheck // starlark list operations with known-compatible types
 	}
 
 	return starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
@@ -118,25 +127,25 @@ func (r *Runtime) gitDiff(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 // gitDiffFile implements git.diff_file().
 // Returns a struct with: raw (diff content), additions, deletions, file (path).
-func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var target string = "staged"
+func (r *Runtime) gitDiffFile(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var target = gitRefStaged
 	var filePath string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "file", &filePath, "target?", &target); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.diff_file: %w", err)
 	}
 
 	var diffArgs []string
 	switch target {
-	case "staged":
+	case gitRefStaged:
 		diffArgs = []string{"diff", "--cached", "--", filePath}
-	case "HEAD":
-		diffArgs = []string{"diff", "HEAD", "--", filePath}
+	case gitRefHead:
+		diffArgs = []string{"diff", gitRefHead, "--", filePath}
 	default:
 		diffArgs = []string{"diff", target, "--", filePath}
 	}
 
-	cmd := exec.Command("git", diffArgs...)
+	cmd := exec.CommandContext(context.Background(), "git", diffArgs...) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -168,14 +177,14 @@ func (r *Runtime) gitDiffFile(thread *starlark.Thread, b *starlark.Builtin, args
 }
 
 // gitLog implements git.log().
-func (r *Runtime) gitLog(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var count int = 10
+func (r *Runtime) gitLog(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var count = 10
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "count?", &count); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.log: %w", err)
 	}
 
-	cmd := exec.Command("git", "log", "--pretty=format:%H%x00%an%x00%ad%x00%s", fmt.Sprintf("-%d", count))
+	cmd := exec.CommandContext(context.Background(), "git", "log", "--pretty=format:%H%x00%an%x00%ad%x00%s", fmt.Sprintf("-%d", count)) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -210,8 +219,8 @@ func (r *Runtime) gitLog(thread *starlark.Thread, b *starlark.Builtin, args star
 }
 
 // gitStatus implements git.status().
-func (r *Runtime) gitStatus(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	cmd := exec.Command("git", "status", "--short")
+func (r *Runtime) gitStatus(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	cmd := exec.CommandContext(context.Background(), "git", "status", "--short")
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -235,8 +244,8 @@ func (r *Runtime) gitStatus(thread *starlark.Thread, b *starlark.Builtin, args s
 }
 
 // gitBranch implements git.branch().
-func (r *Runtime) gitBranch(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	cmd := exec.Command("git", "branch", "--show-current")
+func (r *Runtime) gitBranch(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	cmd := exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -252,14 +261,14 @@ func (r *Runtime) gitBranch(thread *starlark.Thread, b *starlark.Builtin, args s
 }
 
 // gitCommit implements git.commit().
-func (r *Runtime) gitCommit(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) gitCommit(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var message string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "message", &message); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.commit: %w", err)
 	}
 
-	cmd := exec.Command("git", "commit", "-m", message)
+	cmd := exec.CommandContext(context.Background(), "git", "commit", "-m", message) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -270,7 +279,7 @@ func (r *Runtime) gitCommit(thread *starlark.Thread, b *starlark.Builtin, args s
 		return nil, fmt.Errorf("git commit failed: %w: %s", err, stderr.String())
 	}
 
-	hashCmd := exec.Command("git", "rev-parse", "HEAD")
+	hashCmd := exec.CommandContext(context.Background(), "git", "rev-parse", "HEAD")
 	hashCmd.Dir = r.workingDir
 	var hashOut bytes.Buffer
 	hashCmd.Stdout = &hashOut
@@ -289,11 +298,11 @@ func (r *Runtime) gitCommit(thread *starlark.Thread, b *starlark.Builtin, args s
 }
 
 // gitPush implements git.push().
-func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) gitPush(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var remote, branch string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "remote?", &remote, "branch?", &branch); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.push: %w", err)
 	}
 
 	cmdArgs := []string{"push"}
@@ -304,7 +313,7 @@ func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	cmd := exec.Command("git", cmdArgs...)
+	cmd := exec.CommandContext(context.Background(), "git", cmdArgs...)
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -319,7 +328,7 @@ func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args sta
 		remote = "origin"
 	}
 	if branch == "" {
-		branchCmd := exec.Command("git", "branch", "--show-current")
+		branchCmd := exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 		branchCmd.Dir = r.workingDir
 		var branchOut bytes.Buffer
 		branchCmd.Stdout = &branchOut
@@ -337,15 +346,15 @@ func (r *Runtime) gitPush(thread *starlark.Thread, b *starlark.Builtin, args sta
 }
 
 // gitCreateBranch implements git.create_branch().
-func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) gitCreateBranch(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var name string
-	var shouldCheckout bool = false
+	var shouldCheckout = false
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "name", &name, "should_checkout?", &shouldCheckout); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.create_branch: %w", err)
 	}
 
-	cmd := exec.Command("git", "branch", name)
+	cmd := exec.CommandContext(context.Background(), "git", "branch", name) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stderr bytes.Buffer
@@ -357,7 +366,7 @@ func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, 
 
 	checkedOut := false
 	if shouldCheckout {
-		checkoutCmd := exec.Command("git", "checkout", name)
+		checkoutCmd := exec.CommandContext(context.Background(), "git", "checkout", name) //nolint:gosec // git commands are user-controlled
 		checkoutCmd.Dir = r.workingDir
 		checkoutCmd.Stderr = &stderr
 
@@ -375,14 +384,14 @@ func (r *Runtime) gitCreateBranch(thread *starlark.Thread, b *starlark.Builtin, 
 }
 
 // gitCheckout implements git.checkout().
-func (r *Runtime) gitCheckout(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) gitCheckout(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var target string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "target", &target); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.checkout: %w", err)
 	}
 
-	cmd := exec.Command("git", "checkout", target)
+	cmd := exec.CommandContext(context.Background(), "git", "checkout", target) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -401,11 +410,11 @@ func (r *Runtime) gitCheckout(thread *starlark.Thread, b *starlark.Builtin, args
 }
 
 // gitAdd implements git.add().
-func (r *Runtime) gitAdd(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) gitAdd(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var paths *starlark.List
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "paths", &paths); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.add: %w", err)
 	}
 
 	cmdArgs := []string{"add"}
@@ -415,11 +424,11 @@ func (r *Runtime) gitAdd(thread *starlark.Thread, b *starlark.Builtin, args star
 		if str, ok := paths.Index(i).(starlark.String); ok {
 			pathStr := string(str)
 			cmdArgs = append(cmdArgs, pathStr)
-			filesAdded.Append(starlark.String(pathStr))
+			filesAdded.Append(starlark.String(pathStr)) //nolint:errcheck // starlark list operations with known-compatible types
 		}
 	}
 
-	cmd := exec.Command("git", cmdArgs...)
+	cmd := exec.CommandContext(context.Background(), "git", cmdArgs...)
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -439,9 +448,9 @@ func (r *Runtime) gitAdd(thread *starlark.Thread, b *starlark.Builtin, args star
 
 // gitGlob implements git.glob().
 // Lists files in a git ref with pattern matching and ignore filters.
-func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var ref string = "HEAD"
-	var pattern string = "**/*"
+func (r *Runtime) gitGlob(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit // complexity inherent in glob with multiple filter options
+	var ref = gitRefHead
+	var pattern = "**/*"
 	var ignoreList *starlark.List
 
 	if err := starlark.UnpackArgs(
@@ -450,7 +459,7 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 		"pattern?", &pattern,
 		"ignore?", &ignoreList,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.glob: %w", err)
 	}
 
 	ignore := []string{}
@@ -466,7 +475,7 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 	var err error
 
 	switch ref {
-	case "stage", "staged":
+	case gitRefStage, gitRefStaged:
 		files, err = r.listStagedFiles()
 	case "workdir", "working":
 		// For workdir, we'll use fs.glob instead (not git)
@@ -501,10 +510,10 @@ func (r *Runtime) gitGlob(thread *starlark.Thread, b *starlark.Builtin, args sta
 
 // gitRead implements git.read().
 // Reads file content from git ref.
-// Supports both git.read(ref="HEAD", path="file.go") and git.read("HEAD:file.go")
-func (r *Runtime) gitRead(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// Supports both git.read(ref="HEAD", path="file.go") and git.read("HEAD:file.go").
+func (r *Runtime) gitRead(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	// Try to parse as single argument with git notation "ref:path"
-	if args.Len() == 1 && len(kwargs) == 0 {
+	if args.Len() == 1 && len(kwargs) == 0 { //nolint:nestif // nested check required to handle shorthand ref:path argument syntax
 		if refPath, ok := args.Index(0).(starlark.String); ok {
 			parts := strings.SplitN(string(refPath), ":", 2)
 			if len(parts) == 2 {
@@ -517,7 +526,7 @@ func (r *Runtime) gitRead(thread *starlark.Thread, b *starlark.Builtin, args sta
 		}
 	}
 
-	var ref string = "HEAD"
+	var ref = gitRefHead
 	var path string
 
 	if err := starlark.UnpackArgs(
@@ -525,7 +534,7 @@ func (r *Runtime) gitRead(thread *starlark.Thread, b *starlark.Builtin, args sta
 		"ref?", &ref,
 		"path", &path,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("git.read_file: %w", err)
 	}
 
 	content, err := r.readFileFromGit(ref, path)
@@ -536,9 +545,9 @@ func (r *Runtime) gitRead(thread *starlark.Thread, b *starlark.Builtin, args sta
 	return starlark.String(content), nil
 }
 
-// listFilesAtRef lists all files at a specific git ref (commit/branch/HEAD)
+// listFilesAtRef lists all files at a specific git ref (commit/branch/HEAD).
 func (r *Runtime) listFilesAtRef(ref string) ([]string, error) {
-	cmd := exec.Command("git", "ls-tree", "-r", "--name-only", ref)
+	cmd := exec.CommandContext(context.Background(), "git", "ls-tree", "-r", "--name-only", ref) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -559,10 +568,10 @@ func (r *Runtime) listFilesAtRef(ref string) ([]string, error) {
 	return files, nil
 }
 
-// listStagedFiles lists all files in the staging area (excluding deletions)
+// listStagedFiles lists all files in the staging area (excluding deletions).
 func (r *Runtime) listStagedFiles() ([]string, error) {
 	// Use --diff-filter to exclude deleted files (D)
-	cmd := exec.Command("git", "diff", "--cached", "--name-only", "--diff-filter=d")
+	cmd := exec.CommandContext(context.Background(), "git", "diff", "--cached", "--name-only", "--diff-filter=d")
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -583,17 +592,17 @@ func (r *Runtime) listStagedFiles() ([]string, error) {
 	return files, nil
 }
 
-// readFileFromGit reads file content from git at specified ref
+// readFileFromGit reads file content from git at specified ref.
 func (r *Runtime) readFileFromGit(ref, path string) (string, error) {
 	var cmd *exec.Cmd
 
 	switch ref {
-	case "stage", "staged":
+	case gitRefStage, gitRefStaged:
 		// Read from staging area (git index)
-		cmd = exec.Command("git", "show", ":"+path)
+		cmd = exec.CommandContext(context.Background(), "git", "show", ":"+path) //nolint:gosec // git commands are user-controlled
 	default:
 		// Read from commit/ref
-		cmd = exec.Command("git", "show", ref+":"+path)
+		cmd = exec.CommandContext(context.Background(), "git", "show", ref+":"+path) //nolint:gosec // git commands are user-controlled
 	}
 
 	cmd.Dir = r.workingDir
@@ -609,7 +618,7 @@ func (r *Runtime) readFileFromGit(ref, path string) (string, error) {
 	return stdout.String(), nil
 }
 
-// shouldIgnoreFile checks if a file path matches any ignore pattern
+// shouldIgnoreFile checks if a file path matches any ignore pattern.
 func shouldIgnoreFile(path string, patterns []string) bool {
 	for _, pattern := range patterns {
 		matched, err := doublestar.Match(pattern, path)
@@ -620,10 +629,9 @@ func shouldIgnoreFile(path string, patterns []string) bool {
 	return false
 }
 
-// gitStagedFiles implements git.staged_files().
-// Returns a list of all staged files.
-func (r *Runtime) gitStagedFiles(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	cmd := exec.Command("git", "diff", "--cached", "--name-only")
+// gitRunAndCollectLines runs a git command and returns stdout lines as a Starlark list.
+func (r *Runtime) gitRunAndCollectLines(errPrefix string, args ...string) (starlark.Value, error) {
+	cmd := exec.CommandContext(context.Background(), "git", args...) //nolint:gosec // git commands are user-controlled
 	cmd.Dir = r.workingDir
 
 	var stdout, stderr bytes.Buffer
@@ -631,7 +639,7 @@ func (r *Runtime) gitStagedFiles(thread *starlark.Thread, b *starlark.Builtin, a
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git diff --cached --name-only failed: %w: %s", err, stderr.String())
+		return nil, fmt.Errorf("%s failed: %w: %s", errPrefix, err, stderr.String())
 	}
 
 	files := []starlark.Value{}
@@ -642,52 +650,22 @@ func (r *Runtime) gitStagedFiles(thread *starlark.Thread, b *starlark.Builtin, a
 	}
 
 	return starlark.NewList(files), nil
+}
+
+// gitStagedFiles implements git.staged_files().
+// Returns a list of all staged files.
+func (r *Runtime) gitStagedFiles(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	return r.gitRunAndCollectLines("git diff --cached --name-only", "diff", "--cached", "--name-only")
 }
 
 // gitModifiedFiles implements git.modified_files().
 // Returns a list of modified (but not staged) files.
-func (r *Runtime) gitModifiedFiles(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	cmd := exec.Command("git", "diff", "--name-only")
-	cmd.Dir = r.workingDir
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git diff --name-only failed: %w: %s", err, stderr.String())
-	}
-
-	files := []starlark.Value{}
-	for _, line := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
-		if line != "" {
-			files = append(files, starlark.String(line))
-		}
-	}
-
-	return starlark.NewList(files), nil
+func (r *Runtime) gitModifiedFiles(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	return r.gitRunAndCollectLines("git diff --name-only", "diff", "--name-only")
 }
 
 // gitUntrackedFiles implements git.untracked_files().
 // Returns a list of untracked files.
-func (r *Runtime) gitUntrackedFiles(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	cmd := exec.Command("git", "ls-files", "--others", "--exclude-standard")
-	cmd.Dir = r.workingDir
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("git ls-files failed: %w: %s", err, stderr.String())
-	}
-
-	files := []starlark.Value{}
-	for _, line := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
-		if line != "" {
-			files = append(files, starlark.String(line))
-		}
-	}
-
-	return starlark.NewList(files), nil
+func (r *Runtime) gitUntrackedFiles(_ *starlark.Thread, _ *starlark.Builtin, _ starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
+	return r.gitRunAndCollectLines("git ls-files", "ls-files", "--others", "--exclude-standard")
 }

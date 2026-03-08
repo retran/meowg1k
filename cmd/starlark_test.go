@@ -111,29 +111,29 @@ func TestConvertToStarlarkValue(t *testing.T) {
 
 func TestCoerceBool(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    any
+		name     string
 		expected bool
 	}{
-		{"nil", nil, false},
-		{"bool_true", true, true},
-		{"bool_false", false, false},
-		{"starlark_bool_true", starlark.Bool(true), true},
-		{"starlark_bool_false", starlark.Bool(false), false},
-		{"string_true", "true", true},
-		{"string_1", "1", true},
-		{"string_yes", "yes", true},
-		{"string_t", "t", true},
-		{"string_y", "Y", true}, // Case insensitive
-		{"string_false", "false", false},
-		{"string_0", "0", false},
-		{"int_nonzero", 5, true},
-		{"int_zero", 0, false},
-		{"int64_nonzero", int64(10), true},
-		{"int64_zero", int64(0), false},
-		{"float64_nonzero", 1.5, true},
-		{"float64_zero", 0.0, false},
-		{"unknown", []int{1}, false},
+		{nil, "nil", false},
+		{true, "bool_true", true},
+		{false, "bool_false", false},
+		{starlark.Bool(true), "starlark_bool_true", true},
+		{starlark.Bool(false), "starlark_bool_false", false},
+		{"true", "string_true", true},
+		{"1", "string_1", true},
+		{"yes", "string_yes", true},
+		{"t", "string_t", true},
+		{"Y", "string_y", true}, // Case insensitive
+		{"false", "string_false", false},
+		{"0", "string_0", false},
+		{5, "int_nonzero", true},
+		{0, "int_zero", false},
+		{int64(10), "int64_nonzero", true},
+		{int64(0), "int64_zero", false},
+		{1.5, "float64_nonzero", true},
+		{0.0, "float64_zero", false},
+		{[]int{1}, "unknown", false},
 	}
 
 	for _, tt := range tests {
@@ -146,17 +146,17 @@ func TestCoerceBool(t *testing.T) {
 
 func TestCoerceInt(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    any
+		name     string
 		expected int
 	}{
-		{"nil", nil, 0},
-		{"int", 42, 42},
-		{"int64", int64(100), 100},
-		{"float64", 3.14, 3},
-		{"string_valid", "123", 123},
-		{"string_invalid", "abc", 0},
-		{"unknown", true, 0},
+		{nil, "nil", 0},
+		{42, "int", 42},
+		{int64(100), "int64", 100},
+		{3.14, "float64", 3},
+		{"123", "string_valid", 123},
+		{"abc", "string_invalid", 0},
+		{true, "unknown", 0},
 	}
 
 	for _, tt := range tests {
@@ -169,17 +169,17 @@ func TestCoerceInt(t *testing.T) {
 
 func TestCoerceFloat(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    any
+		name     string
 		expected float64
 	}{
-		{"nil", nil, 0.0},
-		{"float64", 3.14, 3.14},
-		{"int", 42, 42.0},
-		{"int64", int64(100), 100.0},
-		{"string_valid", "2.718", 2.718},
-		{"string_invalid", "abc", 0.0},
-		{"unknown", true, 0.0},
+		{nil, "nil", 0.0},
+		{3.14, "float64", 3.14},
+		{42, "int", 42.0},
+		{int64(100), "int64", 100.0},
+		{"2.718", "string_valid", 2.718},
+		{"abc", "string_invalid", 0.0},
+		{true, "unknown", 0.0},
 	}
 
 	for _, tt := range tests {

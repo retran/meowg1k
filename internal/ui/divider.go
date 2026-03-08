@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -12,8 +12,10 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
+const dividerCharLine = "─"
+
 // RenderDivider creates a horizontal divider line.
-func RenderDivider(style string, theme Theme, opts RenderOptions) string {
+func RenderDivider(style string, theme Theme, opts RenderOptions) string { //nolint:gocritic,gocognit // hugeParam: Theme passed by value to avoid external mutation; complexity inherent in style selection
 	if opts.Plain || !opts.Terminal {
 		return "---"
 	}
@@ -30,7 +32,7 @@ func RenderDivider(style string, theme Theme, opts RenderOptions) string {
 	switch style {
 	case "line":
 		if opts.SupportsUnicode {
-			char = "─"
+			char = dividerCharLine
 		} else {
 			char = "-"
 		}
@@ -49,7 +51,7 @@ func RenderDivider(style string, theme Theme, opts RenderOptions) string {
 	case "empty":
 		return ""
 	default:
-		char = "─"
+		char = dividerCharLine
 	}
 
 	line := strings.Repeat(char, width)
@@ -57,13 +59,13 @@ func RenderDivider(style string, theme Theme, opts RenderOptions) string {
 }
 
 // LogDivider outputs a divider to the given writer.
-func LogDivider(style string, theme Theme, opts RenderOptions, writer io.Writer) {
+func LogDivider(style string, theme Theme, opts RenderOptions, writer io.Writer) { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	if writer == nil {
 		writer = os.Stderr
 	}
 
 	divider := RenderDivider(style, theme, opts)
 	if divider != "" {
-		fmt.Fprintln(writer, divider)
+		_, _ = fmt.Fprintln(writer, divider) //nolint:errcheck // write errors to stderr are intentionally ignored
 	}
 }

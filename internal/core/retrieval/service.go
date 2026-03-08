@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package retrieval provides services for semantic search and retrieval of code chunks using vector similarity.
@@ -312,8 +312,8 @@ func (s *Service) RetrieveContext(
 	builder.WriteString("# Retrieved Context\n\n")
 
 	for _, result := range results {
-		builder.WriteString(fmt.Sprintf("%s (Lines %d-%d)\n", result.FilePath, result.StartLine, result.EndLine))
-		builder.WriteString(fmt.Sprintf("%s\n\n", formatSnapshotName(result.SnapshotName)))
+		fmt.Fprintf(&builder, "%s (Lines %d-%d)\n", result.FilePath, result.StartLine, result.EndLine)
+		fmt.Fprintf(&builder, "%s\n\n", formatSnapshotName(result.SnapshotName))
 		builder.WriteString("```\n")
 		builder.WriteString(result.TextContent)
 		builder.WriteString("\n```\n\n")

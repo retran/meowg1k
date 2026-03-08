@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
 func TestNewRegistry(t *testing.T) {
@@ -23,7 +24,7 @@ func TestNewRegistry(t *testing.T) {
 	})
 }
 
-// TestBuildFlagDescription tests the buildFlagDescription helper function
+// TestBuildFlagDescription tests the buildFlagDescription helper function.
 func TestBuildFlagDescription(t *testing.T) {
 	t.Run("returns basic description unchanged", func(t *testing.T) {
 		param := &Param{
@@ -61,12 +62,12 @@ func TestBuildFlagDescription(t *testing.T) {
 	})
 
 	t.Run("appends min and max range for numbers", func(t *testing.T) {
-		min := 1.0
-		max := 10.0
+		minVal := 1.0
+		maxVal := 10.0
 		param := &Param{
 			Description: "Number of results",
-			Min:         &min,
-			Max:         &max,
+			Min:         &minVal,
+			Max:         &maxVal,
 		}
 
 		result := buildFlagDescription(param)
@@ -74,10 +75,10 @@ func TestBuildFlagDescription(t *testing.T) {
 	})
 
 	t.Run("appends only minimum when max not set", func(t *testing.T) {
-		min := 5.0
+		minVal := 5.0
 		param := &Param{
 			Description: "Minimum value",
-			Min:         &min,
+			Min:         &minVal,
 		}
 
 		result := buildFlagDescription(param)
@@ -86,10 +87,10 @@ func TestBuildFlagDescription(t *testing.T) {
 	})
 
 	t.Run("appends only maximum when min not set", func(t *testing.T) {
-		max := 100.0
+		maxVal := 100.0
 		param := &Param{
 			Description: "Maximum value",
-			Max:         &max,
+			Max:         &maxVal,
 		}
 
 		result := buildFlagDescription(param)
@@ -186,12 +187,12 @@ func TestBuildFlagDescription(t *testing.T) {
 	})
 }
 
-// TestRegistry_Register tests command registration
+// TestRegistry_Register tests command registration.
 func TestRegistry_Register(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
@@ -279,7 +280,7 @@ func TestRegistry_Get(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
@@ -308,7 +309,7 @@ func TestRegistry_List(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
@@ -338,7 +339,7 @@ func TestRegistry_RegisterTool(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, err := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		require.NoError(t, err)
 		handler, ok := globals["handler"].(*starlark.Function)
 		require.True(t, ok)
@@ -429,7 +430,7 @@ func TestRegistry_GetTool(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
@@ -458,7 +459,7 @@ func TestRegistry_ListTools(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
@@ -487,7 +488,7 @@ func TestRegistry_CommandFromTool(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, err := starlark.ExecFile(thread, "test.star", `def handler(ctx): return "result"`, nil)
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return "result"`, nil)
 		require.NoError(t, err)
 		handler, ok := globals["handler"].(*starlark.Function)
 		require.True(t, ok)
@@ -646,15 +647,15 @@ func TestTool_GenerateToolSchema(t *testing.T) {
 	})
 
 	t.Run("includes min/max for numbers", func(t *testing.T) {
-		min := 1.0
-		max := 100.0
+		minVal := 1.0
+		maxVal := 100.0
 		tool := &Tool{
 			Name: "range-tool",
 			Params: map[string]*Param{
 				"score": {
 					Type: "float",
-					Min:  &min,
-					Max:  &max,
+					Min:  &minVal,
+					Max:  &maxVal,
 				},
 			},
 		}
@@ -753,7 +754,7 @@ func TestRegistry_GenerateAllToolSchemas(t *testing.T) {
 	createTestHandler := func(t *testing.T) *starlark.Function {
 		t.Helper()
 		thread := &starlark.Thread{Name: "test"}
-		globals, _ := starlark.ExecFile(thread, "test.star", `def handler(ctx): return None`, nil)
+		globals, _ := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", `def handler(ctx): return None`, nil)
 		return globals["handler"].(*starlark.Function)
 	}
 
