@@ -65,7 +65,7 @@ tasks:
     cmds:
       - |
         printf "{{.BLUE}}[INFO]{{.NC}} Formatting code...\n"
-      - golangci-lint run --fix --disable-all -E gofumpt -E goimports
+      - golangci-lint fmt
       - go fmt ./...
 
   fix:lint:
@@ -246,7 +246,8 @@ tasks:
     cmds:
       - |
         printf "{{.BLUE}}[INFO]{{.NC}} Running fast lint...\n"
-      - golangci-lint run --disable-all -E gofmt -E goimports -E govet -E errcheck -E staticcheck --timeout=2m
+      - golangci-lint fmt --diff
+      - golangci-lint run --enable-only=govet,errcheck,staticcheck --timeout=2m
 
   lint:full:
     desc: Run all configured linters
