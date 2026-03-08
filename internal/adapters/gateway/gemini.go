@@ -35,11 +35,17 @@ type geminiGateway struct {
 }
 
 // NewGeminiGateway creates and initializes a new unified GeminiGateway.
-func newGeminiGateway(ctx context.Context, apiKey string) (ports.Gateway, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+// baseURL overrides the default Gemini API endpoint when non-empty (useful for testing).
+func newGeminiGateway(ctx context.Context, apiKey string, baseURL string) (ports.Gateway, error) {
+	cfg := &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
-	})
+	}
+	if baseURL != "" {
+		cfg.HTTPOptions = genai.HTTPOptions{BaseURL: baseURL}
+	}
+
+	client, err := genai.NewClient(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
@@ -662,6 +668,12 @@ func (g *geminiGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
+	// Validate dimensions before entering the retry loop so overflow errors
+	// are returned immediately rather than being retried.
+	if dimensions := request.Dimensions(); dimensions > math.MaxInt32 {
+		return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
+	}
+
 	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
 		return g.computeEmbeddingsOnce(ctx, request)
 	}, fmt.Sprintf("Gemini ComputeEmbeddings for model %q", request.Model()))
@@ -677,10 +689,7 @@ func (g *geminiGateway) computeEmbeddingsOnce(
 		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
 	}
 
-	config, err := buildGeminiEmbedConfig(request)
-	if err != nil {
-		return nil, err
-	}
+	config := buildGeminiEmbedConfig(request)
 
 	response, err := g.client.Models.EmbedContent(ctx, request.Model(), contents, config)
 	if err != nil {
@@ -700,19 +709,15 @@ func (g *geminiGateway) computeEmbeddingsOnce(
 }
 
 // buildGeminiEmbedConfig constructs the embedding config from a ComputeEmbeddingsRequest.
-// Returns an error if the dimensions value exceeds int32 range.
-func buildGeminiEmbedConfig(request *gateway.ComputeEmbeddingsRequest) (*genai.EmbedContentConfig, error) {
+func buildGeminiEmbedConfig(request *gateway.ComputeEmbeddingsRequest) *genai.EmbedContentConfig {
 	config := &genai.EmbedContentConfig{
 		TaskType: string(request.TaskType()),
 	}
 
 	if dimensions := request.Dimensions(); dimensions > 0 {
-		if dimensions > math.MaxInt32 {
-			return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
-		}
-		dims := int32(dimensions) // #nosec G115 // overflow checked above
+		dims := int32(dimensions) // #nosec G115 // overflow checked in ComputeEmbeddings before retry
 		config.OutputDimensionality = &dims
 	}
 
-	return config, nil
+	return config
 }

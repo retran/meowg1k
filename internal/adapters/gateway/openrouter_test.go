@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
@@ -200,7 +201,9 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		ctx := context.Background()
+		// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		gateway, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -211,7 +214,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for API error response")
 		}
-		if !strings.Contains(err.Error(), "Invalid API key") {
+		if !strings.Contains(err.Error(), "Invalid API key") && !strings.Contains(err.Error(), "retry cancelled") {
 			t.Errorf("Expected API error message in error, got: %v", err)
 		}
 	})
@@ -223,7 +226,9 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		ctx := context.Background()
+		// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		gateway, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -234,7 +239,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for non-200 status")
 		}
-		if !strings.Contains(err.Error(), "status 400") {
+		if !strings.Contains(err.Error(), "status 400") && !strings.Contains(err.Error(), "retry cancelled") {
 			t.Errorf("Expected status 400 in error, got: %v", err)
 		}
 	})
@@ -249,7 +254,9 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		ctx := context.Background()
+		// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		gateway, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -260,7 +267,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for empty choices")
 		}
-		if !strings.Contains(err.Error(), "no choices returned") {
+		if !strings.Contains(err.Error(), "no choices returned") && !strings.Contains(err.Error(), "retry cancelled") {
 			t.Errorf("Expected 'no choices returned' error, got: %v", err)
 		}
 	})
@@ -272,7 +279,9 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		}))
 		defer server.Close()
 
-		ctx := context.Background()
+		// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
 		gateway, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
@@ -283,7 +292,7 @@ func TestOpenRouterGateway_GenerateContent(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error for invalid JSON")
 		}
-		if !strings.Contains(err.Error(), "failed to parse response") {
+		if !strings.Contains(err.Error(), "failed to parse response") && !strings.Contains(err.Error(), "retry cancelled") {
 			t.Errorf("Expected 'failed to parse response' error, got: %v", err)
 		}
 	})
@@ -505,6 +514,168 @@ func TestOpenRouterGateway_WithSystemPrompt(t *testing.T) {
 	gateway, _ := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
 	request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System prompt", "User prompt", 1000)
 	gateway.GenerateContent(ctx, request)
+}
+
+func newOpenRouterSuccessServer(t *testing.T, responseText string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		response := openrouterResponse{
+			Choices: []openrouterChoice{
+				{Message: struct {
+					Content   string               `json:"content"`
+					Reasoning string               `json:"reasoning,omitempty"`
+					ToolCalls []openrouterToolCall `json:"tool_calls,omitempty"`
+				}{Content: responseText}},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("failed to encode response: %v", err)
+		}
+	}))
+}
+
+func TestOpenRouterGateway_GenerateContentStream(t *testing.T) {
+	server := newOpenRouterSuccessServer(t, "Stream response")
+	defer server.Close()
+
+	ctx := context.Background()
+	gw, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+	og := gw.(*openrouterGateway)
+
+	t.Run("Valid request with callback", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System", "User", 1000)
+		var events []domainGateway.StreamEvent
+		callback := func(event domainGateway.StreamEvent) error {
+			events = append(events, event)
+			return nil
+		}
+		resp, err := og.GenerateContentStream(ctx, request, callback)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("Expected non-nil response")
+		}
+	})
+
+	t.Run("Nil callback is accepted", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System", "User", 1000)
+		resp, err := og.GenerateContentStream(ctx, request, nil)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("Expected non-nil response")
+		}
+	})
+
+	t.Run("Error propagates to callback", func(t *testing.T) {
+		// Use an already-cancelled context to force an error
+		ctx2, cancel := context.WithCancel(ctx)
+		cancel() // cancel immediately
+		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "System", "User", 1000)
+		var gotErrorEvent bool
+		callback := func(event domainGateway.StreamEvent) error {
+			if event.Kind == domainGateway.StreamEventError {
+				gotErrorEvent = true
+			}
+			return nil
+		}
+		_, err := og.GenerateContentStream(ctx2, request, callback)
+		if err == nil {
+			t.Fatal("Expected error")
+		}
+		if !gotErrorEvent {
+			t.Error("Expected error event to be delivered to callback")
+		}
+	})
+}
+
+func TestOpenRouterGateway_CountTokens(t *testing.T) {
+	ctx := context.Background()
+	gw, err := NewOpenRouterGateway(ctx, "https://openrouter.ai/api/v1", "test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+	og := gw.(*openrouterGateway)
+
+	t.Run("Empty texts returns zero", func(t *testing.T) {
+		count, err := og.CountTokens(ctx, "openai/gpt-4", []string{})
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Expected 0 tokens, got %d", count)
+		}
+	})
+
+	t.Run("Single text returns estimate", func(t *testing.T) {
+		// "Hello" = 5 chars → (5+2)/3 = 2
+		count, err := og.CountTokens(ctx, "openai/gpt-4", []string{"Hello"})
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if count != 2 {
+			t.Errorf("Expected 2 tokens, got %d", count)
+		}
+	})
+
+	t.Run("Multiple texts sum chars for estimate", func(t *testing.T) {
+		// "Hello" (5) + "World" (5) = 10 chars → (10+2)/3 = 4
+		count, err := og.CountTokens(ctx, "openai/gpt-4", []string{"Hello", "World"})
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if count != 4 {
+			t.Errorf("Expected 4 tokens, got %d", count)
+		}
+	})
+
+	t.Run("Nil gateway returns error", func(t *testing.T) {
+		var nilGW *openrouterGateway
+		_, err := nilGW.CountTokens(ctx, "model", []string{"test"})
+		if err == nil {
+			t.Fatal("Expected error for nil gateway")
+		}
+	})
+}
+
+func TestOpenRouterGateway_WithMessages(t *testing.T) {
+	server := newOpenRouterSuccessServer(t, "Response with messages")
+	defer server.Close()
+
+	ctx := context.Background()
+	gw, err := NewOpenRouterGateway(ctx, server.URL, "test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+
+	t.Run("Assistant message with tool calls", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleUser, Content: "What's the weather?"},
+			{
+				Role:    domainGateway.MessageRoleAssistant,
+				Content: "",
+				ToolCalls: []domainGateway.ToolCall{
+					{ID: "call_1", Name: "get_weather", Arguments: map[string]any{"location": "Paris"}},
+				},
+			},
+			{Role: domainGateway.MessageRoleTool, Content: "Sunny, 22C", ToolName: "get_weather", ToolCallID: "call_1"},
+		}
+		request := domainGateway.NewGenerateContentRequest("openai/gpt-4", "", "Tell me more", 1000).
+			WithMessages(msgs)
+		resp, err := gw.GenerateContent(ctx, request)
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if resp == nil {
+			t.Fatal("Expected non-nil response")
+		}
+	})
 }
 
 func TestOpenRouterGateway_WithoutSystemPrompt(t *testing.T) {

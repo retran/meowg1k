@@ -11,168 +11,150 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-func TestNewAnthropicGateway(t *testing.T) {
-	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Expected no error, got %v", err)
-		}
-		if gateway == nil {
-			t.Fatal("Expected gateway to be non-nil")
-		}
-	})
-
-	t.Run("Empty API key", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("", nil)
-		if err == nil {
-			t.Fatal("Expected error for empty API key")
-		}
-		if gateway != nil {
-			t.Fatal("Expected gateway to be nil when error occurs")
-		}
-		expectedError := "anthropic API key is required"
-		if !strings.Contains(err.Error(), expectedError) {
-			t.Errorf("Expected error to contain '%s', got '%s'", expectedError, err.Error())
-		}
-	})
+// anthropicSuccessResponse returns a minimal valid Anthropic messages response body.
+func anthropicSuccessResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"id":   "msg_test",
+		"type": "message",
+		"role": "assistant",
+		"content": []map[string]interface{}{
+			{
+				"type": "text",
+				"text": "Generated content response",
+			},
+		},
+		"model":       "claude-3-haiku-20240307",
+		"stop_reason": "end_turn",
+		"usage": map[string]interface{}{
+			"input_tokens":  10,
+			"output_tokens": 5,
+		},
+	}
 }
 
-func TestAnthropicGateway_GenerateContent(t *testing.T) {
-	// Create a mock server to simulate Anthropic API
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify request method and content type
-		if r.Method != "POST" {
+// anthropicCountTokensResponse returns a minimal valid Anthropic count_tokens response body.
+func anthropicCountTokensResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"input_tokens": 42,
+	}
+}
+
+// newAnthropicMockServer creates an httptest.Server that simulates the Anthropic API.
+// It validates headers and request body, then returns a success response.
+// The count_tokens endpoint returns a token count response; other endpoints return a message response.
+func newAnthropicMockServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
 			t.Errorf("Expected POST request, got %s", r.Method)
 		}
 		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 			t.Errorf("Expected JSON content type, got %s", r.Header.Get("Content-Type"))
 		}
-
-		// Verify API key header
 		authHeader := r.Header.Get("X-API-Key")
 		if !strings.Contains(authHeader, "test-api-key") {
-			t.Errorf("Expected API key in header, got %s", authHeader)
+			t.Errorf("Expected test-api-key in X-API-Key header, got %s", authHeader)
 		}
 
-		// Parse request body to verify it's properly formatted
-		var requestBody map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("Failed to decode request body: %v", err)
-		}
-
-		// Verify required fields
-		if _, ok := requestBody["model"]; !ok {
-			t.Error("Expected 'model' field in request body")
-		}
-		if _, ok := requestBody["messages"]; !ok {
-			t.Error("Expected 'messages' field in request body")
-		}
-		if _, ok := requestBody["max_tokens"]; !ok {
-			t.Error("Expected 'max_tokens' field in request body")
-		}
-
-		// Simulate successful response
-		response := map[string]interface{}{
-			"content": []map[string]interface{}{
-				{
-					"type": "text",
-					"text": "Generated content response",
-				},
-			},
-			"role": "assistant",
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
 
-	// Note: This test will need the actual Anthropic client to be properly mocked
-	// For now, we'll test the gateway creation and basic error handling
-
-	t.Run("Generate content with valid request", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
+		// Handle count_tokens endpoint separately
+		if strings.Contains(r.URL.Path, "count_tokens") {
+			if err := json.NewEncoder(w).Encode(anthropicCountTokensResponse()); err != nil {
+				t.Errorf("Failed to encode count_tokens response: %v", err)
+			}
+			return
 		}
 
+		if err := json.NewEncoder(w).Encode(anthropicSuccessResponse()); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+}
+
+// newTestAnthropicGateway creates an anthropic gateway pointed at the given server URL.
+func newTestAnthropicGateway(t *testing.T, serverURL string) *anthropicGateway {
+	t.Helper()
+	gw, err := newAnthropicGateway("test-api-key", nil, serverURL)
+	require.NoError(t, err)
+	require.NotNil(t, gw)
+	ag, ok := gw.(*anthropicGateway)
+	require.True(t, ok)
+	return ag
+}
+
+func TestNewAnthropicGateway(t *testing.T) {
+	t.Run("Valid API key", func(t *testing.T) {
+		gateway, err := newAnthropicGateway("test-api-key", nil, "")
+		require.NoError(t, err)
+		assert.NotNil(t, gateway)
+	})
+
+	t.Run("Empty API key", func(t *testing.T) {
+		gateway, err := newAnthropicGateway("", nil, "")
+		require.Error(t, err)
+		assert.Nil(t, gateway)
+		assert.Contains(t, err.Error(), "anthropic API key is required")
+	})
+}
+
+func TestAnthropicGateway_GenerateContent(t *testing.T) {
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	t.Run("Generate content with valid request", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
 		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a helpful assistant",
 			"Hello, how are you?",
 			4096,
 		)
-
-		ctx := context.Background()
-
-		// This will likely fail due to network call, but we test the setup
-		_, err = gateway.GenerateContent(ctx, request)
-		// We expect an error since we're not actually connecting to Anthropic
-		// but we can verify the error handling path
-		if err == nil {
-			t.Log("Unexpected success - this might indicate the test environment has network access")
-		} else if strings.Contains(err.Error(), "model is required") {
-			// Verify it's a network/API related error, not a validation error
-			t.Error("Should not get validation error for valid request")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("Generate content with empty model", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
+		gw := newTestAnthropicGateway(t, server.URL)
 		request := domainGateway.NewGenerateContentRequest(
 			"", // empty model
 			"You are a helpful assistant",
 			"Hello, how are you?",
 			4096,
 		)
-
-		ctx := context.Background()
-		_, err = gateway.GenerateContent(ctx, request)
-
-		if err == nil {
-			t.Fatal("Expected error for empty model")
-		}
-		if !strings.Contains(err.Error(), "model is required") {
-			t.Errorf("Expected 'model is required' error, got: %v", err)
-		}
+		_, err := gw.GenerateContent(context.Background(), request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "model is required")
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
+		gw := newTestAnthropicGateway(t, server.URL)
 		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a code assistant specializing in Go",
 			"Write a hello world program",
 			4096,
 		)
-
-		ctx := context.Background()
-
-		// This will likely fail due to network call, but we test the setup
-		_, err = gateway.GenerateContent(ctx, request)
-		// We expect an error since we're not actually connecting to Anthropic
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with system prompt")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("Generate content with different max tokens", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
 		testCases := []struct {
 			name      string
 			maxTokens int
@@ -184,69 +166,44 @@ func TestAnthropicGateway_GenerateContent(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
+				gw := newTestAnthropicGateway(t, server.URL)
 				request := domainGateway.NewGenerateContentRequest(
 					"claude-3-haiku-20240307",
 					"You are a helpful assistant",
 					"Generate some text",
 					tc.maxTokens,
 				)
-
-				ctx := context.Background()
-
-				// Test that the request is properly formed
-				_, err = gateway.GenerateContent(ctx, request)
-				// We expect an error since we're not actually connecting to Anthropic
-				if err != nil && strings.Contains(err.Error(), "model is required") {
-					t.Error("Should not get validation error for valid request")
-				}
+				resp, err := gw.GenerateContent(context.Background(), request)
+				require.NoError(t, err)
+				assert.NotNil(t, resp)
 			})
 		}
 	})
 
 	t.Run("Generate content with canceled context", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
+		gw := newTestAnthropicGateway(t, server.URL)
 		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
 			"You are a helpful assistant",
 			"Hello, how are you?",
 			4096,
 		)
-
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-
-		_, err = gateway.GenerateContent(ctx, request)
-		if err == nil {
-			t.Fatal("Expected error for canceled context")
-		}
-		// Should get context canceled error or connection error
-		if !strings.Contains(err.Error(), "context canceled") &&
-			!strings.Contains(err.Error(), "failed to write content with Anthropic") {
-			t.Logf("Got expected error for canceled context: %v", err)
-		}
+		_, err := gw.GenerateContent(ctx, request)
+		require.Error(t, err)
 	})
 }
 
 func TestAnthropicGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key", nil)
-	if err != nil {
-		t.Fatalf("Failed to create gateway: %v", err)
-	}
-
-	// Verify that the gateway implements GenerationGateway interface
-	_ = gateway
-	t.Log("AnthropicGateway correctly implements GenerationGateway interface")
+	gateway, err := newAnthropicGateway("test-api-key", nil, "")
+	require.NoError(t, err)
+	_ = gateway // compile-time interface check is in anthropic.go
 }
 
 func TestAnthropicGateway_ErrorHandling(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key", nil)
-	if err != nil {
-		t.Fatalf("Failed to create gateway: %v", err)
-	}
+	server := newAnthropicMockServer(t)
+	defer server.Close()
 
 	testCases := []struct {
 		name           string
@@ -272,8 +229,7 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 			systemPrompt:   "System prompt",
 			userPrompt:     "User prompt",
 			maxTokens:      1000,
-			expectingError: false, // Will fail with network error, but not validation error
-			errorSubstring: "",
+			expectingError: false,
 		},
 		{
 			name:           "Empty user prompt",
@@ -281,8 +237,7 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 			systemPrompt:   "System prompt",
 			userPrompt:     "",
 			maxTokens:      1000,
-			expectingError: false, // Empty user prompt should be allowed
-			errorSubstring: "",
+			expectingError: false,
 		},
 		{
 			name:           "Zero max tokens",
@@ -290,39 +245,32 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 			systemPrompt:   "System prompt",
 			userPrompt:     "User prompt",
 			maxTokens:      0,
-			expectingError: false, // Zero tokens should be allowed (API will handle)
-			errorSubstring: "",
+			expectingError: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			gw := newTestAnthropicGateway(t, server.URL)
 			request := domainGateway.NewGenerateContentRequest(
 				tc.model,
 				tc.systemPrompt,
 				tc.userPrompt,
 				tc.maxTokens,
 			)
-
-			ctx := context.Background()
-			_, err := gateway.GenerateContent(ctx, request)
-
+			_, err := gw.GenerateContent(context.Background(), request)
 			switch {
 			case tc.expectingError && tc.errorSubstring != "":
-				if err == nil {
-					t.Fatalf("Expected error containing '%s', got no error", tc.errorSubstring)
-				}
-				if !strings.Contains(err.Error(), tc.errorSubstring) {
-					t.Errorf("Expected error containing '%s', got: %v", tc.errorSubstring, err)
-				}
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorSubstring)
 			case tc.expectingError:
-				if err == nil {
-					t.Fatal("Expected some error, got no error")
-				}
+				require.Error(t, err)
 			case tc.errorSubstring != "":
-				if err != nil && strings.Contains(err.Error(), tc.errorSubstring) {
-					t.Errorf("Did not expect error containing '%s', but got: %v", tc.errorSubstring, err)
+				if err != nil {
+					assert.NotContains(t, err.Error(), tc.errorSubstring)
 				}
+			default:
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -330,23 +278,15 @@ func TestAnthropicGateway_ErrorHandling(t *testing.T) {
 
 func TestAnthropicGateway_NilChecks(t *testing.T) {
 	t.Run("Nil request", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway: %v", err)
-		}
-
-		ctx := context.Background()
-		_, err = gateway.GenerateContent(ctx, nil)
-		if err == nil {
-			t.Fatal("Expected error for nil request")
-		}
-		if !strings.Contains(err.Error(), "request cannot be nil") {
-			t.Errorf("Expected 'request cannot be nil' error, got: %v", err)
-		}
+		gateway, err := newAnthropicGateway("test-api-key", nil, "")
+		require.NoError(t, err)
+		_, err = gateway.GenerateContent(context.Background(), nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "request cannot be nil")
 	})
 
 	t.Run("Nil gateway", func(t *testing.T) {
-		var gateway *anthropicGateway = nil
+		var gateway *anthropicGateway
 
 		request := domainGateway.NewGenerateContentRequest(
 			"claude-3-haiku-20240307",
@@ -354,23 +294,17 @@ func TestAnthropicGateway_NilChecks(t *testing.T) {
 			"User prompt",
 			1000,
 		)
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		if err == nil {
-			t.Fatal("Expected error for nil gateway")
-		}
-		if !strings.Contains(err.Error(), "anthropic gateway is nil") {
-			t.Errorf("Expected 'anthropic gateway is nil' error, got: %v", err)
-		}
+		_, err := gateway.GenerateContent(context.Background(), request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "anthropic gateway is nil")
 	})
 }
 
 func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key", nil)
-	if err != nil {
-		t.Fatalf("Failed to create gateway: %v", err)
-	}
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	gw := newTestAnthropicGateway(t, server.URL)
 
 	t.Run("With temperature", func(t *testing.T) {
 		temp := 0.7
@@ -380,13 +314,9 @@ func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
 			"User prompt",
 			1000,
 		).WithTemperature(&temp)
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		// Should not fail validation
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with temperature")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("With topP", func(t *testing.T) {
@@ -397,12 +327,9 @@ func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
 			"User prompt",
 			1000,
 		).WithTopP(&topP)
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with topP")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("With topK", func(t *testing.T) {
@@ -413,12 +340,9 @@ func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
 			"User prompt",
 			1000,
 		).WithTopK(&topK)
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with topK")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("With stop sequences", func(t *testing.T) {
@@ -428,12 +352,9 @@ func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
 			"User prompt",
 			1000,
 		).WithStop([]string{"\n\n", "END"})
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with stop sequences")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 
 	t.Run("With all parameters", func(t *testing.T) {
@@ -446,43 +367,30 @@ func TestAnthropicGateway_WithGenerationParameters(t *testing.T) {
 			"User prompt",
 			1000,
 		).WithTemperature(&temp).WithTopP(&topP).WithTopK(&topK).WithStop([]string{"STOP"})
-
-		ctx := context.Background()
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil && strings.Contains(err.Error(), "model is required") {
-			t.Error("Should not get validation error for valid request with all parameters")
-		}
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
 	})
 }
 
 func TestAnthropicGateway_WithCustomHTTPClient(t *testing.T) {
 	t.Run("With custom HTTP client", func(t *testing.T) {
 		customClient := &http.Client{}
-		gateway, err := newAnthropicGateway("test-api-key", customClient)
-		if err != nil {
-			t.Fatalf("Failed to create gateway with custom HTTP client: %v", err)
-		}
-		if gateway == nil {
-			t.Fatal("Expected gateway to be non-nil")
-		}
+		gateway, err := newAnthropicGateway("test-api-key", customClient, "")
+		require.NoError(t, err)
+		assert.NotNil(t, gateway)
 	})
 
 	t.Run("With nil HTTP client", func(t *testing.T) {
-		gateway, err := newAnthropicGateway("test-api-key", nil)
-		if err != nil {
-			t.Fatalf("Failed to create gateway with nil HTTP client: %v", err)
-		}
-		if gateway == nil {
-			t.Fatal("Expected gateway to be non-nil")
-		}
+		gateway, err := newAnthropicGateway("test-api-key", nil, "")
+		require.NoError(t, err)
+		assert.NotNil(t, gateway)
 	})
 }
 
 func TestAnthropicGateway_DifferentModels(t *testing.T) {
-	gateway, err := newAnthropicGateway("test-api-key", nil)
-	if err != nil {
-		t.Fatalf("Failed to create gateway: %v", err)
-	}
+	server := newAnthropicMockServer(t)
+	defer server.Close()
 
 	models := []string{
 		"claude-3-haiku-20240307",
@@ -493,19 +401,305 @@ func TestAnthropicGateway_DifferentModels(t *testing.T) {
 
 	for _, model := range models {
 		t.Run("Model: "+model, func(t *testing.T) {
+			gw := newTestAnthropicGateway(t, server.URL)
 			request := domainGateway.NewGenerateContentRequest(
 				model,
 				"System prompt",
 				"User prompt",
 				1000,
 			)
-
-			ctx := context.Background()
-			_, err := gateway.GenerateContent(ctx, request)
-			// Should not fail validation
-			if err != nil && strings.Contains(err.Error(), "model is required") {
-				t.Errorf("Should not get validation error for model %s", model)
-			}
+			resp, err := gw.GenerateContent(context.Background(), request)
+			require.NoError(t, err)
+			assert.NotNil(t, resp)
 		})
 	}
+}
+
+func TestAnthropicGateway_CountTokens(t *testing.T) {
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	t.Run("Empty texts returns zero", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		count, err := gw.CountTokens(context.Background(), "claude-3-haiku-20240307", []string{})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("Non-empty texts returns count from API", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		// Mock returns input_tokens: 42
+		count, err := gw.CountTokens(context.Background(), "claude-3-haiku-20240307", []string{"Hello", "world"})
+		require.NoError(t, err)
+		assert.Equal(t, 42, count)
+	})
+
+	t.Run("All empty string texts returns zero", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		count, err := gw.CountTokens(context.Background(), "claude-3-haiku-20240307", []string{"", "", ""})
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
+	})
+
+	t.Run("Nil gateway returns error", func(t *testing.T) {
+		var nilGateway *anthropicGateway
+		_, err := nilGateway.CountTokens(context.Background(), "claude-3-haiku-20240307", []string{"test"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "anthropic gateway is nil")
+	})
+
+	t.Run("Canceled context returns error", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err := gw.CountTokens(ctx, "claude-3-haiku-20240307", []string{"Hello"})
+		require.Error(t, err)
+	})
+}
+
+func TestAnthropicGateway_GenerateContentStream(t *testing.T) {
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	t.Run("Valid request calls callback and returns response", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"You are a helpful assistant",
+			"Hello, how are you?",
+			4096,
+		)
+
+		var events []domainGateway.StreamEvent
+		callback := func(event domainGateway.StreamEvent) error {
+			events = append(events, event)
+			return nil
+		}
+
+		resp, err := gw.GenerateContentStream(context.Background(), request, callback)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Nil callback is accepted", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		resp, err := gw.GenerateContentStream(context.Background(), request, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Error propagates to callback", func(t *testing.T) {
+		gw := newTestAnthropicGateway(t, server.URL)
+		request := domainGateway.NewGenerateContentRequest(
+			"", // empty model causes error
+			"System prompt",
+			"User prompt",
+			1000,
+		)
+
+		var gotErrorEvent bool
+		callback := func(event domainGateway.StreamEvent) error {
+			if event.Kind == domainGateway.StreamEventError {
+				gotErrorEvent = true
+			}
+			return nil
+		}
+
+		_, err := gw.GenerateContentStream(context.Background(), request, callback)
+		require.Error(t, err)
+		assert.True(t, gotErrorEvent, "Expected error event to be sent to callback")
+	})
+
+	t.Run("Nil gateway returns error", func(t *testing.T) {
+		var nilGateway *anthropicGateway
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307",
+			"System",
+			"User",
+			1000,
+		)
+		_, err := nilGateway.GenerateContentStream(context.Background(), request, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "anthropic gateway is nil")
+	})
+}
+
+// TestAnthropicGateway_WithMessages exercises the message mapping code paths:
+// mapMessages → mapMessage → mapAssistantMessage / mapToolMessage.
+func TestAnthropicGateway_WithMessages(t *testing.T) {
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	gw := newTestAnthropicGateway(t, server.URL)
+
+	t.Run("User message history", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleUser, Content: "Hello"},
+			{Role: domainGateway.MessageRoleAssistant, Content: "Hi there"},
+			{Role: domainGateway.MessageRoleUser, Content: "How are you?"},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Continue", 1000,
+		).WithMessages(msgs)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Assistant message with tool calls", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleUser, Content: "What's the weather?"},
+			{
+				Role:    domainGateway.MessageRoleAssistant,
+				Content: "Let me check.",
+				ToolCalls: []domainGateway.ToolCall{
+					{ID: "call_1", Name: "get_weather", Arguments: map[string]any{"location": "Paris"}},
+				},
+			},
+			{
+				Role:       domainGateway.MessageRoleTool,
+				Content:    "Sunny, 22C",
+				ToolName:   "get_weather",
+				ToolCallID: "call_1",
+			},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Summarize", 1000,
+		).WithMessages(msgs)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("System message in history is skipped", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleSystem, Content: "System message"},
+			{Role: domainGateway.MessageRoleUser, Content: "Hello"},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Respond", 1000,
+		).WithMessages(msgs)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Assistant message with empty content and no tool calls is skipped", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleUser, Content: "Hello"},
+			{Role: domainGateway.MessageRoleAssistant, Content: "  "}, // whitespace only
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Continue", 1000,
+		).WithMessages(msgs)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Tool message with empty content is skipped", func(t *testing.T) {
+		msgs := []domainGateway.Message{
+			{Role: domainGateway.MessageRoleUser, Content: "Hello"},
+			{Role: domainGateway.MessageRoleTool, Content: "  "}, // whitespace only
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Continue", 1000,
+		).WithMessages(msgs)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+}
+
+// TestAnthropicGateway_WithTools exercises buildAnthropicTools, buildToolInputSchema,
+// and mapRequiredFields code paths.
+func TestAnthropicGateway_WithTools(t *testing.T) {
+	server := newAnthropicMockServer(t)
+	defer server.Close()
+
+	gw := newTestAnthropicGateway(t, server.URL)
+
+	t.Run("With tool definitions", func(t *testing.T) {
+		tools := []domainGateway.ToolDefinition{
+			{
+				Name:        "get_weather",
+				Description: "Get the current weather",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"location": map[string]any{"type": "string"},
+					},
+					"required": []any{"location"},
+				},
+			},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "You help with weather.", "What's the weather in Paris?", 1000,
+		).WithTools(tools)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Tool with no description uses empty description", func(t *testing.T) {
+		tools := []domainGateway.ToolDefinition{
+			{
+				Name:        "no_desc_tool",
+				Description: "",
+				Parameters:  nil,
+			},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Use the tool", 1000,
+		).WithTools(tools)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("Tool with required as []string (not []any)", func(t *testing.T) {
+		tools := []domainGateway.ToolDefinition{
+			{
+				Name: "typed_required",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"query": map[string]any{"type": "string"},
+					},
+					"required": []string{"query"},
+				},
+			},
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "", "Use the tool", 1000,
+		).WithTools(tools)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("With response schema", func(t *testing.T) {
+		schema := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"answer": map[string]any{"type": "string"},
+				"score":  map[string]any{"type": "number"},
+			},
+			"required":       []any{"answer"},
+			"additionalProp": "extra",
+		}
+		request := domainGateway.NewGenerateContentRequest(
+			"claude-3-haiku-20240307", "Answer in JSON.", "Rate this: great!", 1000,
+		).WithResponseSchema(schema)
+		resp, err := gw.GenerateContent(context.Background(), request)
+		require.NoError(t, err)
+		assert.NotNil(t, resp)
+	})
 }

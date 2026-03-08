@@ -24,12 +24,13 @@ type voyageGateway struct {
 // newVoyageGateway creates and initializes a new VoyageGateway with a shared HTTP client.
 // The HTTP client is provided via dependency injection to allow for better resource management
 // and connection pooling across multiple gateway instances.
-func newVoyageGateway(apiKey string, httpClient *http.Client) (ports.EmbeddingsGateway, error) {
+// baseURL overrides the default Voyage API endpoint; pass "" to use the default.
+func newVoyageGateway(baseURL, apiKey string, httpClient *http.Client) (ports.EmbeddingsGateway, error) {
 	if httpClient == nil {
 		return nil, fmt.Errorf("HTTP client is required for voyage gateway")
 	}
 
-	client, err := voyage.NewClient("", apiKey, httpClient)
+	client, err := voyage.NewClient(baseURL, apiKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}

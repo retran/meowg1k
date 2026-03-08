@@ -25,9 +25,10 @@ type anthropicGateway struct {
 	client anthropic.Client
 }
 
-// NewAnthropicGateway creates a new Anthropic gateway with an optional HTTP client.
+// NewAnthropicGateway creates a new Anthropic gateway with an optional HTTP client and base URL.
 // If httpClient is nil, the SDK will use its default HTTP client.
-func newAnthropicGateway(apiKey string, httpClient *http.Client) (ports.GenerationGateway, error) {
+// If baseURL is empty, the SDK will use the default Anthropic API endpoint.
+func newAnthropicGateway(apiKey string, httpClient *http.Client, baseURL string) (ports.GenerationGateway, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("anthropic API key is required")
 	}
@@ -38,6 +39,10 @@ func newAnthropicGateway(apiKey string, httpClient *http.Client) (ports.Generati
 
 	if httpClient != nil {
 		options = append(options, option.WithHTTPClient(httpClient))
+	}
+
+	if baseURL != "" {
+		options = append(options, option.WithBaseURL(baseURL))
 	}
 
 	client := anthropic.NewClient(options...)

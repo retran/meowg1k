@@ -253,7 +253,7 @@ func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, off
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, session_id, type, content, tool_call_id, obsolete, created_at
 		 FROM events WHERE session_id = ? AND obsolete = 0 
-		 ORDER BY created_at ASC LIMIT ? OFFSET ?`,
+		 ORDER BY created_at ASC, rowid ASC LIMIT ? OFFSET ?`,
 		sessionID, limit, offset,
 	)
 	if err != nil {
@@ -393,8 +393,10 @@ func (r *Repository) InsertSummary(ctx context.Context, sessionID, afterEventID,
 		afterTimestamp = time.Now()
 	}
 
-	// Insert summary with timestamp slightly after the reference event
-	summaryTime := afterTimestamp.Add(time.Microsecond)
+	// Insert summary with timestamp slightly after the reference event.
+	// Use 1ms increment (not 1μs) so the difference is preserved after SQLite
+	// TIMESTAMP round-trip (which has millisecond precision).
+	summaryTime := afterTimestamp.Add(time.Millisecond)
 	summaryEvent := &session.Event{
 		ID:        generateID(),
 		SessionID: sessionID,

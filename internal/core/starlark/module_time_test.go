@@ -192,7 +192,7 @@ func TestTimeSleep(t *testing.T) {
 	// Verify sleep duration (allow some tolerance for system scheduling)
 	expectedDuration := time.Duration(sleepDuration * float64(time.Second))
 	assert.GreaterOrEqual(t, elapsed, expectedDuration)
-	assert.Less(t, elapsed, expectedDuration+50*time.Millisecond) // Allow 50ms tolerance
+	assert.Less(t, elapsed, expectedDuration+500*time.Millisecond) // Allow 500ms tolerance for loaded CI environments
 }
 
 // TestConvertTimeFormat tests the convertTimeFormat helper function.

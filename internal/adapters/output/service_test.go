@@ -238,3 +238,210 @@ func TestNewServiceWithOptions(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Nil-receiver guard tests for TurnWriter methods
+// ---------------------------------------------------------------------------
+
+func TestSendHeader_NilService(t *testing.T) {
+	var s *Service
+	// Should not panic
+	s.SendHeader("hello")
+}
+
+func TestBeginUserTurn_NilService(t *testing.T) {
+	var s *Service
+	s.BeginUserTurn("prompt")
+}
+
+func TestBeginAssistantTurn_NilService(t *testing.T) {
+	var s *Service
+	s.BeginAssistantTurn()
+}
+
+func TestOpenStep_NilService(t *testing.T) {
+	var s *Service
+	id := s.OpenStep("step text")
+	if id != "" {
+		t.Errorf("expected empty id for nil service, got %q", id)
+	}
+}
+
+func TestUpdateStep_NilService(t *testing.T) {
+	var s *Service
+	s.UpdateStep("id", "new text")
+}
+
+func TestAddStepInfo_NilService(t *testing.T) {
+	var s *Service
+	s.AddStepInfo("id", "info")
+}
+
+func TestCloseStep_NilService(t *testing.T) {
+	var s *Service
+	s.CloseStep("id", true, "summary")
+}
+
+func TestBeginSubTurn_NilService(t *testing.T) {
+	var s *Service
+	s.BeginSubTurn("label")
+}
+
+func TestEndSubTurn_NilService(t *testing.T) {
+	var s *Service
+	s.EndSubTurn()
+}
+
+func TestEndTurn_NilService(t *testing.T) {
+	var s *Service
+	s.EndTurn("summary")
+}
+
+func TestSetStatus_NilService(t *testing.T) {
+	var s *Service
+	s.SetStatus("status")
+}
+
+func TestSetCancel_NilService(t *testing.T) {
+	var s *Service
+	s.SetCancel(func() {})
+}
+
+// ---------------------------------------------------------------------------
+// Non-TTY path tests (isTerminal=false so tuiActive()==false)
+// ---------------------------------------------------------------------------
+
+func TestSendHeader_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	// Non-TTY: no-op, should not panic
+	svc.SendHeader("header text")
+}
+
+func TestBeginUserTurn_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.BeginUserTurn("user turn")
+}
+
+func TestBeginAssistantTurn_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.BeginAssistantTurn()
+}
+
+func TestOpenStep_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	id := svc.OpenStep("step")
+	if id != "" {
+		t.Errorf("expected empty id on non-TTY, got %q", id)
+	}
+}
+
+func TestUpdateStep_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.UpdateStep("id", "text")
+}
+
+func TestUpdateStep_EmptyID_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.UpdateStep("", "text")
+}
+
+func TestAddStepInfo_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.AddStepInfo("id", "info")
+}
+
+func TestCloseStep_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.CloseStep("id", true, "ok")
+}
+
+func TestBeginSubTurn_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.BeginSubTurn("label")
+}
+
+func TestEndSubTurn_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.EndSubTurn()
+}
+
+func TestEndTurn_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.EndTurn("summary")
+}
+
+func TestSetStatus_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	svc.SetStatus("loading...")
+}
+
+func TestSetCancel_NonNil(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf}
+	called := false
+	svc.SetCancel(func() { called = true })
+	if svc.cancel == nil {
+		t.Fatal("expected cancel to be set")
+	}
+	svc.cancel()
+	if !called {
+		t.Fatal("expected cancel to be called")
+	}
+}
+
+func TestIsTTY_False(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	if svc.IsTTY() {
+		t.Fatal("expected IsTTY to be false")
+	}
+}
+
+func TestIsTTY_NilService(t *testing.T) {
+	var svc *Service
+	if svc.IsTTY() {
+		t.Fatal("expected IsTTY to be false for nil service")
+	}
+}
+
+func TestLogWriter_NonTTY(t *testing.T) {
+	var buf bytes.Buffer
+	svc := &Service{destination: &buf, isTerminal: false}
+	w := svc.LogWriter()
+	if w == nil {
+		t.Fatal("expected non-nil writer")
+	}
+	// On non-TTY, LogWriter returns destination directly
+	_, err := w.Write([]byte("test output"))
+	if err != nil {
+		t.Fatalf("unexpected write error: %v", err)
+	}
+}
+
+func TestLogWriter_NilService(t *testing.T) {
+	var svc *Service
+	w := svc.LogWriter()
+	if w == nil {
+		t.Fatal("expected non-nil writer (should be io.Discard)")
+	}
+}
+
+func TestNextStepID_Increments(t *testing.T) {
+	a := nextStepID()
+	b := nextStepID()
+	if b <= a {
+		t.Errorf("expected nextStepID to increment: got a=%d b=%d", a, b)
+	}
+}

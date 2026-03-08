@@ -11,30 +11,73 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 )
 
+// newTestVoyageServer creates a mock HTTP server that returns a successful embedding response.
+// The server verifies request method, content type, and required JSON fields.
+func newTestVoyageServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+		}
+		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			t.Errorf("Expected JSON content type, got %s", r.Header.Get("Content-Type"))
+		}
+
+		var requestBody map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
+			t.Errorf("Failed to decode request body: %v", err)
+		}
+		if _, ok := requestBody["model"]; !ok {
+			t.Error("Expected 'model' field in request body")
+		}
+		if _, ok := requestBody["input"]; !ok {
+			t.Error("Expected 'input' field in request body")
+		}
+		if _, ok := requestBody["input_type"]; !ok {
+			t.Error("Expected 'input_type' field in request body")
+		}
+
+		response := map[string]interface{}{
+			"data": []map[string]interface{}{
+				{"embedding": []float64{0.1, 0.2, 0.3, 0.4, 0.5}, "index": 0},
+				{"embedding": []float64{0.6, 0.7, 0.8, 0.9, 1.0}, "index": 1},
+			},
+			"model": "voyage-large-2",
+			"usage": map[string]interface{}{"total_tokens": 10},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+}
+
 func TestNewVoyageGateway(t *testing.T) {
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
 	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Expected no error, got %v", err)
 		}
-		if gateway == nil {
+		if gw == nil {
 			t.Fatal("Expected gateway to be non-nil")
 		}
 	})
 
 	t.Run("Empty API key", func(t *testing.T) {
-		// The Voyage service might allow empty API key during creation
-		// but fail during actual API calls
-		gateway, err := newVoyageGateway("", &http.Client{})
-		// Test based on actual behavior - some adapters validate on creation, others on use
+		// voyage.NewClient requires a non-empty API key; expect creation to fail.
+		gw, err := newVoyageGateway(server.URL, "", &http.Client{})
 		switch {
 		case err != nil:
 			t.Logf("Service validates API key on creation: %v", err)
-		case gateway == nil:
+		case gw == nil:
 			t.Fatal("Expected gateway to be non-nil if no error")
 		default:
 			t.Log("Service allows empty API key on creation, will validate on use")
@@ -84,64 +127,11 @@ func TestMapTaskTypeToInputType(t *testing.T) {
 }
 
 func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
-	// Create a mock server to simulate Voyage API
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify request method and content type
-		if r.Method != "POST" {
-			t.Errorf("Expected POST request, got %s", r.Method)
-		}
-		if !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
-			t.Errorf("Expected JSON content type, got %s", r.Header.Get("Content-Type"))
-		}
-
-		// Verify API key header
-		authHeader := r.Header.Get("Authorization")
-		if !strings.Contains(authHeader, "Bearer test-api-key") {
-			t.Logf("Authorization header: %s", authHeader)
-		}
-
-		// Parse request body
-		var requestBody map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
-			t.Errorf("Failed to decode request body: %v", err)
-		}
-
-		// Verify required fields
-		if _, ok := requestBody["model"]; !ok {
-			t.Error("Expected 'model' field in request body")
-		}
-		if _, ok := requestBody["input"]; !ok {
-			t.Error("Expected 'input' field in request body")
-		}
-		if _, ok := requestBody["input_type"]; !ok {
-			t.Error("Expected 'input_type' field in request body")
-		}
-
-		// Simulate successful response
-		response := map[string]interface{}{
-			"data": []map[string]interface{}{
-				{
-					"embedding": []float64{0.1, 0.2, 0.3, 0.4, 0.5},
-					"index":     0,
-				},
-				{
-					"embedding": []float64{0.6, 0.7, 0.8, 0.9, 1.0},
-					"index":     1,
-				},
-			},
-			"model": "voyage-large-2",
-			"usage": map[string]interface{}{
-				"total_tokens": 10,
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	}))
+	server := newTestVoyageServer(t)
 	defer server.Close()
 
 	t.Run("Compute embeddings with valid request", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -155,21 +145,17 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-
-		// This will likely fail due to network call, but we test the setup
-		_, err = gateway.ComputeEmbeddings(ctx, request)
-		// We expect an error since we're not actually connecting to Voyage
+		embeddings, err := gw.ComputeEmbeddings(ctx, request)
 		if err != nil {
-			t.Logf("Expected network error: %v", err)
-			// Verify it's not a validation error
-			if strings.Contains(err.Error(), "model is required") {
-				t.Error("Should not get validation error for valid request")
-			}
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if len(embeddings) == 0 {
+			t.Error("Expected non-empty embeddings")
 		}
 	})
 
 	t.Run("Compute embeddings with different task types", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -198,27 +184,23 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 				)
 
 				ctx := context.Background()
-
-				// Test that the request is properly formed with correct input type
-				_, err = gateway.ComputeEmbeddings(ctx, request)
-				// We expect a network error, not a validation error
+				_, err = gw.ComputeEmbeddings(ctx, request)
 				if err != nil {
-					t.Logf("Expected network error for %s: %v", tc.name, err)
+					t.Errorf("Unexpected error for task type %s: %v", tc.name, err)
 				}
 			})
 		}
 	})
 
 	t.Run("Compute embeddings with large chunks", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
 
-		// Create large chunks
 		largeChunks := make([]string, 100)
-		for i := 0; i < 100; i++ {
-			largeChunks[i] = strings.Repeat("This is a test chunk ", 50) // ~1000 characters each
+		for i := range largeChunks {
+			largeChunks[i] = strings.Repeat("This is a test chunk ", 50)
 		}
 
 		request := domainGateway.NewComputeEmbeddingsRequestWithDimensions(
@@ -229,16 +211,14 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-
-		_, err = gateway.ComputeEmbeddings(ctx, request)
-		// We expect a network error, not a validation error
+		_, err = gw.ComputeEmbeddings(ctx, request)
 		if err != nil {
-			t.Logf("Expected network error for large chunks: %v", err)
+			t.Errorf("Unexpected error for large chunks: %v", err)
 		}
 	})
 
 	t.Run("Compute embeddings with empty chunks", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -252,16 +232,15 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		ctx := context.Background()
-
-		_, err = gateway.ComputeEmbeddings(ctx, request)
-		// This might be handled by the API or the client validation
+		// Empty input may succeed (mock always returns embeddings) or fail at validation
+		_, err = gw.ComputeEmbeddings(ctx, request)
 		if err != nil {
-			t.Logf("Error with empty chunks: %v", err)
+			t.Logf("Error with empty chunks (acceptable): %v", err)
 		}
 	})
 
 	t.Run("Compute embeddings with canceled context", func(t *testing.T) {
-		gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+		gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 		if err != nil {
 			t.Fatalf("Failed to create gateway: %v", err)
 		}
@@ -277,31 +256,58 @@ func TestVoyageGateway_ComputeEmbeddings(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
-		_, err = gateway.ComputeEmbeddings(ctx, request)
+		_, err = gw.ComputeEmbeddings(ctx, request)
 		if err == nil {
 			t.Fatal("Expected error for canceled context")
 		}
-		// Should get context canceled error or connection error
 		t.Logf("Got expected error for canceled context: %v", err)
 	})
 }
 
+func TestVoyageGateway_ErrorResponses(t *testing.T) {
+	t.Run("Server error response", func(t *testing.T) {
+		errorServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, `{"error":{"message":"invalid api key","type":"authentication_error"}}`, http.StatusUnauthorized)
+		}))
+		defer errorServer.Close()
+
+		gw, err := newVoyageGateway(errorServer.URL, "bad-key", &http.Client{})
+		if err != nil {
+			t.Fatalf("Failed to create gateway: %v", err)
+		}
+
+		chunks := []string{"Test chunk"}
+		request := domainGateway.NewComputeEmbeddingsRequest("voyage-large-2", chunks, domainGateway.RetrievalQuery)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		_, err = gw.ComputeEmbeddings(ctx, request)
+		if err == nil {
+			t.Fatal("Expected error for server error response")
+		}
+		t.Logf("Got expected error: %v", err)
+	})
+}
+
 func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
 
 	// Verify that the gateway implements EmbeddingsGateway interface
-	_ = gateway
+	_ = gw
 	t.Log("VoyageGateway correctly implements EmbeddingsGateway interface")
 
 	// Test that it has the ComputeDistance method from mixin
-	// Create dummy embeddings for distance computation
 	embedding1 := domainGateway.Embedding{0.1, 0.2, 0.3}
 	embedding2 := domainGateway.Embedding{0.4, 0.5, 0.6}
 
-	distance, err := gateway.ComputeDistance(embedding1, embedding2)
+	distance, err := gw.ComputeDistance(embedding1, embedding2)
 	if err != nil {
 		t.Errorf("ComputeDistance failed: %v", err)
 	}
@@ -312,7 +318,10 @@ func TestVoyageGateway_InterfaceCompliance(t *testing.T) {
 }
 
 func TestVoyageGateway_EdgeCases(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -331,11 +340,9 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 				)
 
 				ctx := context.Background()
-
-				_, err := gateway.ComputeEmbeddings(ctx, request)
-				// We expect a network error, not a validation error
+				_, err := gw.ComputeEmbeddings(ctx, request)
 				if err != nil {
-					t.Logf("Expected network error for dimension %d: %v", dim, err)
+					t.Errorf("Unexpected error for dimension %d: %v", dim, err)
 				}
 			})
 		}
@@ -351,10 +358,9 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		)
 
 		ctx := context.Background()
-
-		_, err := gateway.ComputeEmbeddings(ctx, request)
+		_, err := gw.ComputeEmbeddings(ctx, request)
 		if err != nil {
-			t.Logf("Expected network error for single character chunks: %v", err)
+			t.Errorf("Unexpected error for single character chunks: %v", err)
 		}
 	})
 
@@ -374,16 +380,18 @@ func TestVoyageGateway_EdgeCases(t *testing.T) {
 		)
 
 		ctx := context.Background()
-
-		_, err := gateway.ComputeEmbeddings(ctx, request)
+		_, err := gw.ComputeEmbeddings(ctx, request)
 		if err != nil {
-			t.Logf("Expected network error for special characters: %v", err)
+			t.Errorf("Unexpected error for special character chunks: %v", err)
 		}
 	})
 }
 
 func TestVoyageGateway_NilChecks(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -394,7 +402,7 @@ func TestVoyageGateway_NilChecks(t *testing.T) {
 
 	t.Run("Nil request", func(t *testing.T) {
 		ctx := context.Background()
-		_, err := gateway.ComputeEmbeddings(ctx, nil)
+		_, err := gw.ComputeEmbeddings(ctx, nil)
 		if err == nil {
 			t.Fatal("Expected error for nil request")
 		}
@@ -404,7 +412,7 @@ func TestVoyageGateway_NilChecks(t *testing.T) {
 	})
 
 	t.Run("Nil gateway", func(t *testing.T) {
-		var nilGateway *voyageGateway = nil
+		var nilGateway *voyageGateway
 		ctx := context.Background()
 		chunks := []string{"Test chunk"}
 		request := domainGateway.NewComputeEmbeddingsRequest(
@@ -424,11 +432,11 @@ func TestVoyageGateway_NilChecks(t *testing.T) {
 }
 
 func TestNewVoyageGateway_NilHTTPClient(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", nil)
+	gw, err := newVoyageGateway("", "test-api-key", nil)
 	if err == nil {
 		t.Fatal("Expected error for nil HTTP client")
 	}
-	if gateway != nil {
+	if gw != nil {
 		t.Fatal("Expected gateway to be nil when error occurs")
 	}
 	if !strings.Contains(err.Error(), "HTTP client is required") {
@@ -437,7 +445,10 @@ func TestNewVoyageGateway_NilHTTPClient(t *testing.T) {
 }
 
 func TestVoyageGateway_DifferentModels(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
@@ -459,22 +470,24 @@ func TestVoyageGateway_DifferentModels(t *testing.T) {
 			)
 
 			ctx := context.Background()
-			_, err := gateway.ComputeEmbeddings(ctx, request)
+			_, err := gw.ComputeEmbeddings(ctx, request)
 			if err != nil {
-				t.Logf("Expected network error for model %s: %v", model, err)
+				t.Errorf("Unexpected error for model %s: %v", model, err)
 			}
 		})
 	}
 }
 
 func TestVoyageGateway_ZeroDimensions(t *testing.T) {
-	gateway, err := newVoyageGateway("test-api-key", &http.Client{})
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gw, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
 	if err != nil {
 		t.Fatalf("Failed to create gateway: %v", err)
 	}
 
 	chunks := []string{"Test chunk"}
-	// Request with 0 dimensions (should use model's default)
 	request := domainGateway.NewComputeEmbeddingsRequest(
 		"voyage-large-2",
 		chunks,
@@ -482,8 +495,54 @@ func TestVoyageGateway_ZeroDimensions(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	_, err = gateway.ComputeEmbeddings(ctx, request)
+	_, err = gw.ComputeEmbeddings(ctx, request)
 	if err != nil {
-		t.Logf("Expected network error for zero dimensions: %v", err)
+		t.Errorf("Unexpected error for zero dimensions: %v", err)
 	}
+}
+
+func TestVoyageGateway_CountTokens(t *testing.T) {
+	server := newTestVoyageServer(t)
+	defer server.Close()
+
+	gwIface, err := newVoyageGateway(server.URL, "test-api-key", &http.Client{})
+	if err != nil {
+		t.Fatalf("Failed to create gateway: %v", err)
+	}
+	gw := gwIface.(*voyageGateway)
+
+	t.Run("Empty texts returns zero", func(t *testing.T) {
+		ctx := context.Background()
+		count, err := gw.CountTokens(ctx, "voyage-large-2", []string{})
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		if count != 0 {
+			t.Errorf("Expected 0 for empty texts, got %d", count)
+		}
+	})
+
+	t.Run("Non-empty texts returns token count", func(t *testing.T) {
+		ctx := context.Background()
+		count, err := gw.CountTokens(ctx, "voyage-large-2", []string{"Hello world", "test"})
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+		// Mock server returns total_tokens: 10
+		if count != 10 {
+			t.Errorf("Expected 10 tokens from mock, got %d", count)
+		}
+	})
+
+	t.Run("Nil gateway returns error", func(t *testing.T) {
+		var nilGateway *voyageGateway
+		ctx := context.Background()
+		_, err := nilGateway.CountTokens(ctx, "voyage-large-2", []string{"test"})
+		if err == nil {
+			t.Fatal("Expected error for nil gateway")
+		}
+		if !strings.Contains(err.Error(), "voyage gateway is nil") {
+			t.Errorf("Expected 'voyage gateway is nil', got: %v", err)
+		}
+	})
 }

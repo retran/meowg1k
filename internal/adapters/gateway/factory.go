@@ -213,7 +213,7 @@ func (f *Factory) newGeminiGenerationGateway(ctx context.Context, resolvedPreset
 	if resolvedPreset.APIKey == "" {
 		return nil, fmt.Errorf("gemini provider requires an API key for model %q", resolvedPreset.Model)
 	}
-	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -270,7 +270,7 @@ func (f *Factory) newAnthropicGenerationGateway(resolvedPreset *preset.ResolvedP
 	}
 
 	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
-	gateway, err := newAnthropicGateway(resolvedPreset.APIKey, httpClient)
+	gateway, err := newAnthropicGateway(resolvedPreset.APIKey, httpClient, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -282,7 +282,7 @@ func (f *Factory) newGeminiEmbeddingsGateway(ctx context.Context, resolvedPreset
 		return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -340,7 +340,7 @@ func (f *Factory) newVoyageEmbeddingsGateway(resolvedPreset *preset.ResolvedPres
 	}
 
 	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
-	gateway, err := newVoyageGateway(resolvedPreset.APIKey, httpClient)
+	gateway, err := newVoyageGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
