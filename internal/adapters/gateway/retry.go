@@ -83,15 +83,19 @@ func RetryWithBackoff[T any](
 
 // waitForRetry waits the appropriate backoff duration before the next retry attempt.
 func waitForRetry(ctx context.Context, config RetryConfig, attempt int) error {
-	// Exponential backoff: baseDelay * 2^(attempt-2), capped to avoid overflow.
-	// attempt is always >= 2 here, so (attempt-2) is non-negative.
-	// Cap shift at 62 to prevent overflow of int64.
-	const maxShift = 62
-	shiftAmount := attempt - 2
-	if shiftAmount > maxShift {
-		shiftAmount = maxShift
+	// Compute exponential backoff via safe doubling to avoid overflow before the
+	// MaxDelay cap is applied.  Starting from BaseDelay we double once per
+	// attempt beyond the first (attempt >= 2 here), stopping as soon as we
+	// reach or exceed MaxDelay.
+	waitDuration := config.BaseDelay
+	for i := 2; i < attempt; i++ {
+		if waitDuration >= config.MaxDelay/2 {
+			// Next doubling would reach or exceed MaxDelay; clamp now.
+			waitDuration = config.MaxDelay
+			break
+		}
+		waitDuration *= 2
 	}
-	waitDuration := config.BaseDelay * time.Duration(int64(1)<<shiftAmount)
 	if waitDuration > config.MaxDelay {
 		waitDuration = config.MaxDelay
 	}

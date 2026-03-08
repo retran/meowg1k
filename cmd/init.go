@@ -118,7 +118,9 @@ func initProjectConfig(cmd *cobra.Command, force bool) error {
 		return fmt.Errorf("failed to create project directory: %w", err)
 	}
 
-	if err := os.WriteFile(initFile, []byte(templates.ProjectInitTemplate), 0o600); err != nil {
+	// Project init.star is a non-sensitive config file intended to be committed;
+	// 0o644 is the conventional permission for such files.
+	if err := os.WriteFile(initFile, []byte(templates.ProjectInitTemplate), 0o644); err != nil { //nolint:gosec // G306: project config file is not sensitive and is meant to be readable
 		return fmt.Errorf("failed to write init.star: %w", err)
 	}
 
@@ -162,7 +164,7 @@ func updateGitignore() error {
 	}
 	content += templates.GitignoreEntries
 
-	if err := os.WriteFile(gitignorePath, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(gitignorePath, []byte(content), 0o644); err != nil { //nolint:gosec // G306: .gitignore is a non-sensitive repository file meant to be readable by all
 		return fmt.Errorf("failed to write .gitignore: %w", err)
 	}
 	return nil
