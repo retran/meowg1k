@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/coder/hnsw"
-
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -95,7 +93,7 @@ func (s *SearchService) Search(
 	// Step 3: Deserialize HNSW index using Import
 	hnswBuffer := bytes.NewReader(dump.HNSWData)
 
-	hnswIndex := hnsw.NewGraph[int64]()
+	hnswIndex := NewGraph[int64]()
 	if err := hnswIndex.Import(hnswBuffer); err != nil {
 		return nil, fmt.Errorf("failed to import HNSW graph for snapshot %q: %w", snapshotName, err)
 	}

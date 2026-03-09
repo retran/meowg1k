@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -113,14 +114,16 @@ func TestLoadGitHubToken(t *testing.T) {
 	// Write token manually (persistence is handled by cmd/auth.go).
 	require.NoError(t, os.WriteFile(tokenFile, []byte("ghu_testtoken123"), 0o600))
 
-	// Check permissions.
-	info, err := os.Stat(tokenFile)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	// Check permissions (Windows does not support Unix-style file permission bits).
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(tokenFile)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	}
 
 	// Load the token via loadOrAcquireGitHubToken.
 	g := &copilotGateway{tokenFile: tokenFile}
-	err = g.loadOrAcquireGitHubToken(context.Background())
+	err := g.loadOrAcquireGitHubToken(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "ghu_testtoken123", g.githubToken)
 }
