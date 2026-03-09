@@ -1,8 +1,8 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package cmd implements the command-line interface for meow.
-// It defines all CLI commands using the Cobra framework and manages
+// It defines all CLI commands using the Cobra framework and manages.
 // application lifecycle (initialization and cleanup).
 package cmd
 
@@ -21,17 +21,21 @@ func Execute() error {
 	// Load Starlark commands before executing
 	if err := loadStarlarkCommands(); err != nil {
 		// Log error but don't fail - Starlark scripts are optional
-		fmt.Fprintf(rootCmd.ErrOrStderr(), "Warning: Failed to load Starlark scripts: %v\n", err)
+		if _, printErr := fmt.Fprintf(rootCmd.ErrOrStderr(), "Warning: Failed to load Starlark scripts: %v\n", err); printErr != nil {
+			return fmt.Errorf("failed to write warning: %w", printErr)
+		}
 	}
 
 	err := rootCmd.Execute()
 	if err != nil {
 		// Suppress cancellation — user already saw "Cancelling…" in the TUI.
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return err
+			return fmt.Errorf("failed to execute command: %w", err)
 		}
-		fmt.Fprintf(rootCmd.ErrOrStderr(), "Error: %v\n", err)
-		return err
+		if _, printErr := fmt.Fprintf(rootCmd.ErrOrStderr(), "Error: %v\n", err); printErr != nil {
+			return fmt.Errorf("failed to write error: %w", printErr)
+		}
+		return fmt.Errorf("failed to execute command: %w", err)
 	}
 	return nil
 }

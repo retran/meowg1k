@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -15,19 +15,19 @@ import (
 
 // pagerModel is a Bubble Tea model that wraps bubbles/viewport for paged display.
 type pagerModel struct {
-	viewport    viewport.Model
+	theme       Theme
 	content     string
 	title       string
+	viewport    viewport.Model
 	lineNumbers bool
 	ready       bool
-	theme       Theme
 }
 
-func (m pagerModel) Init() tea.Cmd {
+func (m pagerModel) Init() tea.Cmd { //nolint:gocritic // hugeParam: Bubble Tea requires value receiver for model
 	return nil
 }
 
-func (m pagerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m pagerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocritic // hugeParam: Bubble Tea requires value receiver for model
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		headerHeight := 0
@@ -59,7 +59,7 @@ func (m pagerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m pagerModel) View() string {
+func (m pagerModel) View() string { //nolint:gocritic // hugeParam: Bubble Tea requires value receiver for model
 	if !m.ready {
 		return "\n  Loading..."
 	}
@@ -81,14 +81,14 @@ func (m pagerModel) View() string {
 	return b.String()
 }
 
-func (m pagerModel) buildContent() string {
+func (m pagerModel) buildContent() string { //nolint:gocritic // hugeParam: Bubble Tea requires value receiver for model
 	lines := strings.Split(m.content, "\n")
 	if !m.lineNumbers {
 		return m.content
 	}
 	var b strings.Builder
 	for i, line := range lines {
-		b.WriteString(fmt.Sprintf("%4d  %s\n", i+1, line))
+		fmt.Fprintf(&b, "%4d  %s\n", i+1, line)
 	}
 	return b.String()
 }
@@ -122,7 +122,10 @@ func RenderWithPager(content, title string, lineNumbers bool, opts RenderOptions
 
 	p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithOutput(os.Stderr))
 	_, err := p.Run()
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to run pager: %w", err)
+	}
+	return nil
 }
 
 // TruncateContent truncates content to maxLines with an indicator.

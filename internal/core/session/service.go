@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package session provides services for managing sessions, events, and metadata.
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/retran/meowg1k/internal/domain/session"
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -85,7 +86,7 @@ func (s *Service) GetSession(ctx context.Context, id string) (*session.Session, 
 }
 
 // ListSessions retrieves sessions with optional filters.
-func (s *Service) ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error) {
+func (s *Service) ListSessions(ctx context.Context, filter *session.Filter) ([]*session.Session, error) {
 	if s == nil {
 		return nil, fmt.Errorf("session service is nil")
 	}
@@ -108,15 +109,15 @@ func (s *Service) GetChildSessions(ctx context.Context, parentID string) ([]*ses
 		return nil, fmt.Errorf("parent ID cannot be empty")
 	}
 
-	filter := &session.SessionFilter{
+	filter := &session.Filter{
 		ParentID: &parentID,
 	}
 
 	return s.ListSessions(ctx, filter)
 }
 
-// CompleteSession marks a session as completed.
-func (s *Service) CompleteSession(ctx context.Context, id string) error {
+// updateSessionStatus retrieves a session and sets its status to the given value.
+func (s *Service) updateSessionStatus(ctx context.Context, id string, status session.Status) error {
 	if s == nil {
 		return fmt.Errorf("session service is nil")
 	}
@@ -130,7 +131,7 @@ func (s *Service) CompleteSession(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to get session: %w", err)
 	}
 
-	sess.Status = session.SessionStatusCompleted
+	sess.Status = status
 	sess.UpdatedAt = time.Now().UTC()
 
 	if err := s.repository.UpdateSession(ctx, sess); err != nil {
@@ -138,35 +139,20 @@ func (s *Service) CompleteSession(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+// CompleteSession marks a session as completed.
+func (s *Service) CompleteSession(ctx context.Context, id string) error {
+	return s.updateSessionStatus(ctx, id, session.SessionStatusCompleted)
 }
 
 // FailSession marks a session as failed.
 func (s *Service) FailSession(ctx context.Context, id string) error {
-	if s == nil {
-		return fmt.Errorf("session service is nil")
-	}
-
-	if id == "" {
-		return fmt.Errorf("session ID cannot be empty")
-	}
-
-	sess, err := s.repository.GetSession(ctx, id)
-	if err != nil {
-		return fmt.Errorf("failed to get session: %w", err)
-	}
-
-	sess.Status = session.SessionStatusFailed
-	sess.UpdatedAt = time.Now().UTC()
-
-	if err := s.repository.UpdateSession(ctx, sess); err != nil {
-		return fmt.Errorf("failed to update session: %w", err)
-	}
-
-	return nil
+	return s.updateSessionStatus(ctx, id, session.SessionStatusFailed)
 }
 
-// AddUserMessage adds a user message event to the session.
-func (s *Service) AddUserMessage(ctx context.Context, sessionID, content string) error {
+// addSimpleEvent creates a simple event (no tool calls or tool result IDs) and persists it.
+func (s *Service) addSimpleEvent(ctx context.Context, sessionID, content string, eventType session.EventType, failMsg string) error {
 	if s == nil {
 		return fmt.Errorf("session service is nil")
 	}
@@ -178,17 +164,22 @@ func (s *Service) AddUserMessage(ctx context.Context, sessionID, content string)
 	event := &session.Event{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
-		Type:      session.EventTypeUserMessage,
+		Type:      eventType,
 		Content:   content,
 		Obsolete:  false,
 		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.repository.AddEvent(ctx, event); err != nil {
-		return fmt.Errorf("failed to add user message: %w", err)
+		return fmt.Errorf("%s: %w", failMsg, err)
 	}
 
 	return nil
+}
+
+// AddUserMessage adds a user message event to the session.
+func (s *Service) AddUserMessage(ctx context.Context, sessionID, content string) error {
+	return s.addSimpleEvent(ctx, sessionID, content, session.EventTypeUserMessage, "failed to add user message")
 }
 
 // AddAssistantMessage adds an assistant message event to the session.
@@ -251,28 +242,7 @@ func (s *Service) AddToolResult(ctx context.Context, sessionID, toolCallID, cont
 
 // AddSystemMessage adds a system message event to the session.
 func (s *Service) AddSystemMessage(ctx context.Context, sessionID, content string) error {
-	if s == nil {
-		return fmt.Errorf("session service is nil")
-	}
-
-	if sessionID == "" {
-		return fmt.Errorf("session ID cannot be empty")
-	}
-
-	event := &session.Event{
-		ID:        uuid.New().String(),
-		SessionID: sessionID,
-		Type:      session.EventTypeSystem,
-		Content:   content,
-		Obsolete:  false,
-		CreatedAt: time.Now().UTC(),
-	}
-
-	if err := s.repository.AddEvent(ctx, event); err != nil {
-		return fmt.Errorf("failed to add system message: %w", err)
-	}
-
-	return nil
+	return s.addSimpleEvent(ctx, sessionID, content, session.EventTypeSystem, "failed to add system message")
 }
 
 // GetEvents retrieves events for a session with pagination.

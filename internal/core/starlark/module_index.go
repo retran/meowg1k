@@ -1,13 +1,11 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 
 	"go.starlark.net/starlark"
@@ -52,14 +50,14 @@ func (r *Runtime) createIndexModule() starlark.Value {
 
 // indexFindVersions implements index.find_versions().
 // Returns a dict mapping content hashes to version IDs (or None if not found).
-func (r *Runtime) indexFindVersions(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexFindVersions(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var contentHashes *starlark.List
 
 	if err := starlark.UnpackArgs(
 		b.Name(), args, kwargs,
 		"content_hashes", &contentHashes,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.find_versions: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.IndexRepo == nil {
@@ -84,9 +82,9 @@ func (r *Runtime) indexFindVersions(thread *starlark.Thread, b *starlark.Builtin
 	for _, hash := range hashes {
 		version, exists := versions[hash]
 		if exists && version != nil {
-			result.SetKey(starlark.String(hash), starlark.MakeInt64(version.ID))
+			result.SetKey(starlark.String(hash), starlark.MakeInt64(version.ID)) //nolint:errcheck // starlark dict operations with known-compatible types
 		} else {
-			result.SetKey(starlark.String(hash), starlark.None)
+			result.SetKey(starlark.String(hash), starlark.None) //nolint:errcheck // starlark dict operations with known-compatible types
 		}
 	}
 
@@ -95,7 +93,7 @@ func (r *Runtime) indexFindVersions(thread *starlark.Thread, b *starlark.Builtin
 
 // indexSaveVersion implements index.save_version().
 // Saves a document version with chunks and embeddings, returns version_id.
-func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexSaveVersion(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit // complexity inherent in multi-step document indexing
 	var path, content, contentHash string
 	var chunkslist *starlark.List
 	var embeddingslist *starlark.List
@@ -108,7 +106,7 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 		"chunks", &chunkslist,
 		"embeddings", &embeddingslist,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.save_version: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.IndexRepo == nil {
@@ -180,7 +178,7 @@ func (r *Runtime) indexSaveVersion(thread *starlark.Thread, b *starlark.Builtin,
 
 // indexLinkSnapshot implements index.link_snapshot().
 // Links document versions to a snapshot.
-func (r *Runtime) indexLinkSnapshot(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexLinkSnapshot(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var snapshot string
 	var versionIDs *starlark.List
 
@@ -189,7 +187,7 @@ func (r *Runtime) indexLinkSnapshot(thread *starlark.Thread, b *starlark.Builtin
 		"snapshot", &snapshot,
 		"version_ids", &versionIDs,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.link_snapshot: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.SnapshotRepo == nil {
@@ -221,14 +219,14 @@ func (r *Runtime) indexLinkSnapshot(thread *starlark.Thread, b *starlark.Builtin
 
 // indexClearSnapshot implements index.clear_snapshot().
 // Clears all links for a snapshot.
-func (r *Runtime) indexClearSnapshot(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexClearSnapshot(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var snapshot string
 
 	if err := starlark.UnpackArgs(
 		b.Name(), args, kwargs,
 		"snapshot", &snapshot,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.clear_snapshot: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.SnapshotRepo == nil {
@@ -248,14 +246,14 @@ func (r *Runtime) indexClearSnapshot(thread *starlark.Thread, b *starlark.Builti
 
 // indexBuildVectorIndex implements index.build_vector_index().
 // Builds HNSW vector index for a snapshot.
-func (r *Runtime) indexBuildVectorIndex(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexBuildVectorIndex(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var snapshot string
 
 	if err := starlark.UnpackArgs(
 		b.Name(), args, kwargs,
 		"snapshot", &snapshot,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.build_vector_index: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.VectorIndexService == nil {
@@ -281,7 +279,7 @@ func (r *Runtime) indexBuildVectorIndex(thread *starlark.Thread, b *starlark.Bui
 //	  min_score: float, minimum cosine similarity threshold (0.0–1.0)
 //
 // Returns a list of structs with fields: file_path, start_line, end_line, score, content.
-func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) indexSearch(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo,funlen // complexity inherent in semantic search with multiple filter options
 	var embeddingList *starlark.List
 	var snapshotsList *starlark.List
 	var topK int
@@ -294,7 +292,7 @@ func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args
 		"top_k", &topK,
 		"min_score", &minScore,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("index.search: %w", err)
 	}
 
 	if r.indexServices == nil || r.indexServices.SearchService == nil {
@@ -325,8 +323,8 @@ func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args
 
 	// Search each snapshot, deduplicate by chunk ID keeping best score
 	type bestResult struct {
-		score        float32
 		snapshotName string
+		score        float32
 	}
 	best := make(map[int64]bestResult)
 
@@ -386,10 +384,10 @@ func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args
 	// Build result list, sorted by score descending
 	type searchResult struct {
 		filePath  string
+		content   string
 		startLine int
 		endLine   int
 		score     float32
-		content   string
 	}
 	resultList := make([]searchResult, 0, len(chunks))
 
@@ -441,7 +439,7 @@ func (r *Runtime) indexSearch(thread *starlark.Thread, b *starlark.Builtin, args
 	return starlark.NewList(out), nil
 }
 
-// Helper functions
+// Helper functions.
 
 // mapSnapshotName maps user-facing snapshot names to internal names.
 func mapSnapshotName(snapshot string) string {
@@ -458,7 +456,7 @@ func mapSnapshotName(snapshot string) string {
 }
 
 // convertStarlarkChunkToChunkData converts a Starlark dict to ChunkData.
-func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.ChunkData, error) {
+func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.ChunkData, error) { //nolint:gocognit,gocyclo // complexity inherent in validating and mapping multiple optional chunk fields
 	var chunk domainindex.ChunkData
 
 	textVal, found, err := chunkDict.Get(starlark.String("text"))
@@ -471,7 +469,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 	}
 	chunk.TextContent = string(textStr)
 
-	if val, found, _ := chunkDict.Get(starlark.String("start_line")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("start_line")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.StartLine = int(i)
@@ -479,7 +477,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	if val, found, _ := chunkDict.Get(starlark.String("end_line")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("end_line")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.EndLine = int(i)
@@ -487,7 +485,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	if val, found, _ := chunkDict.Get(starlark.String("start_byte")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("start_byte")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.StartByte = int(i)
@@ -495,7 +493,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	if val, found, _ := chunkDict.Get(starlark.String("end_byte")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("end_byte")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.EndByte = int(i)
@@ -503,7 +501,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	if val, found, _ := chunkDict.Get(starlark.String("start_rune")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("start_rune")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.StartRune = int(i)
@@ -511,7 +509,7 @@ func convertStarlarkChunkToChunkData(chunkDict *starlark.Dict) (domainindex.Chun
 		}
 	}
 
-	if val, found, _ := chunkDict.Get(starlark.String("end_rune")); found {
+	if val, found, _ := chunkDict.Get(starlark.String("end_rune")); found { //nolint:errcheck // starlark dict lookup; error only on unhashable key
 		if intVal, ok := val.(starlark.Int); ok {
 			if i, ok := intVal.Int64(); ok {
 				chunk.EndRune = int(i)
@@ -547,10 +545,4 @@ func convertStarlarkListToEmbedding(embList *starlark.List) (gateway.Embedding, 
 	}
 
 	return embedding, nil
-}
-
-// computeContentHashFromString computes SHA256 hash of string content.
-func computeContentHashFromString(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(hash[:])
 }

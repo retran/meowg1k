@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -14,9 +14,11 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+const templateTestWorkingDir = "/tmp"
+
 func TestTemplateParse(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Test simple template parsing
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -33,7 +35,7 @@ func TestTemplateParse(t *testing.T) {
 
 func TestTemplateParseWithName(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
 		starlark.Tuple{starlark.String("Hello {{.Name}}")},
@@ -49,7 +51,7 @@ func TestTemplateParseWithName(t *testing.T) {
 
 func TestTemplateParseInvalid(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Test invalid template syntax
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -66,7 +68,7 @@ func TestTemplateLoad(t *testing.T) {
 	tmpDir := t.TempDir()
 	templatePath := filepath.Join(tmpDir, "test.tmpl")
 	templateContent := "Hello {{.Name}}, you are {{.Age}} years old"
-	err := os.WriteFile(templatePath, []byte(templateContent), 0644)
+	err := os.WriteFile(templatePath, []byte(templateContent), 0o644)
 	require.NoError(t, err)
 
 	thread := &starlark.Thread{Name: "test"}
@@ -86,7 +88,7 @@ func TestTemplateLoad(t *testing.T) {
 
 func TestTemplateLoadNotFound(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	result, err := templateLoad(thread, starlark.NewBuiltin("load", nil),
 		starlark.Tuple{starlark.String("/nonexistent/template.tmpl")},
@@ -99,7 +101,7 @@ func TestTemplateLoadNotFound(t *testing.T) {
 
 func TestTemplateRender(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Parse a template
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -128,7 +130,7 @@ func TestTemplateRender(t *testing.T) {
 
 func TestTemplateRenderWithList(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Parse a template with range
 	templateText := "Users: {{range .Users}}{{.}}, {{end}}"
@@ -162,7 +164,7 @@ func TestTemplateRenderWithList(t *testing.T) {
 
 func TestTemplateRenderWithNestedData(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Parse a template with nested access
 	templateText := "User: {{.User.Name}} ({{.User.Email}})"
@@ -195,7 +197,7 @@ func TestTemplateRenderWithNestedData(t *testing.T) {
 
 func TestTemplateRenderWithConditional(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Parse a template with conditional
 	templateText := "{{if .Active}}User is active{{else}}User is inactive{{end}}"
@@ -232,7 +234,7 @@ func TestTemplateRenderWithConditional(t *testing.T) {
 
 func TestTemplateRenderEmpty(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Parse a simple template
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -256,9 +258,9 @@ func TestTemplateRenderEmpty(t *testing.T) {
 
 func TestStarlarkValueToGoInterface(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    starlark.Value
 		expected interface{}
+		name     string
 	}{
 		{
 			name:     "none",
@@ -301,7 +303,7 @@ func TestStarlarkValueToGoInterface(t *testing.T) {
 }
 
 func TestTemplateModule(t *testing.T) {
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 	module := NewTemplateModule(workingDir)
 
 	require.NotNil(t, module)
@@ -321,7 +323,7 @@ func TestTemplateModule(t *testing.T) {
 
 func TestTemplateAttr(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	// Create a template
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -349,7 +351,7 @@ func TestTemplateAttr(t *testing.T) {
 
 func TestTemplateTruth(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
 		starlark.Tuple{starlark.String("test")},
@@ -364,7 +366,7 @@ func TestTemplateTruth(t *testing.T) {
 
 func TestTemplateHash(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
 		starlark.Tuple{starlark.String("test")},
@@ -379,10 +381,10 @@ func TestTemplateHash(t *testing.T) {
 	assert.Contains(t, err.Error(), "not hashable")
 }
 
-// TestTemplateParseErrors tests error cases for template.parse()
+// TestTemplateParseErrors tests error cases for template.parse().
 func TestTemplateParseErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	t.Run("missing text argument", func(t *testing.T) {
 		_, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -425,10 +427,10 @@ func TestTemplateParseErrors(t *testing.T) {
 	})
 }
 
-// TestTemplateLoadErrors tests error cases for template.load()
+// TestTemplateLoadErrors tests error cases for template.load().
 func TestTemplateLoadErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	t.Run("missing path argument", func(t *testing.T) {
 		_, err := templateLoad(thread, starlark.NewBuiltin("load", nil),
@@ -456,7 +458,7 @@ func TestTemplateLoadErrors(t *testing.T) {
 	t.Run("invalid template content in file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		templatePath := filepath.Join(tmpDir, "invalid.tmpl")
-		err := os.WriteFile(templatePath, []byte("{{.Name"), 0644)
+		err := os.WriteFile(templatePath, []byte("{{.Name"), 0o644)
 		require.NoError(t, err)
 
 		_, err = templateLoad(thread, starlark.NewBuiltin("load", nil),
@@ -469,7 +471,7 @@ func TestTemplateLoadErrors(t *testing.T) {
 	t.Run("relative path resolution", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		templatePath := filepath.Join(tmpDir, "test.tmpl")
-		err := os.WriteFile(templatePath, []byte("Hello {{.Name}}"), 0644)
+		err := os.WriteFile(templatePath, []byte("Hello {{.Name}}"), 0o644)
 		require.NoError(t, err)
 
 		result, err := templateLoad(thread, starlark.NewBuiltin("load", nil),
@@ -480,10 +482,10 @@ func TestTemplateLoadErrors(t *testing.T) {
 	})
 }
 
-// TestTemplateRenderErrors tests error cases for template.render()
+// TestTemplateRenderErrors tests error cases for template.render().
 func TestTemplateRenderErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	t.Run("missing data argument", func(t *testing.T) {
 		result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
@@ -561,7 +563,7 @@ func TestTemplateRenderErrors(t *testing.T) {
 	})
 }
 
-// TestStarlarkValueToGoInterfaceComplex tests complex type conversions
+// TestStarlarkValueToGoInterfaceComplex tests complex type conversions.
 func TestStarlarkValueToGoInterfaceComplex(t *testing.T) {
 	t.Run("list conversion", func(t *testing.T) {
 		list := starlark.NewList([]starlark.Value{
@@ -647,10 +649,10 @@ func TestStarlarkValueToGoInterfaceComplex(t *testing.T) {
 	})
 }
 
-// TestTemplateRenderComplexScenarios tests complex real-world scenarios
+// TestTemplateRenderComplexScenarios tests complex real-world scenarios.
 func TestTemplateRenderComplexScenarios(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	t.Run("template with multiple data types", func(t *testing.T) {
 		templateText := `Name: {{.Name}}
@@ -734,10 +736,10 @@ Tags: {{range .Tags}}{{.}} {{end}}`
 	})
 }
 
-// TestTemplateFreeze tests the Freeze method
+// TestTemplateFreeze tests the Freeze method.
 func TestTemplateFreeze(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
-	workingDir := "/tmp"
+	workingDir := templateTestWorkingDir
 
 	result, err := templateParse(thread, starlark.NewBuiltin("parse", nil),
 		starlark.Tuple{starlark.String("test")},

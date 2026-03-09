@@ -1,10 +1,11 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,7 +30,7 @@ func NewHTTPModule() starlark.Value {
 }
 
 // httpGet implements http.get().
-func httpGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func httpGet(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var urlStr string
 	var headersDict *starlark.Dict
 	var paramsDict *starlark.Dict
@@ -41,7 +42,7 @@ func httpGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, 
 		"params?", &paramsDict,
 		"timeout?", &timeout,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http.get: %w", err)
 	}
 
 	parsedURL, err := url.Parse(urlStr)
@@ -65,122 +66,81 @@ func httpGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, 
 		parsedURL.RawQuery = query.Encode()
 	}
 
-	req, err := http.NewRequest("GET", parsedURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", parsedURL.String(), http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GET request for '%s': %w", urlStr, err)
 	}
 
 	if headersDict != nil {
-		if err := addHeadersToRequest(req, headersDict); err != nil {
-			return nil, err
+		addHeadersToRequest(req, headersDict)
+	}
+
+	return executeHTTPRequest(req, timeout, urlStr)
+}
+
+// httpPostOrPut implements the shared logic for http.post() and http.put().
+func httpPostOrPut(method string, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	var urlStr string
+	var body string
+	var jsonData starlark.Value
+	var headersDict *starlark.Dict
+	timeout := 30
+
+	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
+		"url", &urlStr,
+		"body?", &body,
+		"json?", &jsonData,
+		"headers?", &headersDict,
+		"timeout?", &timeout,
+	); err != nil {
+		return nil, fmt.Errorf("%s: %w", b.Name(), err)
+	}
+
+	var bodyReader io.Reader
+	contentType := ""
+
+	switch {
+	case jsonData != nil && jsonData != starlark.None:
+		jsonBytes, err := starlarkValueToJSON(jsonData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode JSON body: %w", err)
 		}
+		bodyReader = bytes.NewReader(jsonBytes)
+		contentType = "application/json"
+	case body != "":
+		bodyReader = strings.NewReader(body)
+	default:
+		bodyReader = http.NoBody
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), method, urlStr, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create %s request for '%s': %w", method, urlStr, err)
+	}
+
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	if headersDict != nil {
+		addHeadersToRequest(req, headersDict)
 	}
 
 	return executeHTTPRequest(req, timeout, urlStr)
 }
 
 // httpPost implements http.post().
-func httpPost(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var urlStr string
-	var body string
-	var jsonData starlark.Value
-	var headersDict *starlark.Dict
-	timeout := 30
-
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
-		"url", &urlStr,
-		"body?", &body,
-		"json?", &jsonData,
-		"headers?", &headersDict,
-		"timeout?", &timeout,
-	); err != nil {
-		return nil, err
-	}
-
-	var bodyReader io.Reader
-	contentType := ""
-
-	if jsonData != nil && jsonData != starlark.None {
-		jsonBytes, err := starlarkValueToJSON(jsonData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode JSON body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBytes)
-		contentType = "application/json"
-	} else if body != "" {
-		bodyReader = strings.NewReader(body)
-	}
-
-	req, err := http.NewRequest("POST", urlStr, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create POST request for '%s': %w", urlStr, err)
-	}
-
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	if headersDict != nil {
-		if err := addHeadersToRequest(req, headersDict); err != nil {
-			return nil, err
-		}
-	}
-
-	return executeHTTPRequest(req, timeout, urlStr)
+func httpPost(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return httpPostOrPut("POST", b, args, kwargs)
 }
 
 // httpPut implements http.put().
-func httpPut(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
-	var urlStr string
-	var body string
-	var jsonData starlark.Value
-	var headersDict *starlark.Dict
-	timeout := 30
-
-	if err := starlark.UnpackArgs(b.Name(), args, kwargs,
-		"url", &urlStr,
-		"body?", &body,
-		"json?", &jsonData,
-		"headers?", &headersDict,
-		"timeout?", &timeout,
-	); err != nil {
-		return nil, err
-	}
-
-	var bodyReader io.Reader
-	contentType := ""
-
-	if jsonData != nil && jsonData != starlark.None {
-		jsonBytes, err := starlarkValueToJSON(jsonData)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode JSON body: %w", err)
-		}
-		bodyReader = bytes.NewReader(jsonBytes)
-		contentType = "application/json"
-	} else if body != "" {
-		bodyReader = strings.NewReader(body)
-	}
-
-	req, err := http.NewRequest("PUT", urlStr, bodyReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PUT request for '%s': %w", urlStr, err)
-	}
-
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	if headersDict != nil {
-		if err := addHeadersToRequest(req, headersDict); err != nil {
-			return nil, err
-		}
-	}
-
-	return executeHTTPRequest(req, timeout, urlStr)
+func httpPut(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+	return httpPostOrPut("PUT", b, args, kwargs)
 }
 
 // httpDelete implements http.delete().
-func httpDelete(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func httpDelete(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var urlStr string
 	var headersDict *starlark.Dict
 	timeout := 30
@@ -190,25 +150,23 @@ func httpDelete(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tupl
 		"headers?", &headersDict,
 		"timeout?", &timeout,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http.delete: %w", err)
 	}
 
-	req, err := http.NewRequest("DELETE", urlStr, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", urlStr, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DELETE request for '%s': %w", urlStr, err)
 	}
 
 	if headersDict != nil {
-		if err := addHeadersToRequest(req, headersDict); err != nil {
-			return nil, err
-		}
+		addHeadersToRequest(req, headersDict)
 	}
 
 	return executeHTTPRequest(req, timeout, urlStr)
 }
 
 // httpGraphQL implements http.graphql().
-func httpGraphQL(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func httpGraphQL(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var urlStr string
 	var query string
 	var variablesDict *starlark.Dict
@@ -222,7 +180,7 @@ func httpGraphQL(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tup
 		"token?", &token,
 		"timeout?", &timeout,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("http.graphql: %w", err)
 	}
 
 	body := map[string]interface{}{
@@ -246,7 +204,7 @@ func httpGraphQL(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tup
 		return nil, fmt.Errorf("failed to encode GraphQL body: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", urlStr, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", urlStr, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GraphQL request for '%s': %w", urlStr, err)
 	}
@@ -261,7 +219,7 @@ func httpGraphQL(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tup
 }
 
 // addHeadersToRequest adds headers from a Starlark dict to an HTTP request.
-func addHeadersToRequest(req *http.Request, headersDict *starlark.Dict) error {
+func addHeadersToRequest(req *http.Request, headersDict *starlark.Dict) {
 	for _, item := range headersDict.Items() {
 		key, ok := starlark.AsString(item[0])
 		if !ok {
@@ -273,7 +231,6 @@ func addHeadersToRequest(req *http.Request, headersDict *starlark.Dict) error {
 		}
 		req.Header.Set(key, value)
 	}
-	return nil
 }
 
 // executeHTTPRequest executes an HTTP request and returns a structured response.
@@ -282,11 +239,11 @@ func executeHTTPRequest(req *http.Request, timeout int, urlStr string) (starlark
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // URL is user-provided by design
 	if err != nil {
 		return nil, fmt.Errorf("HTTP %s request to '%s' failed: %w", req.Method, urlStr, err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // deferred close errors are not critical
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -296,7 +253,7 @@ func executeHTTPRequest(req *http.Request, timeout int, urlStr string) (starlark
 	headers := starlark.NewDict(len(resp.Header))
 	for key, values := range resp.Header {
 		if len(values) > 0 {
-			headers.SetKey(starlark.String(key), starlark.String(values[0]))
+			headers.SetKey(starlark.String(key), starlark.String(values[0])) //nolint:errcheck // starlark dict operations with known-compatible types
 		}
 	}
 
@@ -318,7 +275,11 @@ func executeHTTPRequest(req *http.Request, timeout int, urlStr string) (starlark
 // starlarkValueToJSON converts a Starlark value to JSON bytes.
 func starlarkValueToJSON(val starlark.Value) ([]byte, error) {
 	goVal := starlarkValueToGo(val)
-	return json.Marshal(goVal)
+	data, err := json.Marshal(goVal)
+	if err != nil {
+		return nil, fmt.Errorf("json marshal failed: %w", err)
+	}
+	return data, nil
 }
 
 // starlarkValueToGo converts a Starlark value to a Go value.
@@ -377,7 +338,7 @@ func goValueToStarlark(val interface{}) starlark.Value {
 	case map[string]interface{}:
 		dict := starlark.NewDict(len(v))
 		for key, value := range v {
-			dict.SetKey(starlark.String(key), goValueToStarlark(value))
+			dict.SetKey(starlark.String(key), goValueToStarlark(value)) //nolint:errcheck // starlark dict operations with known-compatible types
 		}
 		return dict
 	default:

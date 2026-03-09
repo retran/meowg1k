@@ -1,10 +1,12 @@
 # Agentic System Guide
 
-This guide covers the unified tool/command/agent/session system in meowg1k, including how to build autonomous agents that can plan, execute, and track complex workflows.
+This guide covers the unified tool/command/agent/session system in meowg1k, including how to build autonomous agents
+that can plan, execute, and track complex workflows.
 
 ## Overview
 
 meowg1k provides a powerful agentic system where:
+
 - **Everything is a tool** - Commands, agents, and utilities all use the same tool interface
 - **Sessions track execution** - Every invocation creates a session with complete history
 - **Agents use tools autonomously** - LLMs can call tools iteratively to achieve goals
@@ -21,7 +23,7 @@ meowg1k provides a powerful agentic system where:
 
 ### Session Hierarchy
 
-```
+```text
 Root Session (CLI command)
 ├── Child Session 1 (ctx.run or tool call)
 │   ├── LLM Event (user_message)
@@ -92,6 +94,7 @@ result = ctx.llm.agent_turn(
 ```
 
 **How it works:**
+
 1. Sends initial prompt to LLM with tool schemas
 2. LLM responds with text or tool calls
 3. If tool calls requested, executes them and sends results back
@@ -99,6 +102,7 @@ result = ctx.llm.agent_turn(
 5. All events tracked in session history
 
 **Error Handling:**
+
 - `return` - Return tool error message to LLM, continue loop
 - `abort` - Stop execution immediately on tool error
 
@@ -124,6 +128,7 @@ load("//lib/tools.star", "file_tools", "shell_tools", "code_tools", "all_tools")
 ```
 
 **File Operations:**
+
 - `file_reader` - Read file contents
 - `file_writer` - Write file contents
 - `file_exists` - Check if file exists
@@ -132,20 +137,24 @@ load("//lib/tools.star", "file_tools", "shell_tools", "code_tools", "all_tools")
 - `replace_text` - Replace text in files
 
 **Shell/Git:**
+
 - `shell_exec` - Execute shell commands
 - `git_status` - Get repository status
 - `git_diff` - Get diffs (staged or unstaged)
 
 **Code/Data:**
+
 - `code_search` - Semantic code search with embeddings
 - `calculator` - Basic arithmetic operations
 - `json_parse` - Parse and format JSON
 - `json_query` - Query JSON with dot notation
 
 **LLM:**
+
 - `llm_generate` - Generate text with LLM (non-agentic)
 
 **Utilities:**
+
 - `current_time` - Get current time
 - `http_get` / `http_post` - HTTP requests
 
@@ -209,6 +218,7 @@ meow review-agent --all
 ```
 
 **Features:**
+
 - Analyzes git diffs or specific files
 - Uses semantic search to find related code
 - Identifies issues across multiple dimensions (quality, bugs, performance, security)
@@ -216,6 +226,7 @@ meow review-agent --all
 - Tracks review results in session metadata
 
 **Key Techniques:**
+
 - Combines `git_diff` with `code_search` for context
 - Uses `file_reader` to examine related files
 - Structured system prompt for consistent review format
@@ -237,6 +248,7 @@ meow orchestrator "refactor error handling to use custom error types"
 ```
 
 **Features:**
+
 - Breaks down high-level goals into actionable subtasks
 - Gathers project context automatically
 - Executes plan with full tool access
@@ -244,6 +256,7 @@ meow orchestrator "refactor error handling to use custom error types"
 - Provides comprehensive final report
 
 **Key Techniques:**
+
 - Uses LLM to decompose tasks into structured plans
 - Stores plan and progress in session metadata (`remember`/`recall`)
 - Combines planning with execution in single agentic loop
@@ -298,7 +311,8 @@ meow show-session
 
 ### Session Metadata Patterns
 
-**Pattern 1: Progress Tracking**
+#### Pattern 1: Progress Tracking
+
 ```python
 remember(ctx, "task_status", "planning")
 remember(ctx, "subtasks_total", str(len(subtasks)))
@@ -309,14 +323,16 @@ remember(ctx, "task_status", "executing")
 remember(ctx, "subtasks_completed", str(completed_count))
 ```
 
-**Pattern 2: Intermediate Results**
+#### Pattern 2: Intermediate Results
+
 ```python
 remember(ctx, "files_analyzed", ctx.json.stringify(file_list))
 remember(ctx, "issues_found", str(issue_count))
 remember(ctx, "final_report", report_text)
 ```
 
-**Pattern 3: Context for Resume**
+#### Pattern 3: Context for Resume
+
 ```python
 # Save context for potential resume (future feature)
 remember(ctx, "checkpoint", ctx.json.stringify({

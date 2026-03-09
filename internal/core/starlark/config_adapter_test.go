@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -6,12 +6,13 @@ package starlark
 import (
 	"testing"
 
-	domainConfig "github.com/retran/meowg1k/internal/domain/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	domainConfig "github.com/retran/meowg1k/internal/domain/config"
 )
 
-// TestApplyConfigToYAML_EmptyRuntime tests applying empty Starlark config
+// TestApplyConfigToYAML_EmptyRuntime tests applying empty Starlark config.
 func TestApplyConfigToYAML_EmptyRuntime(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -41,7 +42,7 @@ func TestApplyConfigToYAML_EmptyRuntime(t *testing.T) {
 	})
 }
 
-// TestApplyConfigToYAML_Providers tests provider configuration mapping
+// TestApplyConfigToYAML_Providers tests provider configuration mapping.
 func TestApplyConfigToYAML_Providers(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -83,7 +84,7 @@ func TestApplyConfigToYAML_Providers(t *testing.T) {
 	})
 }
 
-// TestApplyConfigToYAML_Models tests model configuration mapping
+// TestApplyConfigToYAML_Models tests model configuration mapping.
 func TestApplyConfigToYAML_Models(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -149,7 +150,7 @@ func TestApplyConfigToYAML_Models(t *testing.T) {
 	})
 }
 
-// TestApplyConfigToYAML_Presets tests preset configuration mapping
+// TestApplyConfigToYAML_Presets tests preset configuration mapping.
 func TestApplyConfigToYAML_Presets(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 
@@ -237,7 +238,7 @@ func TestApplyConfigToYAML_Presets(t *testing.T) {
 	})
 }
 
-// TestHasConfiguration tests configuration detection
+// TestHasConfiguration tests configuration detection.
 func TestHasConfiguration(t *testing.T) {
 	t.Run("empty runtime", func(t *testing.T) {
 		runtime := NewRuntime(t.TempDir())
@@ -277,7 +278,7 @@ func TestHasConfiguration(t *testing.T) {
 	})
 }
 
-// TestIntPtr tests the intPtr helper function
+// TestIntPtr tests the intPtr helper function.
 func TestIntPtr(t *testing.T) {
 	t.Run("zero returns nil", func(t *testing.T) {
 		result := intPtr(0)
@@ -297,7 +298,7 @@ func TestIntPtr(t *testing.T) {
 	})
 }
 
-// TestFloat64Ptr tests the float64Ptr helper function
+// TestFloat64Ptr tests the float64Ptr helper function.
 func TestFloat64Ptr(t *testing.T) {
 	t.Run("zero returns nil", func(t *testing.T) {
 		result := float64Ptr(0.0)
@@ -323,7 +324,7 @@ func TestFloat64Ptr(t *testing.T) {
 	})
 }
 
-// TestValidateConfiguration tests configuration validation
+// TestValidateConfiguration tests configuration validation.
 func TestValidateConfiguration(t *testing.T) {
 	t.Run("empty configuration is valid", func(t *testing.T) {
 		runtime := NewRuntime(t.TempDir())
@@ -405,7 +406,7 @@ func TestValidateConfiguration(t *testing.T) {
 	})
 }
 
-// TestApplyConfigToYAML_Integration tests end-to-end configuration mapping
+// TestApplyConfigToYAML_Integration tests end-to-end configuration mapping.
 func TestApplyConfigToYAML_Integration(t *testing.T) {
 	runtime := NewRuntime(t.TempDir())
 

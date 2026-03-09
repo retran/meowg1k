@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -24,12 +24,13 @@ type voyageGateway struct {
 // newVoyageGateway creates and initializes a new VoyageGateway with a shared HTTP client.
 // The HTTP client is provided via dependency injection to allow for better resource management
 // and connection pooling across multiple gateway instances.
-func newVoyageGateway(apiKey string, httpClient *http.Client) (ports.EmbeddingsGateway, error) {
+// baseURL overrides the default Voyage API endpoint; pass "" to use the default.
+func newVoyageGateway(baseURL, apiKey string, httpClient *http.Client) (ports.EmbeddingsGateway, error) {
 	if httpClient == nil {
 		return nil, fmt.Errorf("HTTP client is required for voyage gateway")
 	}
 
-	client, err := voyage.NewClient("", apiKey, httpClient)
+	client, err := voyage.NewClient(baseURL, apiKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create voyage client: %w", err)
 	}
@@ -102,7 +103,7 @@ func (g *voyageGateway) ComputeEmbeddings(
 
 		response, err := g.client.CreateEmbeddings(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create voyage embeddings: %w", err)
 		}
 
 		embeddings := make([]gateway.Embedding, 0, len(response.Data))

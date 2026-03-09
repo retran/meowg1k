@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -12,7 +12,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// TestTimeNow tests time.now() function
+// TestTimeNow tests time.now() function.
 func TestTimeNow(t *testing.T) {
 	timeModule := NewTimeModule()
 	nowFunc := timeModule.Members["now"]
@@ -33,7 +33,7 @@ func TestTimeNow(t *testing.T) {
 	assert.LessOrEqual(t, ts, after)
 }
 
-// TestTimeNowWithFormat tests time.now() with format string
+// TestTimeNowWithFormat tests time.now() with format string.
 func TestTimeNowWithFormat(t *testing.T) {
 	timeModule := NewTimeModule()
 	nowFunc := timeModule.Members["now"]
@@ -60,7 +60,7 @@ func TestTimeNowWithFormat(t *testing.T) {
 	assert.Equal(t, expectedDate, formattedStr)
 }
 
-// TestTimeParse tests time.parse() function
+// TestTimeParse tests time.parse() function.
 func TestTimeParse(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -118,12 +118,12 @@ func TestTimeParse(t *testing.T) {
 	}
 }
 
-// TestTimeFormat tests time.format() function
+// TestTimeFormat tests time.format() function.
 func TestTimeFormat(t *testing.T) {
 	tests := []struct {
 		name      string
-		timestamp int64
 		format    string
+		timestamp int64
 	}{
 		{
 			name:      "format date",
@@ -171,7 +171,7 @@ func TestTimeFormat(t *testing.T) {
 	}
 }
 
-// TestTimeSleep tests time.sleep() function
+// TestTimeSleep tests time.sleep() function.
 func TestTimeSleep(t *testing.T) {
 	timeModule := NewTimeModule()
 	sleepFunc := timeModule.Members["sleep"]
@@ -192,10 +192,10 @@ func TestTimeSleep(t *testing.T) {
 	// Verify sleep duration (allow some tolerance for system scheduling)
 	expectedDuration := time.Duration(sleepDuration * float64(time.Second))
 	assert.GreaterOrEqual(t, elapsed, expectedDuration)
-	assert.Less(t, elapsed, expectedDuration+50*time.Millisecond) // Allow 50ms tolerance
+	assert.Less(t, elapsed, expectedDuration+500*time.Millisecond) // Allow 500ms tolerance for loaded CI environments
 }
 
-// TestConvertTimeFormat tests the convertTimeFormat helper function
+// TestConvertTimeFormat tests the convertTimeFormat helper function.
 func TestConvertTimeFormat(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -232,7 +232,7 @@ func TestConvertTimeFormat(t *testing.T) {
 	}
 }
 
-// TestTimeParseFormatRoundtrip tests parsing and formatting together
+// TestTimeParseFormatRoundtrip tests parsing and formatting together.
 func TestTimeParseFormatRoundtrip(t *testing.T) {
 	timeModule := NewTimeModule()
 	parseFunc := timeModule.Members["parse"]

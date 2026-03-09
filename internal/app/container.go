@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package app provides the application container that orchestrates all services and dependencies.
@@ -29,7 +29,7 @@ import (
 	"github.com/retran/meowg1k/internal/adapters/sqlite/cache"
 	indexRepo "github.com/retran/meowg1k/internal/adapters/sqlite/index"
 	"github.com/retran/meowg1k/internal/adapters/sqlite/meta"
-	"github.com/retran/meowg1k/internal/adapters/sqlite/path"
+	sqlitepath "github.com/retran/meowg1k/internal/adapters/sqlite/path"
 	sessionRepo "github.com/retran/meowg1k/internal/adapters/sqlite/session"
 	"github.com/retran/meowg1k/internal/adapters/tracelog"
 	"github.com/retran/meowg1k/internal/adapters/workspace"
@@ -73,7 +73,7 @@ type Container struct {
 	dbHost ports.Host
 
 	// dbPathService provides database path management
-	dbPathService *path.Service
+	dbPathService *sqlitepath.Service
 
 	// cacheRepo is the repository for LLM response caching (lazy initialized)
 	cacheRepo ports.CacheRepository
@@ -163,7 +163,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 		return nil, err
 	}
 
-	dbPathService, err := path.NewService(workspaceService)
+	dbPathService, err := sqlitepath.NewService(workspaceService)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create db path service: %w", err)
 	}
@@ -238,7 +238,7 @@ func NewAppContainerForStarlark() (*Container, string, error) {
 		return nil, "", err
 	}
 
-	dbPathService, err := path.NewService(workspaceService)
+	dbPathService, err := sqlitepath.NewService(workspaceService)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create db path service: %w", err)
 	}
@@ -516,14 +516,14 @@ func (c *Container) CreateSessionService() (ports.SessionService, error) {
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	sessionRepo := sessionRepo.NewRepository(c.dbHost)
+	repo := sessionRepo.NewRepository(c.dbHost)
 
-	sessionService, err := sessionService.NewService(sessionRepo)
+	svc, err := sessionService.NewService(repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session service: %w", err)
 	}
 
-	return sessionService, nil
+	return svc, nil
 }
 
 // getLogDir returns the appropriate log directory for the current OS.

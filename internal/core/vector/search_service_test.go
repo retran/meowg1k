@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package vector
@@ -11,12 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/hnsw"
-
 	"github.com/retran/meowg1k/internal/domain/gateway"
 )
 
-// Mock implementations for testing
+// Mock implementations for testing.
 
 type mockMetaRepository struct {
 	GetValueFunc    func(ctx context.Context, key string) ([]byte, error)
@@ -76,14 +74,14 @@ func TestSearchService_Search(t *testing.T) {
 	// Helper to create a valid index dump
 	createTestIndexDump := func() []byte {
 		// Create a simple HNSW index
-		hnswIndex := hnsw.NewGraph[int64]()
+		hnswIndex := NewGraph[int64]()
 
 		// Add a couple of test vectors
 		vec1 := []float32{0.1, 0.2, 0.3}
 		vec2 := []float32{0.4, 0.5, 0.6}
 
-		node1 := hnsw.MakeNode(int64(1), vec1)
-		node2 := hnsw.MakeNode(int64(2), vec2)
+		node1 := MakeNode(int64(1), vec1)
+		node2 := MakeNode(int64(2), vec2)
 
 		hnswIndex.Add(node1)
 		hnswIndex.Add(node2)
@@ -340,9 +338,9 @@ func TestCosineSimilarity(t *testing.T) {
 func TestSearchService_Search_Integration(t *testing.T) {
 	t.Run("Returns results with correct structure", func(t *testing.T) {
 		dumpBytes := func() []byte {
-			hnswIndex := hnsw.NewGraph[int64]()
+			hnswIndex := NewGraph[int64]()
 			vec := []float32{0.5, 0.5, 0.5}
-			node := hnsw.MakeNode(int64(123), vec)
+			node := MakeNode(int64(123), vec)
 			hnswIndex.Add(node)
 
 			var hnswBuffer bytes.Buffer

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -79,7 +79,7 @@ func (g *llamaGateway) GenerateContent(ctx context.Context, request *gateway.Gen
 
 		response, err := g.client.Complete(ctx, req)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to complete llama request: %w", err)
 		}
 
 		// Extract usage information from Llama response
@@ -312,7 +312,9 @@ func (g *llamaGateway) GenerateContentStream(
 	resp, err := g.GenerateContent(ctx, request)
 	if err != nil {
 		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
+			if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false}); cbErr != nil {
+				return nil, fmt.Errorf("%w; stream callback error: %w", err, cbErr)
+			}
 		}
 		return nil, err
 	}
@@ -343,7 +345,7 @@ func (g *llamaGateway) ComputeEmbeddings(ctx context.Context, request *gateway.C
 		// Use batch API to process all chunks at once
 		rawEmbeddings, err := g.client.EmbeddingBatch(ctx, chunks, true)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to compute llama embeddings: %w", err)
 		}
 
 		if len(rawEmbeddings) != len(chunks) {
@@ -363,7 +365,7 @@ func (g *llamaGateway) ComputeEmbeddings(ctx context.Context, request *gateway.C
 // CountTokens estimates token count for Llama models using character-based approximation.
 // Since llama.cpp doesn't provide a built-in tokenization API, we use an estimation:
 // approximately 1 token per 4 characters (similar to GPT models).
-func (g *llamaGateway) CountTokens(ctx context.Context, model string, texts []string) (int, error) {
+func (g *llamaGateway) CountTokens(_ context.Context, _ string, texts []string) (int, error) {
 	if g == nil {
 		return 0, fmt.Errorf("llama gateway is nil")
 	}

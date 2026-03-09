@@ -104,6 +104,7 @@ func RenderMarkdown(content string, opts RenderOptions) (string, error) {
 ```
 
 **Usage**:
+
 ```go
 rendered, err := ui.RenderMarkdown("# Heading\n\nParagraph", opts)
 ```
@@ -132,6 +133,7 @@ func RenderCode(code, language string, theme Theme) string {
 ```
 
 **Usage**:
+
 ```go
 code := "func main() { println(\"hello\") }"
 rendered := ui.RenderCode(code, "go", theme)
@@ -195,6 +197,7 @@ func (p *ProgressBar) Render() string {
 ```
 
 **Usage**:
+
 ```go
 bar := ui.ProgressBar{
     Width:     40,

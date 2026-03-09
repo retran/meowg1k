@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -41,10 +41,10 @@ func (m *mockPresetResolver) Get(p domainpreset.Preset) (*domainpreset.ResolvedP
 
 // mockGenerationGateway records calls and returns configurable responses.
 type mockGenerationGateway struct {
-	response    string
-	toolCalls   []gateway.ToolCall
 	err         error
 	streamErr   error
+	response    string
+	toolCalls   []gateway.ToolCall
 	callCount   int
 	streamCount int
 }
@@ -740,10 +740,10 @@ func TestResponseToStarlark_JSONObjectFormatBadJSON(t *testing.T) {
 
 // mockSessionService is a minimal in-memory implementation of ports.SessionService for tests.
 type mockSessionService struct {
+	metadata          map[string]string
 	userMessages      []string
 	assistantMessages []string
 	toolResults       []string
-	metadata          map[string]string
 }
 
 func newMockSessionService() *mockSessionService {
@@ -756,7 +756,7 @@ func (s *mockSessionService) CreateSession(_ context.Context, _ *string, _ strin
 func (s *mockSessionService) GetSession(_ context.Context, _ string) (*domainsession.Session, error) {
 	return nil, nil
 }
-func (s *mockSessionService) ListSessions(_ context.Context, _ *domainsession.SessionFilter) ([]*domainsession.Session, error) {
+func (s *mockSessionService) ListSessions(_ context.Context, _ *domainsession.Filter) ([]*domainsession.Session, error) {
 	return nil, nil
 }
 func (s *mockSessionService) GetChildSessions(_ context.Context, _ string) ([]*domainsession.Session, error) {
@@ -979,8 +979,8 @@ func TestLLMEmbed_UnknownPreset(t *testing.T) {
 
 // mockEmbeddingsGateway records calls and returns configurable embeddings.
 type mockEmbeddingsGateway struct {
-	embeddings []gateway.Embedding
 	err        error
+	embeddings []gateway.Embedding
 	callCount  int
 }
 

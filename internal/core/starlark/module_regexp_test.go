@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -11,7 +11,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// TestRegexpMatch tests regexp.match() function
+// TestRegexpMatch tests regexp.match() function.
 func TestRegexpMatch(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -78,7 +78,7 @@ func TestRegexpMatch(t *testing.T) {
 	}
 }
 
-// TestRegexpFindAll tests regexp.find_all() function
+// TestRegexpFindAll tests regexp.find_all() function.
 func TestRegexpFindAll(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -159,7 +159,7 @@ func TestRegexpFindAll(t *testing.T) {
 	}
 }
 
-// TestRegexpReplace tests regexp.replace() function
+// TestRegexpReplace tests regexp.replace() function.
 func TestRegexpReplace(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -233,7 +233,7 @@ func TestRegexpReplace(t *testing.T) {
 	}
 }
 
-// TestRegexpSplit tests regexp.split() function
+// TestRegexpSplit tests regexp.split() function.
 func TestRegexpSplit(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -314,7 +314,7 @@ func TestRegexpSplit(t *testing.T) {
 	}
 }
 
-// Helper function to create int pointers
+// Helper function to create int pointers.
 func regexpIntPtr(val int) *int {
 	return &val
 }

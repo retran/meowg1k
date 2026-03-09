@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -9,13 +9,13 @@ import (
 
 func TestRenderDivider(t *testing.T) {
 	theme := DefaultThemeWithOptions(RenderOptions{Terminal: true, Plain: false, SupportsUnicode: true})
-	
+
 	tests := []struct {
 		name     string
 		style    string
+		expected string
 		plain    bool
 		unicode  bool
-		expected string
 	}{
 		{
 			name:     "plain mode",
@@ -46,7 +46,7 @@ func TestRenderDivider(t *testing.T) {
 			expected: "",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			opts := RenderOptions{
@@ -54,9 +54,9 @@ func TestRenderDivider(t *testing.T) {
 				Terminal:        !tt.plain,
 				SupportsUnicode: tt.unicode,
 			}
-			
+
 			result := RenderDivider(tt.style, theme, opts)
-			
+
 			if tt.expected == "" {
 				if result != "" {
 					t.Errorf("expected empty string, got %q", result)

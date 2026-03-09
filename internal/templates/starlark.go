@@ -1,9 +1,10 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
+// Package templates provides template strings for meowg1k configuration files.
 package templates
 
-// GlobalInitTemplate is the template for ~/.config/meowg1k/init.star
+// GlobalInitTemplate is the template for ~/.config/meowg1k/init.star.
 const GlobalInitTemplate = `# ~/.config/meowg1k/init.star
 # Global configuration for meowg1k
 
@@ -83,7 +84,7 @@ meow.register_command(
 )
 `
 
-// ProjectInitTemplate is the template for ./.meowg1k/init.star
+// ProjectInitTemplate is the template for ./.meowg1k/init.star.
 const ProjectInitTemplate = `# ./.meowg1k/init.star
 # Project-specific configuration
 
@@ -238,13 +239,13 @@ Examples:
 )
 `
 
-// ProjectCommitCommandTemplate is deprecated - use ProjectInitTemplate instead
+// ProjectCommitCommandTemplate is deprecated - use ProjectInitTemplate instead.
 const ProjectCommitCommandTemplate = ""
 
-// ProjectSearchCommandTemplate is deprecated - use ProjectInitTemplate instead
+// ProjectSearchCommandTemplate is deprecated - use ProjectInitTemplate instead.
 const ProjectSearchCommandTemplate = ""
 
-// GitignoreEntries are the entries to add to .gitignore
+// GitignoreEntries are the entries to add to .gitignore.
 const GitignoreEntries = `
 # meowg1k
 .meowg1k/cache/

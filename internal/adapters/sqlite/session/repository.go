@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package session provides a SQLite-based repository for storing and querying sessions, events, and metadata.
@@ -8,7 +8,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/session"
@@ -70,7 +72,7 @@ func (r *Repository) GetSession(ctx context.Context, id string) (*session.Sessio
 		id,
 	).Scan(&s.ID, &parentID, &s.ToolName, &s.Status, &s.CreatedAt, &s.UpdatedAt)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("session not found: %s", id)
 	}
 	if err != nil {
@@ -106,40 +108,53 @@ func (r *Repository) UpdateSession(ctx context.Context, s *session.Session) erro
 	return nil
 }
 
+// buildSessionQuery constructs the SQL query and arguments for ListSessions based on the provided filter.
+func buildSessionQuery(filter *session.Filter) (query string, args []interface{}) {
+	query = `SELECT id, parent_id, tool_name, status, created_at, updated_at FROM sessions WHERE 1=1`
+	args = []interface{}{}
+
+	if filter == nil {
+		return query, args
+	}
+
+	if filter.ParentID != nil {
+		query += ` AND parent_id = ?`
+		args = append(args, *filter.ParentID)
+	}
+	if filter.ToolName != nil {
+		query += ` AND tool_name = ?`
+		args = append(args, *filter.ToolName)
+	}
+	if filter.Status != nil {
+		query += ` AND status = ?`
+		args = append(args, *filter.Status)
+	}
+	if filter.Limit > 0 {
+		query += ` ORDER BY created_at DESC LIMIT ?`
+		args = append(args, filter.Limit)
+	}
+
+	return query, args
+}
+
 // ListSessions retrieves sessions with optional filters.
-func (r *Repository) ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error) {
+func (r *Repository) ListSessions(ctx context.Context, filter *session.Filter) (_ []*session.Session, retErr error) {
 	db, err := r.host.GetProjectDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	query := `SELECT id, parent_id, tool_name, status, created_at, updated_at FROM sessions WHERE 1=1`
-	args := []interface{}{}
-
-	if filter != nil {
-		if filter.ParentID != nil {
-			query += ` AND parent_id = ?`
-			args = append(args, *filter.ParentID)
-		}
-		if filter.ToolName != nil {
-			query += ` AND tool_name = ?`
-			args = append(args, *filter.ToolName)
-		}
-		if filter.Status != nil {
-			query += ` AND status = ?`
-			args = append(args, *filter.Status)
-		}
-		if filter.Limit > 0 {
-			query += ` ORDER BY created_at DESC LIMIT ?`
-			args = append(args, filter.Limit)
-		}
-	}
+	query, args := buildSessionQuery(filter)
 
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close rows: %w", err)
+		}
+	}()
 
 	var sessions []*session.Session
 	for rows.Next() {
@@ -166,7 +181,7 @@ func (r *Repository) ListSessions(ctx context.Context, filter *session.SessionFi
 }
 
 // AddEvent inserts a new event into a session.
-func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
+func (r *Repository) AddEvent(ctx context.Context, e *session.Event) (retErr error) {
 	if e == nil {
 		return fmt.Errorf("event cannot be nil")
 	}
@@ -180,7 +195,11 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 	if err != nil {
 		return fmt.Errorf("could not begin transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if err := tx.Rollback(); err != nil && retErr == nil && !errors.Is(err, sql.ErrTxDone) {
+			retErr = fmt.Errorf("failed to rollback transaction: %w", err)
+		}
+	}()
 
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO events (id, session_id, type, content, tool_call_id, obsolete, created_at) 
@@ -222,7 +241,7 @@ func (r *Repository) AddEvent(ctx context.Context, e *session.Event) error {
 }
 
 // GetEvents retrieves events for a session with pagination.
-func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, offset int) ([]*session.Event, error) {
+func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, offset int) (_ []*session.Event, retErr error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("session ID cannot be empty")
 	}
@@ -235,13 +254,17 @@ func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, off
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, session_id, type, content, tool_call_id, obsolete, created_at
 		 FROM events WHERE session_id = ? AND obsolete = 0 
-		 ORDER BY created_at ASC LIMIT ? OFFSET ?`,
+		 ORDER BY created_at ASC, rowid ASC LIMIT ? OFFSET ?`,
 		sessionID, limit, offset,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query events: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close rows: %w", err)
+		}
+	}()
 
 	var events []*session.Event
 	for rows.Next() {
@@ -276,7 +299,7 @@ func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, off
 	return events, nil
 }
 
-func (r *Repository) getToolCallsForEvent(ctx context.Context, db *sql.DB, eventID string) ([]session.ToolCall, error) {
+func (r *Repository) getToolCallsForEvent(ctx context.Context, db *sql.DB, eventID string) (_ []session.ToolCall, retErr error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, name, params FROM tool_calls WHERE event_id = ?`,
 		eventID,
@@ -284,7 +307,11 @@ func (r *Repository) getToolCallsForEvent(ctx context.Context, db *sql.DB, event
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tool calls: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close rows: %w", err)
+		}
+	}()
 
 	var toolCalls []session.ToolCall
 	for rows.Next() {
@@ -367,8 +394,10 @@ func (r *Repository) InsertSummary(ctx context.Context, sessionID, afterEventID,
 		afterTimestamp = time.Now()
 	}
 
-	// Insert summary with timestamp slightly after the reference event
-	summaryTime := afterTimestamp.Add(time.Microsecond)
+	// Insert summary with timestamp slightly after the reference event.
+	// Use 1ms increment (not 1μs) so the difference is preserved after SQLite
+	// TIMESTAMP round-trip (which has millisecond precision).
+	summaryTime := afterTimestamp.Add(time.Millisecond)
 	summaryEvent := &session.Event{
 		ID:        generateID(),
 		SessionID: sessionID,
@@ -428,7 +457,7 @@ func (r *Repository) GetMetadata(ctx context.Context, sessionID, key string) (st
 		sessionID, key,
 	).Scan(&value)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", fmt.Errorf("metadata not found for key: %s", key)
 	}
 	if err != nil {
@@ -439,7 +468,7 @@ func (r *Repository) GetMetadata(ctx context.Context, sessionID, key string) (st
 }
 
 // GetAllMetadata retrieves all metadata for a session.
-func (r *Repository) GetAllMetadata(ctx context.Context, sessionID string) (map[string]string, error) {
+func (r *Repository) GetAllMetadata(ctx context.Context, sessionID string) (_ map[string]string, retErr error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("session ID cannot be empty")
 	}
@@ -456,7 +485,11 @@ func (r *Repository) GetAllMetadata(ctx context.Context, sessionID string) (map[
 	if err != nil {
 		return nil, fmt.Errorf("failed to query metadata: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = fmt.Errorf("failed to close rows: %w", err)
+		}
+	}()
 
 	metadata := make(map[string]string)
 	for rows.Next() {
@@ -474,8 +507,10 @@ func (r *Repository) GetAllMetadata(ctx context.Context, sessionID string) (map[
 	return metadata, nil
 }
 
-// generateID generates a unique ID for events/sessions.
-// In production, this should use UUID generation.
+// generateID generates a unique ID for events/sessions using a combination
+// of timestamp and atomic counter to avoid collisions on low-resolution clocks (e.g. Windows).
+var idCounter atomic.Int64
+
 func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), idCounter.Add(1))
 }

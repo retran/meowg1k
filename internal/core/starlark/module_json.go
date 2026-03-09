@@ -2,12 +2,13 @@ package starlark
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
-// NewJSONModule creates the json module
+// NewJSONModule creates the json module.
 func NewJSONModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "json",
@@ -18,29 +19,23 @@ func NewJSONModule() *starlarkstruct.Module {
 	}
 }
 
-// jsonParse parses a JSON string into Starlark values
-func jsonParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// jsonParse parses a JSON string into Starlark values.
+func jsonParse(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var data string
 	if err := starlark.UnpackPositionalArgs("json.parse", args, kwargs, 1, &data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("json.parse: %w", err)
 	}
-
-	var result interface{}
-	if err := json.Unmarshal([]byte(data), &result); err != nil {
-		return nil, err
-	}
-
-	return goToStarlark(result), nil
+	return parseDataToStarlark("json.parse", data, json.Unmarshal)
 }
 
-// jsonStringify converts Starlark values to JSON string
-func jsonStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// jsonStringify converts Starlark values to JSON string.
+func jsonStringify(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		value  starlark.Value
-		indent int = 0
+		indent = 0
 	)
 	if err := starlark.UnpackArgs("json.stringify", args, kwargs, "value", &value, "indent?", &indent); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("json.stringify: %w", err)
 	}
 
 	goValue := starlarkToGo(value)
@@ -54,7 +49,7 @@ func jsonStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.T
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("json.stringify: %w", err)
 	}
 
 	return starlark.String(string(data)), nil

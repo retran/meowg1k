@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -620,7 +620,7 @@ func TestGatewayFactory_CacheFlagBehavior(t *testing.T) {
 			factory, err := NewFactory(mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 			require.NoError(t, err)
 
-			preset := &preset.ResolvedPreset{
+			resolvedPreset := &preset.ResolvedPreset{
 				Provider:        provider.OpenAI,
 				Model:           "gpt-4",
 				Name:            "test-preset",
@@ -635,7 +635,7 @@ func TestGatewayFactory_CacheFlagBehavior(t *testing.T) {
 			}
 
 			// Test shouldEnableCache
-			shouldEnable := factory.shouldEnableCache(preset)
+			shouldEnable := factory.shouldEnableCache(resolvedPreset)
 			assert.Equal(t, tt.expectCachingEnabled, shouldEnable,
 				"shouldEnableCache returned %v, expected %v", shouldEnable, tt.expectCachingEnabled)
 
@@ -656,7 +656,7 @@ func TestGatewayFactory_CachingLayerOrder(t *testing.T) {
 	factory, err := NewFactory(mockCache, mockFlags, mockTrace, mockCmdReader, newMockHTTPClientService())
 	require.NoError(t, err)
 
-	preset := &preset.ResolvedPreset{
+	resolvedPreset := &preset.ResolvedPreset{
 		Provider:        provider.OpenAI,
 		Model:           "gpt-4",
 		Name:            "test-preset",
@@ -682,7 +682,7 @@ func TestGatewayFactory_CachingLayerOrder(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a generation gateway - should have caching before rate limiting
-	gateway, err := factory.NewGenerationGateway(ctx, preset)
+	gateway, err := factory.NewGenerationGateway(ctx, resolvedPreset)
 	require.NoError(t, err)
 	require.NotNil(t, gateway)
 

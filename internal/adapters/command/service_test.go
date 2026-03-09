@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package command
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// createTestCommand creates a cobra command with all the expected flags for testing
+// createTestCommand creates a cobra command with all the expected flags for testing.
 func createTestCommand(name string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: name,
@@ -29,7 +29,7 @@ func createTestCommand(name string) *cobra.Command {
 	return cmd
 }
 
-// TestNewService tests creating a new command service
+// TestNewService tests creating a new command service.
 func TestNewService(t *testing.T) {
 	t.Run("with valid command", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -55,7 +55,7 @@ func TestNewService(t *testing.T) {
 	})
 }
 
-// TestGetCommandName tests retrieving command name
+// TestGetCommandName tests retrieving command name.
 func TestGetCommandName(t *testing.T) {
 	t.Run("valid service", func(t *testing.T) {
 		cmd := createTestCommand("my-command")
@@ -83,7 +83,7 @@ func TestGetCommandName(t *testing.T) {
 	})
 }
 
-// TestGetWorkspacePath tests retrieving workspace path
+// TestGetWorkspacePath tests retrieving workspace path.
 func TestGetWorkspacePath(t *testing.T) {
 	t.Run("default workspace", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -121,7 +121,7 @@ func TestGetWorkspacePath(t *testing.T) {
 	})
 }
 
-// TestGetTaskName tests retrieving task name
+// TestGetTaskName tests retrieving task name.
 func TestGetTaskName(t *testing.T) {
 	t.Run("default task", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -159,7 +159,7 @@ func TestGetTaskName(t *testing.T) {
 	})
 }
 
-// TestGetUserPrompt tests retrieving user prompt
+// TestGetUserPrompt tests retrieving user prompt.
 func TestGetUserPrompt(t *testing.T) {
 	t.Run("default empty prompt", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -197,7 +197,7 @@ func TestGetUserPrompt(t *testing.T) {
 	})
 }
 
-// TestGetNoTUIFlag tests retrieving no-tui flag
+// TestGetNoTUIFlag tests retrieving no-tui flag.
 func TestGetNoTUIFlag(t *testing.T) {
 	t.Run("default false", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -235,7 +235,7 @@ func TestGetNoTUIFlag(t *testing.T) {
 	})
 }
 
-// TestMultipleFlagRetrievals tests getting multiple flags in sequence
+// TestMultipleFlagRetrievals tests getting multiple flags in sequence.
 func TestGetStdIn(t *testing.T) {
 	t.Run("empty stdin when not piped", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -281,7 +281,7 @@ func TestGetStdIn(t *testing.T) {
 	})
 }
 
-// TestGetNoCacheFlag tests retrieving no-cache flag
+// TestGetNoCacheFlag tests retrieving no-cache flag.
 func TestGetNoCacheFlag(t *testing.T) {
 	t.Run("default false", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -319,7 +319,7 @@ func TestGetNoCacheFlag(t *testing.T) {
 	})
 }
 
-// TestGetUpdateCacheFlag tests retrieving update-cache flag
+// TestGetUpdateCacheFlag tests retrieving update-cache flag.
 func TestGetUpdateCacheFlag(t *testing.T) {
 	t.Run("default false", func(t *testing.T) {
 		cmd := createTestCommand("test")
@@ -357,7 +357,7 @@ func TestGetUpdateCacheFlag(t *testing.T) {
 	})
 }
 
-// TestMultipleFlagRetrievals tests getting multiple flags in sequence
+// TestMultipleFlagRetrievals tests getting multiple flags in sequence.
 func TestMultipleFlagRetrievals(t *testing.T) {
 	cmd := createTestCommand("test")
 	cmd.Flags().Set("workspace", "/my/workspace")

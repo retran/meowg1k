@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -24,9 +24,9 @@ func (r *Runtime) createStdinModule() starlark.Value {
 }
 
 // stdinIsPiped checks if stdin is piped.
-func (r *Runtime) stdinIsPiped(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) stdinIsPiped(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stdin.is_piped: %w", err)
 	}
 
 	// Check if stdin is a pipe or redirect by examining the file mode
@@ -42,9 +42,9 @@ func (r *Runtime) stdinIsPiped(thread *starlark.Thread, b *starlark.Builtin, arg
 }
 
 // stdinRead reads all available input from stdin.
-func (r *Runtime) stdinRead(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) stdinRead(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stdin.read: %w", err)
 	}
 
 	content, err := io.ReadAll(os.Stdin)
@@ -56,9 +56,9 @@ func (r *Runtime) stdinRead(thread *starlark.Thread, b *starlark.Builtin, args s
 }
 
 // stdinReadLine reads a single line from stdin.
-func (r *Runtime) stdinReadLine(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) stdinReadLine(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stdin.read_line: %w", err)
 	}
 
 	reader := r.getStdinReader()

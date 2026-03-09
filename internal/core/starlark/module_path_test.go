@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -65,7 +65,7 @@ func TestPathParent(t *testing.T) {
 				t.Fatalf("pathParent error: %v", err)
 			}
 
-			got := string(result.(starlark.String))
+			got := filepath.ToSlash(string(result.(starlark.String)))
 			if got != tt.expected {
 				t.Errorf("pathParent(%q) = %q, want %q", tt.path, got, tt.expected)
 			}
@@ -139,12 +139,12 @@ func TestPathExtension(t *testing.T) {
 	}
 }
 
-// TestPathJoin tests path.join() function
+// TestPathJoin tests path.join() function.
 func TestPathJoin(t *testing.T) {
 	tests := []struct {
 		name     string
-		parts    []string
 		expected string
+		parts    []string
 	}{
 		{
 			name:     "join two parts",
@@ -191,7 +191,7 @@ func TestPathJoin(t *testing.T) {
 	}
 }
 
-// TestPathJoinInvalidType tests path.join() with invalid argument type
+// TestPathJoinInvalidType tests path.join() with invalid argument type.
 func TestPathJoinInvalidType(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 	args := starlark.Tuple{starlark.String("a"), starlark.MakeInt(123)}
@@ -201,7 +201,7 @@ func TestPathJoinInvalidType(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be string")
 }
 
-// TestPathDirname tests path.dirname() function
+// TestPathDirname tests path.dirname() function.
 func TestPathDirname(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -240,12 +240,12 @@ func TestPathDirname(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
 
-// TestPathBasename tests path.basename() function
+// TestPathBasename tests path.basename() function.
 func TestPathBasename(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -284,12 +284,12 @@ func TestPathBasename(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
 
-// TestPathExt tests path.ext() function
+// TestPathExt tests path.ext() function.
 func TestPathExt(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -333,7 +333,7 @@ func TestPathExt(t *testing.T) {
 	}
 }
 
-// TestPathAbs tests path.abs() function
+// TestPathAbs tests path.abs() function.
 func TestPathAbs(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 	args := starlark.Tuple{starlark.String(".")}
@@ -347,7 +347,7 @@ func TestPathAbs(t *testing.T) {
 	assert.True(t, filepath.IsAbs(string(resultStr)))
 }
 
-// TestPathClean tests path.clean() function
+// TestPathClean tests path.clean() function.
 func TestPathClean(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -386,12 +386,12 @@ func TestPathClean(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
 
-// TestPathRel tests path.rel() function
+// TestPathRel tests path.rel() function.
 func TestPathRel(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -432,12 +432,12 @@ func TestPathRel(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
 
-// TestPathErrorCases tests error handling in path functions
+// TestPathErrorCases tests error handling in path functions.
 func TestPathErrorCases(t *testing.T) {
 	t.Run("dirname with missing argument", func(t *testing.T) {
 		thread := &starlark.Thread{Name: "test"}

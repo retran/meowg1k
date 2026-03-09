@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package workspace
@@ -150,11 +150,11 @@ func TestGetWorkspaceRoot_WithMeowg1kYaml(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	subDir := workspaceRoot + "/sub/dir"
+	subDir := filepath.Join(workspaceRoot, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .meowg1k.yaml in root
-	os.WriteFile(workspaceRoot+"/.meowg1k.yaml", []byte("test: config"), 0o644)
+	os.WriteFile(filepath.Join(workspaceRoot, ".meowg1k.yaml"), []byte("test: config"), 0o644)
 
 	// Change to subdirectory
 	originalDir, _ := os.Getwd()
@@ -180,11 +180,11 @@ func TestGetWorkspaceRoot_WithMeowg1kYml(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	subDir := workspaceRoot + "/sub/dir"
+	subDir := filepath.Join(workspaceRoot, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .meowg1k.yml in root
-	os.WriteFile(workspaceRoot+"/.meowg1k.yml", []byte("test: config"), 0o644)
+	os.WriteFile(filepath.Join(workspaceRoot, ".meowg1k.yml"), []byte("test: config"), 0o644)
 
 	// Change to subdirectory
 	originalDir, _ := os.Getwd()
@@ -210,11 +210,11 @@ func TestGetWorkspaceRoot_WithGitDir(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	subDir := workspaceRoot + "/sub/dir"
+	subDir := filepath.Join(workspaceRoot, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .git directory in root
-	os.MkdirAll(workspaceRoot+"/.git", 0o755)
+	os.MkdirAll(filepath.Join(workspaceRoot, ".git"), 0o755)
 
 	// Change to subdirectory
 	originalDir, _ := os.Getwd()
@@ -240,7 +240,7 @@ func TestGetWorkspaceRoot_WithNoMarkers(t *testing.T) {
 	// Create temp directory structure with no markers
 	tempDir := t.TempDir()
 	tempDirResolved, _ := filepath.EvalSymlinks(tempDir)
-	subDir := tempDirResolved + "/sub/dir"
+	subDir := filepath.Join(tempDirResolved, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Change to subdirectory
@@ -267,13 +267,13 @@ func TestGetWorkspaceRoot_PriorityOrder(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	middleDir := workspaceRoot + "/middle"
-	subDir := middleDir + "/sub"
+	middleDir := filepath.Join(workspaceRoot, "middle")
+	subDir := filepath.Join(middleDir, "sub")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .git in root and .meowg1k.yaml in middle
-	os.MkdirAll(workspaceRoot+"/.git", 0o755)
-	os.WriteFile(middleDir+"/.meowg1k.yaml", []byte("test: config"), 0o644)
+	os.MkdirAll(filepath.Join(workspaceRoot, ".git"), 0o755)
+	os.WriteFile(filepath.Join(middleDir, ".meowg1k.yaml"), []byte("test: config"), 0o644)
 
 	// Change to subdirectory
 	originalDir, _ := os.Getwd()
@@ -380,7 +380,7 @@ func TestGetWithEmptyExplicitPath(t *testing.T) {
 	}
 }
 
-// Test NewServiceWithPath
+// Test NewServiceWithPath.
 
 func TestNewServiceWithPath(t *testing.T) {
 	testPath := "/test/workspace/path"
@@ -434,7 +434,7 @@ func TestNewServiceWithPath_NonExistentPath(t *testing.T) {
 	}
 }
 
-// Test fixedPathResolver directly
+// Test fixedPathResolver directly.
 
 func TestFixedPathResolver_GetWorkspacePath(t *testing.T) {
 	testPath := "/some/fixed/path"
@@ -469,13 +469,13 @@ func TestGetWorkspaceRoot_WithMeowg1kDir(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	subDir := workspaceRoot + "/sub/dir"
+	subDir := filepath.Join(workspaceRoot, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .meowg1k/ directory with init.star in root
-	meowDir := workspaceRoot + "/.meowg1k"
+	meowDir := filepath.Join(workspaceRoot, ".meowg1k")
 	os.MkdirAll(meowDir, 0o755)
-	os.WriteFile(meowDir+"/init.star", []byte("# init"), 0o644)
+	os.WriteFile(filepath.Join(meowDir, "init.star"), []byte("# init"), 0o644)
 
 	// Change to subdirectory
 	originalDir, _ := os.Getwd()
@@ -501,11 +501,11 @@ func TestGetWorkspaceRoot_Meowg1kDirWithoutInitStar(t *testing.T) {
 	// Create temp directory structure
 	tempDir := t.TempDir()
 	workspaceRoot, _ := filepath.EvalSymlinks(tempDir)
-	subDir := workspaceRoot + "/sub/dir"
+	subDir := filepath.Join(workspaceRoot, "sub", "dir")
 	os.MkdirAll(subDir, 0o755)
 
 	// Create .meowg1k/ directory WITHOUT init.star - should NOT be a marker
-	meowDir := workspaceRoot + "/.meowg1k"
+	meowDir := filepath.Join(workspaceRoot, ".meowg1k")
 	os.MkdirAll(meowDir, 0o755)
 
 	// Change to subdirectory

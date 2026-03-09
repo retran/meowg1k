@@ -2,7 +2,7 @@
 
 Two folders, two purposes:
 
-```
+```text
 docs/
 ├── api/          # Starlark API - what you can call
 └── guides/       # How to build meowg1k
@@ -11,16 +11,19 @@ docs/
 ## Pick your path
 
 **Want to use meowg1k?**
+
 - [API Reference](api/API_REFERENCE.md) - All Starlark functions with examples
 - [Starlark Guide](guides/starlark-system.md) - Write custom commands
 
 **Want to contribute?**
+
 - [Architecture](guides/architecture.md) - Why we built it this way
 - [Go Conventions](guides/go-conventions.md) - Code style rules
 - [Testing](guides/testing-standards.md) - How to test your changes
 - [UI Patterns](guides/ui-patterns.md) - Build terminal interfaces
 
 **Building autonomous agents?**
+
 - [Agentic System](guides/agentic-system.md) - Multi-step workflows
 
 ## First steps
@@ -33,6 +36,7 @@ docs/
 ## Updating docs
 
 Changed the code? Update the docs:
+
 - **Code changes** → update API_REFERENCE.md
 - **New patterns** → update relevant guide
 - **Complex features** → add examples

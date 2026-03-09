@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -12,7 +12,7 @@ import (
 
 // RenderDiff applies styling to a unified diff string.
 // In plain mode, returns the diff without styling.
-func RenderDiff(diff string, theme Theme, opts RenderOptions) string {
+func RenderDiff(diff string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value for immutability
 	if opts.Plain || !opts.Terminal || opts.NoColor {
 		return diff
 	}
@@ -48,12 +48,12 @@ func RenderDiff(diff string, theme Theme, opts RenderOptions) string {
 }
 
 // RenderDiffEnhanced renders a git diff with colored additions/deletions and a border.
-func RenderDiffEnhanced(content, title string, theme Theme, opts RenderOptions) string {
+func RenderDiffEnhanced(content, title string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value for immutability
 	return RenderDiffEnhancedWithMaxLines(content, title, 0, theme, opts)
 }
 
 // RenderDiffEnhancedWithMaxLines renders a git diff with optional truncation.
-func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme Theme, opts RenderOptions) string {
+func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme Theme, opts RenderOptions) string { //nolint:gocritic,gocognit,gocyclo,funlen // hugeParam: Theme passed by value for immutability; complexity inherent in diff rendering with multiple modes
 	// Truncate if requested
 	var wasTruncated bool
 	if maxLines > 0 {
@@ -159,6 +159,6 @@ func RenderDiffEnhancedWithMaxLines(content, title string, maxLines int, theme T
 }
 
 // RenderDiffLegacy maintains backward compatibility.
-func RenderDiffLegacy(diff string, theme Theme) string {
+func RenderDiffLegacy(diff string, theme Theme) string { //nolint:gocritic // hugeParam: Theme passed by value for immutability
 	return RenderDiff(diff, theme, NewRenderOptions())
 }

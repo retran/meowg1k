@@ -1,10 +1,9 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
-	"io"
 	"os"
 	"testing"
 
@@ -76,7 +75,7 @@ func TestStdinRead_ReadsAll(t *testing.T) {
 
 	// Write content then close writer to signal EOF
 	data := "hello\nworld"
-	if _, err := io.WriteString(pw, data); err != nil {
+	if _, err := pw.WriteString(data); err != nil {
 		t.Fatalf("write to pipe error: %v", err)
 	}
 	pw.Close()
@@ -104,7 +103,7 @@ func TestStdinReadLine_ReadsLines(t *testing.T) {
 	defer pr.Close()
 
 	data := "first line\nsecond line\n"
-	if _, err := io.WriteString(pw, data); err != nil {
+	if _, err := pw.WriteString(data); err != nil {
 		t.Fatalf("write to pipe error: %v", err)
 	}
 	pw.Close()
@@ -128,7 +127,7 @@ func TestStdinReadLine_ReadsLines(t *testing.T) {
 	})
 }
 
-// TestStdinIsPipedErrors tests error cases for stdin.is_piped()
+// TestStdinIsPipedErrors tests error cases for stdin.is_piped().
 func TestStdinIsPipedErrors(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -141,7 +140,7 @@ func TestStdinIsPipedErrors(t *testing.T) {
 	}
 }
 
-// TestStdinReadErrors tests error cases for stdin.read()
+// TestStdinReadErrors tests error cases for stdin.read().
 func TestStdinReadErrors(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -154,7 +153,7 @@ func TestStdinReadErrors(t *testing.T) {
 	}
 }
 
-// TestStdinReadLineErrors tests error cases for stdin.read_line()
+// TestStdinReadLineErrors tests error cases for stdin.read_line().
 func TestStdinReadLineErrors(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -167,7 +166,7 @@ func TestStdinReadLineErrors(t *testing.T) {
 	}
 }
 
-// TestStdinReadLineEOF tests reading at EOF
+// TestStdinReadLineEOF tests reading at EOF.
 func TestStdinReadLineEOF(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -181,7 +180,7 @@ func TestStdinReadLineEOF(t *testing.T) {
 
 	// Write single line without newline and close
 	data := "last line"
-	if _, err := io.WriteString(pw, data); err != nil {
+	if _, err := pw.WriteString(data); err != nil {
 		t.Fatalf("write to pipe error: %v", err)
 	}
 	pw.Close()
@@ -197,7 +196,7 @@ func TestStdinReadLineEOF(t *testing.T) {
 	})
 }
 
-// TestStdinReadEmpty tests reading empty input
+// TestStdinReadEmpty tests reading empty input.
 func TestStdinReadEmpty(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -220,7 +219,7 @@ func TestStdinReadEmpty(t *testing.T) {
 	})
 }
 
-// TestStdinReadLineEmpty tests reading empty line
+// TestStdinReadLineEmpty tests reading empty line.
 func TestStdinReadLineEmpty(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -233,7 +232,7 @@ func TestStdinReadLineEmpty(t *testing.T) {
 	defer pr.Close()
 
 	// Write newline only
-	if _, err := io.WriteString(pw, "\n"); err != nil {
+	if _, err := pw.WriteString("\n"); err != nil {
 		t.Fatalf("write to pipe error: %v", err)
 	}
 	pw.Close()
@@ -249,7 +248,7 @@ func TestStdinReadLineEmpty(t *testing.T) {
 	})
 }
 
-// TestStdinModuleCreation tests createStdinModule function
+// TestStdinModuleCreation tests createStdinModule function.
 func TestStdinModuleCreation(t *testing.T) {
 	r := NewRuntime("/tmp")
 	module := r.createStdinModule()
@@ -281,7 +280,7 @@ func TestStdinModuleCreation(t *testing.T) {
 	}
 }
 
-// TestGetStdinReader tests the getStdinReader helper
+// TestGetStdinReader tests the getStdinReader helper.
 func TestGetStdinReader(t *testing.T) {
 	r := &Runtime{}
 
@@ -298,7 +297,7 @@ func TestGetStdinReader(t *testing.T) {
 	}
 }
 
-// TestStdinReadMultipleLines tests reading multiple lines
+// TestStdinReadMultipleLines tests reading multiple lines.
 func TestStdinReadMultipleLines(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -312,7 +311,7 @@ func TestStdinReadMultipleLines(t *testing.T) {
 
 	lines := []string{"line 1", "line 2", "line 3"}
 	for _, line := range lines {
-		if _, err := io.WriteString(pw, line+"\n"); err != nil {
+		if _, err := pw.WriteString(line + "\n"); err != nil {
 			t.Fatalf("write to pipe error: %v", err)
 		}
 	}
@@ -331,7 +330,7 @@ func TestStdinReadMultipleLines(t *testing.T) {
 	})
 }
 
-// TestStdinReadUnicode tests reading Unicode content
+// TestStdinReadUnicode tests reading Unicode content.
 func TestStdinReadUnicode(t *testing.T) {
 	r := &Runtime{}
 	thread := &starlark.Thread{Name: "test"}
@@ -344,7 +343,7 @@ func TestStdinReadUnicode(t *testing.T) {
 	defer pr.Close()
 
 	data := "Hello, 世界! 🌍\n"
-	if _, err := io.WriteString(pw, data); err != nil {
+	if _, err := pw.WriteString(data); err != nil {
 		t.Fatalf("write to pipe error: %v", err)
 	}
 	pw.Close()

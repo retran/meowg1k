@@ -1,6 +1,7 @@
 # Contributing to meowg1k
 
-Thank you for your interest in contributing to meowg1k! This guide will help you get started with development and submitting contributions.
+Thank you for your interest in contributing to meowg1k! This guide will help you get started with development and
+submitting contributions.
 
 ## Table of Contents
 
@@ -16,7 +17,8 @@ Thank you for your interest in contributing to meowg1k! This guide will help you
 
 ## Code of Conduct
 
-This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing.
+This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. Please read
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing.
 
 ## Getting Started
 
@@ -32,11 +34,14 @@ This project adheres to a Code of Conduct. By participating, you are expected to
 
 1. Fork the repository on GitHub
 2. Clone your fork:
+
    ```bash
    git clone https://github.com/YOUR_USERNAME/meowg1k.git
    cd meowg1k
    ```
+
 3. Add upstream remote:
+
    ```bash
    git remote add upstream https://github.com/retran/meowg1k.git
    ```
@@ -52,6 +57,7 @@ task dev:setup
 ```
 
 This will:
+
 - Install Go dependencies
 - Install development tools (golangci-lint, pre-commit, etc.)
 - Set up git hooks
@@ -89,6 +95,7 @@ git checkout -b feature/your-feature-name
 ```
 
 Branch naming conventions:
+
 - `feature/` - New features
 - `fix/` - Bug fixes
 - `refactor/` - Code refactoring
@@ -141,6 +148,7 @@ task ci:local
 ```
 
 This runs:
+
 - Linting (golangci-lint with 30+ linters)
 - Security checks (gosec, govulncheck)
 - Unit tests
@@ -202,6 +210,7 @@ task test:watch
 1. **Test one thing per test**: Keep tests focused
 2. **Use descriptive names**: `TestServiceCreateUser_WithInvalidEmail_ReturnsError`
 3. **Follow Arrange-Act-Assert pattern**:
+
    ```go
    func TestExample(t *testing.T) {
        // Arrange
@@ -215,7 +224,9 @@ task test:watch
        assert.Equal(t, expected, result)
    }
    ```
+
 4. **Use table-driven tests** for multiple scenarios:
+
    ```go
    func TestParseInput(t *testing.T) {
        tests := []struct {
@@ -298,6 +309,7 @@ meowg1k follows **Hexagonal Architecture** (Ports & Adapters):
 - **CMD Layer** (`cmd/`): CLI commands
 
 When adding new features:
+
 1. Define domain types in `internal/domain/`
 2. Define port interfaces in `internal/ports/`
 3. Implement business logic in `internal/core/`
@@ -312,7 +324,7 @@ We follow **Conventional Commits** specification:
 
 ### Format
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -336,6 +348,7 @@ We follow **Conventional Commits** specification:
 ### Scope (optional)
 
 The scope indicates what part of the codebase is affected:
+
 - `starlark`: Starlark runtime or modules
 - `gateway`: LLM gateway adapters
 - `index`: RAG indexing system
@@ -346,7 +359,7 @@ The scope indicates what part of the codebase is affected:
 
 ### Examples
 
-```
+```text
 feat(starlark): add http module for REST API calls
 
 Implements new http module with request/response handling,
@@ -355,7 +368,7 @@ support for REST and GraphQL queries, and automatic JSON parsing.
 Closes #123
 ```
 
-```
+```text
 fix(gateway): handle nil pointer in anthropic adapter
 
 Add nil check before dereferencing response pointer to prevent
@@ -364,7 +377,7 @@ panic when API returns empty response.
 Fixes #456
 ```
 
-```
+```text
 docs: update API reference with template module examples
 ```
 
@@ -372,7 +385,7 @@ docs: update API reference with template module examples
 
 If your change breaks backward compatibility, add `BREAKING CHANGE:` in the footer:
 
-```
+```text
 feat(starlark): rename fs.getcwd() to fs.cwd()
 
 BREAKING CHANGE: fs.getcwd() has been renamed to fs.cwd() for consistency.
@@ -429,22 +442,28 @@ Use this checklist in your PR description:
 Your PR will trigger the following CI checks:
 
 **Stage 1: Fast Lint** (~1 min)
+
 - Essential linters: gofmt, goimports, govet, errcheck, staticcheck
 
 **Stage 2: Full Lint** (~3 min)
+
 - All 30+ linters
 - Markdown and YAML linting
 
 **Stage 3: Security Scan** (~2 min)
+
 - gosec, govulncheck, gitleaks
 
 **Stage 4: Unit Tests** (~5 min)
+
 - Ubuntu, macOS, Windows
 
 **Stage 5: Integration Tests** (~3 min)
+
 - End-to-end command testing
 
 **Stage 6: Build Matrix** (~4 min)
+
 - Cross-compile for 6 platforms
 
 All stages must pass before merge.
@@ -461,6 +480,7 @@ All stages must pass before merge.
 ### For Reviewers
 
 Review for:
+
 1. **Correctness**: Does the code work as intended?
 2. **Tests**: Are there adequate tests with good coverage?
 3. **Architecture**: Does it follow hexagonal architecture patterns?
@@ -486,8 +506,9 @@ Review for:
 
 ## License
 
-By contributing to meowg1k, you agree that your contributions will be licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+By contributing to meowg1k, you agree that your contributions will be licensed under the Apache License 2.0.
+See [LICENSE](LICENSE) for details.
 
 ---
 
-**Thank you for contributing to meowg1k!** 🎉
+**Thank you for contributing to meowg1k!**

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -15,8 +15,8 @@ import (
 
 // CreateRunFunction creates a ctx.run() function that allows calling other commands.
 // parentSession is the session of the current context (can be nil if no session).
-func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *session.Session, depth int) *starlark.Builtin {
-	return starlark.NewBuiltin("run", func(thread *starlark.Thread, fn *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *session.Session, depth int) *starlark.Builtin { //nolint:gocognit,gocyclo,funlen // complexity inherent in recursive agentic run dispatch
+	return starlark.NewBuiltin("run", func(thread *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if len(args) == 0 {
 			return nil, fmt.Errorf("run() requires command name or tool object as first argument")
 		}
@@ -25,7 +25,7 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 		var cmd *Command
 		var exists bool
 
-		if toolValue, ok := args[0].(*ToolValue); ok {
+		if toolValue, ok := args[0].(*ToolValue); ok { //nolint:nestif // nested checks required to resolve tool vs string command name
 			commandName = toolValue.Tool.Name
 			cmd, exists = registry.Get(commandName)
 			if !exists {
@@ -54,9 +54,9 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 			// Mark session as completed or failed after execution
 			defer func() {
 				if handlerErr != nil {
-					_ = sessionService.FailSession(context.Background(), childSession.ID)
+					_ = sessionService.FailSession(context.Background(), childSession.ID) //nolint:errcheck // best-effort session state update
 				} else {
-					_ = sessionService.CompleteSession(context.Background(), childSession.ID)
+					_ = sessionService.CompleteSession(context.Background(), childSession.ID) //nolint:errcheck // best-effort session state update
 				}
 			}()
 		}
@@ -71,11 +71,11 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 				value = convertGoValueToStarlark(flagDef.Default)
 			} else {
 				switch flagDef.Type {
-				case "bool":
+				case paramTypeBool:
 					value = starlark.False
-				case "int":
+				case paramTypeInt:
 					value = starlark.MakeInt(0)
-				case "float":
+				case paramTypeFloat:
 					value = starlark.Float(0.0)
 				default:
 					value = starlark.String("")
@@ -189,7 +189,7 @@ func CreateRunFunction(registry *Registry, runtime *Runtime, parentSession *sess
 	})
 }
 
-// convertGoValueToStarlark converts Go value to Starlark value
+// convertGoValueToStarlark converts Go value to Starlark value.
 func convertGoValueToStarlark(v any) starlark.Value {
 	if v == nil {
 		return starlark.None

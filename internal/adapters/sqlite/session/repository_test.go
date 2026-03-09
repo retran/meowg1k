@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package session
@@ -217,7 +217,7 @@ func TestRepository_ListSessions(t *testing.T) {
 
 	// Filter by tool name
 	toolNameA := "tool-a"
-	filtered, err := repo.ListSessions(ctx, &session.SessionFilter{
+	filtered, err := repo.ListSessions(ctx, &session.Filter{
 		ToolName: &toolNameA,
 	})
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestRepository_ListSessions(t *testing.T) {
 
 	// Filter by status
 	statusCompleted := session.SessionStatusCompleted
-	filtered, err = repo.ListSessions(ctx, &session.SessionFilter{
+	filtered, err = repo.ListSessions(ctx, &session.Filter{
 		Status: &statusCompleted,
 	})
 	require.NoError(t, err)
@@ -233,7 +233,7 @@ func TestRepository_ListSessions(t *testing.T) {
 	assert.Equal(t, "session-2", filtered[0].ID)
 
 	// Limit results
-	limited, err := repo.ListSessions(ctx, &session.SessionFilter{
+	limited, err := repo.ListSessions(ctx, &session.Filter{
 		Limit: 2,
 	})
 	require.NoError(t, err)

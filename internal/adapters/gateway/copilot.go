@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,9 +33,13 @@ const (
 	defaultCopilotUserAgent           = "GithubCopilot/1.155.0"
 	defaultCopilotIntegrationID       = "vscode-chat"
 	defaultCopilotOpenAIOrganization  = "github-copilot"
-
-	copilotAPITokenURL = "https://api.github.com/copilot_internal/v2/token"
+	copilotRoleUser                   = "user"
+	schemeHTTPS                       = "https"
 )
+
+// copilotGitHubAPIEndpoint is the GitHub API endpoint for exchanging OAuth tokens
+// for ephemeral Copilot API credentials.
+const copilotGitHubAPIEndpoint = "https://api.github.com/copilot_internal/v2/token"
 
 // copilotGateway implements gateway interfaces for GitHub Copilot API.
 type copilotGateway struct {
@@ -57,6 +62,7 @@ type copilotGateway struct {
 
 // copilotGatewayOptions holds all configurable parameters for creating a Copilot gateway.
 type copilotGatewayOptions struct {
+	HTTPClient          *http.Client
 	BaseURL             string
 	AppID               string
 	EditorVersion       string
@@ -64,7 +70,6 @@ type copilotGatewayOptions struct {
 	UserAgent           string
 	IntegrationID       string
 	OpenAIOrganization  string
-	HTTPClient          *http.Client
 }
 
 func orDefault(value, fallback string) string {
@@ -77,12 +82,15 @@ func orDefault(value, fallback string) string {
 // newCopilotGateway creates a new GitHub Copilot gateway.
 // It loads the GitHub OAuth token from disk (running the device flow if absent),
 // then generates stable session/machine IDs.
-func newCopilotGateway(ctx context.Context, opts copilotGatewayOptions) (ports.GenerationGateway, error) {
+func newCopilotGateway(ctx context.Context, opts *copilotGatewayOptions) (ports.GenerationGateway, error) {
 	if opts.HTTPClient == nil {
 		return nil, fmt.Errorf("HTTP client is required for GitHub Copilot gateway")
 	}
 
 	baseURL := orDefault(opts.BaseURL, "https://api.githubcopilot.com")
+	if parsed, parseErr := url.ParseRequestURI(baseURL); parseErr != nil || (parsed.Scheme != schemeHTTPS && parsed.Scheme != "http") {
+		return nil, fmt.Errorf("invalid GitHub Copilot base URL %q: must be a valid http/https URL", baseURL)
+	}
 	appID := orDefault(opts.AppID, defaultCopilotAppID)
 	editorVersion := orDefault(opts.EditorVersion, defaultCopilotEditorVersion)
 	editorPluginVersion := orDefault(opts.EditorPluginVersion, defaultCopilotEditorPluginVersion)
@@ -98,10 +106,7 @@ func newCopilotGateway(ctx context.Context, opts copilotGatewayOptions) (ports.G
 	tokenFile := filepath.Join(homeDir, ".config", "meowg1k", "copilot_token")
 
 	// Generate stable machine ID: SHA256 of hostname.
-	machineID, err := generateMachineID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate machine ID: %w", err)
-	}
+	machineID := generateMachineID()
 
 	// Generate stable-per-process session ID: uuid4 + unix milliseconds.
 	sessionID := fmt.Sprintf("%s%d", uuid.New().String(), time.Now().UnixMilli())
@@ -129,13 +134,13 @@ func newCopilotGateway(ctx context.Context, opts copilotGatewayOptions) (ports.G
 }
 
 // generateMachineID returns a SHA256 hex digest of the system hostname.
-func generateMachineID() (string, error) {
+func generateMachineID() string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "unknown"
 	}
 	sum := sha256.Sum256([]byte(hostname))
-	return fmt.Sprintf("%x", sum), nil
+	return fmt.Sprintf("%x", sum)
 }
 
 // loadOrAcquireGitHubToken loads the persisted GitHub token from disk.
@@ -164,18 +169,21 @@ func (g *copilotGateway) refreshTokenIfNeeded(ctx context.Context) error {
 		return nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", copilotAPITokenURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", copilotGitHubAPIEndpoint, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create token exchange request: %w", err)
+	}
+	if req.URL.Scheme != schemeHTTPS {
+		return fmt.Errorf("refusing to send token request to non-HTTPS URL %q", req.URL.String())
 	}
 	g.setEditorHeaders(req)
 	req.Header.Set("Authorization", "token "+g.githubToken)
 
-	resp, err := g.client.Do(req)
+	resp, err := g.client.Do(req) // URL is the hardcoded copilotGitHubAPIEndpoint constant, SSRF not applicable.
 	if err != nil {
 		return fmt.Errorf("token exchange request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // defer close errors are not critical
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -240,7 +248,7 @@ func isAgentRequest(request *gateway.GenerateContentRequest) bool {
 // turn (i.e. an assistant continuation or tool result), signalling an agentic exchange
 // to the Copilot API via the x-initiator header.
 func (g *copilotGateway) buildRequestHeaders(isAgent bool) map[string]string {
-	initiator := "user"
+	initiator := copilotRoleUser
 	if isAgent {
 		initiator = "agent"
 	}
@@ -322,12 +330,12 @@ type copilotResponse struct {
 		Type    string `json:"type"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
-	Choices []copilotChoice `json:"choices"`
-	Usage   *struct {
+	Usage *struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage,omitempty"`
+	Choices []copilotChoice `json:"choices"`
 }
 
 // Streaming response structures.
@@ -338,8 +346,8 @@ type copilotStreamDelta struct {
 }
 
 type copilotStreamChoice struct {
-	Delta        copilotStreamDelta `json:"delta"`
 	FinishReason *string            `json:"finish_reason"`
+	Delta        copilotStreamDelta `json:"delta"`
 }
 
 type copilotStreamChunk struct {
@@ -348,12 +356,12 @@ type copilotStreamChunk struct {
 		Type    string `json:"type"`
 		Code    string `json:"code"`
 	} `json:"error,omitempty"`
-	Choices []copilotStreamChoice `json:"choices"`
-	Usage   *struct {
+	Usage *struct {
 		PromptTokens     int `json:"prompt_tokens"`
 		CompletionTokens int `json:"completion_tokens"`
 		TotalTokens      int `json:"total_tokens"`
 	} `json:"usage,omitempty"`
+	Choices []copilotStreamChoice `json:"choices"`
 }
 
 // GenerateContent sends a content generation request to GitHub Copilot API.
@@ -369,41 +377,57 @@ func (g *copilotGateway) GenerateContent(
 	}
 
 	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) (*gateway.GenerateContentResponse, error) {
-		if err := g.refreshTokenIfNeeded(ctx); err != nil {
-			return nil, fmt.Errorf("failed to refresh Copilot token: %w", err)
-		}
-
-		messages := buildCopilotMessages(request)
-		reqBody := buildCopilotRequest(request, messages, false)
-		if tools := request.Tools(); len(tools) > 0 {
-			toolList := buildCopilotTools(tools)
-			if len(toolList) > 0 {
-				reqBody.Tools = &toolList
-			}
-			reqBody.ToolChoice = stringPtr("auto")
-		}
-
-		jsonData, err := json.Marshal(reqBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request: %w", err)
-		}
-
-		httpReq, err := http.NewRequestWithContext(ctx, "POST", g.baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
-		if err != nil {
-			return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-		}
-		for k, v := range g.buildRequestHeaders(isAgentRequest(request)) {
-			httpReq.Header.Set(k, v)
-		}
-
-		resp, err := g.client.Do(httpReq)
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = resp.Body.Close() }() //nolint:errcheck
-
-		return parseCopilotResponse(resp)
+		return g.doGenerateContent(ctx, request)
 	}, fmt.Sprintf("GitHub Copilot GenerateContent for model %q", request.Model()))
+}
+
+// doGenerateContent performs a single (non-retried) generation request.
+func (g *copilotGateway) doGenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
+	if err := g.refreshTokenIfNeeded(ctx); err != nil {
+		return nil, fmt.Errorf("failed to refresh Copilot token: %w", err)
+	}
+
+	httpReq, err := g.buildCopilotHTTPRequest(ctx, request, false)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := g.client.Do(httpReq) // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
+	if err != nil {
+		return nil, fmt.Errorf("HTTP request to GitHub Copilot API failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // defer close errors are not critical
+
+	return parseCopilotResponse(resp)
+}
+
+// buildCopilotHTTPRequest constructs the HTTP request for chat completions.
+func (g *copilotGateway) buildCopilotHTTPRequest(ctx context.Context, request *gateway.GenerateContentRequest, stream bool) (*http.Request, error) {
+	messages := buildCopilotMessages(request)
+	reqBody := buildCopilotRequest(request, messages, stream)
+	if tools := request.Tools(); len(tools) > 0 {
+		if toolList := buildCopilotTools(tools); len(toolList) > 0 {
+			reqBody.Tools = &toolList
+		}
+		reqBody.ToolChoice = stringPtr("auto")
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	if httpReq.URL.Scheme != schemeHTTPS && httpReq.URL.Scheme != "http" {
+		return nil, fmt.Errorf("refusing to send request to non-HTTP URL scheme %q", httpReq.URL.Scheme)
+	}
+	for k, v := range g.buildRequestHeaders(isAgentRequest(request)) {
+		httpReq.Header.Set(k, v)
+	}
+	return httpReq, nil
 }
 
 // GenerateContentStream implements streaming for GitHub Copilot using native SSE streaming.
@@ -420,60 +444,53 @@ func (g *copilotGateway) GenerateContentStream(
 	}
 
 	if err := g.refreshTokenIfNeeded(ctx); err != nil {
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
-		}
+		notifyStreamError(callback, err)
 		return nil, fmt.Errorf("failed to refresh Copilot token: %w", err)
 	}
 
-	messages := buildCopilotMessages(request)
-	reqBody := buildCopilotRequest(request, messages, true)
-	if tools := request.Tools(); len(tools) > 0 {
-		toolList := buildCopilotTools(tools)
-		if len(toolList) > 0 {
-			reqBody.Tools = &toolList
-		}
-		reqBody.ToolChoice = stringPtr("auto")
-	}
-
-	jsonData, err := json.Marshal(reqBody)
+	httpReq, err := g.buildCopilotHTTPRequest(ctx, request, true)
 	if err != nil {
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
-		}
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.baseURL+"/chat/completions", bytes.NewBuffer(jsonData))
-	if err != nil {
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
-		}
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-	for k, v := range g.buildRequestHeaders(isAgentRequest(request)) {
-		httpReq.Header.Set(k, v)
-	}
-
-	resp, err := g.client.Do(httpReq)
-	if err != nil {
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false})
-		}
+		notifyStreamError(callback, err)
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }() //nolint:errcheck
+
+	resp, err := g.client.Do(httpReq) // URL scheme is validated in buildCopilotHTTPRequest; SSRF not applicable.
+	if err != nil {
+		wrappedErr := fmt.Errorf("HTTP request to GitHub Copilot API failed: %w", err)
+		notifyStreamError(callback, wrappedErr)
+		return nil, wrappedErr
+	}
+	defer func() { _ = resp.Body.Close() }() //nolint:errcheck // defer close errors are not critical
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		streamErr := fmt.Errorf("GitHub Copilot API returned status %d: %s", resp.StatusCode, string(body))
-		if callback != nil {
-			_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: streamErr.Error(), Recoverable: false})
-		}
-		return nil, streamErr
+		return nil, g.handleStreamErrorStatus(resp, callback)
 	}
 
 	return parseCopilotStream(resp.Body, callback)
+}
+
+// notifyStreamError sends an error event to the callback if it is non-nil.
+// The callback return value is the only error returned; callers in an error
+// path should use the original error rather than this one.
+func notifyStreamError(callback gateway.StreamCallback, err error) {
+	if callback == nil {
+		return
+	}
+	// The callback error is secondary; the caller already has the primary error.
+	if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: err.Error(), Recoverable: false}); cbErr != nil {
+		_ = cbErr // secondary error; primary error takes precedence in the caller
+	}
+}
+
+// handleStreamErrorStatus reads the error body and returns a formatted error.
+func (g *copilotGateway) handleStreamErrorStatus(resp *http.Response, callback gateway.StreamCallback) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read error response body: %w", err)
+	}
+	streamErr := fmt.Errorf("GitHub Copilot API returned status %d: %s", resp.StatusCode, string(body))
+	notifyStreamError(callback, streamErr)
+	return streamErr
 }
 
 // parseCopilotStream reads the SSE stream and fires callback events.
@@ -484,27 +501,16 @@ func parseCopilotStream(body io.Reader, callback gateway.StreamCallback) (*gatew
 
 	scanner := bufio.NewScanner(body)
 	for scanner.Scan() {
-		line := scanner.Text()
-		if !strings.HasPrefix(line, "data: ") {
-			continue
+		chunk, done, err := parseCopilotSSELine(scanner.Text())
+		if err != nil {
+			notifyStreamError(callback, err)
+			return nil, err
 		}
-		data := strings.TrimPrefix(line, "data: ")
-		if data == "[DONE]" {
+		if done {
 			break
 		}
-
-		var chunk copilotStreamChunk
-		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-			continue // skip malformed chunks
-		}
-
-		if chunk.Error != nil {
-			streamErr := fmt.Errorf("GitHub Copilot stream error: %s (type: %s, code: %s)",
-				chunk.Error.Message, chunk.Error.Type, chunk.Error.Code)
-			if callback != nil {
-				_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: streamErr.Error(), Recoverable: false})
-			}
-			return nil, streamErr
+		if chunk == nil {
+			continue
 		}
 
 		if chunk.Usage != nil {
@@ -514,21 +520,8 @@ func parseCopilotStream(body io.Reader, callback gateway.StreamCallback) (*gatew
 				TotalTokens:      chunk.Usage.TotalTokens,
 			}
 		}
-
-		for _, choice := range chunk.Choices {
-			if choice.Delta.Content != "" {
-				fullContent.WriteString(choice.Delta.Content)
-				if callback != nil {
-					if err := callback(gateway.StreamEvent{
-						Kind:  gateway.StreamEventText,
-						Delta: choice.Delta.Content,
-					}); err != nil {
-						return nil, err
-					}
-				}
-			}
-			// Accumulate tool call deltas.
-			toolCallAccumulator = accumulateCopilotToolCalls(toolCallAccumulator, choice.Delta.ToolCalls)
+		if err := processCopilotChoices(chunk.Choices, &fullContent, &toolCallAccumulator, callback); err != nil {
+			return nil, err
 		}
 	}
 
@@ -536,7 +529,53 @@ func parseCopilotStream(body io.Reader, callback gateway.StreamCallback) (*gatew
 		return nil, fmt.Errorf("stream read error: %w", err)
 	}
 
-	// Build final response.
+	return buildCopilotStreamResponse(&fullContent, toolCallAccumulator, usage, callback)
+}
+
+// parseCopilotSSELine parses one SSE line and returns the chunk, a done flag, or an error.
+func parseCopilotSSELine(line string) (*copilotStreamChunk, bool, error) {
+	if !strings.HasPrefix(line, "data: ") {
+		return nil, false, nil
+	}
+	data := strings.TrimPrefix(line, "data: ")
+	if data == "[DONE]" {
+		return nil, true, nil
+	}
+
+	var chunk copilotStreamChunk
+	if !json.Valid([]byte(data)) {
+		// Skip malformed SSE chunks silently; the stream may contain non-JSON lines.
+		return nil, false, nil
+	}
+	// json.Valid already confirmed the data is valid JSON; unmarshal error here would be unexpected.
+	if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+		return nil, false, fmt.Errorf("failed to unmarshal GitHub Copilot stream chunk: %w", err)
+	}
+	if chunk.Error != nil {
+		return nil, false, fmt.Errorf("GitHub Copilot stream error: %s (type: %s, code: %s)",
+			chunk.Error.Message, chunk.Error.Type, chunk.Error.Code)
+	}
+	return &chunk, false, nil
+}
+
+// processCopilotChoices processes choices from a stream chunk, updating accumulators.
+func processCopilotChoices(choices []copilotStreamChoice, fullContent *strings.Builder, acc *[]copilotToolCall, callback gateway.StreamCallback) error {
+	for _, choice := range choices {
+		if choice.Delta.Content != "" {
+			fullContent.WriteString(choice.Delta.Content)
+			if callback != nil {
+				if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: choice.Delta.Content}); err != nil {
+					return err
+				}
+			}
+		}
+		*acc = accumulateCopilotToolCalls(*acc, choice.Delta.ToolCalls)
+	}
+	return nil
+}
+
+// buildCopilotStreamResponse constructs the final GenerateContentResponse from accumulated data.
+func buildCopilotStreamResponse(fullContent *strings.Builder, toolCallAccumulator []copilotToolCall, usage *gateway.UsageMetadata, callback gateway.StreamCallback) (*gateway.GenerateContentResponse, error) {
 	blocks := make([]gateway.ContentBlock, 0)
 	if content := fullContent.String(); content != "" {
 		blocks = append(blocks, gateway.ContentBlock{Kind: gateway.ContentBlockText, Text: content})
@@ -552,13 +591,11 @@ func parseCopilotStream(body io.Reader, callback gateway.StreamCallback) (*gatew
 	}
 
 	finalResp := &gateway.GenerateContentResponse{Blocks: blocks, Usage: usage}
-
 	if callback != nil {
 		if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: usage}); err != nil {
 			return finalResp, err
 		}
 	}
-
 	return finalResp, nil
 }
 
@@ -589,20 +626,26 @@ func accumulateCopilotToolCalls(acc []copilotToolCall, deltas []copilotToolCall)
 }
 
 func buildCopilotMessages(request *gateway.GenerateContentRequest) []copilotMessage {
-	msgs := request.Messages()
-	if len(msgs) > 0 {
-		mapped := make([]copilotMessage, 0, len(msgs))
-		for i := range msgs {
-			mapped = append(mapped, mapToCopilotMessage(&msgs[i]))
-		}
-		return mapped
+	if msgs := request.Messages(); len(msgs) > 0 {
+		return mapCopilotMessageHistory(msgs)
 	}
+	return buildCopilotSimplePrompt(request)
+}
 
-	messages := []copilotMessage{}
-	if request.SystemPrompt() != "" {
-		messages = append(messages, copilotMessage{Role: "system", Content: request.SystemPrompt()})
+func mapCopilotMessageHistory(msgs []gateway.Message) []copilotMessage {
+	mapped := make([]copilotMessage, 0, len(msgs))
+	for i := range msgs {
+		mapped = append(mapped, mapToCopilotMessage(&msgs[i]))
 	}
-	messages = append(messages, copilotMessage{Role: "user", Content: request.UserPrompt()})
+	return mapped
+}
+
+func buildCopilotSimplePrompt(request *gateway.GenerateContentRequest) []copilotMessage {
+	messages := make([]copilotMessage, 0, 2)
+	if sp := request.SystemPrompt(); sp != "" {
+		messages = append(messages, copilotMessage{Role: "system", Content: sp})
+	}
+	messages = append(messages, copilotMessage{Role: copilotRoleUser, Content: request.UserPrompt()})
 	return messages
 }
 

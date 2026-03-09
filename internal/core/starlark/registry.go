@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -14,58 +14,58 @@ import (
 
 // Param represents a tool parameter definition.
 type Param struct {
-	Type          string // "string", "bool", "int", "float"
 	Default       any
-	Short         string // short flag name
-	Description   string
-	Required      bool
-	FromStdin     bool // if true, read from stdin when parameter is empty
-	Choices       []any
-	Pattern       string
 	PatternRegex  *regexp.Regexp
-	Min           *float64
-	Max           *float64
-	MinLen        *int
-	MaxLen        *int
-	ValidatorTool *Tool
 	ValidatorFunc *starlark.Function
+	ValidatorTool *Tool
+	MaxLen        *int
+	MinLen        *int
+	Max           *float64
+	Min           *float64
+	Description   string
+	Pattern       string
+	Type          string
+	Short         string
+	Choices       []any
+	FromStdin     bool
+	Required      bool
 }
 
 // Tool represents a reusable tool that can be called from CLI or other tools.
 type Tool struct {
-	Name        string
-	Description string
 	Params      map[string]*Param
 	Handler     *starlark.Function
+	Name        string
+	Description string
 }
 
 // Command represents a registered CLI command.
 // Commands are now generated from Tools.
 type Command struct {
-	Name            string
-	Description     string // Short description (for command list)
-	LongDescription string // Detailed help text (optional)
 	Handler         *starlark.Function
 	Flags           map[string]*FlagDef
 	Args            map[string]*ArgDef
-	Tool            *Tool // Reference to underlying tool (if created from tool)
+	Tool            *Tool
+	Name            string
+	Description     string
+	LongDescription string
 }
 
 // FlagDef defines a command-line flag.
 type FlagDef struct {
-	Short       string
-	Type        string // "string", "bool", "int"
 	Default     any
-	Required    bool
-	FromStdin   bool // if true, stdin can satisfy a required value
+	Short       string
+	Type        string
 	Description string
+	Required    bool
+	FromStdin   bool
 }
 
 // ArgDef defines a positional argument.
 type ArgDef struct {
-	Index       int
 	Default     any
 	Description string
+	Index       int
 }
 
 // Registry stores registered commands and tools.
@@ -188,11 +188,11 @@ func (r *Registry) CommandFromTool(tool *Tool, nameOverride string) (*Command, e
 // buildFlagDescription creates a comprehensive flag description
 // that includes the base description plus additional metadata like choices,
 // default values, and constraints.
-func buildFlagDescription(param *Param) string {
+func buildFlagDescription(param *Param) string { //nolint:gocognit,gocyclo // complexity inherent in building descriptive flag help with all constraints
 	desc := param.Description
 
 	// Add choices information if available and not already mentioned in description
-	if len(param.Choices) > 0 {
+	if len(param.Choices) > 0 { //nolint:nestif // nested check to avoid duplicating choice info already in description
 		// Only add "Possible values" if description doesn't already list them
 		hasChoicesInDesc := false
 		for _, choice := range param.Choices {
@@ -215,22 +215,24 @@ func buildFlagDescription(param *Param) string {
 
 	// Add range constraints for numeric types
 	if param.Min != nil || param.Max != nil {
-		if param.Min != nil && param.Max != nil {
+		switch {
+		case param.Min != nil && param.Max != nil:
 			desc += fmt.Sprintf("\nRange: [%v, %v]", *param.Min, *param.Max)
-		} else if param.Min != nil {
+		case param.Min != nil:
 			desc += fmt.Sprintf("\nMinimum: %v", *param.Min)
-		} else if param.Max != nil {
+		case param.Max != nil:
 			desc += fmt.Sprintf("\nMaximum: %v", *param.Max)
 		}
 	}
 
 	// Add length constraints for strings
 	if param.MinLen != nil || param.MaxLen != nil {
-		if param.MinLen != nil && param.MaxLen != nil {
+		switch {
+		case param.MinLen != nil && param.MaxLen != nil:
 			desc += fmt.Sprintf("\nLength: [%d, %d]", *param.MinLen, *param.MaxLen)
-		} else if param.MinLen != nil {
+		case param.MinLen != nil:
 			desc += fmt.Sprintf("\nMinimum length: %d", *param.MinLen)
-		} else if param.MaxLen != nil {
+		case param.MaxLen != nil:
 			desc += fmt.Sprintf("\nMaximum length: %d", *param.MaxLen)
 		}
 	}
@@ -248,26 +250,26 @@ func buildFlagDescription(param *Param) string {
 	return desc
 }
 
-// ToolSchema represents an LLM tool definition (OpenAI/Gemini format)
+// ToolSchema represents an LLM tool definition (OpenAI/Gemini format).
 type ToolSchema struct {
+	Parameters  map[string]interface{} `json:"parameters"`
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
 }
 
-// GenerateToolSchema generates an LLM tool schema for a tool
-func (t *Tool) GenerateToolSchema() ToolSchema {
+// GenerateToolSchema generates an LLM tool schema for a tool.
+func (t *Tool) GenerateToolSchema() ToolSchema { //nolint:gocognit // complexity inherent in generating schema for all parameter types and constraints
 	properties := make(map[string]interface{})
 	required := make([]string, 0)
 
 	for paramName, param := range t.Params {
 		paramType := param.Type
 		switch paramType {
-		case "int":
+		case paramTypeInt:
 			paramType = "integer"
-		case "bool":
+		case paramTypeBool:
 			paramType = "boolean"
-		case "float":
+		case paramTypeFloat:
 			paramType = "number"
 		}
 
@@ -318,7 +320,7 @@ func (t *Tool) GenerateToolSchema() ToolSchema {
 	}
 }
 
-// GenerateAllToolSchemas generates LLM schemas for all registered tools
+// GenerateAllToolSchemas generates LLM schemas for all registered tools.
 func (r *Registry) GenerateAllToolSchemas() []ToolSchema {
 	schemas := make([]ToolSchema, 0, len(r.tools))
 	for _, tool := range r.tools {

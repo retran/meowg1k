@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package progress
@@ -19,29 +19,30 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 // TTYLogger provides rich progress logging with spinners and progress bars.
 type TTYLogger struct {
 	writer   *uilive.Writer
-	mu       sync.Mutex
 	spinner  *spinnerState
 	progress *progressState
+	err      error
 	buffer   strings.Builder
+	mu       sync.Mutex
 }
 
 type spinnerState struct {
-	active  bool
-	message string
-	frame   int
 	ticker  *time.Ticker
 	done    chan bool
+	message string
+	frame   int
+	active  bool
 }
 
 type progressState struct {
-	active  bool
-	label   string
-	total   int
-	current int
-	detail  string
-	frame   int
 	ticker  *time.Ticker
 	done    chan bool
+	label   string
+	detail  string
+	total   int
+	current int
+	frame   int
+	active  bool
 }
 
 // NewTTYLogger creates a new TTY logger with uilive.
@@ -54,81 +55,91 @@ func NewTTYLogger(writer io.Writer) *TTYLogger {
 	}
 }
 
+// Thought logs an agent thought message.
 func (l *TTYLogger) Thought(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("Thought: %s", message))
+	l.writeLineUnsafe(fmt.Sprintf("Thought: %s", message))
 }
 
+// Action logs an agent tool invocation and starts a spinner.
 func (l *TTYLogger) Action(tool string, args string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("Action: %s(%s)", tool, args))
+	l.writeLineUnsafe(fmt.Sprintf("Action: %s(%s)", tool, args))
 	l.startSpinnerUnsafe("  ...")
 }
 
+// ActionResult logs the result of an agent tool invocation.
 func (l *TTYLogger) ActionResult(success bool, message string, duration time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	symbol := "✓"
+	symbol := symbolSuccess
 	if !success {
-		symbol = "✗"
+		symbol = symbolFailure
 	}
-	l.writeLine(fmt.Sprintf("  %s %s (%.2fs)", symbol, message, duration.Seconds()))
+	l.writeLineUnsafe(fmt.Sprintf("  %s %s (%.2fs)", symbol, message, duration.Seconds()))
 }
 
+// StartOperation logs the beginning of a named operation and starts a spinner.
 func (l *TTYLogger) StartOperation(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(message)
+	l.writeLineUnsafe(message)
 	l.startSpinnerUnsafe("  ...")
 }
 
+// CompleteOperation logs the completion of a named operation with its duration.
 func (l *TTYLogger) CompleteOperation(message string, duration time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("  ✓ %s (%.2fs)", message, duration.Seconds()))
+	l.writeLineUnsafe(fmt.Sprintf("  %s %s (%.2fs)", symbolSuccess, message, duration.Seconds()))
 }
 
+// Info logs an informational message.
 func (l *TTYLogger) Info(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(message)
+	l.writeLineUnsafe(message)
 }
 
+// Success logs a success message.
 func (l *TTYLogger) Success(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("✓ %s", message))
+	l.writeLineUnsafe(fmt.Sprintf("%s %s", symbolSuccess, message))
 }
 
+// Warning logs a warning message.
 func (l *TTYLogger) Warning(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("Warning: %s", message))
+	l.writeLineUnsafe(fmt.Sprintf("Warning: %s", message))
 }
 
+// Error logs an error message.
 func (l *TTYLogger) Error(err error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(fmt.Sprintf("✗ Error: %s", err.Error()))
+	l.writeLineUnsafe(fmt.Sprintf("%s Error: %s", symbolFailure, err.Error()))
 }
 
+// StartProgress starts an animated progress bar with a label and total count.
 func (l *TTYLogger) StartProgress(label string, total int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
 	l.stopProgressUnsafe()
-	l.writeLine(label)
+	l.writeLineUnsafe(label)
 	l.progress = &progressState{
 		active:  true,
 		label:   label,
@@ -157,6 +168,7 @@ func (l *TTYLogger) StartProgress(label string, total int) {
 	}()
 }
 
+// UpdateProgress updates the current progress count and item detail.
 func (l *TTYLogger) UpdateProgress(current int, itemDetail string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -168,44 +180,62 @@ func (l *TTYLogger) UpdateProgress(current int, itemDetail string) {
 	l.updateProgressDisplay()
 }
 
+// FinishProgress stops the progress bar and logs a completion message.
 func (l *TTYLogger) FinishProgress(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopProgressUnsafe()
-	l.flushUnsafe()
-	l.writeLine(fmt.Sprintf("  ✓ %s", message))
+	if err := l.flushUnsafe(); err != nil {
+		l.err = err
+		return
+	}
+	l.writeLineUnsafe(fmt.Sprintf("  %s %s", symbolSuccess, message))
 }
 
+// StartSpinner starts an animated spinner with a message.
 func (l *TTYLogger) StartSpinner(message string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	l.writeLine(message)
+	l.writeLineUnsafe(message)
 	l.startSpinnerUnsafe("  ...")
 }
 
+// StopSpinner stops the spinner and logs the final result.
 func (l *TTYLogger) StopSpinner(success bool, finalMessage string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
-	symbol := "✓"
+	symbol := symbolSuccess
 	if !success {
-		symbol = "✗"
+		symbol = symbolFailure
 	}
-	l.writeLine(fmt.Sprintf("  %s %s", symbol, finalMessage))
+	l.writeLineUnsafe(fmt.Sprintf("  %s %s", symbol, finalMessage))
 }
 
+// Flush flushes any buffered output to the terminal and returns any accumulated error.
 func (l *TTYLogger) Flush() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.err != nil {
+		err := l.err
+		l.err = nil
+		return err
+	}
 	return l.flushUnsafe()
 }
 
+// Close stops all active spinners and progress bars, flushes output, and stops the writer.
 func (l *TTYLogger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.stopSpinnerUnsafe()
 	l.stopProgressUnsafe()
+	if l.err != nil {
+		err := l.err
+		l.err = nil
+		return err
+	}
 	if err := l.flushUnsafe(); err != nil {
 		return err
 	}
@@ -213,21 +243,46 @@ func (l *TTYLogger) Close() error {
 	return nil
 }
 
-// Internal methods (must be called with lock held)
+// Internal methods (must be called with lock held).
 
-func (l *TTYLogger) writeLine(message string) {
-	fmt.Fprintln(&l.buffer, message)
-	l.flushUnsafe()
+func (l *TTYLogger) writeLineUnsafe(message string) {
+	if l.err != nil {
+		return
+	}
+	// strings.Builder.Write never returns an error, so Fprintln result is safe to ignore
+	l.buffer.WriteString(message)
+	l.buffer.WriteByte('\n')
+	if err := l.flushUnsafe(); err != nil {
+		l.err = err
+	}
 }
 
 func (l *TTYLogger) flushUnsafe() error {
 	if l.buffer.Len() > 0 {
 		if _, err := l.writer.Write([]byte(l.buffer.String())); err != nil {
-			return err
+			return fmt.Errorf("failed to write: %w", err)
 		}
 		l.buffer.Reset()
 	}
-	return l.writer.Flush()
+	if err := l.writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush: %w", err)
+	}
+	return nil
+}
+
+func (l *TTYLogger) tickSpinner() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.spinner == nil || !l.spinner.active {
+		return
+	}
+	l.spinner.frame = (l.spinner.frame + 1) % len(spinnerFrames)
+	frame := spinnerFrames[l.spinner.frame]
+	if _, err := fmt.Fprintf(l.writer, "%s %s\n", frame, l.spinner.message); err != nil {
+		l.err = fmt.Errorf("failed to write spinner: %w", err)
+	} else if err := l.writer.Flush(); err != nil {
+		l.err = fmt.Errorf("failed to flush: %w", err)
+	}
 }
 
 func (l *TTYLogger) startSpinnerUnsafe(message string) {
@@ -249,14 +304,7 @@ func (l *TTYLogger) startSpinnerUnsafe(message string) {
 			case <-l.spinner.done:
 				return
 			case <-l.spinner.ticker.C:
-				l.mu.Lock()
-				if l.spinner != nil && l.spinner.active {
-					l.spinner.frame = (l.spinner.frame + 1) % len(spinnerFrames)
-					frame := spinnerFrames[l.spinner.frame]
-					fmt.Fprintf(l.writer, "%s %s\n", frame, l.spinner.message)
-					l.writer.Flush()
-				}
-				l.mu.Unlock()
+				l.tickSpinner()
 			}
 		}
 	}()
@@ -273,7 +321,9 @@ func (l *TTYLogger) stopSpinnerUnsafe() {
 	l.spinner = nil
 
 	// Flush to clear the spinner
-	l.writer.Flush()
+	if err := l.writer.Flush(); err != nil {
+		l.err = err
+	}
 }
 
 func (l *TTYLogger) stopProgressUnsafe() {
@@ -287,7 +337,9 @@ func (l *TTYLogger) stopProgressUnsafe() {
 	l.progress = nil
 
 	// Flush to clear the progress bar
-	l.writer.Flush()
+	if err := l.writer.Flush(); err != nil {
+		l.err = err
+	}
 }
 
 func (l *TTYLogger) updateProgressDisplay() {
@@ -313,6 +365,11 @@ func (l *TTYLogger) updateProgressDisplay() {
 		display += fmt.Sprintf("\n  %s %s", frame, l.progress.detail)
 	}
 
-	fmt.Fprintf(l.writer, "%s\n", display)
-	l.writer.Flush()
+	if _, err := fmt.Fprintf(l.writer, "%s\n", display); err != nil {
+		l.err = fmt.Errorf("failed to write progress: %w", err)
+		return
+	}
+	if err := l.writer.Flush(); err != nil {
+		l.err = fmt.Errorf("failed to flush: %w", err)
+	}
 }

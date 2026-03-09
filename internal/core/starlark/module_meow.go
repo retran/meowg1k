@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -25,7 +25,7 @@ func (r *Runtime) createMeowModule() starlark.Value {
 }
 
 // meowProvider registers a provider configuration.
-func (r *Runtime) meowProvider(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) meowProvider(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo // complexity inherent in parsing and validating provider configuration
 	if args.Len() != 1 {
 		return nil, fmt.Errorf("provider: expected 1 positional argument, got %d", args.Len())
 	}
@@ -40,7 +40,11 @@ func (r *Runtime) meowProvider(thread *starlark.Thread, b *starlark.Builtin, arg
 	}
 
 	for _, kv := range kwargs {
-		key := string(kv[0].(starlark.String))
+		keyStr, ok := kv[0].(starlark.String)
+		if !ok {
+			continue
+		}
+		key := string(keyStr)
 		switch key {
 		case "type":
 			if s, ok := kv[1].(starlark.String); ok {
@@ -98,7 +102,7 @@ func (r *Runtime) meowProvider(thread *starlark.Thread, b *starlark.Builtin, arg
 }
 
 // meowModel registers a model configuration.
-func (r *Runtime) meowModel(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) meowModel(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo // complexity inherent in parsing and validating model configuration
 	if args.Len() != 1 {
 		return nil, fmt.Errorf("model: expected 1 positional argument, got %d", args.Len())
 	}
@@ -114,7 +118,11 @@ func (r *Runtime) meowModel(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	// Manually parse all kwargs, storing known ones and extras
 	for _, kv := range kwargs {
-		key := string(kv[0].(starlark.String))
+		keyStr, ok := kv[0].(starlark.String)
+		if !ok {
+			continue
+		}
+		key := string(keyStr)
 		switch key {
 		case "provider":
 			if s, ok := kv[1].(starlark.String); ok {
@@ -164,7 +172,7 @@ func (r *Runtime) meowModel(thread *starlark.Thread, b *starlark.Builtin, args s
 }
 
 // meowPreset registers a preset configuration.
-func (r *Runtime) meowPreset(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) meowPreset(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo // complexity inherent in parsing and validating preset configuration
 	if args.Len() != 1 {
 		return nil, fmt.Errorf("preset: expected 1 positional argument, got %d", args.Len())
 	}
@@ -179,7 +187,11 @@ func (r *Runtime) meowPreset(thread *starlark.Thread, b *starlark.Builtin, args 
 	}
 
 	for _, kv := range kwargs {
-		key := string(kv[0].(starlark.String))
+		keyStr, ok := kv[0].(starlark.String)
+		if !ok {
+			continue
+		}
+		key := string(keyStr)
 		switch key {
 		case "model":
 			if s, ok := kv[1].(starlark.String); ok {
@@ -227,7 +239,7 @@ func (r *Runtime) meowPreset(thread *starlark.Thread, b *starlark.Builtin, args 
 }
 
 // meowPresets returns a list of registered preset names.
-func (r *Runtime) meowPresets(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (r *Runtime) meowPresets(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
 	if args.Len() != 0 {
 		return nil, fmt.Errorf("presets: expected 0 arguments, got %d", args.Len())
 	}

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package output provides services for writing formatted output and progress feedback to the console.
@@ -30,18 +30,13 @@ import (
 // handled by TurnWriter.StreamToken (routes through the TUI StreamBlock).
 type Service struct {
 	destination io.Writer
+	cancel      func()
+	prog        *tui.Program
+	theme       ui.Theme
+	outputBuf   bytes.Buffer
 	plainOutput bool
 	noColor     bool
 	isTerminal  bool
-	cancel      func() // optional: called when user presses Ctrl+C in TUI
-
-	// outputBuf accumulates all ctx.output.write* calls.
-	// Flushed to destination when Flush() is called.
-	outputBuf bytes.Buffer
-
-	// prog is the BubbleTea program (TTY path only, lazily started).
-	prog  *tui.Program
-	theme ui.Theme
 }
 
 // NewService creates a new instance of the output service.
@@ -107,7 +102,10 @@ func (s *Service) Print(content string) error {
 		return fmt.Errorf("output service is nil")
 	}
 	_, err := fmt.Fprint(&s.outputBuf, content)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to write to output buffer: %w", err)
+	}
+	return nil
 }
 
 // PrintLine writes content followed by a newline into the output buffer.
@@ -116,7 +114,10 @@ func (s *Service) PrintLine(content string) error {
 		return fmt.Errorf("output service is nil")
 	}
 	_, err := fmt.Fprintln(&s.outputBuf, content)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to write line to output buffer: %w", err)
+	}
+	return nil
 }
 
 // Printf writes formatted content into the output buffer.
@@ -125,7 +126,10 @@ func (s *Service) Printf(format string, args ...any) error {
 		return fmt.Errorf("output service is nil")
 	}
 	_, err := fmt.Fprintf(&s.outputBuf, format, args...)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to write formatted content to output buffer: %w", err)
+	}
+	return nil
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +316,9 @@ func (s *Service) Flush() error {
 	}
 	if s.outputBuf.Len() > 0 {
 		_, err := io.Copy(s.destination, &s.outputBuf)
-		return err
+		if err != nil {
+			return fmt.Errorf("failed to flush output buffer: %w", err)
+		}
 	}
 	return nil
 }

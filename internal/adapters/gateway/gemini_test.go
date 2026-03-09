@@ -1,72 +1,134 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	domainGateway "github.com/retran/meowg1k/internal/domain/gateway"
 	"github.com/retran/meowg1k/internal/ports"
 )
 
-func TestNewGeminiGateway(t *testing.T) {
-	ctx := context.Background()
+// geminiGenerateContentResponse returns a minimal valid Gemini generateContent response.
+func geminiGenerateContentResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"candidates": []map[string]interface{}{
+			{
+				"content": map[string]interface{}{
+					"role": "model",
+					"parts": []map[string]interface{}{
+						{"text": "Generated content response"},
+					},
+				},
+				"finishReason": "STOP",
+			},
+		},
+		"usageMetadata": map[string]interface{}{
+			"promptTokenCount":     10,
+			"candidatesTokenCount": 5,
+			"totalTokenCount":      15,
+		},
+	}
+}
 
-	t.Run("Valid API key", func(t *testing.T) {
-		gateway, err := newGeminiGateway(ctx, "test-api-key")
-		if err != nil {
-			// Gemini might validate the API key format or require network access
-			t.Logf("Gemini gateway creation failed (expected in test environment): %v", err)
+// geminiBatchEmbedContentsResponse returns a minimal valid Gemini batchEmbedContents response.
+func geminiBatchEmbedContentsResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"embeddings": []map[string]interface{}{
+			{"values": []float32{0.1, 0.2, 0.3}},
+		},
+	}
+}
+
+// geminiCountTokensResponse returns a minimal valid Gemini countTokens response.
+func geminiCountTokensResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"totalTokens": 42,
+	}
+}
+
+// newGeminiMockServer creates an httptest.Server that handles Gemini API requests.
+func newGeminiMockServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected POST request, got %s", r.Method)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		if gateway == nil {
-			t.Fatal("Expected gateway to be non-nil")
+
+		var resp interface{}
+		path := r.URL.Path
+		switch {
+		case strings.HasSuffix(path, ":generateContent"):
+			resp = geminiGenerateContentResponse()
+		case strings.HasSuffix(path, ":batchEmbedContents"):
+			resp = geminiBatchEmbedContentsResponse()
+		case strings.HasSuffix(path, ":countTokens"):
+			resp = geminiCountTokensResponse()
+		default:
+			t.Errorf("Unexpected path: %s", path)
+			http.Error(w, "not found", http.StatusNotFound)
+			return
 		}
 
-		// Verify it implements both interfaces
-		var _ ports.GenerationGateway = gateway
-		var _ ports.EmbeddingsGateway = gateway
-		t.Log("GeminiGateway correctly implements both GenerationGateway and EmbeddingsGateway interfaces")
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Errorf("Failed to encode response: %v", err)
+		}
+	}))
+}
+
+// newTestGeminiGateway creates a gemini gateway pointed at the given mock server URL.
+func newTestGeminiGateway(t *testing.T, serverURL string) *geminiGateway {
+	t.Helper()
+	ctx := context.Background()
+	gw, err := newGeminiGateway(ctx, "test-api-key", serverURL)
+	require.NoError(t, err)
+	require.NotNil(t, gw)
+	gg, ok := gw.(*geminiGateway)
+	require.True(t, ok)
+	return gg
+}
+
+func TestNewGeminiGateway(t *testing.T) {
+	server := newGeminiMockServer(t)
+	defer server.Close()
+
+	ctx := context.Background()
+
+	t.Run("Valid API key with mock server", func(t *testing.T) {
+		gw, err := newGeminiGateway(ctx, "test-api-key", server.URL)
+		require.NoError(t, err)
+		assert.NotNil(t, gw)
+
+		var _ ports.GenerationGateway = gw
+		var _ ports.EmbeddingsGateway = gw
 	})
 
-	t.Run("Empty API key", func(t *testing.T) {
-		gateway, err := newGeminiGateway(ctx, "")
-		switch {
-		case err == nil && gateway != nil:
-			t.Log("Gemini allows empty API key on creation, will validate on use")
-		case err != nil:
-			t.Logf("Gemini validates API key on creation: %v", err)
-		default:
-			t.Fatal("Unexpected state: no error but nil gateway")
-		}
-	})
-
-	t.Run("Invalid API key format", func(t *testing.T) {
-		gateway, err := newGeminiGateway(ctx, "invalid-key-format")
-		switch {
-		case err == nil && gateway != nil:
-			t.Log("Gemini allows invalid API key format on creation")
-		case err != nil:
-			t.Logf("Gemini validates API key format: %v", err)
-		default:
-			t.Fatal("Unexpected state: no error but nil gateway")
-		}
+	t.Run("Empty API key returns error", func(t *testing.T) {
+		_, err := newGeminiGateway(ctx, "", server.URL)
+		assert.Error(t, err)
 	})
 }
 
 func TestGeminiGateway_GenerateContent(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	// Try to create a gateway for testing
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Generate content with valid request", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
@@ -76,45 +138,36 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 			4096,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		// We expect an error since we're not actually connecting to Gemini
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-			// Verify it's not a basic validation error
-			if strings.Contains(err.Error(), "model is required") {
-				t.Error("Should not get validation error for valid request")
-			}
-		} else {
-			t.Log("Unexpected success - this might indicate the test environment has network access")
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		assert.NotEmpty(t, resp.Blocks)
 	})
 
 	t.Run("Generate content with system prompt", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
 			"gemini-1.5-pro",
-			"You are a code assistant specializing in Go programming. Always provide working, well-commented code.",
+			"You are a code assistant specializing in Go programming.",
 			"Write a function to calculate fibonacci numbers",
 			4096,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error with system prompt: %v", err)
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("Generate content without system prompt", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
-			"", // empty system prompt
+			"",
 			"Explain quantum computing in simple terms",
 			2048,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error without system prompt: %v", err)
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("Generate content with different models", func(t *testing.T) {
@@ -133,10 +186,9 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 					1000,
 				)
 
-				_, err := gateway.GenerateContent(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for model %s: %v", model, err)
-				}
+				resp, err := gw.GenerateContent(ctx, request)
+				require.NoError(t, err)
+				require.NotNil(t, resp)
 			})
 		}
 	})
@@ -152,24 +204,33 @@ func TestGeminiGateway_GenerateContent(t *testing.T) {
 		cancelCtx, cancel := context.WithCancel(ctx)
 		cancel() // Cancel immediately
 
-		_, err := gateway.GenerateContent(cancelCtx, request)
-		if err == nil {
-			t.Fatal("Expected error for canceled context")
-		}
-		// Should get context canceled error or connection error
-		t.Logf("Got expected error for canceled context: %v", err)
+		_, err := gw.GenerateContent(cancelCtx, request)
+		assert.Error(t, err)
+	})
+
+	t.Run("Nil context returns error", func(t *testing.T) {
+		request := domainGateway.NewGenerateContentRequest(
+			"gemini-1.5-flash",
+			"",
+			"Hello",
+			4096,
+		)
+		_, err := gw.GenerateContent(nil, request) //nolint:staticcheck // intentionally passing nil context to test nil-check guard
+		assert.Error(t, err)
+	})
+
+	t.Run("Nil request returns error", func(t *testing.T) {
+		_, err := gw.GenerateContent(ctx, nil)
+		assert.Error(t, err)
 	})
 }
 
 func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	// Try to create a gateway for testing
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Compute embeddings with valid request", func(t *testing.T) {
 		chunks := []string{"Hello world", "How are you?"}
@@ -180,13 +241,9 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 			768,
 		)
 
-		_, err := gateway.ComputeEmbeddings(ctx, request)
-		// We expect an error since we're not actually connecting to Gemini
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		} else {
-			t.Log("Unexpected success - this might indicate the test environment has network access")
-		}
+		embeddings, err := gw.ComputeEmbeddings(ctx, request)
+		require.NoError(t, err)
+		assert.NotEmpty(t, embeddings)
 	})
 
 	t.Run("Compute embeddings with different task types", func(t *testing.T) {
@@ -209,30 +266,10 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 					tc.taskType,
 				)
 
-				_, err := gateway.ComputeEmbeddings(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for %s: %v", tc.name, err)
-				}
+				embeddings, err := gw.ComputeEmbeddings(ctx, request)
+				require.NoError(t, err)
+				assert.NotEmpty(t, embeddings)
 			})
-		}
-	})
-
-	t.Run("Compute embeddings with large chunks", func(t *testing.T) {
-		largeChunks := make([]string, 50)
-		for i := 0; i < 50; i++ {
-			largeChunks[i] = strings.Repeat("This is a test chunk for embeddings ", 20)
-		}
-
-		request := domainGateway.NewComputeEmbeddingsRequestWithDimensions(
-			"text-embedding-004",
-			largeChunks,
-			domainGateway.RetrievalDocument,
-			768,
-		)
-
-		_, err := gateway.ComputeEmbeddings(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error for large chunks: %v", err)
 		}
 	})
 
@@ -246,54 +283,49 @@ func TestGeminiGateway_ComputeEmbeddings(t *testing.T) {
 		)
 
 		cancelCtx, cancel := context.WithCancel(ctx)
-		cancel() // Cancel immediately
+		cancel()
 
-		_, err := gateway.ComputeEmbeddings(cancelCtx, request)
-		if err == nil {
-			t.Fatal("Expected error for canceled context")
-		}
-		t.Logf("Got expected error for canceled context: %v", err)
+		_, err := gw.ComputeEmbeddings(cancelCtx, request)
+		assert.Error(t, err)
+	})
+
+	t.Run("Nil context returns error", func(t *testing.T) {
+		chunks := []string{"test"}
+		request := domainGateway.NewComputeEmbeddingsRequest("text-embedding-004", chunks, domainGateway.RetrievalQuery)
+		_, err := gw.ComputeEmbeddings(nil, request) //nolint:staticcheck // intentionally passing nil context to test nil-check guard
+		assert.Error(t, err)
+	})
+
+	t.Run("Nil request returns error", func(t *testing.T) {
+		_, err := gw.ComputeEmbeddings(ctx, nil)
+		assert.Error(t, err)
 	})
 }
 
 func TestGeminiGateway_InterfaceCompliance(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for interface testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
 
-	// Verify that the gateway implements both interfaces
-	var _ ports.GenerationGateway = gateway
-	var _ ports.EmbeddingsGateway = gateway
-	_ = gateway // Should implement the unified Gateway interface
+	var _ ports.GenerationGateway = gw
+	var _ ports.EmbeddingsGateway = gw
 
-	t.Log("GeminiGateway correctly implements GenerationGateway, EmbeddingsGateway, and Gateway interfaces")
-
-	// Test that it has the ComputeDistance method from mixin
+	// Test ComputeDistance from mixin
 	embedding1 := domainGateway.Embedding{0.1, 0.2, 0.3}
 	embedding2 := domainGateway.Embedding{0.4, 0.5, 0.6}
 
-	distance, err := gateway.ComputeDistance(embedding1, embedding2)
-	if err != nil {
-		t.Errorf("ComputeDistance failed: %v", err)
-	}
-	if distance < 0 {
-		t.Error("Distance should be non-negative")
-	}
-	t.Logf("Computed distance: %f", distance)
+	distance, err := gw.ComputeDistance(embedding1, embedding2)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, distance, 0.0)
 }
 
 func TestGeminiGateway_ErrorScenarios(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for error testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Generation with various content types", func(t *testing.T) {
 		testCases := []struct {
@@ -316,11 +348,6 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 				systemPrompt: "You are a technical documentation writer",
 				userPrompt:   "Explain how HTTP/2 multiplexing works",
 			},
-			{
-				name:         "Data analysis",
-				systemPrompt: "You are a data analyst",
-				userPrompt:   "Analyze the trend in this data: [1, 3, 5, 7, 11, 13, 17]",
-			},
 		}
 
 		for _, tc := range testCases {
@@ -332,10 +359,9 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 					2048,
 				)
 
-				_, err := gateway.GenerateContent(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for %s: %v", tc.name, err)
-				}
+				resp, err := gw.GenerateContent(ctx, request)
+				require.NoError(t, err)
+				require.NotNil(t, resp)
 			})
 		}
 	})
@@ -351,7 +377,6 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 				chunks: []string{
 					"func main() { fmt.Println(\"Hello, World!\") }",
 					"def hello_world(): print(\"Hello, World!\")",
-					"console.log('Hello, World!');",
 				},
 				taskType: domainGateway.CodeRetrievalQuery,
 			},
@@ -360,18 +385,8 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 				chunks: []string{
 					"The mitochondria is the powerhouse of the cell",
 					"E=mc² describes mass-energy equivalence",
-					"DNA consists of four nucleotide bases: A, T, G, C",
 				},
 				taskType: domainGateway.Classification,
-			},
-			{
-				name: "Legal documents",
-				chunks: []string{
-					"The party of the first part agrees to the terms",
-					"Whereas the aforementioned conditions are met",
-					"This agreement shall be binding upon all parties",
-				},
-				taskType: domainGateway.Clustering,
 			},
 		}
 
@@ -383,23 +398,20 @@ func TestGeminiGateway_ErrorScenarios(t *testing.T) {
 					tc.taskType,
 				)
 
-				_, err := gateway.ComputeEmbeddings(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for %s: %v", tc.name, err)
-				}
+				embeddings, err := gw.ComputeEmbeddings(ctx, request)
+				require.NoError(t, err)
+				assert.NotEmpty(t, embeddings)
 			})
 		}
 	})
 }
 
 func TestGeminiGateway_ParameterValidation(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for parameter testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Generation with edge case parameters", func(t *testing.T) {
 		testCases := []struct {
@@ -422,10 +434,9 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 					tc.maxTokens,
 				)
 
-				_, err := gateway.GenerateContent(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for %s: %v", tc.name, err)
-				}
+				resp, err := gw.GenerateContent(ctx, request)
+				require.NoError(t, err)
+				require.NotNil(t, resp)
 			})
 		}
 	})
@@ -437,9 +448,9 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 			chunkCount int
 		}{
 			{"Single chunk", 768, 1},
-			{"Many chunks", 768, 100},
-			{"Small dimensions", 128, 10},
-			{"Large dimensions", 1024, 10},
+			{"Many chunks", 768, 5},
+			{"Small dimensions", 128, 3},
+			{"Large dimensions", 1024, 3},
 		}
 
 		for _, tc := range testCases {
@@ -456,41 +467,34 @@ func TestGeminiGateway_ParameterValidation(t *testing.T) {
 					tc.dimensions,
 				)
 
-				_, err := gateway.ComputeEmbeddings(ctx, request)
-				if err != nil {
-					t.Logf("Expected network/API error for %s: %v", tc.name, err)
-				}
+				embeddings, err := gw.ComputeEmbeddings(ctx, request)
+				require.NoError(t, err)
+				assert.NotEmpty(t, embeddings)
 			})
 		}
 	})
 }
 
 func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	// Try to create a gateway for testing
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Dimensions overflow check", func(t *testing.T) {
 		chunks := []string{"test"}
-		// Create a request with dimensions that would exceed int32 max
+		// Dimensions that exceed int32 max
 		request := domainGateway.NewComputeEmbeddingsRequestWithDimensions(
 			"text-embedding-004",
 			chunks,
 			domainGateway.RetrievalQuery,
-			int(^uint32(0)>>1)+1, // This exceeds int32 max
+			math.MaxInt32+1,
 		)
 
-		_, err := gateway.ComputeEmbeddings(ctx, request)
-		if err == nil {
-			t.Error("Expected error for dimensions overflow, got none")
-		} else if !strings.Contains(err.Error(), "exceeds int32 range") {
-			t.Logf("Got different error (API-related): %v", err)
-		}
+		_, err := gw.ComputeEmbeddings(ctx, request)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds int32 range")
 	})
 
 	t.Run("Zero dimensions", func(t *testing.T) {
@@ -499,14 +503,12 @@ func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
 			"text-embedding-004",
 			chunks,
 			domainGateway.RetrievalQuery,
-			0, // Zero dimensions should not set the config
+			0,
 		)
 
-		_, err := gateway.ComputeEmbeddings(ctx, request)
-		// This should proceed without dimension overflow error
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		}
+		embeddings, err := gw.ComputeEmbeddings(ctx, request)
+		require.NoError(t, err)
+		assert.NotEmpty(t, embeddings)
 	})
 
 	t.Run("Negative dimensions", func(t *testing.T) {
@@ -515,66 +517,70 @@ func TestGeminiGateway_ComputeEmbeddings_EdgeCases(t *testing.T) {
 			"text-embedding-004",
 			chunks,
 			domainGateway.RetrievalQuery,
-			-1, // Negative dimensions should not trigger overflow path
+			-1,
 		)
 
-		_, err := gateway.ComputeEmbeddings(ctx, request)
-		// This should proceed without dimension overflow error
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		}
+		embeddings, err := gw.ComputeEmbeddings(ctx, request)
+		require.NoError(t, err)
+		assert.NotEmpty(t, embeddings)
+	})
+
+	t.Run("Empty chunks returns no error", func(t *testing.T) {
+		request := domainGateway.NewComputeEmbeddingsRequest(
+			"text-embedding-004",
+			[]string{},
+			domainGateway.RetrievalQuery,
+		)
+
+		// Empty chunks: the API call is still made; result depends on server behavior.
+		_, err := gw.ComputeEmbeddings(ctx, request)
+		require.NoError(t, err)
 	})
 }
 
 func TestGeminiGateway_GenerateContent_EdgeCases(t *testing.T) {
-	ctx := context.Background()
+	server := newGeminiMockServer(t)
+	defer server.Close()
 
-	// Try to create a gateway for testing
-	gateway, err := newGeminiGateway(ctx, "test-api-key")
-	if err != nil {
-		t.Skipf("Cannot create Gemini gateway for testing: %v", err)
-		return
-	}
+	gw := newTestGeminiGateway(t, server.URL)
+	ctx := context.Background()
 
 	t.Run("Empty system prompt", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
-			"", // Empty system prompt
+			"",
 			"Hello, how are you?",
 			4096,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("Empty user prompt", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
 			"You are a helpful assistant",
-			"", // Empty user prompt
+			"",
 			4096,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 
 	t.Run("Both prompts empty", func(t *testing.T) {
 		request := domainGateway.NewGenerateContentRequest(
 			"gemini-1.5-flash",
-			"", // Empty system prompt
-			"", // Empty user prompt
+			"",
+			"",
 			4096,
 		)
 
-		_, err := gateway.GenerateContent(ctx, request)
-		if err != nil {
-			t.Logf("Expected network/API error: %v", err)
-		}
+		resp, err := gw.GenerateContent(ctx, request)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 }

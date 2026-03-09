@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package preset
@@ -16,13 +16,13 @@ import (
 	"github.com/retran/meowg1k/internal/domain/provider"
 )
 
-// Helper functions for testing
+// Helper functions for testing.
 
 func boolPtr(b bool) *bool {
 	return &b
 }
 
-// Mock implementations for testing
+// Mock implementations for testing.
 
 var errModelNotFound = fmt.Errorf("model not found")
 
@@ -651,7 +651,7 @@ func TestResolvePresetInternalNilService(t *testing.T) {
 	}
 }
 
-// Test merge functions for all parameter types
+// Test merge functions for all parameter types.
 
 func TestMergePenaltyParams(t *testing.T) {
 	freq := 0.5
@@ -778,7 +778,7 @@ func TestMergeOtherParams(t *testing.T) {
 	}
 }
 
-// Test clone functions
+// Test clone functions.
 
 func TestClonePreset(t *testing.T) {
 	t.Run("clone non-nil preset", func(t *testing.T) {
@@ -882,7 +882,7 @@ func TestCloneRequest(t *testing.T) {
 	})
 }
 
-// Test applyPreset edge cases
+// Test applyPreset edge cases.
 
 func TestApplyPreset(t *testing.T) {
 	t.Run("apply with both nil", func(t *testing.T) {

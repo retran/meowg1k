@@ -1,10 +1,12 @@
 # Starlark Extension System Guide
 
-This document provides a comprehensive guide to meowg1k's Starlark-based extension system, which allows users to define custom commands, configure providers/models, and extend functionality through scripting.
+This document provides a comprehensive guide to meowg1k's Starlark-based extension system, which allows users to define
+custom commands, configure providers/models, and extend functionality through scripting.
 
 ## Overview
 
-meowg1k uses **Starlark** (a Python-like language) for configuration and extensibility. Starlark scripts live in `.meowg1k/` and provide:
+meowg1k uses **Starlark** (a Python-like language) for configuration and extensibility.
+Starlark scripts live in `.meowg1k/` and provide:
 
 - **Configuration**: Define providers, models, and presets
 - **Custom Commands**: Create new CLI commands with AI workflows
@@ -13,7 +15,7 @@ meowg1k uses **Starlark** (a Python-like language) for configuration and extensi
 
 ## Directory Structure
 
-```
+```text
 .meowg1k/
 ├── init.star              # Main configuration file (always loaded first)
 ├── commands/              # User-defined commands
@@ -48,6 +50,7 @@ meow.provider("anthropic",
 ```
 
 **Supported Provider Types**:
+
 - `anthropic` - Anthropic Claude
 - `openai` - OpenAI GPT
 - `gemini` - Google Gemini
@@ -99,6 +102,7 @@ meow.preset("embeddings",
 ```
 
 **Why This Pattern?**
+
 - **Separation of Concerns**: Connection details, model config, and generation params are separate
 - **Reusability**: One provider can have multiple models; one model can have multiple presets
 - **Flexibility**: Easy to switch between fast/smart models without changing command code
@@ -178,6 +182,7 @@ def my_handler(ctx):
 ```
 
 **Context modules**:
+
 - `ctx.<param_name>` - Parameter value (direct attribute)
 - `ctx.llm` - LLM operations (`chat`, `agent_turn`, `embed`)
 - `ctx.fs` - Filesystem operations
@@ -661,6 +666,7 @@ meow.command(explain_tool)
 ## Best Practices
 
 ### 1. Use Descriptive Names
+
 ```python
 # Good
 meow.model("claude-sonnet-fast", ...)
@@ -670,6 +676,7 @@ meow.model("m1", ...)
 ```
 
 ### 2. Separate Configuration from Logic
+
 ```python
 # Good: Configuration in init.star, logic in commands/
 # init.star
@@ -680,6 +687,7 @@ setup(preset="smart", default_tone="technical")
 ```
 
 ### 3. Provide Help Text
+
 ```python
 # Always include descriptions for parameters
 meow.param(
@@ -691,6 +699,7 @@ meow.param(
 ```
 
 ### 4. Handle Errors Gracefully
+
 ```python
 def _handler(ctx):
     try:
@@ -701,6 +710,7 @@ def _handler(ctx):
 ```
 
 ### 5. Use Progress Indicators
+
 ```python
 bar = ctx.ui.progress_bar(total=100, message="Processing...")
 # Long-running operation
@@ -750,9 +760,11 @@ elif env.get("MEOW_OPENAI_API_KEY"):
 ## Summary
 
 meowg1k's Starlark extension system provides:
+
 - **Provider/Model/Preset pattern** for flexible LLM configuration
 - **Tool system** for defining CLI commands with validation
 - **Rich standard library** for filesystem, git, LLM, UI operations
 - **User extensibility** through custom commands and libraries
 
-This architecture enables users to create powerful AI workflows while maintaining a clean separation between configuration and logic.
+This architecture enables users to create powerful AI workflows while maintaining a clean separation between
+configuration and logic.
