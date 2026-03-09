@@ -6,6 +6,7 @@ package starlark
 import (
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
 	"testing"
 	"time"
@@ -341,7 +342,10 @@ func TestFSChmod(t *testing.T) {
 			fullPath := filepath.Join(tmpDir, path)
 			info, err := os.Stat(fullPath)
 			require.NoError(t, err)
-			assert.Equal(t, os.FileMode(tt.mode), info.Mode().Perm())
+			// Windows does not honor Unix permission bits via os.Chmod
+			if goruntime.GOOS != "windows" {
+				assert.Equal(t, os.FileMode(tt.mode), info.Mode().Perm())
+			}
 		})
 	}
 }

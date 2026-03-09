@@ -65,7 +65,7 @@ func TestPathParent(t *testing.T) {
 				t.Fatalf("pathParent error: %v", err)
 			}
 
-			got := string(result.(starlark.String))
+			got := filepath.ToSlash(string(result.(starlark.String)))
 			if got != tt.expected {
 				t.Errorf("pathParent(%q) = %q, want %q", tt.path, got, tt.expected)
 			}
@@ -240,7 +240,7 @@ func TestPathDirname(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
@@ -284,7 +284,7 @@ func TestPathBasename(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
@@ -386,7 +386,7 @@ func TestPathClean(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
@@ -432,7 +432,7 @@ func TestPathRel(t *testing.T) {
 
 			resultStr, ok := result.(starlark.String)
 			require.True(t, ok, "result should be a string")
-			assert.Equal(t, tt.expected, string(resultStr))
+			assert.Equal(t, tt.expected, filepath.ToSlash(string(resultStr)))
 		})
 	}
 }
