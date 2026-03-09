@@ -176,26 +176,26 @@ func (g *Graph[K]) Export(w io.Writer) error {
 	if err := binary.Write(w, binary.LittleEndian, hnswVersion); err != nil {
 		return fmt.Errorf("hnsw export: version: %w", err)
 	}
-	// G115: int→int32 conversions are safe — values are graph parameters bounded to
+	// int→int32 conversions below are safe — values are graph parameters bounded to
 	// small practical limits (m≤64, efC≤1000, entry/maxL≤node count).
-	if err := binary.Write(w, binary.LittleEndian, int32(g.m)); err != nil { //nolint:gosec // bounded graph parameter
+	if err := binary.Write(w, binary.LittleEndian, int32(g.m)); err != nil {
 		return fmt.Errorf("hnsw export: m: %w", err)
 	}
-	if err := binary.Write(w, binary.LittleEndian, int32(g.efC)); err != nil { //nolint:gosec // bounded graph parameter
+	if err := binary.Write(w, binary.LittleEndian, int32(g.efC)); err != nil {
 		return fmt.Errorf("hnsw export: efC: %w", err)
 	}
 	if err := binary.Write(w, binary.LittleEndian, g.ml); err != nil {
 		return fmt.Errorf("hnsw export: ml: %w", err)
 	}
-	if err := binary.Write(w, binary.LittleEndian, int32(g.entry)); err != nil { //nolint:gosec // bounded by node count
+	if err := binary.Write(w, binary.LittleEndian, int32(g.entry)); err != nil {
 		return fmt.Errorf("hnsw export: entry: %w", err)
 	}
-	if err := binary.Write(w, binary.LittleEndian, int32(g.maxL)); err != nil { //nolint:gosec // bounded by node count
+	if err := binary.Write(w, binary.LittleEndian, int32(g.maxL)); err != nil {
 		return fmt.Errorf("hnsw export: maxL: %w", err)
 	}
 
 	// Nodes
-	if err := binary.Write(w, binary.LittleEndian, int32(len(g.nodes))); err != nil { //nolint:gosec // bounded by node count
+	if err := binary.Write(w, binary.LittleEndian, int32(len(g.nodes))); err != nil {
 		return fmt.Errorf("hnsw export: node count: %w", err)
 	}
 	for i, n := range g.nodes {
@@ -283,7 +283,7 @@ func (n *hnswNode[K]) write(w io.Writer) error {
 	}
 
 	// vec
-	if err := binary.Write(w, binary.LittleEndian, int32(len(n.vec))); err != nil { //nolint:gosec // bounded by vector dimension
+	if err := binary.Write(w, binary.LittleEndian, int32(len(n.vec))); err != nil {
 		return fmt.Errorf("hnsw node write: vec len: %w", err)
 	}
 	if err := binary.Write(w, binary.LittleEndian, n.vec); err != nil {
@@ -291,16 +291,16 @@ func (n *hnswNode[K]) write(w io.Writer) error {
 	}
 
 	// level
-	if err := binary.Write(w, binary.LittleEndian, int32(n.level)); err != nil { //nolint:gosec // level capped at 32
+	if err := binary.Write(w, binary.LittleEndian, int32(n.level)); err != nil {
 		return fmt.Errorf("hnsw node write: level: %w", err)
 	}
 
 	// conns
-	if err := binary.Write(w, binary.LittleEndian, int32(len(n.conns))); err != nil { //nolint:gosec // bounded by level
+	if err := binary.Write(w, binary.LittleEndian, int32(len(n.conns))); err != nil {
 		return fmt.Errorf("hnsw node write: conn layers: %w", err)
 	}
 	for li, layer := range n.conns {
-		if err := binary.Write(w, binary.LittleEndian, int32(len(layer))); err != nil { //nolint:gosec // bounded by m
+		if err := binary.Write(w, binary.LittleEndian, int32(len(layer))); err != nil {
 			return fmt.Errorf("hnsw node write: layer %d len: %w", li, err)
 		}
 		for _, c := range layer {
@@ -479,7 +479,7 @@ func writeKey[K cmp.Ordered](w io.Writer, key K) error { //nolint:gocognit,gocyc
 // writeKeyString writes a string key payload (length-prefixed bytes).
 func writeKeyString(w io.Writer, s string) error {
 	b := []byte(s)
-	if err := binary.Write(w, binary.LittleEndian, int32(len(b))); err != nil { //nolint:gosec // string length bounded by practical limits
+	if err := binary.Write(w, binary.LittleEndian, int32(len(b))); err != nil {
 		return fmt.Errorf("hnsw key write: string len: %w", err)
 	}
 	if _, err := w.Write(b); err != nil {
@@ -592,11 +592,11 @@ func convertInt[K cmp.Ordered](v int64) any {
 	case int:
 		return int(v)
 	case int8:
-		return int8(v) //nolint:gosec // narrowing is intentional — caller controls serialised data
+		return int8(v) // narrowing is intentional — caller controls serialised data
 	case int16:
-		return int16(v) //nolint:gosec // narrowing is intentional
+		return int16(v) // narrowing is intentional
 	case int32:
-		return int32(v) //nolint:gosec // narrowing is intentional
+		return int32(v) // narrowing is intentional
 	case int64:
 		return v
 	default:
@@ -611,11 +611,11 @@ func convertUint[K cmp.Ordered](v uint64) any {
 	case uint:
 		return uint(v)
 	case uint8:
-		return uint8(v) //nolint:gosec // narrowing is intentional
+		return uint8(v) // narrowing is intentional
 	case uint16:
-		return uint16(v) //nolint:gosec // narrowing is intentional
+		return uint16(v) // narrowing is intentional
 	case uint32:
-		return uint32(v) //nolint:gosec // narrowing is intentional
+		return uint32(v) // narrowing is intentional
 	case uint64:
 		return v
 	default:

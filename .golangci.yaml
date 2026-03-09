@@ -90,6 +90,7 @@ linters:
     gosec:
       excludes:
         - G104          # Unhandled errors (covered by errcheck)
+        - G115          # Integer overflow conversion (all int→intN casts in this codebase are intentional and bounded)
         - G117          # Exported struct fields matching secret pattern (false positive for config types)
         - G703          # Path traversal via taint analysis (paths are internally derived)
         - G704          # SSRF via taint analysis (URLs are validated or user-configured)

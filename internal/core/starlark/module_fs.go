@@ -414,7 +414,7 @@ func (r *Runtime) fsChmod(_ *starlark.Thread, b *starlark.Builtin, args starlark
 		path = filepath.Join(r.workingDir, path)
 	}
 
-	if err := os.Chmod(path, os.FileMode(mode)); err != nil { //nolint:gosec // integer conversion is intentional for user-provided mode
+	if err := os.Chmod(path, os.FileMode(mode)); err != nil { // integer conversion is intentional for user-provided mode
 		return nil, fmt.Errorf("failed to chmod '%s': %w", path, err)
 	}
 
