@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package index provides a SQLite-based repository for storing and querying document chunks, embeddings, and snapshots.

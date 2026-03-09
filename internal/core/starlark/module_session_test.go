@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -22,15 +22,14 @@ import (
 
 // fullMockSessionService is a more complete mock that tracks all operations.
 type fullMockSessionService struct {
-	sessions  map[string]*domainsession.Session
-	events    map[string][]*domainsession.Event
-	metadata  map[string]map[string]string // sessionID -> key -> value
-	completed []string
-	failed    []string
-	// For testing error injection
 	metaErr   error
 	eventsErr error
 	listErr   error
+	sessions  map[string]*domainsession.Session
+	events    map[string][]*domainsession.Event
+	metadata  map[string]map[string]string
+	completed []string
+	failed    []string
 }
 
 func newFullMockSessionService() *fullMockSessionService {
@@ -70,7 +69,7 @@ func (s *fullMockSessionService) GetSession(_ context.Context, id string) (*doma
 	return sess, nil
 }
 
-func (s *fullMockSessionService) ListSessions(_ context.Context, filter *domainsession.SessionFilter) ([]*domainsession.Session, error) {
+func (s *fullMockSessionService) ListSessions(_ context.Context, filter *domainsession.Filter) ([]*domainsession.Session, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}

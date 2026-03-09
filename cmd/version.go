@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package cmd
@@ -14,14 +14,23 @@ import (
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show version info",
-	Run: func(cmd *cobra.Command, _ []string) {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd == nil {
-			return
+			return nil
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "meow version %s\n", version.Version)
-		fmt.Fprintf(cmd.OutOrStdout(), "Build Date: %s\n", version.BuildDate)
-		fmt.Fprintf(cmd.OutOrStdout(), "Git Commit: %s\n", version.GitCommit)
+		out := cmd.OutOrStdout()
+		lines := []string{
+			fmt.Sprintf("meow version %s\n", version.Version),
+			fmt.Sprintf("Build Date: %s\n", version.BuildDate),
+			fmt.Sprintf("Git Commit: %s\n", version.GitCommit),
+		}
+		for _, line := range lines {
+			if _, err := fmt.Fprint(out, line); err != nil {
+				return fmt.Errorf("failed to write output: %w", err)
+			}
+		}
+		return nil
 	},
 }
 

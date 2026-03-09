@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package retrieval
@@ -14,7 +14,7 @@ import (
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
 )
 
-// Mock implementations for testing
+// Mock implementations for testing.
 
 type mockEmbeddingsGateway struct {
 	ComputeEmbeddingsFunc func(ctx context.Context, request *gateway.ComputeEmbeddingsRequest) ([]gateway.Embedding, error)

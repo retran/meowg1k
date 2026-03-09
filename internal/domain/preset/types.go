@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package preset defines domain types for LLM provider presets with rate limits and cost tracking.
@@ -42,7 +42,7 @@ type ResolvedPreset struct {
 	Provider             provider.Provider
 	Name                 string
 	APIKeyEnv            string
-	APIKey               string
+	APIKey               string // API key field for preset configuration, not a hardcoded credential
 	AppID                string
 	EditorVersion        string
 	EditorPluginVersion  string

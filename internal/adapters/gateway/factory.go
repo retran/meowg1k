@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package gateway provides adapters for LLM providers (OpenAI, Anthropic, Gemini, etc.) with caching and logging.
@@ -87,72 +87,80 @@ func (f *Factory) shouldUpdateCache() bool {
 	return err == nil && updateCache
 }
 
+// validateGatewayRequest validates the common preconditions for creating a gateway.
+func validateGatewayRequest(ctx context.Context, resolvedPreset *preset.ResolvedPreset) error {
+	if ctx == nil {
+		return fmt.Errorf("context cannot be nil")
+	}
+	if resolvedPreset == nil {
+		return fmt.Errorf("preset cannot be nil")
+	}
+	return nil
+}
+
+// getCommandName retrieves the current command name for logging.
+func (f *Factory) getCommandName() (string, error) {
+	commandName, err := f.commandNameReader.GetCommandName()
+	if err != nil {
+		return "", fmt.Errorf("failed to get command name: %w", err)
+	}
+	return commandName, nil
+}
+
+// wrapGenerationGateway applies caching and logging decorators to a generation gateway.
+func (f *Factory) wrapGenerationGateway(gw ports.GenerationGateway, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
+	if f.shouldEnableCache(resolvedPreset) {
+		gw = newCachingGenerationGateway(gw, f.cacheRepo, f.shouldUpdateCache())
+	}
+	commandName, err := f.getCommandName()
+	if err != nil {
+		return nil, err
+	}
+	return newLoggingGenerationGateway(gw, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider)), nil
+}
+
+// wrapEmbeddingsGateway applies caching and logging decorators to an embeddings gateway.
+func (f *Factory) wrapEmbeddingsGateway(gw ports.EmbeddingsGateway, resolvedPreset *preset.ResolvedPreset) (ports.EmbeddingsGateway, error) {
+	if f.shouldEnableCache(resolvedPreset) {
+		gw = newCachingEmbeddingsGateway(gw, f.cacheRepo, f.shouldUpdateCache())
+	}
+	commandName, err := f.getCommandName()
+	if err != nil {
+		return nil, err
+	}
+	return newLoggingEmbeddingsGateway(gw, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider)), nil
+}
+
 // NewGenerationGateway creates a new generation gateway based on the provided preset.
+// The gateway is optionally wrapped with caching and always wrapped with logging.
 func (f *Factory) NewGenerationGateway(
 	ctx context.Context,
 	resolvedPreset *preset.ResolvedPreset,
 ) (ports.GenerationGateway, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
+	if err := validateGatewayRequest(ctx, resolvedPreset); err != nil {
+		return nil, err
 	}
-
-	if resolvedPreset == nil {
-		return nil, fmt.Errorf("preset cannot be nil")
-	}
-
-	gateway, err := f.buildGenerationGateway(ctx, resolvedPreset)
+	gw, err := f.buildGenerationGateway(ctx, resolvedPreset)
 	if err != nil {
 		return nil, err
 	}
-
-	// Wrap with caching if enabled
-	if f.shouldEnableCache(resolvedPreset) {
-		updateCache := f.shouldUpdateCache()
-		gateway = newCachingGenerationGateway(gateway, f.cacheRepo, updateCache)
-	}
-
-	// Wrap with logging (outermost layer to log actual requests/responses)
-	commandName, err := f.commandNameReader.GetCommandName()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get command name: %w", err)
-	}
-	gateway = newLoggingGenerationGateway(gateway, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider))
-
-	return gateway, nil
+	return f.wrapGenerationGateway(gw, resolvedPreset)
 }
 
 // NewEmbeddingsGateway creates a new embeddings gateway based on the provided preset.
+// The gateway is optionally wrapped with caching and always wrapped with logging.
 func (f *Factory) NewEmbeddingsGateway(
 	ctx context.Context,
 	resolvedPreset *preset.ResolvedPreset,
 ) (ports.EmbeddingsGateway, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
+	if err := validateGatewayRequest(ctx, resolvedPreset); err != nil {
+		return nil, err
 	}
-
-	if resolvedPreset == nil {
-		return nil, fmt.Errorf("preset cannot be nil")
-	}
-
-	gateway, err := f.buildEmbeddingsGateway(ctx, resolvedPreset)
+	gw, err := f.buildEmbeddingsGateway(ctx, resolvedPreset)
 	if err != nil {
 		return nil, err
 	}
-
-	// Wrap with caching if enabled
-	if f.shouldEnableCache(resolvedPreset) {
-		updateCache := f.shouldUpdateCache()
-		gateway = newCachingEmbeddingsGateway(gateway, f.cacheRepo, updateCache)
-	}
-
-	// Wrap with logging (outermost layer to log actual requests/responses)
-	commandName, err := f.commandNameReader.GetCommandName()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get command name: %w", err)
-	}
-	gateway = newLoggingEmbeddingsGateway(gateway, f.traceLogger, commandName, resolvedPreset.Name, string(resolvedPreset.Provider))
-
-	return gateway, nil
+	return f.wrapEmbeddingsGateway(gw, resolvedPreset)
 }
 
 func (f *Factory) buildGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
@@ -205,7 +213,7 @@ func (f *Factory) newGeminiGenerationGateway(ctx context.Context, resolvedPreset
 	if resolvedPreset.APIKey == "" {
 		return nil, fmt.Errorf("gemini provider requires an API key for model %q", resolvedPreset.Model)
 	}
-	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -262,7 +270,7 @@ func (f *Factory) newAnthropicGenerationGateway(resolvedPreset *preset.ResolvedP
 	}
 
 	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
-	gateway, err := newAnthropicGateway(resolvedPreset.APIKey, httpClient)
+	gateway, err := newAnthropicGateway(resolvedPreset.APIKey, httpClient, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -274,7 +282,7 @@ func (f *Factory) newGeminiEmbeddingsGateway(ctx context.Context, resolvedPreset
 		return nil, fmt.Errorf("gemini provider requires an API key for embeddings model %q", resolvedPreset.Model)
 	}
 
-	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey)
+	gateway, err := newGeminiGateway(ctx, resolvedPreset.APIKey, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -332,7 +340,7 @@ func (f *Factory) newVoyageEmbeddingsGateway(resolvedPreset *preset.ResolvedPres
 	}
 
 	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
-	gateway, err := newVoyageGateway(resolvedPreset.APIKey, httpClient)
+	gateway, err := newVoyageGateway(resolvedPreset.BaseURL, resolvedPreset.APIKey, httpClient)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s embeddings gateway for model %q: %w", resolvedPreset.Provider, resolvedPreset.Model, err)
 	}
@@ -341,7 +349,7 @@ func (f *Factory) newVoyageEmbeddingsGateway(resolvedPreset *preset.ResolvedPres
 
 func (f *Factory) newCopilotGenerationGateway(ctx context.Context, resolvedPreset *preset.ResolvedPreset) (ports.GenerationGateway, error) {
 	httpClient := f.httpClientService.GetWithTimeout(resolvedPreset.Timeout)
-	gateway, err := newCopilotGateway(ctx, copilotGatewayOptions{
+	gateway, err := newCopilotGateway(ctx, &copilotGatewayOptions{
 		BaseURL:             resolvedPreset.BaseURL,
 		AppID:               resolvedPreset.AppID,
 		EditorVersion:       resolvedPreset.EditorVersion,

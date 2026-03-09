@@ -2,7 +2,7 @@
 
 ## Quick Navigation
 
-- [Starlark API](#starlark-api-reference) - Scripting, tools, context
+- [Starlark API](#global-environment) - Scripting, tools, context
 - [Standard Modules](#standard-modules) - fs, git, llm, shell, index, ui, etc.
 - [Type Reference](#type-reference) - Complete type signatures  
 - [Cookbook](#cookbook-real-world-patterns) - Real-world examples
@@ -10,13 +10,12 @@
 
 ---
 
-# Starlark API Reference
-
-The meowg1k Starlark runtime provides a rich set of modules for configuration, automation, and AI workflows. This document details the available APIs.
+The meowg1k Starlark runtime provides a rich set of modules for configuration, automation, and AI workflows.
+This document details the available APIs.
 
 ## Table of Contents
 
-- [Starlark API Reference](#starlark-api-reference)
+- [Starlark API Reference](#global-environment)
   - [Table of Contents](#table-of-contents)
   - [Global Environment](#global-environment)
     - [meow Module](#meow-module)
@@ -77,6 +76,7 @@ The `meow` module is the primary entry point for configuring the application and
 
 **`meow.provider(name, type, **kwargs)`**
 Registers an LLM provider.
+
 - `name` (string): Unique identifier.
 - `type` (string): Driver type (e.g., "openai", "sematic", "gemini").
 - `api_key` (string, optional): API Key (usually via `env.get`).
@@ -86,6 +86,7 @@ Registers an LLM provider.
 
 **`meow.model(name, **kwargs)`**
 Registers a model configuration.
+
 - `name` (string): Unique identifier.
 - `provider` (string): Name of the registered provider.
 - `model` (string): The upstream model ID (e.g. "gpt-4").
@@ -94,6 +95,7 @@ Registers a model configuration.
 
 **`meow.preset(name, **kwargs)`**
 Registers a generation preset (combines model + parameters).
+
 - `name` (string): Unique identifier.
 - `model` (string): Registered model name.
 - `extends` (string): Parent preset to inherit from.
@@ -130,12 +132,15 @@ Returns a dictionary of all environment variables.
 
 ## Unified Tool System
 
-The Unified Tool System allows you to define tools with inputs defined as `meow.param`. These tools can be automatically registered as CLI commands, with arguments and flags parsed and injected directly into the handler context.
+The Unified Tool System allows you to define tools with inputs defined as `meow.param`. These tools can be
+automatically registered as CLI commands, with arguments and flags parsed and injected directly into the handler
+context.
 
 ### Defining Tools
 
 **`meow.tool(name, handler, params=None, description=None)`**
 Creates a reusable tool definition.
+
 - `name` (string): Name of the tool.
 - `handler` (function): The function to execute.
 - `params` (dict): Dictionary mapping parameter names to `meow.param` objects.
@@ -145,6 +150,7 @@ Creates a reusable tool definition.
 
 **`meow.param(type, **kwargs)`**
 Defines a typed input parameter.
+
 - `type` (string): "string", "int", "float", "bool".
 - `default` (any): Default value.
 - `short` (string): Short flag (e.g., "f" for `-f`).
@@ -161,10 +167,12 @@ Defines a typed input parameter.
 
 **`meow.command(tool, name=None)`**
 Registers a `meow.tool` as a Top-Level CLI command.
+
 - `tool` (Tool): The tool object created via `meow.tool`.
 - `name` (string, optional): Override the command name.
 
 **Example:**
+
 ```python
 def my_handler(ctx):
     ctx.output.writeline("Hello " + ctx.name)
@@ -184,16 +192,19 @@ meow.command(hello_tool)
 
 Parameters support both declarative constraints and custom validation logic.
 
-**Static Constraints**
+#### Static Constraints
+
 - `choices`: Limit to specific values.
 - `pattern`: Regex validation.
 - `min`/`max`: Numeric range.
 - `min_len`/`max_len`: String length.
 
 **Custom Validators**
-You can pass a function or tool to `validator`. The validator receives a `ctx` where `ctx.value` is the input parameter. Return `True` (pass), `False` (fail), or an error string.
+You can pass a function or tool to `validator`. The validator receives a `ctx` where `ctx.value` is the input
+parameter. Return `True` (pass), `False` (fail), or an error string.
 
 **Example:**
+
 ```python
 def validate_even(ctx):
     if ctx.value % 2 != 0:
@@ -216,23 +227,30 @@ tool_with_validation = meow.tool(
 The `ctx` object is passed to every command handler. It provides access to all runtime modules and inputs.
 
 ### Attributes
+
 - `ctx.workspace` (string): Absolute path to the workspace root.
 - `ctx.<module>`: Access to standard modules (`fs`, `git`, `ui`, etc.).
 
 ### Parameter Access
+
 In the Unified Tool System, parameters defined in `meow.tool` are injected directly as attributes on `ctx`.
+
 - `ctx.my_param_name`: Value of the parameter (typed).
 
 ### Methods
 
 **`ctx.run(command_or_tool, **kwargs)`** -> `any`
 Executes another registered command or tool within the same process.
-- `command_or_tool` (string or ToolValue): Name of command to run, or a tool object (from `meow.tool()` or loaded from a library).
+
+- `command_or_tool` (string or ToolValue): Name of command to run, or a tool object
+  (from `meow.tool()` or loaded from a library).
 - `**kwargs`: Arguments to pass to the command (overriding defaults).
 - **Returns:** The return value of the called handler on success.
-- **Error Handling:** If the called handler raises an error (via `fail()` or exception), execution stops immediately. In Starlark, `fail()` terminates the entire script, so errors propagate naturally.
+- **Error Handling:** If the called handler raises an error (via `fail()` or exception), execution stops
+  immediately. In Starlark, `fail()` terminates the entire script, so errors propagate naturally.
 
 **Example:**
+
 ```python
 # Run by string name
 result = ctx.run("analyze-code", path="main.go")
@@ -249,8 +267,11 @@ result = ctx.run(calculator, a=10, b=5, op="add")
 - **Idempotency**: Ensure tools can run multiple times without side effects (e.g., check `fs.exists` before writing).
 - **Secrets**: Never hardcode API keys. Use `env.get("MY_KEY")`.
 - **Validation**: Use `validator` functions in `meow.param` to catch errors early.
-- **Output**: Use `output.write` or `output.writeline` for machine-readable output, `ctx.ui.assistant_turn()` for user-facing responses.
-- **Error Handling**: Starlark has no exceptions. Operations that fail will stop execution with an error message. All error messages follow the pattern: `"operation failed for 'context': details"` to provide clear, actionable information.
+- **Output**: Use `output.write` or `output.writeline` for machine-readable output,
+  `ctx.ui.assistant_turn()` for user-facing responses.
+- **Error Handling**: Starlark has no exceptions. Operations that fail will stop execution with an error message.
+  All error messages follow the pattern: `"operation failed for 'context': details"` to provide clear,
+  actionable information.
 
 ### Error Handling
 
@@ -269,12 +290,14 @@ result = ctx.llm.chat(prompt="prompt", preset="invalid")
 ```
 
 **Error message format:**
+
 - Includes the operation that failed
 - Provides the context (file path, preset name, etc.)
 - Shows the underlying error details
 - Uses single quotes around user-provided values
 
 **Debugging tips:**
+
 - Read error messages carefully - they include file paths and context
 - Check that files/directories exist before operations
 - Verify preset/model names are configured in `init.star`
@@ -299,6 +322,7 @@ Check if a file or directory exists.
 
 **`fs.glob(pattern, ignore=None)`** -> `list[string]`
 Find files matching a pattern (supports `**`).
+
 - `ignore` (list[string]): Patterns to exclude.
 
 **`fs.mkdir(path)`** -> `bool`
@@ -313,11 +337,12 @@ Remove a file or directory.
 **`fs.cwd()`** -> `string`
 Get current working directory.
 
-**`fs.getcwd()`** -> `string` *(Deprecated: use `cwd()`)*
+**`fs.getcwd()`** -> `string` _(Deprecated: use `cwd()`)_
 Alias for `cwd()`. Deprecated — use `fs.cwd()` instead.
 
 **`fs.filter(dir, pattern="*", recursive=False)`** -> `list[string]`
 Filter files in a directory by pattern.
+
 - `dir`: Directory to search (required).
 - `pattern`: Glob pattern (default: "*").
 - `recursive`: Search subdirectories (default: False).
@@ -333,6 +358,7 @@ json_files = ctx.fs.filter("config", pattern="*.json", recursive=True)
 
 **`fs.walk(root, pattern="")`** -> `list[string]`
 Recursively walk a directory tree and return all matching files.
+
 - `root`: Directory to walk (required).
 - `pattern`: Optional glob pattern to filter files (e.g., "*.go").
 - Returns: Flat list of file paths (relative to workspace), excluding directories.
@@ -350,6 +376,7 @@ test_files = ctx.fs.walk("src", pattern="*_test.py")
 
 **`fs.stat(path)`** -> `struct{size, mtime, is_dir, mode}`
 Get file or directory metadata.
+
 - `path`: File or directory path (required).
 - Returns: Struct with metadata fields:
   - `size`: File size in bytes (int)
@@ -372,6 +399,7 @@ if time.time() - info.mtime < 3600:
 
 **`fs.listdir(path)`** -> `list[string]`
 List directory contents (non-recursive, names only).
+
 - `path`: Directory path (required).
 - Returns: List of file and directory names (not full paths).
 
@@ -388,6 +416,7 @@ for item in src_items:
 
 **`fs.chmod(path, mode)`** -> `bool`
 Change file or directory permissions.
+
 - `path`: File or directory path (required).
 - `mode`: Permission mode as integer (e.g., 0o755, 0o644) (required).
 - Returns: True on success.
@@ -405,6 +434,7 @@ ctx.fs.chmod("README.md", 0o644)
 
 **`fs.touch(path, mtime=None)`** -> `bool`
 Create an empty file or update its timestamp.
+
 - `path`: File path (required).
 - `mtime`: Optional Unix timestamp to set (int). If None, uses current time.
 - Returns: True on success.
@@ -428,11 +458,13 @@ ctx.fs.touch("file.txt", mtime=one_day_ago)
 
 **`git.diff(target="staged")`** -> `struct`
 Get diff statistics and raw content.
+
 - `target`: "staged" (default), "HEAD", or "commit-hash".
 - Returns: `{raw, files, additions, deletions}`.
 
 **`git.diff_file(file, target="staged")`** -> `struct`
 Get diff for a specific file.
+
 - `file`: Path to the file (required).
 - `target`: "staged" (default), "HEAD", or "commit-hash".
 - Returns: `{raw, file, additions, deletions}`.
@@ -442,6 +474,7 @@ Get porcelain status lines.
 
 **`git.log(count=10)`** -> `list[struct]`
 Get recent commits.
+
 - Returns list of `{hash, author, date, message}`.
 
 **`git.branch()`** -> `string`
@@ -464,6 +497,7 @@ Create a new branch. Returns branch creation result.
 
 **`git.glob(ref="HEAD", pattern="**/*", ignore=None)`** -> `list[string]`
 Search for files in git history matching a glob pattern.
+
 - `ref`: Git reference (default: "HEAD"). Also accepts "staged" or "stage".
 - `pattern`: Glob pattern with `**` support (default: "**/*").
 - `ignore`: List of patterns to exclude (optional).
@@ -479,6 +513,7 @@ py_files = ctx.git.glob(ref="staged", pattern="**/*.py", ignore=["**/test_*.py"]
 
 **`git.read(ref:path)`** or **`git.read(ref="HEAD", path=...)`** -> `string`
 Read file contents from a specific git reference.
+
 - Syntax 1: `git.read("HEAD:path/to/file")` - Git notation (ref:path)
 - Syntax 2: `git.read(ref="HEAD", path="path/to/file")` - Explicit parameters
 - `ref`: Git reference (default: "HEAD").
@@ -569,7 +604,8 @@ else:
 > **v0.3.0 Breaking Change**: `llm.generate()` and `llm.agentic()` have been removed.
 > Use `llm.chat()` and `llm.agent_turn()` respectively.
 
-**`llm.chat(prompt, preset, system=None, use_session=True, stream=False, on_event=None, response_format=None, response_schema=None)`** -> `string | dict`
+**`llm.chat(prompt, preset, system=None, use_session=True, stream=False, on_event=None,`**
+**`response_format=None, response_schema=None)`** -> `string | dict`
 
 Generate a single LLM response. Returns a string by default, or a parsed dict when `response_format="json_object"`.
 
@@ -578,11 +614,13 @@ Generate a single LLM response. Returns a string by default, or a parsed dict wh
 - `system`: System instruction (optional).
 - `use_session`: If `True` (default), previous messages from the current session are included in the context.
 - `stream`: If `True`, call `GenerateContentStream` on the gateway and emit events via `on_event`.
-- `on_event`: Callable invoked with each stream event dict (see Stream Events below). Required when `stream=True` to observe deltas; optional otherwise.
+- `on_event`: Callable invoked with each stream event dict (see Stream Events below).
+  Required when `stream=True` to observe deltas; optional otherwise.
 - `response_format`: `"json_object"` to parse the response as JSON and return a dict.
 - `response_schema`: Reserved for structured output schemas (future use).
 
 **Example:**
+
 ```python
 def handler(ctx):
     # Non-streaming
@@ -613,9 +651,12 @@ def handler(ctx):
 
 ---
 
-**`llm.agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False, on_event=None, max_iterations=50, on_tool_error="return", response_format=None, response_schema=None)`** -> `string | dict`
+**`llm.agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False, on_event=None,`**
+**`max_iterations=50, on_tool_error="return", response_format=None, response_schema=None)`**
+**`-> string | dict`**
 
-Run one turn of an agentic loop with native tool calling support. The LLM can call tools, receive results, and continue processing until it provides a final text answer or `max_iterations` is reached.
+Run one turn of an agentic loop with native tool calling support. The LLM can call tools, receive results,
+and continue processing until it provides a final text answer or `max_iterations` is reached.
 
 - `prompt` (required): The user prompt.
 - `preset` (required): Name of the preset to use. No default — must be provided.
@@ -632,6 +673,7 @@ Run one turn of an agentic loop with native tool calling support. The LLM can ca
 - `response_schema`: Reserved for structured output schemas (future use).
 
 **Example:**
+
 ```python
 load("//lib/tools.star", "calculator", "file_reader")
 load("//lib/ui_helpers.star", "make_agentic_stream_handler")
@@ -655,20 +697,21 @@ def handler(ctx):
 
 When `stream=True`, the `on_event` callback receives dicts with the following shapes:
 
-| `kind`            | Additional fields                                                        |
-| ----------------- | ------------------------------------------------------------------------ |
-| `text`            | `delta` (str) — incremental text token                                   |
-| `thinking`        | `delta` (str) — reasoning token (Anthropic extended thinking, etc.)      |
-| `usage`           | `usage` dict: `{prompt, completion, total}`                              |
-| `done`            | `usage` dict (optional) — signals stream completion                      |
-| `error`           | `error` (str), `recoverable` (bool)                                      |
-| `tool_call_start` | `tool_name`, `tool_id`, `arguments` (dict)                               |
-| `tool_call_end`   | `tool_name`, `tool_id`, `duration_ms` (int), `arguments` (dict)         |
-| `tool_call_error` | `tool_name`, `tool_id`, `error` (str), `duration_ms` (int), `arguments` |
+| `kind`            | Additional fields                                                         |
+| ----------------- | ------------------------------------------------------------------------- |
+| `text`            | `delta` (str) — incremental text token                                    |
+| `thinking`        | `delta` (str) — reasoning token (Anthropic extended thinking, etc.)       |
+| `usage`           | `usage` dict: `{prompt, completion, total}`                               |
+| `done`            | `usage` dict (optional) — signals stream completion                       |
+| `error`           | `error` (str), `recoverable` (bool)                                       |
+| `tool_call_start` | `tool_name`, `tool_id`, `arguments` (dict)                                |
+| `tool_call_end`   | `tool_name`, `tool_id`, `duration_ms` (int), `arguments` (dict)           |
+| `tool_call_error` | `tool_name`, `tool_id`, `error` (str), `duration_ms` (int), `arguments`   |
 
 Stream events are **ephemeral** — they are not stored in the session database. Only the final aggregated messages are persisted.
 
 Use `//lib/ui_helpers.star` for pre-built handlers:
+
 - `make_markdown_stream_handler(ctx)` — renders text deltas as markdown
 - `make_plain_stream_handler(ctx)` — writes text deltas as plain text
 - `make_agentic_stream_handler(ctx, abort_on_error, max_errors)` — full agent handler
@@ -677,6 +720,7 @@ Use `//lib/ui_helpers.star` for pre-built handlers:
 
 **`llm.embed(texts, preset)`** -> `list[list[float]]`
 Generate embeddings for a list of texts.
+
 - `texts` (required): List of strings to embed.
 - `preset` (required): Name of the embeddings preset. No default — must be provided.
 - Returns: List of embedding vectors (each a list of floats).
@@ -685,7 +729,8 @@ Generate embeddings for a list of texts.
 
 ### session (Session Management)
 
-The session module provides access to the current execution session and its metadata. Sessions track the complete history of tool invocations, LLM interactions, and results.
+The session module provides access to the current execution session and its metadata. Sessions track the complete
+history of tool invocations, LLM interactions, and results.
 
 **`session.id()`** -> `string`
 Get the current session ID.
@@ -713,7 +758,8 @@ Get information about child sessions created by this session.
 Returns list of `{id, tool_name, status, parent_id}`.
 
 **`session.set_system(prompt)`** -> `None`
-Store a system prompt for the current session. This prompt is used by `ctx.llm.chat()` and `ctx.llm.agent_turn()` when no explicit `system` parameter is provided.
+Store a system prompt for the current session. This prompt is used by `ctx.llm.chat()` and
+`ctx.llm.agent_turn()` when no explicit `system` parameter is provided.
 
 **`session.get_system()`** -> `string | None`
 Retrieve the system prompt stored for the current session. Returns `None` if none has been set.
@@ -735,6 +781,7 @@ Global query to list sessions across the system.
 Get any session by ID (not just current session).
 
 **Example:**
+
 ```python
 def handler(ctx):
     ctx.output.writeline("Session: " + ctx.session.id())
@@ -757,6 +804,7 @@ def handler(ctx):
 
 **`shell.exec(command)`** -> `struct`
 Execute a shell command.
+
 - Returns: `{stdout, stderr, exit_code}`.
 
 ---
@@ -765,6 +813,7 @@ Execute a shell command.
 
 **`index.search(query, snapshots=None, top_k=5, min_score=0.7)`** -> `list[struct]`
 Semantic search against the codebase.
+
 - Returns list of `{file_path, content, score, start_line, end_line}`.
 
 **`index.build()`** -> `None`
@@ -787,7 +836,8 @@ ctx.index.build(strategy=ctx.index.STRATEGY_SEMANTIC)
 
 ### ui (User Interface)
 
-The `ui` module provides terminal output widgets and interactive components. All functions are accessed through `ctx.ui` in handler functions.
+The `ui` module provides terminal output widgets and interactive components. All functions are accessed through
+`ctx.ui` in handler functions.
 
 #### Conversation-Style Output
 
@@ -796,6 +846,7 @@ Display a user message turn.
 
 **`ui.assistant_turn()`** -> `TurnHandle`
 Begin an assistant response turn. Returns a handle for managing output:
+
 - `.step(text)` -> `StepHandle`: Add a progress step. Returns handle with:
   - `.done(text=None)`: Mark step complete
   - `.fail(text=None)`: Mark step failed
@@ -816,6 +867,7 @@ Begin an assistant response turn. Returns a handle for managing output:
 
 **`ui.progress_bar(total, message="")`** -> `ProgressBarHandle`
 Visual progress bar for batch operations. Returns handle with:
+
 - `.inc(amount=1)`: Increment progress
 - `.set(value)`: Set absolute value
 - `.done(message=None)`: Finish
@@ -847,7 +899,8 @@ Display content in a bordered panel.
 Display a prominent title banner with borders.
 
 **`ui.render(value, query=None)`**
-Auto-render a Starlark value: strings render as markdown, lists render as a table, diffs render as diff. `query` is used for table filtering.
+Auto-render a Starlark value: strings render as markdown, lists render as a table, diffs render as diff.
+`query` is used for table filtering.
 
 **`ui.link(text, url)`** -> `string`
 Create a clickable hyperlink (OSC 8 terminal escape). Falls back to `"text (url)"` in unsupported terminals.
@@ -884,7 +937,9 @@ port = ctx.ui.prompt("Enter port:", default="8080", validate=validate_port)
 **`ui.confirm(prompt, default=False)`** -> `bool`
 Ask for Y/n confirmation.
 
-**`ui.select(prompt, items, allow_multiple=False, is_fuzzy=False, limit=0, placeholder=None, initial_query=None, allow_new=False, should_return_index=False, label_key=None, value_key=None, meta_key=None)`** -> `string | list`
+**`ui.select(prompt, items, allow_multiple=False, is_fuzzy=False, limit=0, placeholder=None,`**
+**`initial_query=None, allow_new=False, should_return_index=False, label_key=None,`**
+**`value_key=None, meta_key=None)`** -> `string | list`
 Interactive fuzzy selection menu. Multi-select supported.
 
 ```python
@@ -910,6 +965,7 @@ Parse JSON string into Starlark values.
 Convert Starlark value to JSON string.
 
 **Example:**
+
 ```python
 data = ctx.json.parse('{"a": 1}')
 print(ctx.json.stringify(data, indent=2))
@@ -926,6 +982,7 @@ Parse YAML string into Starlark values. Supports nested structures, lists, and a
 Convert Starlark value to YAML string.
 
 **Example:**
+
 ```python
 # Parse YAML configuration
 config = ctx.yaml.parse('''
@@ -948,7 +1005,9 @@ output = ctx.yaml.stringify({"key": "value", "list": [1, 2, 3]})
 ### xml (XML Handling)
 
 **`xml.parse(string)`** -> `any`
-Parse XML string into Starlark values using the mxj library. Supports elements, attributes, text content, and nested structures.
+Parse XML string into Starlark values using the mxj library. Supports elements, attributes, text content,
+and nested structures.
+
 - Attributes are prefixed with `-` (e.g., `-id`, `-name`)
 - Text content is stored with `#text` key for elements with attributes or mixed content
 - Simple text-only elements return just the text value as a string
@@ -956,10 +1015,12 @@ Parse XML string into Starlark values using the mxj library. Supports elements, 
 
 **`xml.stringify(value, indent=False, root="")`** -> `string`
 Convert Starlark value to XML string.
+
 - `indent` (bool): Enable pretty-printing with 2-space indentation
 - `root` (string): Root element name (required if value is not a single-key dict)
 
 **Example:**
+
 ```python
 # Parse XML with attributes and nested elements
 xml_str = '''
@@ -995,6 +1056,7 @@ Parse TOML string into Starlark values. Supports tables, nested tables, arrays, 
 Convert Starlark value to TOML string.
 
 **Example:**
+
 ```python
 # Parse TOML configuration
 config = ctx.toml.parse('''
@@ -1025,16 +1087,19 @@ output = ctx.toml.stringify({
 
 **`csv.parse(string, headers=False, delimiter=",")`** -> `list`
 Parse CSV string into Starlark list.
+
 - `headers=False`: Returns list of lists (rows)
 - `headers=True`: Returns list of dicts (first row as keys)
 - `delimiter`: Field separator (default: `,`)
 
 **`csv.stringify(value, delimiter=",")`** -> `string`
 Convert Starlark list to CSV string.
+
 - Accepts list of lists (simple rows) or list of dicts (with headers)
 - `delimiter`: Field separator (default: `,`)
 
 **Example:**
+
 ```python
 # Parse CSV without headers
 csv_data = ctx.csv.parse('a,b,c\n1,2,3\n4,5,6')
@@ -1095,6 +1160,7 @@ Get parent directory (alias for `dirname`).
 Split path into components.
 
 **Example:**
+
 ```python
 # Basic operations
 full_path = ctx.path.join(ctx.workspace, "config.json")
@@ -1116,6 +1182,7 @@ parts = ctx.path.parts("/path/to/file.txt")  # ["path", "to", "file.txt"]
 **`crypto.hmac(key, data)`** -> `string` (SHA256 Hex)
 
 **Example:**
+
 ```python
 hash = ctx.crypto.sha256("hello world")
 ```
@@ -1126,6 +1193,7 @@ hash = ctx.crypto.sha256("hello world")
 
 **`time.now(format="")`** -> `int` or `string`
 Get current time. Returns Unix timestamp (int) if no format is provided.
+
 - Format specifiers: `%Y`, `%m`, `%d`, `%H`, `%M`, `%S`.
 
 **`time.parse(value, format)`** -> `int`
@@ -1138,6 +1206,7 @@ Format a Unix timestamp.
 Pause execution.
 
 **Example:**
+
 ```python
 ts = ctx.time.now()
 iso = ctx.time.now("%Y-%m-%dT%H:%M:%S")
@@ -1154,6 +1223,7 @@ ctx.time.sleep(1.5)
 **`regexp.split(pattern, text, limit=-1)`** -> `list[string]`
 
 **Example:**
+
 ```python
 if ctx.regexp.match(r"^\d+$", "123"):
     print("Is number")
@@ -1167,6 +1237,7 @@ The `http` module provides functions for making HTTP requests to APIs and web se
 
 **`http.get(url, headers={}, params={}, timeout=30)`** -> `struct`
 Perform an HTTP GET request.
+
 - `url` (string): The URL to request (required).
 - `headers` (dict): HTTP headers to include (optional).
 - `params` (dict): Query string parameters (optional).
@@ -1180,6 +1251,7 @@ Perform an HTTP GET request.
 
 **`http.post(url, body="", json=None, headers={}, timeout=30)`** -> `struct`
 Perform an HTTP POST request.
+
 - `url` (string): The URL to request (required).
 - `body` (string): Raw request body (optional).
 - `json` (dict/list): JSON data to send (optional, auto-sets Content-Type).
@@ -1192,6 +1264,7 @@ Perform an HTTP PUT request. Parameters same as `http.post()`.
 
 **`http.delete(url, headers={}, timeout=30)`** -> `struct`
 Perform an HTTP DELETE request.
+
 - `url` (string): The URL to request (required).
 - `headers` (dict): HTTP headers to include (optional).
 - `timeout` (int): Request timeout in seconds (default: 30).
@@ -1199,6 +1272,7 @@ Perform an HTTP DELETE request.
 
 **`http.graphql(url, query, variables={}, token="", timeout=30)`** -> `struct`
 Perform a GraphQL query.
+
 - `url` (string): GraphQL endpoint URL (required).
 - `query` (string): GraphQL query string (required).
 - `variables` (dict): Query variables (optional).
@@ -1207,6 +1281,7 @@ Perform a GraphQL query.
 - Returns: Same structure as `http.get()`.
 
 **Example:**
+
 ```python
 # Simple GET request
 response = ctx.http.get("https://api.github.com/repos/retran/meowg1k")
@@ -1264,28 +1339,33 @@ The `template` module provides Go's `text/template` engine for dynamic text gene
 
 **`template.parse(text, name="")`** -> `Template`
 Parse a template from a string.
+
 - `text` (string): Template text using Go template syntax (required).
 - `name` (string): Template name for debugging (optional, default: "template").
 - Returns: Template object with `render()` method.
 
 **`template.load(path)`** -> `Template`
 Load and parse a template from a file.
+
 - `path` (string): Path to template file (required, relative to workspace or absolute).
 - Returns: Template object with `render()` method.
 
 **`Template.render(data)`** -> `string`
 Render the template with provided data.
+
 - `data` (dict): Data to interpolate into template (required).
 - Returns: Rendered string.
 
 **Template Syntax:**
 Go templates use `{{}}` for actions:
+
 - `{{.FieldName}}` - Access field from data
 - `{{if .Condition}}...{{end}}` - Conditional blocks
 - `{{range .Items}}...{{end}}` - Iterate over lists
 - `{{.Nested.Field}}` - Nested field access
 
 **Example:**
+
 ```python
 # Simple template parsing and rendering
 tmpl = ctx.template.parse("Hello {{.Name}}, you are {{.Age}} years old")
@@ -1339,6 +1419,7 @@ result = tmpl.render({
 ```
 
 **Common Template Patterns:**
+
 ```python
 # Commit message template
 commit_tmpl = ctx.template.parse("""
@@ -1380,6 +1461,7 @@ class {{.ClassName}}:
 
 **Error Handling:**
 Template parsing and rendering errors include context:
+
 ```python
 try:
     tmpl = ctx.template.parse("{{.Missing")  # Syntax error
@@ -1459,13 +1541,12 @@ review_tool = meow.tool(
 meow.command(review_tool)
 ```
 
-
-
 ---
 
 ## Type Reference
 
-This section provides explicit type signatures for all Starlark functions. While Starlark is dynamically typed, understanding parameter and return types helps prevent errors.
+This section provides explicit type signatures for all Starlark functions. While Starlark is dynamically
+typed, understanding parameter and return types helps prevent errors.
 
 ### Notation
 
@@ -1481,6 +1562,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ### Domain Types
 
 **GitDiffResult**: `struct`
+
 ```python
 {
     raw: string,        # Raw diff output
@@ -1491,6 +1573,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **GitLogEntry**: `struct`
+
 ```python
 {
     hash: string,      # Commit SHA
@@ -1501,6 +1584,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **ShellResult**: `struct`
+
 ```python
 {
     stdout: string,    # Standard output
@@ -1510,6 +1594,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **IndexSearchResult**: `struct`
+
 ```python
 {
     file_path: string,  # File containing match
@@ -1521,6 +1606,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **UIStepHandle**: `object`
+
 ```python
 {
     .done(message?: string) -> None,  # Complete successfully
@@ -1531,6 +1617,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **UITurnHandle**: `object`
+
 ```python
 {
     .step(text: string) -> UIStepHandle,     # Add progress step
@@ -1544,6 +1631,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **UISubTurnHandle**: `object`
+
 ```python
 {
     .step(text: string) -> UIStepHandle,
@@ -1554,6 +1642,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ```
 
 **UIProgressBarHandle**: `object`
+
 ```python
 {
     .inc(amount?: int) -> None,       # Increment progress
@@ -1565,6 +1654,7 @@ This section provides explicit type signatures for all Starlark functions. While
 ### Complete Function Signatures
 
 #### meow module
+
 ```python
 meow.provider(name: string, type: string, **kwargs) -> None
 meow.model(name: string, **kwargs) -> None
@@ -1576,6 +1666,7 @@ meow.command(tool: ToolValue, name?: string) -> None
 ```
 
 #### env module
+
 ```python
 env.get(key: string, default?: string) -> string | None
 env.set(key: string, value: string) -> None
@@ -1583,6 +1674,7 @@ env.list() -> dict[string, string]
 ```
 
 #### fs module
+
 ```python
 fs.read(path: string) -> string
 fs.write(path: string, content: string) -> bool
@@ -1602,6 +1694,7 @@ fs.touch(path: string, mtime?: int) -> bool
 ```
 
 #### git module
+
 ```python
 git.glob(ref?: string, pattern?: string, ignore?: list[string]) -> list[string]
 git.read(ref_path: string) -> string  # Syntax: "ref:path"
@@ -1622,6 +1715,7 @@ git.create_branch(name: string, should_checkout?: bool) -> GitCreateBranchResult
 ```
 
 **Git Result Types:**
+
 ```python
 # GitCommitResult
 {
@@ -1662,6 +1756,7 @@ git.create_branch(name: string, should_checkout?: bool) -> GitCreateBranchResult
 ```
 
 #### llm module
+
 ```python
 llm.chat(prompt: string, preset: string, system?: string, use_session?: bool,
          stream?: bool, on_event?: callable, response_format?: string,
@@ -1677,17 +1772,20 @@ llm.embed(texts: list[string], preset: string) -> list[list[float]]
 ```
 
 #### shell module
+
 ```python
 shell.exec(command: string) -> ShellResult
 ```
 
 #### index module
+
 ```python
 index.search(query: string, snapshots?: list[string], top_k?: int, min_score?: float) -> list[IndexSearchResult]
 index.build() -> None
 ```
 
 #### ui module
+
 ```python
 ui.user_turn(text: string) -> None
 ui.assistant_turn() -> UITurnHandle
@@ -1715,12 +1813,14 @@ ui.select(prompt: string, items: list, allow_multiple?: bool, is_fuzzy?: bool,
 ```
 
 #### json module
+
 ```python
 json.parse(text: string) -> any
 json.stringify(value: any, indent?: int) -> string
 ```
 
 #### path module
+
 ```python
 path.join(*parts: string) -> string
 path.basename(path: string) -> string
@@ -1736,6 +1836,7 @@ path.parts(path: string) -> list[string]
 ```
 
 #### crypto module
+
 ```python
 crypto.sha256(data: string) -> string  # hex-encoded
 crypto.md5(data: string) -> string     # hex-encoded
@@ -1743,6 +1844,7 @@ crypto.hmac(key: string, data: string) -> string  # SHA256 hex-encoded
 ```
 
 #### time module
+
 ```python
 time.now() -> int  # Unix timestamp
 time.format(timestamp: int, layout?: string) -> string
@@ -1751,6 +1853,7 @@ time.sleep(seconds: float) -> None
 ```
 
 #### regexp module
+
 ```python
 regexp.match(pattern: string, text: string) -> bool
 regexp.find_all(pattern: string, text: string, limit?: int) -> list[string]
@@ -1759,6 +1862,7 @@ regexp.split(pattern: string, text: string, limit?: int) -> list[string]
 ```
 
 #### stdin module
+
 ```python
 stdin.read() -> string
 stdin.read_line() -> string
@@ -1766,6 +1870,7 @@ stdin.is_piped() -> bool
 ```
 
 #### output module
+
 ```python
 output.write(content: string) -> None
 output.writeline(content: string) -> None
@@ -2186,4 +2291,3 @@ def index_and_search():
 ```
 
 ---
-

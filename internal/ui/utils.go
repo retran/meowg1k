@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -28,7 +28,7 @@ func IsTerminal(fd uintptr) bool {
 
 // SupportsUnicode checks if the terminal supports Unicode characters.
 // Checks LANG, LC_ALL, LC_CTYPE environment variables for UTF-8 encoding.
-func SupportsUnicode() bool {
+func SupportsUnicode() bool { //nolint:gocognit,gocyclo // complexity inherent in checking multiple locale environment variables
 	for _, env := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
 		val := os.Getenv(env)
 		if val != "" {
@@ -46,16 +46,16 @@ func SupportsUnicode() bool {
 	}
 
 	// Check TERM variable for hints
-	term := os.Getenv("TERM")
-	if term != "" {
-		term = strings.ToLower(term)
-		if strings.Contains(term, "xterm") ||
-			strings.Contains(term, "screen") ||
-			strings.Contains(term, "tmux") ||
-			strings.Contains(term, "rxvt") ||
-			strings.Contains(term, "alacritty") ||
-			strings.Contains(term, "kitty") ||
-			strings.Contains(term, "iterm") {
+	termEnv := os.Getenv("TERM")
+	if termEnv != "" {
+		termEnv = strings.ToLower(termEnv)
+		if strings.Contains(termEnv, "xterm") ||
+			strings.Contains(termEnv, "screen") ||
+			strings.Contains(termEnv, "tmux") ||
+			strings.Contains(termEnv, "rxvt") ||
+			strings.Contains(termEnv, "alacritty") ||
+			strings.Contains(termEnv, "kitty") ||
+			strings.Contains(termEnv, "iterm") {
 			return true
 		}
 	}
@@ -108,13 +108,13 @@ func TruncatePlain(text string, width int) string {
 	return ansi.Truncate(text, width-len(ellipsis), "") + ellipsis
 }
 
-// Clamp bounds an integer to the inclusive [min, max] range.
-func Clamp(value, min, max int) int {
-	if value < min {
-		return min
+// Clamp bounds an integer to the inclusive [lo, hi] range.
+func Clamp(value, lo, hi int) int {
+	if value < lo {
+		return lo
 	}
-	if value > max {
-		return max
+	if value > hi {
+		return hi
 	}
 	return value
 }

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package model provides services for managing LLM model configurations and their capabilities.
@@ -237,7 +237,7 @@ func (s *Service) resolveAPIKey(
 	resolved *model.ResolvedModel,
 	modelDef *config.ModelConfig,
 	providerCfg *config.ProviderConfig,
-	providerDef *provider.Definition,
+	_ *provider.Definition,
 ) {
 	if modelDef.APIKey != "" {
 		resolved.APIKey = modelDef.APIKey

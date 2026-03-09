@@ -1,15 +1,17 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
+	"fmt"
+
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 	"gopkg.in/yaml.v3"
 )
 
-// NewYAMLModule creates the yaml module
+// NewYAMLModule creates the yaml module.
 func NewYAMLModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "yaml",
@@ -20,34 +22,20 @@ func NewYAMLModule() *starlarkstruct.Module {
 	}
 }
 
-// yamlParse parses a YAML string into Starlark values
-func yamlParse(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// yamlParse parses a YAML string into Starlark values.
+func yamlParse(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var data string
 	if err := starlark.UnpackPositionalArgs("yaml.parse", args, kwargs, 1, &data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("yaml.parse: %w", err)
 	}
-
-	var result interface{}
-	if err := yaml.Unmarshal([]byte(data), &result); err != nil {
-		return nil, err
-	}
-
-	return goToStarlark(result), nil
+	return parseDataToStarlark("yaml.parse", data, yaml.Unmarshal)
 }
 
-// yamlStringify converts Starlark values to YAML string
-func yamlStringify(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// yamlStringify converts Starlark values to YAML string.
+func yamlStringify(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var value starlark.Value
 	if err := starlark.UnpackPositionalArgs("yaml.stringify", args, kwargs, 1, &value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("yaml.stringify: %w", err)
 	}
-
-	goValue := starlarkToGo(value)
-
-	data, err := yaml.Marshal(goValue)
-	if err != nil {
-		return nil, err
-	}
-
-	return starlark.String(string(data)), nil
+	return marshalToStarlarkString("yaml.stringify", value, yaml.Marshal)
 }

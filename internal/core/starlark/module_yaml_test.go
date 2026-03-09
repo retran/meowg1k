@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -43,7 +43,7 @@ active: true
 		require.True(t, found)
 		count, err := starlark.AsInt32(countVal)
 		require.NoError(t, err)
-		assert.Equal(t, 42, int(count))
+		assert.Equal(t, 42, count)
 
 		// Check active field
 		activeVal, found, err := dict.Get(starlark.String("active"))

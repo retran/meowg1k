@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -379,15 +379,15 @@ func TestRuntime_SetOutputService(t *testing.T) {
 
 func TestRuntime_CreateModulesForCtx(t *testing.T) {
 	tests := []struct {
-		name   string
 		create func(*Runtime) interface{}
+		name   string
 	}{
-		{"CreateFSModuleForCtx", func(r *Runtime) interface{} { return r.CreateFSModuleForCtx() }},
-		{"CreateGitModuleForCtx", func(r *Runtime) interface{} { return r.CreateGitModuleForCtx() }},
-		{"CreateLLMModuleForCtx", func(r *Runtime) interface{} { return r.CreateLLMModuleForCtx(nil) }},
-		{"CreateShellModuleForCtx", func(r *Runtime) interface{} { return r.CreateShellModuleForCtx() }},
-		{"CreateIndexModuleForCtx", func(r *Runtime) interface{} { return r.CreateIndexModuleForCtx() }},
-		{"CreateStdinModuleForCtx", func(r *Runtime) interface{} { return r.CreateStdinModuleForCtx() }},
+		{name: "CreateFSModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateFSModuleForCtx() }},
+		{name: "CreateGitModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateGitModuleForCtx() }},
+		{name: "CreateLLMModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateLLMModuleForCtx(nil) }},
+		{name: "CreateShellModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateShellModuleForCtx() }},
+		{name: "CreateIndexModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateIndexModuleForCtx() }},
+		{name: "CreateStdinModuleForCtx", create: func(r *Runtime) interface{} { return r.CreateStdinModuleForCtx() }},
 	}
 
 	for _, tt := range tests {
@@ -451,7 +451,7 @@ func TestNoopOutputWriter(t *testing.T) {
 	})
 }
 
-// mockOutputWriter is a test implementation of ports.UIWriter
+// mockOutputWriter is a test implementation of ports.UIWriter.
 type mockOutputWriter struct {
 	printed []string
 }
@@ -470,7 +470,7 @@ func (m *mockOutputWriter) Printf(format string, args ...any) error {
 	return nil
 }
 
-// TurnWriter methods
+// TurnWriter methods.
 func (m *mockOutputWriter) SendHeader(text string)                       {}
 func (m *mockOutputWriter) BeginUserTurn(text string)                    {}
 func (m *mockOutputWriter) BeginAssistantTurn()                          {}

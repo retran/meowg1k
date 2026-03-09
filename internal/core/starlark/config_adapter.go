@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -11,7 +11,7 @@ import (
 
 // ApplyConfigToYAML converts Starlark configuration to domain YAML config format.
 // This allows Starlark scripts to override or extend YAML-based configuration.
-func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainConfig.Config, error) {
+func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainConfig.Config, error) { //nolint:gocognit,gocyclo // complexity inherent in merging multiple config sections
 	if baseConfig == nil {
 		baseConfig = &domainConfig.Config{
 			Providers: make(map[string]*domainConfig.ProviderConfig),
@@ -20,7 +20,8 @@ func (r *Runtime) ApplyConfigToYAML(baseConfig *domainConfig.Config) (*domainCon
 		}
 	}
 
-	for name, providerCfg := range r.providers {
+	for name := range r.providers {
+		providerCfg := r.providers[name]
 		domainProvider := &domainConfig.ProviderConfig{
 			Type:                 providerCfg.Type,
 			BaseURL:              providerCfg.BaseURL,
@@ -109,13 +110,14 @@ func (r *Runtime) HasConfiguration() bool {
 // Providers returns a copy of the provider configurations registered via Starlark scripts.
 func (r *Runtime) Providers() map[string]ProviderConfig {
 	result := make(map[string]ProviderConfig, len(r.providers))
-	for k, v := range r.providers {
-		result[k] = v
+	for name := range r.providers {
+		providerCfg := r.providers[name]
+		result[name] = providerCfg
 	}
 	return result
 }
 
-// Helper functions for pointer conversion
+// Helper functions for pointer conversion.
 func intPtr(i int) *int {
 	if i == 0 {
 		return nil

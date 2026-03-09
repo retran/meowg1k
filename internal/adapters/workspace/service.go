@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package workspace provides services for resolving and managing the workspace directory path.
@@ -35,7 +35,7 @@ func NewServiceWithPath(path string) *Service {
 	}
 }
 
-// fixedPathResolver always returns a fixed workspace path
+// fixedPathResolver always returns a fixed workspace path.
 type fixedPathResolver struct {
 	path string
 }

@@ -45,6 +45,7 @@ import (
 ```
 
 **Assertion Styles**:
+
 - `require.*` - Fail immediately if assertion fails (use for critical checks)
 - `assert.*` - Continue test execution after failure (use for non-critical checks)
 
@@ -107,10 +108,18 @@ Use **interface-based mocking** for hexagonal architecture:
 ```go
 // Define mock in test file
 type mockIndexRepo struct {
-    addDocumentVersionFunc func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error)
+    addDocumentVersionFunc func(
+        ctx context.Context,
+        doc *domainindex.DocumentVersion,
+        content []byte,
+    ) (int64, error)
 }
 
-func (m *mockIndexRepo) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
+func (m *mockIndexRepo) AddDocumentVersion(
+    ctx context.Context,
+    doc *domainindex.DocumentVersion,
+    content []byte,
+) (int64, error) {
     if m.addDocumentVersionFunc != nil {
         return m.addDocumentVersionFunc(ctx, doc, content)
     }
@@ -120,7 +129,11 @@ func (m *mockIndexRepo) AddDocumentVersion(ctx context.Context, doc *domainindex
 // Use in test
 func TestIndexService_AddDocument(t *testing.T) {
     mockRepo := &mockIndexRepo{
-        addDocumentVersionFunc: func(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
+        addDocumentVersionFunc: func(
+            ctx context.Context,
+            doc *domainindex.DocumentVersion,
+            content []byte,
+        ) (int64, error) {
             return 123, nil
         },
     }
@@ -358,6 +371,7 @@ func TestService_WithTimeout(t *testing.T) {
 ### Package Naming
 
 **Unit tests** (white-box): Same package as source
+
 ```go
 package index
 
@@ -367,6 +381,7 @@ func TestService_InternalMethod(t *testing.T) {
 ```
 
 **Integration tests** (black-box): Use `_test` suffix
+
 ```go
 package index_test
 
@@ -400,6 +415,7 @@ func TestExample(t *testing.T) {
 ## Test Categories
 
 ### Unit Tests
+
 - Test single function/method
 - Mock all dependencies
 - Fast execution (< 10ms per test)
@@ -407,6 +423,7 @@ func TestExample(t *testing.T) {
 - Located with source files
 
 ### Integration Tests
+
 - Test multiple components together
 - Use real adapters (in-memory DB, etc.)
 - Slower execution acceptable
@@ -416,6 +433,7 @@ func TestExample(t *testing.T) {
 ### Examples
 
 **Unit Test**:
+
 ```go
 // internal/core/chunker/chunker_test.go
 package chunker
@@ -427,6 +445,7 @@ func TestFixedSizeChunker_Chunk(t *testing.T) {
 ```
 
 **Integration Test**:
+
 ```go
 // internal/adapters/sqlite/index/repository_test.go
 package index_test
@@ -441,6 +460,7 @@ func TestRepository_EndToEnd(t *testing.T) {
 ### ✅ Do
 
 1. **Test behavior, not implementation**
+
 ```go
 // Good: Test what it does
 func TestCalculateTotal_ReturnsSum(t *testing.T) {
@@ -454,7 +474,8 @@ func TestCalculateTotal_UsesForLoop(t *testing.T) {
 }
 ```
 
-2. **Use descriptive test names**
+1. **Use descriptive test names**
+
 ```go
 // Good
 func TestIndexService_AddDocument_WithDuplicateHash_ReturnsExistingVersion(t *testing.T)
@@ -463,7 +484,8 @@ func TestIndexService_AddDocument_WithDuplicateHash_ReturnsExistingVersion(t *te
 func TestAddDoc(t *testing.T)
 ```
 
-3. **Test one thing per test**
+1. **Test one thing per test**
+
 ```go
 // Good: Focused test
 func TestValidation_EmptyEmail_ReturnsError(t *testing.T)
@@ -474,7 +496,8 @@ func TestValidation(t *testing.T) {
 }
 ```
 
-4. **Use t.Helper() in test utilities**
+1. **Use t.Helper() in test utilities**
+
 ```go
 func assertNoError(t *testing.T, err error) {
     t.Helper() // Shows correct line number in failure
@@ -482,7 +505,8 @@ func assertNoError(t *testing.T, err error) {
 }
 ```
 
-5. **Clean up resources**
+1. **Clean up resources**
+
 ```go
 func TestWithTempFile(t *testing.T) {
     f, err := os.CreateTemp("", "test")
@@ -499,6 +523,7 @@ func TestWithTempFile(t *testing.T) {
 ### ❌ Don't
 
 1. **Don't skip error checks in tests**
+
 ```go
 // Bad
 result, _ := service.Process(input)
@@ -508,7 +533,8 @@ result, err := service.Process(input)
 require.NoError(t, err)
 ```
 
-2. **Don't use magic numbers**
+1. **Don't use magic numbers**
+
 ```go
 // Bad
 assert.Equal(t, 42, len(results))
@@ -518,7 +544,8 @@ expectedCount := 42
 assert.Equal(t, expectedCount, len(results))
 ```
 
-3. **Don't test external services directly**
+1. **Don't test external services directly**
+
 ```go
 // Bad: Depends on external API
 func TestRealAnthropicAPI(t *testing.T) {
@@ -533,7 +560,8 @@ func TestAnthropicGateway(t *testing.T) {
 }
 ```
 
-4. **Don't use time.Sleep for synchronization**
+1. **Don't use time.Sleep for synchronization**
+
 ```go
 // Bad
 go asyncOperation()
@@ -572,24 +600,28 @@ go tool cover -func=coverage.out
 ### Improving Coverage
 
 **Focus on**:
+
 1. Error paths
-2. Edge cases
-3. Boundary conditions
-4. Core business logic
+1. Edge cases
+1. Boundary conditions
+1. Core business logic
 
 **Less critical**:
+
 1. Generated code
-2. Simple getters/setters
-3. Trivial wrappers
+1. Simple getters/setters
+1. Trivial wrappers
 
 ## CI/CD Integration
 
 Tests run automatically on:
+
 - Push to `dev` or `main` branches
 - Pull request creation
 - See `.github/workflows/ci.yaml`
 
 **Requirements**:
+
 - ✅ All tests must pass
 - ✅ Coverage ≥ 65%
 - ✅ No race conditions

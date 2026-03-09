@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -12,16 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 
-	"github.com/google/uuid"
 	gatewayimpl "github.com/retran/meowg1k/internal/adapters/gateway"
 	"github.com/retran/meowg1k/internal/core/model"
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainpreset "github.com/retran/meowg1k/internal/domain/preset"
 	"github.com/retran/meowg1k/internal/domain/session"
 	"github.com/retran/meowg1k/internal/ports"
+)
+
+const (
+	onToolErrorAbort = "abort"
 )
 
 // LLMServices holds references to LLM-related services.
@@ -111,7 +115,7 @@ func (m *LLMModule) loadSessionHistory(ctx context.Context) ([]gateway.Message, 
 }
 
 // streamEventToStarlark converts a gateway.StreamEvent to a Starlark dict.
-func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict {
+func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict { //nolint:gocyclo,gocritic // complexity is inherent in the event type handling; hugeParam: value semantics required for channel receive
 	d := starlark.NewDict(4)
 
 	var kindStr string
@@ -140,43 +144,48 @@ func streamEventToStarlark(event gateway.StreamEvent) *starlark.Dict {
 		kindStr = "unknown"
 	}
 
-	d.SetKey(starlark.String("kind"), starlark.String(kindStr)) //nolint:errcheck
+	d.SetKey(starlark.String("kind"), starlark.String(kindStr)) //nolint:errcheck // starlark dict operations with known-compatible types
 
 	switch event.Kind {
 	case gateway.StreamEventText, gateway.StreamEventThinking:
-		d.SetKey(starlark.String("delta"), starlark.String(event.Delta)) //nolint:errcheck
+		d.SetKey(starlark.String("delta"), starlark.String(event.Delta)) //nolint:errcheck // starlark dict operations with known-compatible types
 	case gateway.StreamEventUsage, gateway.StreamEventDone:
 		if event.Usage != nil {
 			usageDict := starlark.NewDict(3)
-			usageDict.SetKey(starlark.String("prompt"), starlark.MakeInt(event.Usage.PromptTokens))         //nolint:errcheck
-			usageDict.SetKey(starlark.String("completion"), starlark.MakeInt(event.Usage.CompletionTokens)) //nolint:errcheck
-			usageDict.SetKey(starlark.String("total"), starlark.MakeInt(event.Usage.TotalTokens))           //nolint:errcheck
-			d.SetKey(starlark.String("usage"), usageDict)                                                   //nolint:errcheck
+			usageDict.SetKey(starlark.String("prompt"), starlark.MakeInt(event.Usage.PromptTokens))         //nolint:errcheck // starlark dict operations with known-compatible types
+			usageDict.SetKey(starlark.String("completion"), starlark.MakeInt(event.Usage.CompletionTokens)) //nolint:errcheck // starlark dict operations with known-compatible types
+			usageDict.SetKey(starlark.String("total"), starlark.MakeInt(event.Usage.TotalTokens))           //nolint:errcheck // starlark dict operations with known-compatible types
+			d.SetKey(starlark.String("usage"), usageDict)                                                   //nolint:errcheck // starlark dict operations with known-compatible types
 		}
 	case gateway.StreamEventError:
-		d.SetKey(starlark.String("error"), starlark.String(event.Error))           //nolint:errcheck
-		d.SetKey(starlark.String("recoverable"), starlark.Bool(event.Recoverable)) //nolint:errcheck
+		d.SetKey(starlark.String("error"), starlark.String(event.Error))           //nolint:errcheck // starlark dict operations with known-compatible types
+		d.SetKey(starlark.String("recoverable"), starlark.Bool(event.Recoverable)) //nolint:errcheck // starlark dict operations with known-compatible types
 	case gateway.StreamEventToolCallStart, gateway.StreamEventToolCallEnd, gateway.StreamEventToolCallError:
-		d.SetKey(starlark.String("tool_name"), starlark.String(event.ToolName)) //nolint:errcheck
-		d.SetKey(starlark.String("tool_id"), starlark.String(event.ToolID))     //nolint:errcheck
-		if event.Arguments != nil {
-			argsDict := starlark.NewDict(len(event.Arguments))
-			for k, v := range event.Arguments {
-				argsDict.SetKey(starlark.String(k), goToStarlark(v)) //nolint:errcheck
-			}
-			d.SetKey(starlark.String("arguments"), argsDict) //nolint:errcheck
-		}
-		if event.Kind != gateway.StreamEventToolCallStart {
-			d.SetKey(starlark.String("duration_ms"), starlark.MakeInt64(event.DurationMS)) //nolint:errcheck
-		}
-		if event.Kind == gateway.StreamEventToolCallError {
-			d.SetKey(starlark.String("error"), starlark.String(event.Error)) //nolint:errcheck
-		}
+		populateToolCallFields(d, event)
 	case gateway.StreamEventIterationStart, gateway.StreamEventIterationEnd:
-		d.SetKey(starlark.String("iteration"), starlark.MakeInt(event.Iteration)) //nolint:errcheck
+		d.SetKey(starlark.String("iteration"), starlark.MakeInt(event.Iteration)) //nolint:errcheck // starlark dict operations with known-compatible types
 	}
 
 	return d
+}
+
+// populateToolCallFields adds tool-call specific fields to a stream event dict.
+func populateToolCallFields(d *starlark.Dict, event gateway.StreamEvent) { //nolint:gocritic // hugeParam: value semantics kept consistent with streamEventToStarlark
+	d.SetKey(starlark.String("tool_name"), starlark.String(event.ToolName)) //nolint:errcheck // starlark dict operations with known-compatible types
+	d.SetKey(starlark.String("tool_id"), starlark.String(event.ToolID))     //nolint:errcheck // starlark dict operations with known-compatible types
+	if event.Arguments != nil {
+		argsDict := starlark.NewDict(len(event.Arguments))
+		for k, v := range event.Arguments {
+			argsDict.SetKey(starlark.String(k), goToStarlark(v)) //nolint:errcheck // starlark dict operations with known-compatible types
+		}
+		d.SetKey(starlark.String("arguments"), argsDict) //nolint:errcheck // starlark dict operations with known-compatible types
+	}
+	if event.Kind != gateway.StreamEventToolCallStart {
+		d.SetKey(starlark.String("duration_ms"), starlark.MakeInt64(event.DurationMS)) //nolint:errcheck // starlark dict operations with known-compatible types
+	}
+	if event.Kind == gateway.StreamEventToolCallError {
+		d.SetKey(starlark.String("error"), starlark.String(event.Error)) //nolint:errcheck // starlark dict operations with known-compatible types
+	}
 }
 
 // responseToStarlark converts the final response text to a Starlark value.
@@ -196,13 +205,13 @@ func responseToStarlark(text, responseFormat string) (starlark.Value, error) {
 //
 //	chat(prompt, preset, system=None, use_session=True, stream=False,
 //	     on_event=None, response_format=None, response_schema=None) → str | dict
-func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo,funlen // complexity inherent in chat with streaming, session, and response format handling
 	var (
 		prompt         string
 		presetName     string
 		system         string
-		useSession     bool = true
-		stream         bool = false
+		useSession     = true
+		stream         = false
 		onEventFn      starlark.Callable
 		responseFormat string
 		responseSchema *starlark.Dict
@@ -218,7 +227,7 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 		"response_format?", &responseFormat,
 		"response_schema?", &responseSchema,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("llm.chat: %w", err)
 	}
 
 	if presetName == "" {
@@ -279,18 +288,22 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	startTime := time.Now()
 
-	if stream && onEventFn != nil {
+	switch {
+	case stream && onEventFn != nil:
 		resp, streamErr := llmGateway.GenerateContentStream(ctx, request, func(event gateway.StreamEvent) error {
 			eventDict := streamEventToStarlark(event)
 			_, callErr := starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil)
-			return callErr
+			if callErr != nil {
+				return fmt.Errorf("event callback failed: %w", callErr)
+			}
+			return nil
 		})
 		if streamErr != nil {
 			return nil, fmt.Errorf("LLM streaming failed with preset '%s': %w", presetName, streamErr)
 		}
 		responseText = resp.Text()
 		usage = resp.Usage
-	} else if stream {
+	case stream:
 		// stream=True but no on_event: still stream under the hood, discard events
 		resp, streamErr := llmGateway.GenerateContentStream(ctx, request, func(_ gateway.StreamEvent) error {
 			return nil
@@ -300,7 +313,7 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 		}
 		responseText = resp.Text()
 		usage = resp.Usage
-	} else {
+	default:
 		resp, genErr := llmGateway.GenerateContent(ctx, request)
 		if genErr != nil {
 			return nil, fmt.Errorf("LLM generation failed with preset '%s': %w", presetName, genErr)
@@ -311,7 +324,7 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 
 	duration := time.Since(startTime)
 
-	if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+	if useSession && m.runtime.sessionService != nil && m.currentSession != nil { //nolint:nestif // nested checks required for optional session persistence
 		if err := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); err != nil {
 			log.Printf("session: failed to write user message: %v", err)
 		}
@@ -346,17 +359,17 @@ func (m *LLMModule) llmChat(thread *starlark.Thread, b *starlark.Builtin, args s
 //	agent_turn(prompt, preset, tools, system=None, use_session=True, stream=False,
 //	           on_event=None, max_iterations=50, on_tool_error="return",
 //	           response_format=None, response_schema=None) → str | dict
-func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit,gocyclo,funlen,maintidx // complexity inherent in agentic loop with tool calls, retries, and session management
 	var (
 		prompt         string
 		presetName     string
 		toolsList      *starlark.List
 		system         string
-		useSession     bool = true
-		stream         bool = false
+		useSession     = true
+		stream         = false
 		onEventFn      starlark.Callable
-		maxIterations  int    = 50
-		onToolError    string = "return"
+		maxIterations  = 50
+		onToolError    = "return"
 		responseFormat string
 		responseSchema *starlark.Dict
 	)
@@ -374,7 +387,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		"response_format?", &responseFormat,
 		"response_schema?", &responseSchema,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("llm.agent_turn: %w", err)
 	}
 
 	if presetName == "" {
@@ -382,7 +395,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 	}
 
 	// Validate on_tool_error
-	if onToolError != "return" && onToolError != "abort" {
+	if onToolError != "return" && onToolError != onToolErrorAbort {
 		return nil, fmt.Errorf("on_tool_error must be 'return' or 'abort', got '%s'", onToolError)
 	}
 
@@ -441,7 +454,10 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		return func(event gateway.StreamEvent) error {
 			eventDict := streamEventToStarlark(event)
 			_, callErr := starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil)
-			return callErr
+			if callErr != nil {
+				return fmt.Errorf("event callback failed: %w", callErr)
+			}
+			return nil
 		}
 	}
 
@@ -450,7 +466,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 			return
 		}
 		eventDict := streamEventToStarlark(event)
-		starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil) //nolint:errcheck
+		starlark.Call(thread, onEventFn, starlark.Tuple{eventDict}, nil) //nolint:errcheck // starlark dict operations with known-compatible types
 	}
 
 	var finalResponse string
@@ -502,7 +518,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 		toolCalls := resp.ToolCalls()
 		responseText := resp.Text()
 
-		if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
+		if useSession && m.runtime.sessionService != nil && m.currentSession != nil { //nolint:nestif // nested checks required for optional session persistence
 			if !userMessageWritten {
 				if wErr := m.runtime.sessionService.AddUserMessage(ctx, m.currentSession.ID, prompt); wErr != nil {
 					log.Printf("session: failed to write user message: %v", wErr)
@@ -573,7 +589,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 
 		for _, toolCall := range toolCalls {
 			tool, exists := toolsByName[toolCall.Name]
-			if !exists {
+			if !exists { //nolint:nestif // nested error handling for missing tool with session persistence and event emission
 				errorMsg := fmt.Sprintf("Tool '%s' not found", toolCall.Name)
 				emitEvent(gateway.StreamEvent{
 					Kind:      gateway.StreamEventToolCallError,
@@ -582,7 +598,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 					Arguments: toolCall.Arguments,
 					Error:     errorMsg,
 				})
-				if onToolError == "abort" {
+				if onToolError == onToolErrorAbort {
 					return nil, fmt.Errorf("tool '%s' not found", toolCall.Name)
 				}
 				if useSession && m.runtime.sessionService != nil && m.currentSession != nil {
@@ -621,7 +637,7 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 					Error:      toolErr.Error(),
 					DurationMS: toolDuration,
 				})
-				if onToolError == "abort" {
+				if onToolError == onToolErrorAbort {
 					return nil, fmt.Errorf("tool '%s' failed: %w", toolCall.Name, toolErr)
 				}
 			} else {
@@ -662,12 +678,12 @@ func (m *LLMModule) llmAgentTurn(thread *starlark.Thread, b *starlark.Builtin, a
 }
 
 // llmEmbed implements llm.embed().
-func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (m *LLMModule) llmEmbed(_ *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) { //nolint:gocognit // complexity inherent in embedding with multiple input formats and model resolution
 	var texts *starlark.List
 	var presetName string
 
 	if err := starlark.UnpackArgs(b.Name(), args, kwargs, "texts", &texts, "preset", &presetName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("llm.embed: %w", err)
 	}
 
 	if presetName == "" {
@@ -729,7 +745,7 @@ func (m *LLMModule) llmEmbed(thread *starlark.Thread, b *starlark.Builtin, args 
 }
 
 // applyPresetParameters applies all preset parameters to a gateway request.
-func applyPresetParameters(request *gateway.GenerateContentRequest, preset *domainpreset.ResolvedPreset) {
+func applyPresetParameters(request *gateway.GenerateContentRequest, preset *domainpreset.ResolvedPreset) { //nolint:gocognit,gocyclo // complexity inherent in mapping all optional preset fields to request
 	if preset == nil {
 		return
 	}
@@ -881,17 +897,17 @@ func (m *LLMModule) executeToolForAgentic(thread *starlark.Thread, tool *Tool, p
 
 	result, err := starlark.Call(thread, tool.Handler, starlark.Tuple{childCtx}, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tool call failed: %w", err)
 	}
 
 	return result, nil
 }
 
-// splitAndComputeEmbeddings recursively splits batches that exceed rate limit capacity
+// splitAndComputeEmbeddings recursively splits batches that exceed rate limit capacity.
 func (m *LLMModule) splitAndComputeEmbeddings(
 	ctx context.Context,
 	embGateway ports.EmbeddingsGateway,
-	model string,
+	modelName string,
 	texts []string,
 ) (starlark.Value, error) {
 	if len(texts) == 0 {
@@ -904,25 +920,27 @@ func (m *LLMModule) splitAndComputeEmbeddings(
 
 	mid := len(texts) / 2
 
-	firstReq := gateway.NewComputeEmbeddingsRequest(model, texts[:mid], gateway.RetrievalDocument)
+	firstReq := gateway.NewComputeEmbeddingsRequest(modelName, texts[:mid], gateway.RetrievalDocument)
 	firstEmbs, err := embGateway.ComputeEmbeddings(ctx, firstReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "exceeds rate limit capacity") {
-			return m.splitAndComputeEmbeddings(ctx, embGateway, model, texts[:mid])
+			return m.splitAndComputeEmbeddings(ctx, embGateway, modelName, texts[:mid])
 		}
 		return nil, fmt.Errorf("failed to compute embeddings (first half): %w", err)
 	}
 
-	secondReq := gateway.NewComputeEmbeddingsRequest(model, texts[mid:], gateway.RetrievalDocument)
+	secondReq := gateway.NewComputeEmbeddingsRequest(modelName, texts[mid:], gateway.RetrievalDocument)
 	secondEmbs, err := embGateway.ComputeEmbeddings(ctx, secondReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "exceeds rate limit capacity") {
-			return m.splitAndComputeEmbeddings(ctx, embGateway, model, texts[mid:])
+			return m.splitAndComputeEmbeddings(ctx, embGateway, modelName, texts[mid:])
 		}
 		return nil, fmt.Errorf("failed to compute embeddings (second half): %w", err)
 	}
 
-	allEmbeddings := append(firstEmbs, secondEmbs...)
+	allEmbeddings := make([]gateway.Embedding, len(firstEmbs)+len(secondEmbs))
+	copy(allEmbeddings, firstEmbs)
+	copy(allEmbeddings[len(firstEmbs):], secondEmbs)
 
 	result := make([]starlark.Value, len(allEmbeddings))
 	for i, emb := range allEmbeddings {

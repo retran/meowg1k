@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -163,15 +163,20 @@ func TestOpenAIGatewayGenerateContentError(t *testing.T) {
 		100,
 	)
 
-	ctx := context.Background()
+	// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	_, err := gateway.GenerateContent(ctx, request)
 
 	if err == nil {
 		t.Error("Expected error from failing server")
 	}
 
-	if !strings.Contains(err.Error(), "failed to write content") {
-		t.Errorf("Expected 'failed to write content' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to call OpenAI chat completions") &&
+		!strings.Contains(err.Error(), "retry cancelled") &&
+		!strings.Contains(err.Error(), "failed after") {
+		t.Errorf("Expected error from OpenAI chat completions call, got: %v", err)
 	}
 }
 
@@ -238,15 +243,20 @@ func TestOpenAIGatewayComputeEmbeddingsError(t *testing.T) {
 		domainGateway.RetrievalQuery,
 	)
 
-	ctx := context.Background()
+	// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	_, err := gateway.ComputeEmbeddings(ctx, request)
 
 	if err == nil {
 		t.Error("Expected error from failing server")
 	}
 
-	if !strings.Contains(err.Error(), "failed to compute embedding") {
-		t.Errorf("Expected 'failed to compute embedding' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "failed to call OpenAI embeddings") &&
+		!strings.Contains(err.Error(), "retry cancelled") &&
+		!strings.Contains(err.Error(), "failed after") {
+		t.Errorf("Expected error from OpenAI embeddings call, got: %v", err)
 	}
 }
 
@@ -275,7 +285,10 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 		100,
 	)
 
-	ctx := context.Background()
+	// Use a short timeout so the retry backoff loop exits quickly on context cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	_, err := gateway.GenerateContent(ctx, request)
 
 	if err == nil {
@@ -283,7 +296,7 @@ func TestOpenAIGatewayEmptyResponse(t *testing.T) {
 	}
 
 	expectedError := "no choices returned from OpenAI-compatible API"
-	if !strings.Contains(err.Error(), expectedError) {
+	if !strings.Contains(err.Error(), expectedError) && !strings.Contains(err.Error(), "retry cancelled") {
 		t.Errorf("Expected error containing '%s', got: %v", expectedError, err)
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package ports defines port interfaces for hexagonal architecture, decoupling core business logic from adapters.
@@ -305,7 +305,7 @@ type SessionRepository interface {
 	// UpdateSession updates an existing session's status and timestamp.
 	UpdateSession(ctx context.Context, s *session.Session) error
 	// ListSessions retrieves sessions with optional filters.
-	ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error)
+	ListSessions(ctx context.Context, filter *session.Filter) ([]*session.Session, error)
 	// AddEvent inserts a new event into a session.
 	AddEvent(ctx context.Context, e *session.Event) error
 	// GetEvents retrieves events for a session with pagination.
@@ -329,7 +329,7 @@ type SessionService interface {
 	// GetSession retrieves a session by ID.
 	GetSession(ctx context.Context, id string) (*session.Session, error)
 	// ListSessions retrieves sessions with optional filters.
-	ListSessions(ctx context.Context, filter *session.SessionFilter) ([]*session.Session, error)
+	ListSessions(ctx context.Context, filter *session.Filter) ([]*session.Session, error)
 	// GetChildSessions retrieves all child sessions for a parent session.
 	GetChildSessions(ctx context.Context, parentID string) ([]*session.Session, error)
 	// CompleteSession marks a session as completed.

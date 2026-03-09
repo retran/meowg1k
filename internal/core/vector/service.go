@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package vector
@@ -8,8 +8,6 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
-
-	"github.com/coder/hnsw"
 
 	"github.com/retran/meowg1k/internal/ports"
 )
@@ -107,7 +105,7 @@ func (s *Service) collectChunks(ctx context.Context, versionIDs []int64) ([]inde
 }
 
 func buildIndexDump(chunks []indexedChunk) (IndexDump, error) {
-	hnswIndex := hnsw.NewGraph[int64]()
+	hnswIndex := NewGraph[int64]()
 
 	idToChunkID := make(map[uint32]int64, len(chunks))
 	chunkIDToID := make(map[int64]uint32, len(chunks))
@@ -119,7 +117,7 @@ func buildIndexDump(chunks []indexedChunk) (IndexDump, error) {
 		// #nosec G115 -- overflow is checked above
 		hnswID := uint32(i)
 
-		node := hnsw.MakeNode(chunk.chunkID, chunk.embedding)
+		node := MakeNode(chunk.chunkID, chunk.embedding)
 		hnswIndex.Add(node)
 
 		idToChunkID[hnswID] = chunk.chunkID

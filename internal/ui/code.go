@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -12,7 +12,7 @@ import (
 
 // RenderCode renders a code block with syntax highlighting.
 // If maxLines > 0, content will be truncated to that many lines.
-func RenderCode(content, language, title string, theme Theme, opts RenderOptions) string {
+func RenderCode(content, language, title string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value for immutability
 	return RenderCodeWithMaxLines(content, language, title, 0, theme, opts)
 }
 
@@ -20,7 +20,7 @@ func RenderCode(content, language, title string, theme Theme, opts RenderOptions
 // In terminal mode the code is rendered by wrapping it in a fenced markdown
 // block and passing it through glamour (which uses chroma internally).
 // In plain/CI mode a simple text fence is returned instead.
-func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme Theme, opts RenderOptions) string {
+func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme Theme, opts RenderOptions) string { //nolint:gocritic,gocognit,gocyclo,funlen // hugeParam: Theme passed by value for immutability; complexity inherent in multi-mode rendering
 	var wasTruncated bool
 	if maxLines > 0 {
 		content, wasTruncated = TruncateContent(content, maxLines, opts)
@@ -70,7 +70,7 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 
 	var borderChar, topLeft, topRight, bottomLeft, bottomRight string
 	if opts.SupportsUnicode {
-		borderChar = "─"
+		borderChar = dividerCharLine
 		topLeft = "╭"
 		topRight = "╮"
 		bottomLeft = "╰"
@@ -85,7 +85,7 @@ func RenderCodeWithMaxLines(content, language, title string, maxLines int, theme
 
 	var result strings.Builder
 
-	if title != "" {
+	if title != "" { //nolint:nestif // nested layout calculation for title bar with border drawing
 		titleStr := fmt.Sprintf(" %s ", title)
 		totalInnerWidth := maxWidth + 2
 		if len(titleStr) > totalInnerWidth {
