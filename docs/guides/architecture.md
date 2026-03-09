@@ -5,6 +5,7 @@ This document provides a comprehensive overview of meowg1k's hexagonal architect
 ## Architecture Overview
 
 meowg1k strictly follows **Hexagonal Architecture** principles to achieve:
+
 - **Testability**: Core business logic can be tested without external dependencies
 - **Flexibility**: Easy to swap implementations (e.g., switch from SQLite to PostgreSQL)
 - **Maintainability**: Clear separation of concerns across layers
@@ -14,15 +15,18 @@ meowg1k strictly follows **Hexagonal Architecture** principles to achieve:
 
 ### 1. Domain Layer (`internal/domain/`)
 
-The **Domain Layer** contains pure business types, domain models, and value objects. These represent the core concepts of the application.
+The **Domain Layer** contains pure business types, domain models, and value objects. These represent the core
+concepts of the application.
 
 **Key Characteristics**:
+
 - No dependencies on other internal packages
 - Pure data structures and types
 - Domain-specific logic encapsulated in methods
 - Exported for use across all layers
 
 **Example Packages**:
+
 - `domain/config/` - Configuration domain types (Provider, Model, Preset)
 - `domain/gateway/` - LLM gateway types (GenerateContentRequest, Embedding)
 - `domain/index/` - RAG index types (DocumentVersion, Chunk, FileState)
@@ -30,6 +34,7 @@ The **Domain Layer** contains pure business types, domain models, and value obje
 - `domain/preset/` - Preset configuration types
 
 **Example Type**:
+
 ```go
 // domain/index/types.go
 type DocumentVersion struct {
@@ -42,15 +47,18 @@ type DocumentVersion struct {
 
 ### 2. Ports Layer (`internal/ports/`)
 
-The **Ports Layer** defines **interfaces** that serve as contracts between the core and adapters. This is the **dependency inversion** layer.
+The **Ports Layer** defines **interfaces** that serve as contracts between the core and adapters. This is the
+**dependency inversion** layer.
 
 **Key Characteristics**:
+
 - All interfaces defined in `ports/types.go`
 - Consumed by core services (dependencies injected)
 - Implemented by adapters
 - No implementation details, only contracts
 
 **Example Interfaces**:
+
 ```go
 // ports/types.go
 type GenerationGateway interface {
@@ -69,6 +77,7 @@ type GitService interface {
 ```
 
 **Port Categories**:
+
 - **Repositories**: Data persistence (IndexRepository, CacheRepository, MetaRepository)
 - **Gateways**: External services (GenerationGateway, EmbeddingsGateway)
 - **Services**: Domain operations (GitService, ChunkerService, WorkspaceService)
@@ -78,12 +87,14 @@ type GitService interface {
 The **Core Layer** contains business logic implementations and orchestrates domain operations.
 
 **Key Characteristics**:
+
 - Depends on ports (interfaces), not adapters
 - Pure business logic with no infrastructure concerns
 - Services accept dependencies through constructors (DI)
 - Testable with mock implementations
 
 **Example Packages**:
+
 - `core/index/` - RAG indexing service (orchestrates chunking, embedding, storage)
 - `core/model/` - Model management service
 - `core/preset/` - Preset resolution service
@@ -94,6 +105,7 @@ The **Core Layer** contains business logic implementations and orchestrates doma
 - `core/shutdown/` - Graceful shutdown coordination
 
 **Example Service**:
+
 ```go
 // core/index/service.go
 type Service struct {
@@ -123,6 +135,7 @@ func NewService(
 The **Adapters Layer** contains concrete implementations of ports, interfacing with external systems.
 
 **Key Characteristics**:
+
 - Implements port interfaces
 - Handles infrastructure concerns (DB, HTTP, filesystem)
 - Can depend on third-party libraries
@@ -131,6 +144,7 @@ The **Adapters Layer** contains concrete implementations of ports, interfacing w
 **Adapter Categories**:
 
 #### Infrastructure Adapters
+
 - `adapters/sqlite/` - SQLite database repositories
   - `sqlite/index/` - IndexRepository implementation
   - `sqlite/cache/` - CacheRepository implementation
@@ -141,6 +155,7 @@ The **Adapters Layer** contains concrete implementations of ports, interfacing w
 - `adapters/httpclient/` - Shared HTTP client service
 
 #### Gateway Adapters (LLM Providers)
+
 - `adapters/gateway/anthropic.go` - Anthropic Claude adapter
 - `adapters/gateway/openai.go` - OpenAI GPT adapter
 - `adapters/gateway/gemini.go` - Google Gemini adapter
@@ -152,6 +167,7 @@ The **Adapters Layer** contains concrete implementations of ports, interfacing w
 - `adapters/gateway/retry.go` - Retry logic with exponential backoff
 
 #### Service Adapters
+
 - `adapters/config/` - Configuration file service
 - `adapters/output/` - Terminal output service
 - `adapters/progress/` - Progress logging
@@ -159,6 +175,7 @@ The **Adapters Layer** contains concrete implementations of ports, interfacing w
 - `adapters/command/` - Command-line flag parsing
 
 **Example Adapter**:
+
 ```go
 // adapters/gateway/anthropic.go
 type AnthropicGateway struct {
@@ -167,7 +184,10 @@ type AnthropicGateway struct {
     logger     *slog.Logger
 }
 
-func (g *AnthropicGateway) GenerateContent(ctx context.Context, request *gateway.GenerateContentRequest) (*gateway.GenerateContentResponse, error) {
+func (g *AnthropicGateway) GenerateContent(
+    ctx context.Context,
+    request *gateway.GenerateContentRequest,
+) (*gateway.GenerateContentResponse, error) {
     // Implementation details for Anthropic API
 }
 ```
@@ -177,12 +197,14 @@ func (g *AnthropicGateway) GenerateContent(ctx context.Context, request *gateway
 The **Application Layer** orchestrates the entire application lifecycle and wires dependencies together.
 
 **Key Characteristics**:
+
 - Dependency Injection container
 - Initializes all services and adapters
 - Manages application lifecycle (startup/shutdown)
 - Connects to Cobra commands via context
 
 **Container Structure**:
+
 ```go
 // app/container.go
 type Container struct {
@@ -207,6 +229,7 @@ func NewAppContainer(cmd *cobra.Command) (*Container, error) {
 
 **Lazy Initialization Pattern**:
 Many dependencies are lazily initialized to improve startup time:
+
 ```go
 func (c *Container) GetIndexRepository() (ports.IndexRepository, error) {
     c.initDBOnce() // Ensures DB initialized only once
@@ -222,6 +245,7 @@ func (c *Container) GetIndexRepository() (ports.IndexRepository, error) {
 The **UI Layer** handles terminal presentation logic with Bubble Tea and Lip Gloss.
 
 **Key Characteristics**:
+
 - Bubble Tea interactive components
 - Lip Gloss styling and theming
 - Markdown rendering with Glamour
@@ -229,6 +253,7 @@ The **UI Layer** handles terminal presentation logic with Bubble Tea and Lip Glo
 - Independent of core business logic
 
 **Components**:
+
 - `ui/theme.go` - Color schemes and styling
 - `ui/markdown.go` - Markdown rendering
 - `ui/code.go` - Code syntax highlighting
@@ -245,12 +270,14 @@ The **UI Layer** handles terminal presentation logic with Bubble Tea and Lip Glo
 The **CMD Layer** defines CLI commands using Cobra and serves as the application entry point.
 
 **Key Characteristics**:
+
 - Cobra command definitions
 - Flag parsing and validation
 - Command routing
 - Application initialization trigger
 
 **Structure**:
+
 - `cmd/meow/main.go` - Entry point
 - `cmd/root.go` - Root command and lifecycle hooks
 - `cmd/init.go` - Project initialization command
@@ -259,7 +286,7 @@ The **CMD Layer** defines CLI commands using Cobra and serves as the application
 
 ## Dependency Flow
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                         CMD Layer                            │
 │                    (Cobra Commands)                          │
@@ -298,6 +325,7 @@ The **CMD Layer** defines CLI commands using Cobra and serves as the application
 ## Testing Strategy
 
 ### Unit Testing Core Services
+
 Core services are tested with mock implementations of ports:
 
 ```go
@@ -306,7 +334,11 @@ type mockIndexRepo struct {
     addDocumentVersionCalled bool
 }
 
-func (m *mockIndexRepo) AddDocumentVersion(ctx context.Context, doc *domainindex.DocumentVersion, content []byte) (int64, error) {
+func (m *mockIndexRepo) AddDocumentVersion(
+    ctx context.Context,
+    doc *domainindex.DocumentVersion,
+    content []byte,
+) (int64, error) {
     m.addDocumentVersionCalled = true
     return 1, nil
 }
@@ -321,6 +353,7 @@ func TestIndexService(t *testing.T) {
 ```
 
 ### Integration Testing Adapters
+
 Adapters are tested against real dependencies (e.g., SQLite in-memory):
 
 ```go
@@ -361,12 +394,14 @@ func TestIndexRepository(t *testing.T) {
 ## Anti-Patterns to Avoid
 
 ❌ **Don't**: Import adapters in core
+
 ```go
 // BAD: core/index/service.go
 import "github.com/retran/meowg1k/internal/adapters/sqlite"
 ```
 
 ✅ **Do**: Depend on ports
+
 ```go
 // GOOD: core/index/service.go
 import "github.com/retran/meowg1k/internal/ports"
@@ -387,6 +422,7 @@ type Service struct {
 ## Summary
 
 meowg1k's hexagonal architecture ensures:
+
 - Core business logic remains pure and testable
 - Easy to add new LLM providers, storage backends, or features
 - Clear separation between what the system does (core) and how it does it (adapters)

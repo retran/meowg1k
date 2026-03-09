@@ -1,9 +1,10 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/charmbracelet/glamour"
@@ -47,11 +48,12 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 		// Select the base style based on terminal color capabilities so that
 		// syntax highlighting and colors are preserved in the rendered output.
 		var styleConfig ansi.StyleConfig
-		if noColor {
+		switch {
+		case noColor:
 			styleConfig = styles.NoTTYStyleConfig
-		} else if lipgloss.HasDarkBackground() {
+		case lipgloss.HasDarkBackground():
 			styleConfig = styles.DarkStyleConfig
-		} else {
+		default:
 			styleConfig = styles.LightStyleConfig
 		}
 
@@ -59,17 +61,13 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 		// keeping the default indentation intact.
 		zero := uint(0)
 		styleConfig.Document.Margin = &zero
-		// styleConfig.Document.Indent = &zero // Keep default indent
 		styleConfig.Paragraph.Margin = &zero
-		// styleConfig.Paragraph.Indent = &zero // Keep default indent
 		styleConfig.CodeBlock.Margin = &zero
-		// styleConfig.CodeBlock.Indent = &zero // Keep default indent
 		styleConfig.H1.Margin = &zero
 		styleConfig.H2.Margin = &zero
 		styleConfig.H3.Margin = &zero
 		styleConfig.H4.Margin = &zero
 		styleConfig.List.Margin = &zero
-		// styleConfig.List.Indent = &zero // Keep default indent
 
 		options := []glamour.TermRendererOption{
 			glamour.WithWordWrap(width),
@@ -78,7 +76,7 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 
 		renderer, err = glamour.NewTermRenderer(options...)
 		if err != nil {
-			return content, err
+			return content, fmt.Errorf("failed to create markdown renderer: %w", err)
 		}
 
 		rendererMu.Lock()
@@ -86,5 +84,9 @@ func RenderMarkdown(content string, width int, noColor bool) (string, error) {
 		rendererMu.Unlock()
 	}
 
-	return renderer.Render(content)
+	rendered, err := renderer.Render(content)
+	if err != nil {
+		return content, fmt.Errorf("failed to render markdown: %w", err)
+	}
+	return rendered, nil
 }

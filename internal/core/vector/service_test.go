@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package vector
@@ -10,8 +10,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/coder/hnsw"
 
 	"github.com/retran/meowg1k/internal/domain/gateway"
 	domainindex "github.com/retran/meowg1k/internal/domain/index"
@@ -308,7 +306,7 @@ func TestService_BuildAndSave_Success(t *testing.T) {
 
 	// Verify HNSW index can be imported
 	hnswReader := bytes.NewReader(dump.HNSWData)
-	hnswIndex := hnsw.NewGraph[int64]()
+	hnswIndex := NewGraph[int64]()
 	if err := hnswIndex.Import(hnswReader); err != nil {
 		t.Fatalf("failed to import HNSW index: %v", err)
 	}

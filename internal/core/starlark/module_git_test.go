@@ -1,9 +1,10 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +17,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// Helper to initialize a git repository for testing
+// Helper to initialize a git repository for testing.
 func initTestGitRepo(t *testing.T) string {
 	t.Helper()
 
@@ -26,18 +27,18 @@ func initTestGitRepo(t *testing.T) string {
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 
 	// Initialize git repo
-	cmd := exec.Command("git", "init")
+	cmd := exec.CommandContext(context.Background(), "git", "init")
 	cmd.Dir = tmpDir
 	err = cmd.Run()
 	require.NoError(t, err, "failed to initialize git repo")
 
 	// Configure git user (required for commits)
-	cmd = exec.Command("git", "config", "user.name", "Test User")
+	cmd = exec.CommandContext(context.Background(), "git", "config", "user.name", "Test User")
 	cmd.Dir = tmpDir
 	err = cmd.Run()
 	require.NoError(t, err)
 
-	cmd = exec.Command("git", "config", "user.email", "test@example.com")
+	cmd = exec.CommandContext(context.Background(), "git", "config", "user.email", "test@example.com")
 	cmd.Dir = tmpDir
 	err = cmd.Run()
 	require.NoError(t, err)
@@ -45,7 +46,7 @@ func initTestGitRepo(t *testing.T) string {
 	return tmpDir
 }
 
-// Helper to create a commit in the test repo
+// Helper to create a commit in the test repo.
 func createTestCommit(t *testing.T, repoDir, filename, content, message string) {
 	t.Helper()
 
@@ -55,13 +56,13 @@ func createTestCommit(t *testing.T, repoDir, filename, content, message string) 
 	require.NoError(t, err)
 
 	// Stage the file
-	cmd := exec.Command("git", "add", filename)
+	cmd := exec.CommandContext(context.Background(), "git", "add", filename)
 	cmd.Dir = repoDir
 	err = cmd.Run()
 	require.NoError(t, err)
 
 	// Commit
-	cmd = exec.Command("git", "commit", "-m", message)
+	cmd = exec.CommandContext(context.Background(), "git", "commit", "-m", message)
 	cmd.Dir = repoDir
 	err = cmd.Run()
 	require.NoError(t, err)
@@ -93,7 +94,7 @@ func TestGitModule_Branch(t *testing.T) {
 	})
 }
 
-// TestGitModule_Push tests git.push() function
+// TestGitModule_Push tests git.push() function.
 func TestGitModule_Push(t *testing.T) {
 	t.Run("push without remote fails gracefully", func(t *testing.T) {
 		repoDir := initTestGitRepo(t)
@@ -144,7 +145,7 @@ func TestGitModule_Push(t *testing.T) {
 	})
 }
 
-// TestGitModule_ErrorPaths tests error handling in git operations
+// TestGitModule_ErrorPaths tests error handling in git operations.
 func TestGitModule_ErrorPaths(t *testing.T) {
 	t.Run("git.branch() with invalid repository", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -215,7 +216,7 @@ func TestGitModule_ErrorPaths(t *testing.T) {
 		createTestCommit(t, repoDir, "file1.txt", "content", "Initial commit")
 
 		// Create a branch
-		cmd := exec.Command("git", "branch", "existing-branch")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "existing-branch")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -282,7 +283,7 @@ func TestGitModule_ErrorPaths(t *testing.T) {
 	})
 }
 
-// TestGitModule_ShouldIgnoreFile tests the shouldIgnoreFile helper
+// TestGitModule_ShouldIgnoreFile tests the shouldIgnoreFile helper.
 func TestGitModule_ShouldIgnoreFile(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -385,7 +386,7 @@ func TestGitModule_Diff(t *testing.T) {
 
 		// Modify and stage the file
 		os.WriteFile(filepath.Join(repoDir, "file1.txt"), []byte("modified content"), 0o644)
-		cmd := exec.Command("git", "add", "file1.txt")
+		cmd := exec.CommandContext(context.Background(), "git", "add", "file1.txt")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -442,7 +443,7 @@ func TestGitModule_Add(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify file is staged using git status
-		cmd := exec.Command("git", "diff", "--cached", "--name-only")
+		cmd := exec.CommandContext(context.Background(), "git", "diff", "--cached", "--name-only")
 		cmd.Dir = repoDir
 		output, err := cmd.Output()
 		require.NoError(t, err)
@@ -457,7 +458,7 @@ func TestGitModule_StagedFiles(t *testing.T) {
 
 		// Create and stage new files
 		os.WriteFile(filepath.Join(repoDir, "file2.txt"), []byte("new content"), 0o644)
-		cmd := exec.Command("git", "add", "file2.txt")
+		cmd := exec.CommandContext(context.Background(), "git", "add", "file2.txt")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -556,7 +557,7 @@ func TestGitModule_DiffFile(t *testing.T) {
 
 		// Modify and stage the file
 		os.WriteFile(filepath.Join(repoDir, "file1.txt"), []byte("modified content\n"), 0o644)
-		cmd := exec.Command("git", "add", "file1.txt")
+		cmd := exec.CommandContext(context.Background(), "git", "add", "file1.txt")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -617,7 +618,7 @@ func TestGitModule_Commit(t *testing.T) {
 
 		// Create and stage new file
 		os.WriteFile(filepath.Join(repoDir, "file2.txt"), []byte("new content"), 0o644)
-		cmd := exec.Command("git", "add", "file2.txt")
+		cmd := exec.CommandContext(context.Background(), "git", "add", "file2.txt")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -702,7 +703,7 @@ func TestGitModule_CreateBranch(t *testing.T) {
 		assert.False(t, bool(checkedOutVal.(starlark.Bool)))
 
 		// Verify branch exists using git
-		cmd := exec.Command("git", "branch", "--list", "test-branch")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "--list", "test-branch")
 		cmd.Dir = repoDir
 		output, err := cmd.Output()
 		require.NoError(t, err)
@@ -740,7 +741,7 @@ func TestGitModule_CreateBranch(t *testing.T) {
 		assert.True(t, bool(checkedOutVal.(starlark.Bool)))
 
 		// Verify we're on the new branch
-		cmd := exec.Command("git", "branch", "--show-current")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 		cmd.Dir = repoDir
 		output, err := cmd.Output()
 		require.NoError(t, err)
@@ -754,7 +755,7 @@ func TestGitModule_Checkout(t *testing.T) {
 		createTestCommit(t, repoDir, "file1.txt", "content", "Initial commit")
 
 		// Create a new branch
-		cmd := exec.Command("git", "branch", "test-branch")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "test-branch")
 		cmd.Dir = repoDir
 		cmd.Run()
 
@@ -790,7 +791,7 @@ func TestGitModule_Checkout(t *testing.T) {
 		assert.Equal(t, "test-branch", target)
 
 		// Verify we're on the new branch
-		cmd = exec.Command("git", "branch", "--show-current")
+		cmd = exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 		cmd.Dir = repoDir
 		output, err := cmd.Output()
 		require.NoError(t, err)
@@ -965,7 +966,7 @@ func TestGitStatus(t *testing.T) {
 // Phase 4b: High-value edge case tests for moderate-coverage functions
 // ============================================================================
 
-// TestGitModule_Glob tests git.glob() function
+// TestGitModule_Glob tests git.glob() function.
 func TestGitModule_Glob(t *testing.T) {
 	t.Run("glob files at HEAD with default pattern", func(t *testing.T) {
 		repoDir := initTestGitRepo(t)
@@ -1067,7 +1068,7 @@ func TestGitModule_Glob(t *testing.T) {
 		err := os.WriteFile(newFile, []byte("staged content"), 0o644)
 		require.NoError(t, err)
 
-		cmd := exec.Command("git", "add", "staged.txt")
+		cmd := exec.CommandContext(context.Background(), "git", "add", "staged.txt")
 		cmd.Dir = repoDir
 		err = cmd.Run()
 		require.NoError(t, err)
@@ -1147,14 +1148,14 @@ func TestGitModule_Glob(t *testing.T) {
 	})
 }
 
-// TestGitModule_Push_EdgeCases tests additional git.push() scenarios
+// TestGitModule_Push_EdgeCases tests additional git.push() scenarios.
 func TestGitModule_Push_EdgeCases(t *testing.T) {
 	t.Run("push with remote and branch specified", func(t *testing.T) {
 		repoDir := initTestGitRepo(t)
 		createTestCommit(t, repoDir, "file.txt", "content", "Initial")
 
 		// Get current branch name
-		cmd := exec.Command("git", "branch", "--show-current")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 		cmd.Dir = repoDir
 		branchBytes, err := cmd.Output()
 		require.NoError(t, err)
@@ -1162,13 +1163,13 @@ func TestGitModule_Push_EdgeCases(t *testing.T) {
 
 		// Create a bare remote repo
 		remoteDir := t.TempDir()
-		cmd = exec.Command("git", "init", "--bare")
+		cmd = exec.CommandContext(context.Background(), "git", "init", "--bare")
 		cmd.Dir = remoteDir
 		err = cmd.Run()
 		require.NoError(t, err)
 
 		// Add remote
-		cmd = exec.Command("git", "remote", "add", "origin", remoteDir)
+		cmd = exec.CommandContext(context.Background(), "git", "remote", "add", "origin", remoteDir)
 		cmd.Dir = repoDir
 		err = cmd.Run()
 		require.NoError(t, err)
@@ -1203,7 +1204,7 @@ func TestGitModule_Push_EdgeCases(t *testing.T) {
 		createTestCommit(t, repoDir, "file.txt", "content", "Initial")
 
 		// Get current branch name
-		cmd := exec.Command("git", "branch", "--show-current")
+		cmd := exec.CommandContext(context.Background(), "git", "branch", "--show-current")
 		cmd.Dir = repoDir
 		branchBytes, err := cmd.Output()
 		require.NoError(t, err)
@@ -1211,19 +1212,19 @@ func TestGitModule_Push_EdgeCases(t *testing.T) {
 
 		// Create a bare remote repo
 		remoteDir := t.TempDir()
-		cmd = exec.Command("git", "init", "--bare")
+		cmd = exec.CommandContext(context.Background(), "git", "init", "--bare")
 		cmd.Dir = remoteDir
 		err = cmd.Run()
 		require.NoError(t, err)
 
 		// Add remote
-		cmd = exec.Command("git", "remote", "add", "origin", remoteDir)
+		cmd = exec.CommandContext(context.Background(), "git", "remote", "add", "origin", remoteDir)
 		cmd.Dir = repoDir
 		err = cmd.Run()
 		require.NoError(t, err)
 
 		// Set upstream for current branch
-		cmd = exec.Command("git", "push", "-u", "origin", branchName)
+		cmd = exec.CommandContext(context.Background(), "git", "push", "-u", "origin", branchName)
 		cmd.Dir = repoDir
 		err = cmd.Run()
 		require.NoError(t, err)

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -10,12 +10,12 @@ import (
 )
 
 // RenderTree renders a tree structure from nested data.
-func RenderTree(data interface{}, title string, theme Theme, opts RenderOptions) string {
+func RenderTree(data interface{}, title string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	var result strings.Builder
 
 	if title != "" {
 		if opts.Plain || !opts.Terminal {
-			result.WriteString(fmt.Sprintf("=== %s ===\n", title))
+			fmt.Fprintf(&result, "=== %s ===\n", title)
 		} else {
 			result.WriteString(theme.SystemStyle.Bold(true).Render(title) + "\n")
 		}
@@ -26,7 +26,7 @@ func RenderTree(data interface{}, title string, theme Theme, opts RenderOptions)
 	return strings.TrimSuffix(result.String(), "\n")
 }
 
-func renderTreeNode(result *strings.Builder, node interface{}, prefix string, isLast bool, opts RenderOptions) {
+func renderTreeNode(result *strings.Builder, node interface{}, prefix string, _ bool, opts RenderOptions) { //nolint:gocognit // complexity inherent in recursive tree rendering with unicode/ascii fallback
 	var branch, pipe, elbow, tee string
 
 	if opts.SupportsUnicode && !opts.Plain {
@@ -71,7 +71,7 @@ func renderTreeNode(result *strings.Builder, node interface{}, prefix string, is
 				}
 				renderTreeNode(result, childValue, newPrefix, isLastChild, opts)
 			default:
-				result.WriteString(fmt.Sprintf(": %v\n", value))
+				fmt.Fprintf(result, ": %v\n", value)
 			}
 		}
 
@@ -101,6 +101,6 @@ func renderTreeNode(result *strings.Builder, node interface{}, prefix string, is
 		}
 
 	default:
-		result.WriteString(fmt.Sprintf("%v\n", v))
+		fmt.Fprintf(result, "%v\n", v)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
-// NewPathModule creates the path module
+// NewPathModule creates the path module.
 func NewPathModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "path",
@@ -29,8 +29,8 @@ func NewPathModule() *starlarkstruct.Module {
 	}
 }
 
-// pathJoin joins path elements
-func pathJoin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathJoin joins path elements.
+func pathJoin(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, _ []starlark.Tuple) (starlark.Value, error) {
 	if len(args) == 0 {
 		return starlark.String(""), nil
 	}
@@ -47,81 +47,81 @@ func pathJoin(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	return starlark.String(filepath.Join(parts...)), nil
 }
 
-// pathDirname returns the directory name
-func pathDirname(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathDirname returns the directory name.
+func pathDirname(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.dirname", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.dirname: %w", err)
 	}
 
 	return starlark.String(filepath.Dir(path)), nil
 }
 
-// pathBasename returns the base name
-func pathBasename(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathBasename returns the base name.
+func pathBasename(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.basename", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.basename: %w", err)
 	}
 
 	return starlark.String(filepath.Base(path)), nil
 }
 
-// pathExt returns the file extension
-func pathExt(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathExt returns the file extension.
+func pathExt(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.ext", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.ext: %w", err)
 	}
 
 	return starlark.String(filepath.Ext(path)), nil
 }
 
-// pathAbs returns the absolute path
-func pathAbs(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathAbs returns the absolute path.
+func pathAbs(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.abs", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.abs: %w", err)
 	}
 
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.abs: %w", err)
 	}
 
 	return starlark.String(abs), nil
 }
 
-// pathClean cleans the path
-func pathClean(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathClean cleans the path.
+func pathClean(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.clean", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.clean: %w", err)
 	}
 
 	return starlark.String(filepath.Clean(path)), nil
 }
 
-// pathRel returns relative path
-func pathRel(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathRel returns relative path.
+func pathRel(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var base, target string
 	if err := starlark.UnpackPositionalArgs("path.rel", args, kwargs, 2, &base, &target); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.rel: %w", err)
 	}
 
 	rel, err := filepath.Rel(base, target)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.rel: %w", err)
 	}
 
 	return starlark.String(rel), nil
 }
 
-// pathStem returns the filename without extension
-func pathStem(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathStem returns the filename without extension.
+func pathStem(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.stem", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.stem: %w", err)
 	}
 
 	base := filepath.Base(path)
@@ -131,21 +131,21 @@ func pathStem(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple,
 	return starlark.String(stem), nil
 }
 
-// pathParent returns the parent directory
-func pathParent(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathParent returns the parent directory.
+func pathParent(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.parent", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.parent: %w", err)
 	}
 
 	return starlark.String(filepath.Dir(path)), nil
 }
 
-// pathParts splits path into components
-func pathParts(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// pathParts splits path into components.
+func pathParts(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var path string
 	if err := starlark.UnpackPositionalArgs("path.parts", args, kwargs, 1, &path); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("path.parts: %w", err)
 	}
 
 	parts := []starlark.Value{}
@@ -165,7 +165,7 @@ func pathParts(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple
 	return starlark.NewList(parts), nil
 }
 
-// pathExtension returns the file extension (alias for pathExt for consistency)
+// pathExtension returns the file extension (alias for pathExt for consistency).
 func pathExtension(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	return pathExt(thread, b, args, kwargs)
 }

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -12,7 +12,7 @@ import (
 // For more elaborate banners, consider adding github.com/common-nighthawk/go-figure
 
 // RenderBanner creates a simple banner with title and optional subtext.
-func RenderBanner(title, subtext string, theme Theme, opts RenderOptions) string {
+func RenderBanner(title, subtext string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value for immutability
 	if opts.Plain || !opts.Terminal {
 		result := fmt.Sprintf("=== %s ===\n", title)
 		if subtext != "" {

@@ -1,13 +1,14 @@
 package starlark
 
 import (
+	"fmt"
 	"os"
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
-// NewEnvModule creates the env module
+// NewEnvModule creates the env module.
 func NewEnvModule() *starlarkstruct.Module {
 	return &starlarkstruct.Module{
 		Name: "env",
@@ -19,14 +20,14 @@ func NewEnvModule() *starlarkstruct.Module {
 	}
 }
 
-// envGet retrieves an environment variable
-func envGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// envGet retrieves an environment variable.
+func envGet(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var (
 		key        string
 		defaultVal starlark.Value = starlark.None
 	)
 	if err := starlark.UnpackArgs("env.get", args, kwargs, "key", &key, "default?", &defaultVal); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("env.get: %w", err)
 	}
 
 	value, exists := os.LookupEnv(key)
@@ -37,24 +38,24 @@ func envGet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, k
 	return starlark.String(value), nil
 }
 
-// envSet sets an environment variable
-func envSet(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// envSet sets an environment variable.
+func envSet(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	var key, value string
 	if err := starlark.UnpackPositionalArgs("env.set", args, kwargs, 2, &key, &value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("env.set: %w", err)
 	}
 
 	if err := os.Setenv(key, value); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("env.set: %w", err)
 	}
 
 	return starlark.None, nil
 }
 
-// envList returns all environment variables as a dict
-func envList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+// envList returns all environment variables as a dict.
+func envList(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 	if err := starlark.UnpackPositionalArgs("env.list", args, kwargs, 0); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("env.list: %w", err)
 	}
 
 	environ := os.Environ()
@@ -65,7 +66,7 @@ func envList(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, 
 			if pair[i] == '=' {
 				key := pair[:i]
 				value := pair[i+1:]
-				dict.SetKey(starlark.String(key), starlark.String(value))
+				dict.SetKey(starlark.String(key), starlark.String(value)) //nolint:errcheck // starlark dict operations with known-compatible types
 				break
 			}
 		}

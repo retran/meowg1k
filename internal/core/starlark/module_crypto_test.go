@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -11,7 +11,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// TestCryptoSha256 tests crypto.sha256() function
+// TestCryptoSha256 tests crypto.sha256() function.
 func TestCryptoSha256(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -53,7 +53,7 @@ func TestCryptoSha256(t *testing.T) {
 	}
 }
 
-// TestCryptoMd5 tests crypto.md5() function
+// TestCryptoMd5 tests crypto.md5() function.
 func TestCryptoMd5(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -95,7 +95,7 @@ func TestCryptoMd5(t *testing.T) {
 	}
 }
 
-// TestCryptoSha256WithUnicode tests crypto.sha256() with unicode characters
+// TestCryptoSha256WithUnicode tests crypto.sha256() with unicode characters.
 func TestCryptoSha256WithUnicode(t *testing.T) {
 	cryptoModule := NewCryptoModule()
 	sha256Func := cryptoModule.Members["sha256"]
@@ -112,7 +112,7 @@ func TestCryptoSha256WithUnicode(t *testing.T) {
 	assert.Len(t, string(resultStr), 64) // SHA256 produces 64 hex characters
 }
 
-// TestCryptoHmacKeywordArgs tests crypto.hmac() with keyword arguments
+// TestCryptoHmacKeywordArgs tests crypto.hmac() with keyword arguments.
 func TestCryptoHmacKeywordArgs(t *testing.T) {
 	module := NewCryptoModule()
 	hmacFunc := module.Members["hmac"]
@@ -179,7 +179,7 @@ func TestCryptoHmacInvalidAlgorithm(t *testing.T) {
 	assert.NotEmpty(t, string(hash))
 }
 
-// TestCryptoErrors tests error cases
+// TestCryptoErrors tests error cases.
 func TestCryptoErrors(t *testing.T) {
 	module := NewCryptoModule()
 

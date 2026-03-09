@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -9,9 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
+	"go.starlark.net/syntax"
 )
 
-// TestParamValue tests the ParamValue wrapper type
+const simpleHandlerCode = `def handler(ctx): return "result"`
+
+// TestParamValue tests the ParamValue wrapper type.
 func TestParamValue(t *testing.T) {
 	param := &Param{
 		Type:     "string",
@@ -46,7 +49,7 @@ func TestParamValue(t *testing.T) {
 	})
 }
 
-// TestToolValue tests the ToolValue wrapper type
+// TestToolValue tests the ToolValue wrapper type.
 func TestToolValue(t *testing.T) {
 	tool := &Tool{
 		Name:        "test_tool",
@@ -81,7 +84,7 @@ func TestToolValue(t *testing.T) {
 	})
 }
 
-// TestCreateParamFunction tests the meow.param() builtin
+// TestCreateParamFunction tests the meow.param() builtin.
 func TestCreateParamFunction(t *testing.T) {
 	paramFunc := CreateParamFunction()
 	require.NotNil(t, paramFunc)
@@ -256,7 +259,7 @@ func TestCreateParamFunction(t *testing.T) {
 	})
 }
 
-// TestCreateParamFunctionErrors tests error cases for meow.param()
+// TestCreateParamFunctionErrors tests error cases for meow.param().
 func TestCreateParamFunctionErrors(t *testing.T) {
 	paramFunc := CreateParamFunction()
 	thread := &starlark.Thread{Name: "test"}
@@ -285,7 +288,7 @@ func TestCreateParamFunctionErrors(t *testing.T) {
 	})
 }
 
-// TestConvertChoices tests the convertChoices helper function
+// TestConvertChoices tests the convertChoices helper function.
 func TestConvertChoices(t *testing.T) {
 	t.Run("list of strings", func(t *testing.T) {
 		choices := starlark.NewList([]starlark.Value{
@@ -336,7 +339,7 @@ func TestConvertChoices(t *testing.T) {
 	})
 }
 
-// TestConvertIntConstraint tests the convertIntConstraint helper
+// TestConvertIntConstraint tests the convertIntConstraint helper.
 func TestConvertIntConstraint(t *testing.T) {
 	t.Run("int value", func(t *testing.T) {
 		result, err := convertIntConstraint(starlark.MakeInt(42))
@@ -350,7 +353,7 @@ func TestConvertIntConstraint(t *testing.T) {
 	})
 }
 
-// TestConvertStarlarkValue tests the convertStarlarkValue helper
+// TestConvertStarlarkValue tests the convertStarlarkValue helper.
 func TestConvertStarlarkValue(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		result := convertStarlarkValue(starlark.String("test"))
@@ -378,7 +381,7 @@ func TestConvertStarlarkValue(t *testing.T) {
 	})
 }
 
-// TestConvertNumericConstraint tests the convertNumericConstraint helper
+// TestConvertNumericConstraint tests the convertNumericConstraint helper.
 func TestConvertNumericConstraint(t *testing.T) {
 	t.Run("int value", func(t *testing.T) {
 		result, err := convertNumericConstraint(starlark.MakeInt(42))
@@ -399,7 +402,7 @@ func TestConvertNumericConstraint(t *testing.T) {
 	})
 }
 
-// TestConvertIntConstraintEdgeCases tests edge cases for convertIntConstraint
+// TestConvertIntConstraintEdgeCases tests edge cases for convertIntConstraint.
 func TestConvertIntConstraintEdgeCases(t *testing.T) {
 	t.Run("normal int", func(t *testing.T) {
 		result, err := convertIntConstraint(starlark.MakeInt(100))
@@ -420,7 +423,7 @@ func TestConvertIntConstraintEdgeCases(t *testing.T) {
 	})
 }
 
-// TestConvertStarlarkValueEdgeCases tests edge cases for convertStarlarkValue
+// TestConvertStarlarkValueEdgeCases tests edge cases for convertStarlarkValue.
 func TestConvertStarlarkValueEdgeCases(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		result := convertStarlarkValue(starlark.String("test"))
@@ -459,7 +462,7 @@ func TestConvertStarlarkValueEdgeCases(t *testing.T) {
 	})
 }
 
-// TestCreateParamFunctionValidatorCases tests validator parameter handling
+// TestCreateParamFunctionValidatorCases tests validator parameter handling.
 func TestCreateParamFunctionValidatorCases(t *testing.T) {
 	paramFunc := CreateParamFunction()
 	thread := &starlark.Thread{Name: "test"}
@@ -479,7 +482,7 @@ func TestCreateParamFunctionValidatorCases(t *testing.T) {
 	})
 }
 
-// TestCreateToolsModule tests module creation
+// TestCreateToolsModule tests module creation.
 func TestCreateToolsModule(t *testing.T) {
 	registry := NewRegistry()
 	module := CreateToolsModule(registry)
@@ -507,8 +510,8 @@ func TestCreateToolFunction(t *testing.T) {
 		thread := &starlark.Thread{Name: "test"}
 
 		// Create a simple handler function
-		handlerCode := `def handler(ctx): return "result"`
-		globals, err := starlark.ExecFile(thread, "test.star", handlerCode, nil)
+		handlerCode := simpleHandlerCode
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", handlerCode, nil)
 		require.NoError(t, err)
 		handler := globals["handler"]
 
@@ -533,8 +536,8 @@ func TestCreateToolFunction(t *testing.T) {
 		thread := &starlark.Thread{Name: "test"}
 
 		// Create a handler but don't provide name
-		handlerCode := `def handler(ctx): return "result"`
-		globals, err := starlark.ExecFile(thread, "test.star", handlerCode, nil)
+		handlerCode := simpleHandlerCode
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", handlerCode, nil)
 		require.NoError(t, err)
 		handler := globals["handler"]
 
@@ -572,8 +575,8 @@ func TestCreateCommandFunction(t *testing.T) {
 		thread := &starlark.Thread{Name: "test"}
 
 		// Create a tool first
-		handlerCode := `def handler(ctx): return "result"`
-		globals, err := starlark.ExecFile(thread, "test.star", handlerCode, nil)
+		handlerCode := simpleHandlerCode
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", handlerCode, nil)
 		require.NoError(t, err)
 		handler := globals["handler"]
 
@@ -603,8 +606,8 @@ func TestCreateCommandFunction(t *testing.T) {
 
 		thread := &starlark.Thread{Name: "test"}
 
-		handlerCode := `def handler(ctx): return "result"`
-		globals, err := starlark.ExecFile(thread, "test.star", handlerCode, nil)
+		handlerCode := simpleHandlerCode
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", handlerCode, nil)
 		require.NoError(t, err)
 		handler := globals["handler"]
 

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package command provides services for accessing command-line flags and input streams.
@@ -17,8 +17,8 @@ import (
 // Service is the concrete implementation of the command service.
 type Service struct {
 	cmd         *cobra.Command
-	stdinOnce   sync.Once
 	stdinCached string
+	stdinOnce   sync.Once
 }
 
 // NewService creates a new command context service with the provided command.

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package chunker
@@ -196,7 +196,7 @@ func TestPlainTextStrategy_Chunk_UnicodeContent(t *testing.T) {
 
 	// Verify unicode is preserved
 	allText := strings.Join(func() []string {
-		var texts []string
+		texts := make([]string, 0, len(chunks))
 		for _, c := range chunks {
 			texts = append(texts, c.TextContent)
 		}
@@ -401,7 +401,7 @@ func TestPlainTextStrategy_Chunk_WhitespaceOnly(t *testing.T) {
 	}
 }
 
-// Test processLine via oversized paragraphs with line breaks
+// Test processLine via oversized paragraphs with line breaks.
 
 func TestPlainTextStrategy_Chunk_OversizeParagraphWithLines(t *testing.T) {
 	// Create a strategy with small max chunk size to trigger line splitting

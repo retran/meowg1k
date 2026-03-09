@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package preset provides services for managing LLM provider presets with rate limiting and cost tracking.
@@ -82,7 +82,7 @@ func (s *Service) Get(presetID domainpreset.Preset) (*domainpreset.ResolvedPrese
 }
 
 // resolvePresetInternal performs the actual preset resolution logic.
-func (s *Service) resolvePresetInternal(
+func (s *Service) resolvePresetInternal( //nolint:gocognit,gocyclo,funlen // complexity inherent in multi-level preset resolution logic
 	presetName domainpreset.Preset,
 	cfg *config.Config,
 ) (*domainpreset.ResolvedPreset, error) {
@@ -160,7 +160,7 @@ func (s *Service) resolvePresetInternal(
 
 	// Merge cache configuration (preset overrides defaults)
 	// Default: caching is enabled with 168h (7 days) TTL
-	if resolved.CacheEnabled == false && resolved.CacheTTL == 0 {
+	if !resolved.CacheEnabled && resolved.CacheTTL == 0 {
 		// First preset in chain - set defaults
 		resolved.CacheEnabled = true
 		resolved.CacheTTL = 168 * time.Hour // 7 days default

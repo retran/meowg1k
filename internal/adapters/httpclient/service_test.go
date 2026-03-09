@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package httpclient
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockTransport is a custom RoundTripper for testing non-Transport scenarios
+// mockTransport is a custom RoundTripper for testing non-Transport scenarios.
 type mockTransport struct{}
 
 func (m *mockTransport) RoundTrip(*http.Request) (*http.Response, error) {
@@ -114,7 +114,7 @@ func TestClientReuse(t *testing.T) {
 	assert.Same(t, client1, client2)
 }
 
-// TestGetWithTimeout tests creating clients with custom timeouts
+// TestGetWithTimeout tests creating clients with custom timeouts.
 func TestGetWithTimeout(t *testing.T) {
 	t.Run("valid service with custom timeout", func(t *testing.T) {
 		service, err := New()
@@ -192,7 +192,7 @@ func TestGetWithTimeout(t *testing.T) {
 	})
 }
 
-// TestCloseIdleConnections tests that Close properly closes idle connections
+// TestCloseIdleConnections tests that Close properly closes idle connections.
 func TestCloseIdleConnections(t *testing.T) {
 	service, err := New()
 	require.NoError(t, err)
@@ -206,14 +206,14 @@ func TestCloseIdleConnections(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestCloseWithNilClient tests Close with nil internal client
+// TestCloseWithNilClient tests Close with nil internal client.
 func TestCloseWithNilClient(t *testing.T) {
 	service := &Service{client: nil}
 	err := service.Close()
 	assert.NoError(t, err)
 }
 
-// TestTransportSettings tests detailed transport configuration
+// TestTransportSettings tests detailed transport configuration.
 func TestTransportSettings(t *testing.T) {
 	service, err := New()
 	require.NoError(t, err)
@@ -231,7 +231,7 @@ func TestTransportSettings(t *testing.T) {
 	require.NotNil(t, transport.DialContext)
 }
 
-// TestGetWithTimeoutPreservesDialer tests that custom timeout clients preserve the dialer
+// TestGetWithTimeoutPreservesDialer tests that custom timeout clients preserve the dialer.
 func TestGetWithTimeoutPreservesDialer(t *testing.T) {
 	service, err := New()
 	require.NoError(t, err)

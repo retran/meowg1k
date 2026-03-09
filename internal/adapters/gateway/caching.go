@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -101,36 +101,8 @@ func (g *cachingGenerationGateway) GenerateContentStream(
 	cacheKey := g.createCacheKey(request)
 
 	if !g.updateCache {
-		if cachedValue, found, err := g.cache.Get(ctx, cacheKey); err == nil && found {
-			var cachedResp gateway.GenerateContentResponse
-			if jsonErr := json.Unmarshal([]byte(cachedValue), &cachedResp); jsonErr == nil {
-				// Nil callback: nothing to replay, just return the cached response.
-				if callback == nil {
-					return &cachedResp, nil
-				}
-				// Replay cached response as stream events instantly.
-				for _, block := range cachedResp.Blocks {
-					switch block.Kind {
-					case gateway.ContentBlockText:
-						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); cbErr != nil {
-							return &cachedResp, cbErr
-						}
-					case gateway.ContentBlockReasoning:
-						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); cbErr != nil {
-							return &cachedResp, cbErr
-						}
-					}
-				}
-				var usage *gateway.UsageMetadata
-				if cachedResp.Usage != nil {
-					u := *cachedResp.Usage
-					usage = &u
-				}
-				if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: usage}); cbErr != nil {
-					return &cachedResp, cbErr
-				}
-				return &cachedResp, nil
-			}
+		if cached, hit := g.lookupCachedStream(ctx, cacheKey); hit {
+			return cached, g.replayCachedStream(cached, callback)
 		}
 	}
 
@@ -139,14 +111,72 @@ func (g *cachingGenerationGateway) GenerateContentStream(
 		return nil, fmt.Errorf("failed to stream content: %w", err)
 	}
 
+	g.storeCache(ctx, cacheKey, result)
+
+	return result, nil
+}
+
+// lookupCachedStream retrieves and deserializes a cached stream response.
+// Returns (resp, true) on a valid cache hit, or (nil, false) on miss or error.
+func (g *cachingGenerationGateway) lookupCachedStream(ctx context.Context, cacheKey string) (*gateway.GenerateContentResponse, bool) {
+	cachedValue, found, err := g.cache.Get(ctx, cacheKey)
+	if err != nil || !found {
+		return nil, false
+	}
+
+	var cachedResp gateway.GenerateContentResponse
+	if jsonErr := json.Unmarshal([]byte(cachedValue), &cachedResp); jsonErr != nil {
+		return nil, false
+	}
+
+	return &cachedResp, true
+}
+
+// replayCachedStream fires stream callbacks for a cached response.
+// A nil callback is a no-op; returns the first callback error encountered.
+func (g *cachingGenerationGateway) replayCachedStream(cached *gateway.GenerateContentResponse, callback gateway.StreamCallback) error {
+	if callback == nil {
+		return nil
+	}
+
+	for _, block := range cached.Blocks {
+		if cbErr := g.replayBlock(block, callback); cbErr != nil {
+			return cbErr
+		}
+	}
+
+	var usage *gateway.UsageMetadata
+	if cached.Usage != nil {
+		u := *cached.Usage
+		usage = &u
+	}
+
+	return callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: usage})
+}
+
+// replayBlock fires the appropriate stream event for a single cached content block.
+func (g *cachingGenerationGateway) replayBlock(block gateway.ContentBlock, callback gateway.StreamCallback) error {
+	switch block.Kind {
+	case gateway.ContentBlockText:
+		return callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text})
+	case gateway.ContentBlockReasoning:
+		return callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text})
+	case gateway.ContentBlockToolCall:
+		// Tool call blocks are not streamed as incremental events;
+		// they are available in the final response.
+	}
+
+	return nil
+}
+
+// storeCache serializes result and writes it to the cache, silently ignoring errors.
+func (g *cachingGenerationGateway) storeCache(ctx context.Context, cacheKey string, result *gateway.GenerateContentResponse) {
 	encoded, marshalErr := json.Marshal(result)
 	if marshalErr == nil {
 		if setErr := g.cache.Set(ctx, cacheKey, string(encoded)); setErr != nil {
 			_ = setErr
 		}
 	}
-
-	return result, nil
 }
 
 // createCacheKey generates a deterministic cache key from the request parameters.

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -11,16 +11,16 @@ import (
 
 // TableOptions configures table rendering.
 type TableOptions struct {
+	Theme    Theme
 	Title    string
 	Query    string
 	MaxWidth int
-	Theme    Theme
 	Opts     RenderOptions
 }
 
 // RenderTable renders a simple ASCII table for rows and columns.
 // In plain mode, renders as tab-separated values without borders.
-func RenderTable(rows []map[string]string, columns []string, opts TableOptions) string {
+func RenderTable(rows []map[string]string, columns []string, opts TableOptions) string { //nolint:gocritic // hugeParam: TableOptions passed by value for immutability
 	if len(columns) == 0 {
 		return ""
 	}
@@ -37,7 +37,7 @@ func RenderTable(rows []map[string]string, columns []string, opts TableOptions) 
 }
 
 // renderPlainTable renders a table without borders (TSV-style).
-func renderPlainTable(rows []map[string]string, columns []string, opts TableOptions) string {
+func renderPlainTable(rows []map[string]string, columns []string, opts TableOptions) string { //nolint:gocritic // hugeParam: TableOptions passed by value for immutability
 	var b strings.Builder
 
 	if opts.Title != "" {
@@ -61,7 +61,7 @@ func renderPlainTable(rows []map[string]string, columns []string, opts TableOpti
 }
 
 // renderBorderedTable renders a table with borders (Unicode or ASCII based on terminal support).
-func renderBorderedTable(rows []map[string]string, columns []string, opts TableOptions, theme Theme) string {
+func renderBorderedTable(rows []map[string]string, columns []string, opts TableOptions, theme Theme) string { //nolint:gocritic // hugeParam: TableOptions and Theme passed by value for immutability
 	maxWidth := opts.MaxWidth
 	if maxWidth <= 0 {
 		maxWidth = TerminalWidth(120)
@@ -145,7 +145,7 @@ func renderBorder(widths []int, corner, horiz string) string {
 	return b.String()
 }
 
-func renderRow(values []string, widths []int, style lipgloss.Style, query string, matchStyle lipgloss.Style, noColor bool, vert string) string {
+func renderRow(values []string, widths []int, style lipgloss.Style, query string, matchStyle lipgloss.Style, noColor bool, vert string) string { //nolint:gocritic // hugeParam: lipgloss.Style passed by value as required by API
 	var b strings.Builder
 	b.WriteString(vert)
 	for i, val := range values {
@@ -220,7 +220,7 @@ func tableWidth(widths []int) int {
 }
 
 // HighlightSubstring highlights the first case-insensitive match of query in text.
-func HighlightSubstring(text, query string, style lipgloss.Style) string {
+func HighlightSubstring(text, query string, style lipgloss.Style) string { //nolint:gocritic // hugeParam: lipgloss.Style passed by value as required by API
 	if query == "" {
 		return text
 	}

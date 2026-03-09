@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+	"go.starlark.net/syntax"
 )
 
-// TestContextWithParams_Attr tests the Attr method for parameter access
+// TestContextWithParams_Attr tests the Attr method for parameter access.
 func TestContextWithParams_Attr(t *testing.T) {
 	t.Run("retrieves injected parameter", func(t *testing.T) {
 		baseCtx := starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
@@ -106,7 +107,7 @@ func TestContextWithParams_Attr(t *testing.T) {
 	})
 }
 
-// TestContextWithParams_AttrNames tests the AttrNames method
+// TestContextWithParams_AttrNames tests the AttrNames method.
 func TestContextWithParams_AttrNames(t *testing.T) {
 	t.Run("returns all parameter and base context names", func(t *testing.T) {
 		baseCtx := starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
@@ -152,7 +153,7 @@ func TestContextWithParams_AttrNames(t *testing.T) {
 	})
 }
 
-// TestContextWithParams_StarlarkInterface tests Starlark interface methods
+// TestContextWithParams_StarlarkInterface tests Starlark interface methods.
 func TestContextWithParams_StarlarkInterface(t *testing.T) {
 	t.Run("String returns ctx", func(t *testing.T) {
 		baseCtx := starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{})
@@ -200,7 +201,7 @@ func TestContextWithParams_StarlarkInterface(t *testing.T) {
 	})
 }
 
-// TestContextWithParams_Integration tests integration with Starlark scripts
+// TestContextWithParams_Integration tests integration with Starlark scripts.
 func TestContextWithParams_Integration(t *testing.T) {
 	t.Run("parameter access in Starlark script", func(t *testing.T) {
 		baseCtx := starlarkstruct.FromStringDict(starlarkstruct.Default, starlark.StringDict{
@@ -227,7 +228,7 @@ limit = ctx.limit
 urgent = ctx.urgent
 workspace = ctx.workspace
 `
-		globals, err := starlark.ExecFile(thread, "test.star", script, predeclared)
+		globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, "test.star", script, predeclared)
 		require.NoError(t, err)
 
 		// Verify values
