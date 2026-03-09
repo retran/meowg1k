@@ -26,6 +26,7 @@ func TestLoaderService_LoadAll(t *testing.T) {
 	t.Run("loads system init if it exists and no project init", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+		t.Setenv("USERPROFILE", homeDir) // Windows: os.UserHomeDir uses USERPROFILE
 
 		projectDir := t.TempDir()
 
@@ -88,6 +89,7 @@ y = "project"
 	t.Run("loads project init and skips system init when both exist", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+		t.Setenv("USERPROFILE", homeDir) // Windows: os.UserHomeDir uses USERPROFILE
 
 		projectDir := t.TempDir()
 
@@ -137,6 +139,7 @@ meow.provider("project-only-provider", type="anthropic", api_key="project-key")
 	t.Run("succeeds when no init files exist", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+		t.Setenv("USERPROFILE", homeDir) // Windows: os.UserHomeDir uses USERPROFILE
 
 		projectDir := t.TempDir()
 
@@ -155,6 +158,7 @@ meow.provider("project-only-provider", type="anthropic", api_key="project-key")
 	t.Run("fails when system init has errors", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+		t.Setenv("USERPROFILE", homeDir) // Windows: os.UserHomeDir uses USERPROFILE
 
 		// Create system init.star with syntax error
 		systemConfigDir := filepath.Join(homeDir, ".config", "meowg1k")
@@ -211,6 +215,7 @@ func TestLoaderService_GetSystemInitPath(t *testing.T) {
 	t.Run("returns correct system init path", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("HOME", homeDir)
+		t.Setenv("USERPROFILE", homeDir) // Windows: os.UserHomeDir uses USERPROFILE
 
 		runtime := NewRuntime(t.TempDir())
 		loader := NewLoaderService(runtime)

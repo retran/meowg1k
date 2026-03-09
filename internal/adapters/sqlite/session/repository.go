@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/retran/meowg1k/internal/domain/session"
@@ -506,8 +507,10 @@ func (r *Repository) GetAllMetadata(ctx context.Context, sessionID string) (_ ma
 	return metadata, nil
 }
 
-// generateID generates a unique ID for events/sessions.
-// In production, this should use UUID generation.
+// generateID generates a unique ID for events/sessions using a combination
+// of timestamp and atomic counter to avoid collisions on low-resolution clocks (e.g. Windows).
+var idCounter atomic.Int64
+
 func generateID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	return fmt.Sprintf("%d-%d", time.Now().UnixNano(), idCounter.Add(1))
 }
