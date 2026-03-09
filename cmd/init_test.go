@@ -83,6 +83,7 @@ func TestInitGlobalConfig(t *testing.T) {
 		// Setup: Use a temp home directory
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -104,6 +105,7 @@ func TestInitGlobalConfig(t *testing.T) {
 	t.Run("fails when config exists without force", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
@@ -122,6 +124,7 @@ func TestInitGlobalConfig(t *testing.T) {
 	t.Run("overwrites config with force flag", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
@@ -207,6 +210,7 @@ func TestRunInit(t *testing.T) {
 	t.Run("routes to global config with --global flag", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		cmd := &cobra.Command{}
 		cmd.Flags().Bool("global", true, "")
