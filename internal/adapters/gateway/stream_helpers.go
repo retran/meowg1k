@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -16,17 +16,8 @@ func synthesizeStreamEvents(resp *gateway.GenerateContentResponse, callback gate
 	}
 
 	if resp != nil {
-		for _, block := range resp.Blocks {
-			switch block.Kind {
-			case gateway.ContentBlockText:
-				if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); err != nil {
-					return resp, err
-				}
-			case gateway.ContentBlockReasoning:
-				if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); err != nil {
-					return resp, err
-				}
-			}
+		if err := synthesizeBlockEvents(resp.Blocks, callback); err != nil {
+			return resp, err
 		}
 	}
 
@@ -41,4 +32,24 @@ func synthesizeStreamEvents(resp *gateway.GenerateContentResponse, callback gate
 	}
 
 	return resp, nil
+}
+
+// synthesizeBlockEvents fires stream events for each content block.
+func synthesizeBlockEvents(blocks []gateway.ContentBlock, callback gateway.StreamCallback) error {
+	for _, block := range blocks {
+		switch block.Kind {
+		case gateway.ContentBlockText:
+			if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); err != nil {
+				return err
+			}
+		case gateway.ContentBlockReasoning:
+			if err := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); err != nil {
+				return err
+			}
+		case gateway.ContentBlockToolCall:
+			// Tool call blocks are not streamed as incremental events;
+			// they are available in the final response.
+		}
+	}
+	return nil
 }

@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -155,11 +155,7 @@ func (g *loggingGenerationGateway) GenerateContentStream(
 
 // formatResponseContent formats the full response including all content blocks.
 func formatResponseContent(response *gateway.GenerateContentResponse) string {
-	if response == nil {
-		return ""
-	}
-
-	if len(response.Blocks) == 0 {
+	if response == nil || len(response.Blocks) == 0 {
 		return ""
 	}
 
@@ -169,26 +165,36 @@ func formatResponseContent(response *gateway.GenerateContentResponse) string {
 		if i > 0 {
 			result.WriteString("\n---\n")
 		}
-
-		switch block.Kind {
-		case gateway.ContentBlockText:
-			result.WriteString(block.Text)
-		case gateway.ContentBlockReasoning:
-			result.WriteString("[REASONING]\n")
-			result.WriteString(block.Text)
-		case gateway.ContentBlockToolCall:
-			if block.ToolCall != nil {
-				result.WriteString(fmt.Sprintf("[TOOL_CALL: %s]\n", block.ToolCall.Name))
-				if len(block.ToolCall.Arguments) > 0 {
-					if args, err := json.Marshal(block.ToolCall.Arguments); err == nil {
-						result.WriteString(string(args))
-					}
-				}
-			}
-		}
+		formatContentBlock(&result, block)
 	}
 
 	return result.String()
+}
+
+// formatContentBlock writes a single content block to the string builder.
+func formatContentBlock(result *strings.Builder, block gateway.ContentBlock) {
+	switch block.Kind {
+	case gateway.ContentBlockText:
+		result.WriteString(block.Text)
+	case gateway.ContentBlockReasoning:
+		result.WriteString("[REASONING]\n")
+		result.WriteString(block.Text)
+	case gateway.ContentBlockToolCall:
+		formatToolCallBlock(result, block.ToolCall)
+	}
+}
+
+// formatToolCallBlock writes a tool call block to the string builder.
+func formatToolCallBlock(result *strings.Builder, call *gateway.ToolCall) {
+	if call == nil {
+		return
+	}
+	fmt.Fprintf(result, "[TOOL_CALL: %s]\n", call.Name)
+	if len(call.Arguments) > 0 {
+		if args, err := json.Marshal(call.Arguments); err == nil {
+			result.WriteString(string(args))
+		}
+	}
 }
 
 // loggingEmbeddingsGateway wraps an EmbeddingsGateway to log all API interactions.

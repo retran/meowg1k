@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -252,9 +252,9 @@ func TestHTTPErrorHandling(t *testing.T) {
 
 func TestStarlarkValueConversion(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    starlark.Value
 		expected interface{}
+		name     string
 	}{
 		{
 			name:     "bool true",
@@ -298,9 +298,9 @@ func TestStarlarkValueConversion(t *testing.T) {
 
 func TestGoValueToStarlark(t *testing.T) {
 	tests := []struct {
-		name     string
 		input    interface{}
 		expected starlark.Value
+		name     string
 	}{
 		{
 			name:     "bool true",
@@ -332,7 +332,7 @@ func TestGoValueToStarlark(t *testing.T) {
 	}
 }
 
-// TestHTTPGetErrors tests error cases for http.get()
+// TestHTTPGetErrors tests error cases for http.get().
 func TestHTTPGetErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -387,7 +387,7 @@ func TestHTTPGetErrors(t *testing.T) {
 	})
 }
 
-// TestHTTPPostErrors tests error cases for http.post()
+// TestHTTPPostErrors tests error cases for http.post().
 func TestHTTPPostErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -425,7 +425,7 @@ func TestHTTPPostErrors(t *testing.T) {
 	})
 }
 
-// TestHTTPPutErrors tests error cases for http.put()
+// TestHTTPPutErrors tests error cases for http.put().
 func TestHTTPPutErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -453,7 +453,7 @@ func TestHTTPPutErrors(t *testing.T) {
 	})
 }
 
-// TestHTTPDeleteErrors tests error cases for http.delete()
+// TestHTTPDeleteErrors tests error cases for http.delete().
 func TestHTTPDeleteErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -481,7 +481,7 @@ func TestHTTPDeleteErrors(t *testing.T) {
 	})
 }
 
-// TestHTTPGraphQLErrors tests error cases for http.graphql()
+// TestHTTPGraphQLErrors tests error cases for http.graphql().
 func TestHTTPGraphQLErrors(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -517,7 +517,7 @@ func TestHTTPGraphQLErrors(t *testing.T) {
 	})
 }
 
-// TestHTTPModuleCreation tests the NewHTTPModule function
+// TestHTTPModuleCreation tests the NewHTTPModule function.
 func TestHTTPModuleCreation(t *testing.T) {
 	module := NewHTTPModule()
 	require.NotNil(t, module)
@@ -547,7 +547,7 @@ func TestHTTPModuleCreation(t *testing.T) {
 	require.NotNil(t, graphqlFunc)
 }
 
-// TestHTTPResponseStatusCodes tests various HTTP status codes
+// TestHTTPResponseStatusCodes tests various HTTP status codes.
 func TestHTTPResponseStatusCodes(t *testing.T) {
 	thread := &starlark.Thread{Name: "test"}
 
@@ -592,7 +592,7 @@ func TestHTTPResponseStatusCodes(t *testing.T) {
 	}
 }
 
-// TestStarlarkValueConversionEdgeCases tests edge cases in value conversion
+// TestStarlarkValueConversionEdgeCases tests edge cases in value conversion.
 func TestStarlarkValueConversionEdgeCases(t *testing.T) {
 	t.Run("list conversion", func(t *testing.T) {
 		list := starlark.NewList([]starlark.Value{
@@ -623,7 +623,7 @@ func TestStarlarkValueConversionEdgeCases(t *testing.T) {
 	})
 }
 
-// TestGoValueToStarlarkEdgeCases tests edge cases in Go to Starlark conversion
+// TestGoValueToStarlarkEdgeCases tests edge cases in Go to Starlark conversion.
 func TestGoValueToStarlarkEdgeCases(t *testing.T) {
 	t.Run("int conversion", func(t *testing.T) {
 		result := goValueToStarlark(42)

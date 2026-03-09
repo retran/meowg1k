@@ -1,6 +1,7 @@
 # meowg1k - AI-Powered CLI Tool
 
-meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provides AI-assisted code generation, commit messages, PR descriptions, and semantic code search capabilities with Retrieval-Augmented Generation (RAG).
+meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provides AI-assisted code generation, commit messages,
+PR descriptions, and semantic code search capabilities with Retrieval-Augmented Generation (RAG).
 
 ## Project Type
 
@@ -14,7 +15,7 @@ meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provide
 
 ## Project Structure
 
-```
+```text
 .
 ├── cmd/                      # CLI commands and entry points
 │   ├── meow/                # Main binary entry point
@@ -87,24 +88,28 @@ meowg1k is a fast, script-friendly AI companion CLI tool built in Go. It provide
 ## Key Features
 
 ### 1. Multi-Provider LLM Support
+
 - Extensible gateway pattern for multiple LLM providers
 - Built-in adapters: Anthropic, OpenAI, Google Gemini, Ollama/Llama, Voyage, OpenRouter
 - Response caching for performance and cost optimization
 - Retry logic with exponential backoff
 
 ### 2. Starlark Extension System
+
 - User-defined commands via Starlark scripting (`.meowg1k/`)
 - Rich standard library: fs, git, llm, shell, index, ui, json, path, crypto, time, regexp
 - Provider/Model/Preset configuration pattern
 - Tool system with parameter validation and automatic CLI integration
 
 ### 3. RAG and Code Search
+
 - Semantic code indexing using vector embeddings (HNSW algorithm)
 - SQLite-backed persistence
 - Configurable chunking strategies
 - Context-aware retrieval for code Q&A
 
 ### 4. Rich Terminal UI
+
 - Bubble Tea-based interactive components
 - Syntax highlighting with Chroma
 - Markdown rendering with Glamour
@@ -123,6 +128,7 @@ meowg1k follows **Hexagonal Architecture** (Ports & Adapters):
 - **CMD Layer** (`cmd/`): CLI command definitions and entry points
 
 This architecture ensures:
+
 - Clear separation of concerns
 - Testability through dependency injection
 - Easy extensibility for new providers and features
@@ -219,6 +225,7 @@ Configuration follows a three-tier system defined in `.meowg1k/init.star`:
 3. **Preset**: Reusable model + parameters combination (model reference, temperature, etc.)
 
 Example:
+
 ```python
 # Define provider
 meow.provider("gemini", type="gemini", api_key=env.get("MEOW_GEMINI_API_KEY"))
@@ -233,7 +240,8 @@ meow.preset("fast", model="gemini-flash", temperature=0.2)
 
 ### User-Defined Commands
 
-Users can create custom commands in `.meowg1k/commands/*.star`. See docs/api/API_REFERENCE.md for details on the tool system, handler context, and available modules.
+Users can create custom commands in `.meowg1k/commands/*.star`. See docs/api/API_REFERENCE.md for details on the tool system,
+handler context, and available modules.
 
 ## Important Files
 
@@ -246,6 +254,7 @@ Users can create custom commands in `.meowg1k/commands/*.star`. See docs/api/API
 ## Dependencies
 
 Key external dependencies:
+
 - `github.com/spf13/cobra` - CLI framework
 - `github.com/charmbracelet/bubbletea` - TUI framework
 - `github.com/charmbracelet/lipgloss` - Terminal styling
@@ -283,7 +292,8 @@ For detailed information on specific topics, see the modular instruction files:
 
 ## OpenCode Configuration Maintenance
 
-**IMPORTANT**: The OpenCode configuration (AGENTS.md, opencode.json, and docs/guides/*.md files) is part of this project and should be maintained as the project evolves.
+**IMPORTANT**: The OpenCode configuration (AGENTS.md, opencode.json, and docs/guides/*.md files) is part of this project
+and should be maintained as the project evolves.
 
 When making significant changes to the project, **always consider updating the OpenCode configuration**:
 
@@ -333,12 +343,14 @@ When making significant changes to the project, **always consider updating the O
 ### Validation
 
 After updating OpenCode configuration:
+
 1. Ensure all referenced files in `opencode.json` still exist
 2. Verify documentation accurately reflects current code structure
 3. Test that OpenCode can successfully parse the configuration
 4. Consider having OpenCode review its own config files for accuracy
 
-**Treat OpenCode configuration as living documentation** - keep it synchronized with the codebase to maximize AI assistance effectiveness.
+**Treat OpenCode configuration as living documentation** - keep it synchronized with the codebase to maximize
+AI assistance effectiveness.
 
 ---
 

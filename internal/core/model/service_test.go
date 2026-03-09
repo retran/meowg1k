@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package model
@@ -424,7 +424,7 @@ func TestService_ResolveModelInternal_NilModels(t *testing.T) {
 	}
 }
 
-// Test mergeProviderConfig
+// Test mergeProviderConfig.
 
 func TestService_MergeProviderConfig_NilProvider(t *testing.T) {
 	service, err := NewService(
@@ -578,7 +578,7 @@ func TestService_MergeProviderConfig_DoesNotOverrideExisting(t *testing.T) {
 	}
 }
 
-// Test registry methods
+// Test registry methods.
 
 func TestRegistry_Get_WithNilRegistry(t *testing.T) {
 	var reg *Registry

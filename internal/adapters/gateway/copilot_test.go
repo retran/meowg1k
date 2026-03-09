@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -30,10 +31,10 @@ func TestParseCopilotTokenExpiry(t *testing.T) {
 	past := time.Now().Add(-5 * time.Minute).Unix()
 
 	tests := []struct {
-		name       string
-		token      string
 		wantAfter  time.Time
 		wantBefore time.Time
+		name       string
+		token      string
 	}{
 		{
 			name:       "valid exp field",
@@ -82,16 +83,14 @@ func TestParseCopilotTokenExpiry(t *testing.T) {
 func TestGenerateMachineID(t *testing.T) {
 	t.Parallel()
 
-	id, err := generateMachineID()
-	require.NoError(t, err)
+	id := generateMachineID()
 	// SHA256 hex is 64 characters.
 	assert.Len(t, id, 64)
 	// Must be lowercase hex.
 	assert.Regexp(t, `^[0-9a-f]+$`, id)
 
 	// Stable across calls.
-	id2, err := generateMachineID()
-	require.NoError(t, err)
+	id2 := generateMachineID()
 	assert.Equal(t, id, id2)
 }
 
@@ -115,14 +114,16 @@ func TestLoadGitHubToken(t *testing.T) {
 	// Write token manually (persistence is handled by cmd/auth.go).
 	require.NoError(t, os.WriteFile(tokenFile, []byte("ghu_testtoken123"), 0o600))
 
-	// Check permissions.
-	info, err := os.Stat(tokenFile)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	// Check permissions (Windows does not support Unix-style file permission bits).
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(tokenFile)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	}
 
 	// Load the token via loadOrAcquireGitHubToken.
 	g := &copilotGateway{tokenFile: tokenFile}
-	err = g.loadOrAcquireGitHubToken(context.Background())
+	err := g.loadOrAcquireGitHubToken(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "ghu_testtoken123", g.githubToken)
 }

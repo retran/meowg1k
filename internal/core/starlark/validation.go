@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package starlark
@@ -11,6 +11,13 @@ import (
 
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+)
+
+const (
+	paramTypeString = "string"
+	paramTypeBool   = "bool"
+	paramTypeInt    = "int"
+	paramTypeFloat  = "float"
 )
 
 // ParamValidationError represents a validation failure for a single parameter.
@@ -66,11 +73,7 @@ func validateParam(runtime *Runtime, registry *Registry, name string, param *Par
 		return err
 	}
 
-	if err := runDynamicValidators(runtime, registry, name, param, normalized); err != nil {
-		return err
-	}
-
-	return nil
+	return runDynamicValidators(runtime, registry, name, param, normalized)
 }
 
 func normalizeValue(value starlark.Value) starlark.Value {
@@ -88,7 +91,7 @@ func isValueProvided(param *Param, value starlark.Value) bool {
 		return false
 	}
 
-	if param.Type == "string" {
+	if param.Type == paramTypeString {
 		if s, ok := value.(starlark.String); ok {
 			return s.GoString() != ""
 		}
@@ -97,9 +100,9 @@ func isValueProvided(param *Param, value starlark.Value) bool {
 	return true
 }
 
-func convertParamValue(param *Param, value starlark.Value) (any, error) {
+func convertParamValue(param *Param, value starlark.Value) (any, error) { //nolint:gocognit // complexity inherent in converting all param types from Starlark values
 	switch param.Type {
-	case "string":
+	case paramTypeString:
 		if s, ok := value.(starlark.String); ok {
 			return s.GoString(), nil
 		}
@@ -107,12 +110,12 @@ func convertParamValue(param *Param, value starlark.Value) (any, error) {
 			return "", nil
 		}
 		return nil, fmt.Errorf("expected string, got %s", value.Type())
-	case "bool":
+	case paramTypeBool:
 		if b, ok := value.(starlark.Bool); ok {
 			return bool(b), nil
 		}
 		return nil, fmt.Errorf("expected bool, got %s", value.Type())
-	case "int":
+	case paramTypeInt:
 		switch v := value.(type) {
 		case starlark.Int:
 			i, ok := v.Int64()
@@ -123,7 +126,7 @@ func convertParamValue(param *Param, value starlark.Value) (any, error) {
 		default:
 			return nil, fmt.Errorf("expected int, got %s", value.Type())
 		}
-	case "float":
+	case paramTypeFloat:
 		switch v := value.(type) {
 		case starlark.Float:
 			return float64(v), nil
@@ -141,7 +144,7 @@ func convertParamValue(param *Param, value starlark.Value) (any, error) {
 	}
 }
 
-func runStaticChecks(name string, param *Param, value any) error {
+func runStaticChecks(name string, param *Param, value any) error { //nolint:gocognit,gocyclo // complexity inherent in validating all constraint combinations
 	if len(param.Choices) > 0 {
 		if !valueInChoices(value, param.Choices) {
 			return &ParamValidationError{Param: name, Reason: fmt.Sprintf("value must be one of: %s", strings.Join(formatChoices(param.Choices), ", "))}
@@ -249,11 +252,12 @@ func runValidatorTool(runtime *Runtime, registry *Registry, tool *Tool, value st
 
 	for paramName, param := range tool.Params {
 		var assigned starlark.Value
-		if paramName == "value" {
+		switch {
+		case paramName == "value":
 			assigned = normalizeValue(value)
-		} else if param.Default != nil {
+		case param.Default != nil:
 			assigned = convertGoValueToStarlark(param.Default)
-		} else {
+		default:
 			assigned = zeroValueForType(param.Type)
 		}
 		flagsMembers[paramName] = assigned
@@ -270,7 +274,11 @@ func runValidatorTool(runtime *Runtime, registry *Registry, tool *Tool, value st
 		panic("print() is disabled inside validator. Use ctx.output instead")
 	}
 
-	return starlark.Call(thread, tool.Handler, starlark.Tuple{ctx}, nil)
+	result, err := starlark.Call(thread, tool.Handler, starlark.Tuple{ctx}, nil)
+	if err != nil {
+		return starlark.None, fmt.Errorf("validator call failed: %w", err)
+	}
+	return result, nil
 }
 
 func runValidatorFunction(runtime *Runtime, registry *Registry, fn *starlark.Function, value starlark.Value) (starlark.Value, error) {
@@ -291,7 +299,11 @@ func runValidatorFunction(runtime *Runtime, registry *Registry, fn *starlark.Fun
 		panic("print() is disabled inside validator. Use ctx.output instead")
 	}
 
-	return starlark.Call(thread, fn, starlark.Tuple{ctx}, nil)
+	result, err := starlark.Call(thread, fn, starlark.Tuple{ctx}, nil)
+	if err != nil {
+		return starlark.None, fmt.Errorf("validator call failed: %w", err)
+	}
+	return result, nil
 }
 
 func createValidatorContext(runtime *Runtime, registry *Registry, flags starlark.StringDict, params map[string]starlark.Value) (*ContextWithParams, error) {
@@ -338,11 +350,11 @@ func createValidatorContext(runtime *Runtime, registry *Registry, flags starlark
 
 func zeroValueForType(paramType string) starlark.Value {
 	switch paramType {
-	case "bool":
+	case paramTypeBool:
 		return starlark.False
-	case "int":
+	case paramTypeInt:
 		return starlark.MakeInt(0)
-	case "float":
+	case paramTypeFloat:
 		return starlark.Float(0.0)
 	default:
 		return starlark.String("")
@@ -408,7 +420,7 @@ func SanitizeParamValue(param *Param, value starlark.Value) starlark.Value {
 		return value
 	}
 
-	if param.Type != "string" {
+	if param.Type != paramTypeString {
 		return value
 	}
 

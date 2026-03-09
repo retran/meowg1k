@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package progress provides progress logging for CLI operations.
@@ -61,19 +61,19 @@ func New(silent bool, writer io.Writer) Logger {
 // noopLogger is a no-op logger for silent mode.
 type noopLogger struct{}
 
-func (l *noopLogger) Thought(message string)                                            {}
-func (l *noopLogger) Action(tool string, args string)                                   {}
-func (l *noopLogger) ActionResult(success bool, message string, duration time.Duration) {}
-func (l *noopLogger) StartOperation(message string)                                     {}
-func (l *noopLogger) CompleteOperation(message string, duration time.Duration)          {}
-func (l *noopLogger) Info(message string)                                               {}
-func (l *noopLogger) Success(message string)                                            {}
-func (l *noopLogger) Warning(message string)                                            {}
-func (l *noopLogger) Error(err error)                                                   {}
-func (l *noopLogger) StartProgress(label string, total int)                             {}
-func (l *noopLogger) UpdateProgress(current int, itemDetail string)                     {}
-func (l *noopLogger) FinishProgress(message string)                                     {}
-func (l *noopLogger) StartSpinner(message string)                                       {}
-func (l *noopLogger) StopSpinner(success bool, finalMessage string)                     {}
-func (l *noopLogger) Flush() error                                                      { return nil }
-func (l *noopLogger) Close() error                                                      { return nil }
+func (l *noopLogger) Thought(_ string)                               {}
+func (l *noopLogger) Action(_ string, _ string)                      {}
+func (l *noopLogger) ActionResult(_ bool, _ string, _ time.Duration) {}
+func (l *noopLogger) StartOperation(_ string)                        {}
+func (l *noopLogger) CompleteOperation(_ string, _ time.Duration)    {}
+func (l *noopLogger) Info(_ string)                                  {}
+func (l *noopLogger) Success(_ string)                               {}
+func (l *noopLogger) Warning(_ string)                               {}
+func (l *noopLogger) Error(_ error)                                  {}
+func (l *noopLogger) StartProgress(_ string, _ int)                  {}
+func (l *noopLogger) UpdateProgress(_ int, _ string)                 {}
+func (l *noopLogger) FinishProgress(_ string)                        {}
+func (l *noopLogger) StartSpinner(_ string)                          {}
+func (l *noopLogger) StopSpinner(_ bool, _ string)                   {}
+func (l *noopLogger) Flush() error                                   { return nil }
+func (l *noopLogger) Close() error                                   { return nil }

@@ -1,6 +1,6 @@
 # What's Left to Do
 
-**Branch**: `retran/simplify` (PR #80)  
+**Branch**: `retran/simplify` (PR #80)
 **Started from**: v0.2.0
 
 ---
@@ -12,6 +12,7 @@
 Developers can read the code. Users need guides.
 
 **Create**:
+
 - `docs/user/install.md` - How to install
 - `docs/user/setup.md` - How to configure `.meowg1k/init.star`
 - `docs/user/commands.md` - What commands exist
@@ -24,6 +25,7 @@ Developers can read the code. Users need guides.
 The project has no front page. We deleted the old one during cleanup.
 
 **Include**:
+
 - What is meowg1k - one paragraph
 - Install instructions
 - Quick example
@@ -44,6 +46,7 @@ Use `cobra` or write a custom generator.
 `planning.star` and `memory.star` have 10+ examples each. Other libraries don't.
 
 **Add examples to**:
+
 - `file_ops.star`
 - `shell.star`
 - `git.star`
@@ -65,7 +68,7 @@ Coverage jumped from 44% to 65%. Go higher:
 
 Show users what's possible:
 
-```
+```text
 examples/
 ├── commands/         # Custom commands
 │   ├── analyze.star
@@ -87,6 +90,7 @@ examples/
 Like Bazel's `load("@repo//lib:file.star")`.
 
 **Build**:
+
 - Parse remote URLs in `load()` statements
 - Download and cache libraries
 - Pin versions (like `go.mod`)
@@ -94,6 +98,7 @@ Like Bazel's `load("@repo//lib:file.star")`.
 - Support private repos
 
 **Example**:
+
 ```python
 # .meowg1k/workspace.star
 github_library(
@@ -109,9 +114,11 @@ load("@utils//lib:helpers.star", "format_code")
 
 ### 8. Native streaming for Ollama/Llama (1 week)
 
-Llama currently synthesizes stream events from a completed response. Add real SSE streaming via the llama.cpp streaming API.
+Llama currently synthesizes stream events from a completed response. Add real SSE streaming via the llama.cpp
+streaming API.
 
 **Build**:
+
 - Implement `GenerateContentStream` using native llama.cpp SSE endpoint
 - Replace current synthesized fallback in `internal/adapters/gateway/llama.go`
 
@@ -120,6 +127,7 @@ Llama currently synthesizes stream events from a completed response. Add real SS
 Let users share Starlark libraries safely.
 
 **Build**:
+
 - Sandbox plugins (restrict file access)
 - Plugin registry/marketplace
 - Signature verification
@@ -148,6 +156,7 @@ Make IDEs understand meowg1k code:
 ### 12. Speed up queries (ongoing)
 
 **Profile and optimize**:
+
 - Starlark execution time
 - SQLite query speed
 - Vector search (HNSW)
@@ -183,6 +192,7 @@ Change issue templates:
 Add support for Anthropic's Model Context Protocol to integrate external tools and resources.
 
 **Build**:
+
 - MCP client implementation in Go
 - Connect to MCP servers via stdio, HTTP, or SSE
 - Expose MCP tools to Starlark as `ctx.mcp.call()`
@@ -191,6 +201,7 @@ Add support for Anthropic's Model Context Protocol to integrate external tools a
 - Handle tool discovery and schema conversion
 
 **Example**:
+
 ```python
 # .meowg1k/init.star
 meow.mcp_server("filesystem",
@@ -205,6 +216,7 @@ content = ctx.mcp.call("filesystem", "read_file", {"path": "README.md"})
 ```
 
 **Resources**:
+
 - https://modelcontextprotocol.io/
 - https://github.com/modelcontextprotocol
 
@@ -213,6 +225,7 @@ content = ctx.mcp.call("filesystem", "read_file", {"path": "README.md"})
 Implement ACP for multi-agent orchestration and collaboration.
 
 **Build**:
+
 - ACP protocol implementation
 - Agent-to-agent communication
 - Task delegation and result aggregation
@@ -221,6 +234,7 @@ Implement ACP for multi-agent orchestration and collaboration.
 - Protocol negotiation
 
 **Example**:
+
 ```python
 # Define agents that communicate via ACP
 code_agent = ctx.acp.spawn("code-reviewer", capabilities=["review", "suggest"])
@@ -232,6 +246,7 @@ tests = test_agent.request("generate_tests", {"code": review.code})
 ```
 
 **Resources**:
+
 - Research existing agent communication protocols
 - Design meowg1k-specific ACP extensions
 
@@ -240,6 +255,7 @@ tests = test_agent.request("generate_tests", {"code": review.code})
 Automatically compress long conversation histories to fit within context windows.
 
 **Build**:
+
 - Detect when session approaches token limit
 - Summarize older messages while preserving key information
 - Keep recent messages verbatim for coherence
@@ -248,6 +264,7 @@ Automatically compress long conversation histories to fit within context windows
 - Store original uncompacted session for replay
 
 **Example**:
+
 ```python
 # Automatic compaction when approaching limit
 session.compact(
@@ -266,6 +283,7 @@ session.replace_range(start=0, end=50, summary=summary)
 ```
 
 **Features**:
+
 - Token counting per message
 - Intelligent message merging (combine related messages)
 - Preserve code snippets and structured data
@@ -273,6 +291,7 @@ session.replace_range(start=0, end=50, summary=summary)
 - Allow recovery of original messages
 
 **Use cases**:
+
 - Long debugging sessions
 - Multi-step agent workflows
 - Code review with many iterations
@@ -283,10 +302,12 @@ session.replace_range(start=0, end=50, summary=summary)
 ## How to use this file
 
 **Priority order**:
+
 1. Write user docs (#1, #2, #3) - users can't learn without docs
 2. Everything else when we have time
 
 **Before you start a task**:
+
 - Check if it breaks existing code
 - Update LIBRARY_INDEX.md if you change the API
 - Keep test coverage above 65%
@@ -294,5 +315,5 @@ session.replace_range(start=0, end=50, summary=summary)
 
 ---
 
-**Updated**: 2026-03-02  
+**Updated**: 2026-03-02
 **PR**: #80

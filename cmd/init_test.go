@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// chdir into a temp dir for isolated filesystem ops
+// chdir into a temp dir for isolated filesystem ops.
 func withTempDir(t *testing.T) func() {
 	t.Helper()
 	oldwd, _ := os.Getwd()
@@ -59,7 +59,7 @@ func TestUpdateGitignore_PreservesTrailingNewline(t *testing.T) {
 	defer restore()
 
 	// Pre-existing file without trailing newline
-	if err := os.WriteFile(".gitignore", []byte("node_modules"), 0644); err != nil {
+	if err := os.WriteFile(".gitignore", []byte("node_modules"), 0o644); err != nil {
 		t.Fatalf("write .gitignore failed: %v", err)
 	}
 	if err := updateGitignore(); err != nil {
@@ -83,6 +83,7 @@ func TestInitGlobalConfig(t *testing.T) {
 		// Setup: Use a temp home directory
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -104,12 +105,13 @@ func TestInitGlobalConfig(t *testing.T) {
 	t.Run("fails when config exists without force", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
-		os.MkdirAll(configDir, 0755)
+		os.MkdirAll(configDir, 0o755)
 		initFile := filepath.Join(configDir, "init.star")
-		os.WriteFile(initFile, []byte("existing"), 0644)
+		os.WriteFile(initFile, []byte("existing"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -122,12 +124,13 @@ func TestInitGlobalConfig(t *testing.T) {
 	t.Run("overwrites config with force flag", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		// Create existing config
 		configDir := filepath.Join(tempHome, ".config", "meowg1k")
-		os.MkdirAll(configDir, 0755)
+		os.MkdirAll(configDir, 0o755)
 		initFile := filepath.Join(configDir, "init.star")
-		os.WriteFile(initFile, []byte("old content"), 0644)
+		os.WriteFile(initFile, []byte("old content"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -149,7 +152,7 @@ func TestInitProjectConfig(t *testing.T) {
 		defer restore()
 
 		// Create a .git directory to simulate git repo
-		os.Mkdir(".git", 0755)
+		os.Mkdir(".git", 0o755)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -175,8 +178,8 @@ func TestInitProjectConfig(t *testing.T) {
 		defer restore()
 
 		// Create existing project config
-		os.MkdirAll(".meowg1k", 0755)
-		os.WriteFile(".meowg1k/init.star", []byte("existing"), 0644)
+		os.MkdirAll(".meowg1k", 0o755)
+		os.WriteFile(".meowg1k/init.star", []byte("existing"), 0o644)
 
 		cmd := &cobra.Command{}
 		cmd.SetOut(bytes.NewBuffer(nil))
@@ -207,6 +210,7 @@ func TestRunInit(t *testing.T) {
 	t.Run("routes to global config with --global flag", func(t *testing.T) {
 		tempHome := t.TempDir()
 		t.Setenv("HOME", tempHome)
+		t.Setenv("USERPROFILE", tempHome) // Windows: os.UserHomeDir uses USERPROFILE
 
 		cmd := &cobra.Command{}
 		cmd.Flags().Bool("global", true, "")

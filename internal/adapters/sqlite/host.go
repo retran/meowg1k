@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package sqlite provides SQLite database access and manages connections for index, cache, metadata, and rate limiting storage.
@@ -138,7 +138,7 @@ func (h *localHostImpl) getMainDBMigrations() ([]migrations.Migration, error) {
 		return nil, fmt.Errorf("host is nil")
 	}
 
-	allMigrations := []migrations.Migration{}
+	allMigrations := make([]migrations.Migration, 0, len(cache.Migrations))
 
 	allMigrations = append(allMigrations, cache.Migrations...)
 
@@ -153,7 +153,7 @@ func (h *localHostImpl) getProjectDBMigrations() ([]migrations.Migration, error)
 		return nil, fmt.Errorf("host is nil")
 	}
 
-	allMigrations := []migrations.Migration{}
+	allMigrations := make([]migrations.Migration, 0, len(meta.Migrations)+len(index.Migrations)+len(session.Migrations))
 
 	allMigrations = append(allMigrations, meta.Migrations...)
 	allMigrations = append(allMigrations, index.Migrations...)

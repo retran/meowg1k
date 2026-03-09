@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -17,19 +17,19 @@ import (
 
 // ProgressBar represents a deterministic progress indicator.
 type ProgressBar struct {
+	theme     Theme
+	startTime time.Time
+	writer    io.Writer
+	message   string
 	total     int
 	current   int
-	message   string
-	done      bool
 	mu        sync.Mutex
-	theme     Theme
 	opts      RenderOptions
-	writer    io.Writer
-	startTime time.Time
+	done      bool
 }
 
 // NewProgressBar creates a new progress bar.
-func NewProgressBar(total int, message string, theme Theme, opts RenderOptions, writer io.Writer) *ProgressBar {
+func NewProgressBar(total int, message string, theme Theme, opts RenderOptions, writer io.Writer) *ProgressBar { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	if writer == nil {
 		writer = os.Stderr
 	}
@@ -50,7 +50,7 @@ func NewProgressBar(total int, message string, theme Theme, opts RenderOptions, 
 	return pb
 }
 
-func (pb *ProgressBar) render() {
+func (pb *ProgressBar) render() { //nolint:gocognit // complexity inherent in adaptive terminal progress bar rendering
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
@@ -64,13 +64,13 @@ func (pb *ProgressBar) render() {
 	}
 
 	if pb.opts.Plain || !pb.opts.Terminal {
-		fmt.Fprintf(pb.writer, "> %s (%d/%d)\n", pb.message, pb.current, pb.total)
+		_, _ = fmt.Fprintf(pb.writer, "> %s (%d/%d)\n", pb.message, pb.current, pb.total) //nolint:errcheck // write errors to stderr are intentionally ignored
 		return
 	}
 
 	// Fixed 20-column width (never exceed 30, scale down for small terminals)
 	width := 20
-	if fd := os.Stderr.Fd(); term.IsTerminal(fd) {
+	if fd := os.Stderr.Fd(); term.IsTerminal(fd) { //nolint:nestif // nested terminal size detection with fallback width
 		if w, _, err := term.GetSize(fd); err == nil {
 			if w < 60 {
 				width = 15 // Smaller for narrow terminals
@@ -110,7 +110,7 @@ func (pb *ProgressBar) render() {
 	percentStyle := lipgloss.NewStyle().Foreground(pb.theme.Thought)
 
 	// Format: › Message [████░░░░░░░░░░░░░░░░] 30%
-	fmt.Fprintf(pb.writer, "\r%s %s [%s%s] %s",
+	_, _ = fmt.Fprintf(pb.writer, "\r%s %s [%s%s] %s", //nolint:errcheck // write errors to stderr are intentionally ignored
 		prefixStyle.Render("›"),
 		pb.message,
 		filledStyle.Render(filledPart.String()),
@@ -156,10 +156,10 @@ func (pb *ProgressBar) Done(message string) {
 	duration := time.Since(pb.startTime)
 
 	if pb.opts.Plain || !pb.opts.Terminal {
-		fmt.Fprintf(pb.writer, "+ %s · %d/%d · %s\n", message, pb.total, pb.total, duration.Round(time.Millisecond))
+		_, _ = fmt.Fprintf(pb.writer, "+ %s · %d/%d · %s\n", message, pb.total, pb.total, duration.Round(time.Millisecond)) //nolint:errcheck // write errors to stderr are intentionally ignored
 	} else {
 		style := pb.theme.StatusSuccess
-		fmt.Fprintf(pb.writer, "\r\033[K%s\n",
+		_, _ = fmt.Fprintf(pb.writer, "\r\033[K%s\n", //nolint:errcheck // write errors to stderr are intentionally ignored
 			style.Render(fmt.Sprintf("✓ %s · %d/%d · %s", message, pb.total, pb.total, duration.Round(time.Millisecond))))
 	}
 }
@@ -177,10 +177,10 @@ func (pb *ProgressBar) Fail(message string) {
 	duration := time.Since(pb.startTime)
 
 	if pb.opts.Plain || !pb.opts.Terminal {
-		fmt.Fprintf(pb.writer, "- %s at %d/%d · %s\n", message, pb.current, pb.total, duration.Round(time.Millisecond))
+		_, _ = fmt.Fprintf(pb.writer, "- %s at %d/%d · %s\n", message, pb.current, pb.total, duration.Round(time.Millisecond)) //nolint:errcheck // write errors to stderr are intentionally ignored
 	} else {
 		style := pb.theme.StatusError
-		fmt.Fprintf(pb.writer, "\r\033[K%s\n",
+		_, _ = fmt.Fprintf(pb.writer, "\r\033[K%s\n", //nolint:errcheck // write errors to stderr are intentionally ignored
 			style.Render(fmt.Sprintf("✗ %s at %d/%d", message, pb.current, pb.total)))
 	}
 }

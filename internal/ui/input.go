@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -23,7 +23,7 @@ func Confirm(prompt string, defaultValue bool) (bool, error) {
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to read user input: %w", err)
 	}
 
 	input = strings.ToLower(strings.TrimSpace(input))

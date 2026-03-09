@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package ui
@@ -9,7 +9,7 @@ import (
 )
 
 // RenderProperties renders a key-value list with aligned keys.
-func RenderProperties(data map[string]string, title string, theme Theme, opts RenderOptions) string {
+func RenderProperties(data map[string]string, title string, theme Theme, opts RenderOptions) string { //nolint:gocritic // hugeParam: Theme passed by value to avoid external mutation
 	if len(data) == 0 {
 		return ""
 	}

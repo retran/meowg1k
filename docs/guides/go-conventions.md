@@ -20,6 +20,7 @@ This document outlines Go-specific coding standards, conventions, and best pract
 ### Godoc Comment Rules
 
 **"Chart by Exceptions" Philosophy**:
+
 - **Public API (exported)**: MUST have full godoc comments
 - **Internal implementation**: Comment by exception - only document what's non-obvious
 
@@ -98,6 +99,7 @@ type GenerationGateway interface {
 For **unexported** (internal) code, document only when:
 
 1. **Non-obvious logic**:
+
 ```go
 // computeChunkOverlap calculates overlap size to maintain context continuity
 // across chunk boundaries. Uses 10% overlap with minimum 50 bytes.
@@ -110,7 +112,8 @@ func computeChunkOverlap(chunkSize int) int {
 }
 ```
 
-2. **Complex algorithms**:
+1. **Complex algorithms**:
+
 ```go
 // buildHNSWIndex constructs a hierarchical navigable small world graph
 // for approximate nearest neighbor search. Uses M=16 connections per layer
@@ -120,7 +123,8 @@ func buildHNSWIndex(embeddings []Embedding) (*Index, error) {
 }
 ```
 
-3. **Workarounds or gotchas**:
+1. **Workarounds or gotchas**:
+
 ```go
 // HACK: SQLite doesn't support concurrent writes, so we serialize
 // all write operations through a single channel.
@@ -129,7 +133,8 @@ func (r *Repository) writeQueue() chan writeOp {
 }
 ```
 
-4. **Why, not what** (when non-obvious):
+1. **Why, not what** (when non-obvious):
+
 ```go
 // We cache the compiled regex because it's used in hot path
 // and compilation is expensive (~100µs per call).
@@ -206,9 +211,10 @@ golangci-lint run --fix --disable-all -E gofumpt -E goimports
 ### Import Grouping
 
 Group imports in this order:
+
 1. Standard library
-2. External packages
-3. Internal packages
+1. External packages
+1. Internal packages
 
 ```go
 import (
@@ -574,12 +580,13 @@ type Config struct {
 ### Order of Declaration
 
 Within a file, order should be:
+
 1. Package comment
-2. Imports
-3. Constants
-4. Variables
-5. Types
-6. Functions/Methods
+1. Imports
+1. Constants
+1. Variables
+1. Types
+1. Functions/Methods
 
 ## Linting
 
@@ -596,6 +603,7 @@ task fix:lint
 ### Key Linters Enabled
 
 See `.golangci.yaml` for complete configuration. Key linters:
+
 - `gofumpt` - Stricter formatting
 - `goimports` - Import organization
 - `errcheck` - Unchecked errors
@@ -608,6 +616,7 @@ See `.golangci.yaml` for complete configuration. Key linters:
 ## Best Practices
 
 ### Use Table-Driven Tests
+
 See `docs/guides/testing-standards.md`
 
 ### Avoid Naked Returns

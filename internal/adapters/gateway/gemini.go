@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package gateway
@@ -21,6 +21,12 @@ var (
 	_ ports.EmbeddingsGateway = (*geminiGateway)(nil)
 )
 
+// geminiResponseFormatText is the MIME type used when the response format is plain text.
+const geminiResponseFormatText = "text"
+
+// geminiMIMETypeJSON is the MIME type for JSON-structured responses.
+const geminiMIMETypeJSON = "application/json"
+
 // geminiGateway is a unified client for the Google Gemini API,
 // implementing both GenerationGateway and EmbeddingGateway.
 type geminiGateway struct {
@@ -29,11 +35,17 @@ type geminiGateway struct {
 }
 
 // NewGeminiGateway creates and initializes a new unified GeminiGateway.
-func newGeminiGateway(ctx context.Context, apiKey string) (ports.Gateway, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+// baseURL overrides the default Gemini API endpoint when non-empty (useful for testing).
+func newGeminiGateway(ctx context.Context, apiKey string, baseURL string) (ports.Gateway, error) {
+	cfg := &genai.ClientConfig{
 		APIKey:  apiKey,
 		Backend: genai.BackendGeminiAPI,
-	})
+	}
+	if baseURL != "" {
+		cfg.HTTPOptions = genai.HTTPOptions{BaseURL: baseURL}
+	}
+
+	client, err := genai.NewClient(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Gemini client: %w", err)
 	}
@@ -287,7 +299,7 @@ func applyGeminiResponseConfig(config *genai.GenerateContentConfig, request *gat
 	if responseSchema := request.ResponseSchema(); responseSchema != nil {
 		// Convert map[string]interface{} to *genai.Schema
 		schema := convertToGeminiSchema(responseSchema)
-		config.ResponseMIMEType = "application/json"
+		config.ResponseMIMEType = geminiMIMETypeJSON
 		config.ResponseSchema = schema
 		return
 	}
@@ -295,8 +307,8 @@ func applyGeminiResponseConfig(config *genai.GenerateContentConfig, request *gat
 	if responseFormat := request.ResponseFormat(); responseFormat != nil {
 		switch *responseFormat {
 		case "json_object", "json", "json_schema":
-			config.ResponseMIMEType = "application/json"
-		case "text":
+			config.ResponseMIMEType = geminiMIMETypeJSON
+		case geminiResponseFormatText:
 			config.ResponseMIMEType = "text/plain"
 		}
 	}
@@ -307,22 +319,39 @@ func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
 	if schemaMap == nil {
 		return nil
 	}
-
 	schema := &genai.Schema{}
+	applyGeminiSchemaStringFields(schema, schemaMap)
+	applyGeminiSchemaListFields(schema, schemaMap)
+	applyGeminiSchemaNumericFields(schema, schemaMap)
+	applyGeminiSchemaNestedFields(schema, schemaMap)
+	return schema
+}
 
-	if t, ok := schemaMap["type"].(string); ok {
+// applyGeminiSchemaStringFields sets simple string-typed schema fields.
+func applyGeminiSchemaStringFields(schema *genai.Schema, m map[string]interface{}) {
+	if t, ok := m["type"].(string); ok {
 		schema.Type = genai.Type(t)
 	}
-
-	if desc, ok := schemaMap["description"].(string); ok {
+	if desc, ok := m["description"].(string); ok {
 		schema.Description = desc
 	}
-
-	if title, ok := schemaMap["title"].(string); ok {
+	if title, ok := m["title"].(string); ok {
 		schema.Title = title
 	}
+	if format, ok := m["format"].(string); ok {
+		schema.Format = format
+	}
+	if pattern, ok := m["pattern"].(string); ok {
+		schema.Pattern = pattern
+	}
+	if nullable, ok := m["nullable"].(bool); ok {
+		schema.Nullable = &nullable
+	}
+}
 
-	if enum, ok := schemaMap["enum"].([]interface{}); ok {
+// applyGeminiSchemaListFields sets list-typed schema fields (enum, required).
+func applyGeminiSchemaListFields(schema *genai.Schema, m map[string]interface{}) {
+	if enum, ok := m["enum"].([]interface{}); ok {
 		enumStrings := make([]string, 0, len(enum))
 		for _, v := range enum {
 			if s, ok := v.(string); ok {
@@ -331,12 +360,7 @@ func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
 		}
 		schema.Enum = enumStrings
 	}
-
-	if format, ok := schemaMap["format"].(string); ok {
-		schema.Format = format
-	}
-
-	if required, ok := schemaMap["required"].([]interface{}); ok {
+	if required, ok := m["required"].([]interface{}); ok {
 		reqStrings := make([]string, 0, len(required))
 		for _, v := range required {
 			if s, ok := v.(string); ok {
@@ -345,8 +369,37 @@ func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
 		}
 		schema.Required = reqStrings
 	}
+}
 
-	if properties, ok := schemaMap["properties"].(map[string]interface{}); ok {
+// applyGeminiSchemaNumericFields sets numeric-typed schema constraint fields.
+func applyGeminiSchemaNumericFields(schema *genai.Schema, m map[string]interface{}) {
+	if minLength, ok := m["minLength"].(float64); ok {
+		v := int64(minLength)
+		schema.MinLength = &v
+	}
+	if maxLength, ok := m["maxLength"].(float64); ok {
+		v := int64(maxLength)
+		schema.MaxLength = &v
+	}
+	if minimum, ok := m["minimum"].(float64); ok {
+		schema.Minimum = &minimum
+	}
+	if maximum, ok := m["maximum"].(float64); ok {
+		schema.Maximum = &maximum
+	}
+	if minItems, ok := m["minItems"].(float64); ok {
+		v := int64(minItems)
+		schema.MinItems = &v
+	}
+	if maxItems, ok := m["maxItems"].(float64); ok {
+		v := int64(maxItems)
+		schema.MaxItems = &v
+	}
+}
+
+// applyGeminiSchemaNestedFields sets nested and complex schema fields.
+func applyGeminiSchemaNestedFields(schema *genai.Schema, m map[string]interface{}) {
+	if properties, ok := m["properties"].(map[string]interface{}); ok {
 		schema.Properties = make(map[string]*genai.Schema)
 		for key, value := range properties {
 			if propMap, ok := value.(map[string]interface{}); ok {
@@ -354,56 +407,10 @@ func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
 			}
 		}
 	}
-
-	if items, ok := schemaMap["items"].(map[string]interface{}); ok {
+	if items, ok := m["items"].(map[string]interface{}); ok {
 		schema.Items = convertToGeminiSchema(items)
 	}
-
-	if nullable, ok := schemaMap["nullable"].(bool); ok {
-		schema.Nullable = &nullable
-	}
-
-	if minLength, ok := schemaMap["minLength"].(float64); ok {
-		minLengthInt := int64(minLength)
-		schema.MinLength = &minLengthInt
-	}
-
-	if maxLength, ok := schemaMap["maxLength"].(float64); ok {
-		maxLengthInt := int64(maxLength)
-		schema.MaxLength = &maxLengthInt
-	}
-
-	if minimum, ok := schemaMap["minimum"].(float64); ok {
-		schema.Minimum = &minimum
-	}
-
-	if maximum, ok := schemaMap["maximum"].(float64); ok {
-		schema.Maximum = &maximum
-	}
-
-	if minItems, ok := schemaMap["minItems"].(float64); ok {
-		minItemsInt := int64(minItems)
-		schema.MinItems = &minItemsInt
-	}
-
-	if maxItems, ok := schemaMap["maxItems"].(float64); ok {
-		maxItemsInt := int64(maxItems)
-		schema.MaxItems = &maxItemsInt
-	}
-
-	if pattern, ok := schemaMap["pattern"].(string); ok {
-		schema.Pattern = pattern
-	}
-
-	if defaultVal, ok := schemaMap["default"]; ok {
-		schema.Default = defaultVal
-	}
-
-	if example, ok := schemaMap["example"]; ok {
-		schema.Example = example
-	}
-
-	if anyOf, ok := schemaMap["anyOf"].([]interface{}); ok {
+	if anyOf, ok := m["anyOf"].([]interface{}); ok {
 		anyOfSchemas := make([]*genai.Schema, 0, len(anyOf))
 		for _, v := range anyOf {
 			if subSchema, ok := v.(map[string]interface{}); ok {
@@ -412,8 +419,12 @@ func convertToGeminiSchema(schemaMap map[string]interface{}) *genai.Schema {
 		}
 		schema.AnyOf = anyOfSchemas
 	}
-
-	return schema
+	if defaultVal, ok := m["default"]; ok {
+		schema.Default = defaultVal
+	}
+	if example, ok := m["example"]; ok {
+		schema.Example = example
+	}
 }
 
 func applyGeminiCandidateConfig(config *genai.GenerateContentConfig, request *gateway.GenerateContentRequest) {
@@ -499,21 +510,29 @@ func (g *geminiGateway) GenerateContentStream(
 		}
 	}
 
-	userPromptText := g.mapMessagesToPrompt(request)
-	userPrompt := genai.Text(userPromptText)
+	userPrompt := genai.Text(g.mapMessagesToPrompt(request))
+	return g.runGeminiStream(ctx, request.Model(), userPrompt, generationConfig, callback)
+}
 
+// runGeminiStream iterates over a Gemini stream and assembles the final response.
+func (g *geminiGateway) runGeminiStream(
+	ctx context.Context,
+	model string,
+	userPrompt []*genai.Content,
+	config *genai.GenerateContentConfig,
+	callback gateway.StreamCallback,
+) (*gateway.GenerateContentResponse, error) {
 	var (
 		allBlocks  []gateway.ContentBlock
 		lastUsage  *gateway.UsageMetadata
 		totalCount int
-		streamErr  error
 	)
 
-	for chunk, err := range g.client.Models.GenerateContentStream(ctx, request.Model(), userPrompt, generationConfig) {
+	for chunk, err := range g.client.Models.GenerateContentStream(ctx, model, userPrompt, config) {
 		if err != nil {
-			streamErr = fmt.Errorf("gemini stream error for model %q: %w", request.Model(), err)
-			if callback != nil {
-				_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: streamErr.Error(), Recoverable: false})
+			streamErr := fmt.Errorf("gemini stream error for model %q: %w", model, err)
+			if cbErr := g.fireErrorCallback(callback, streamErr); cbErr != nil {
+				return nil, cbErr
 			}
 			return nil, streamErr
 		}
@@ -522,44 +541,83 @@ func (g *geminiGateway) GenerateContentStream(
 			continue
 		}
 
-		// Accumulate usage from each chunk (last non-nil wins).
-		if chunk.UsageMetadata != nil {
-			totalCount = int(chunk.UsageMetadata.TotalTokenCount)
-			lastUsage = &gateway.UsageMetadata{
-				PromptTokens:     int(chunk.UsageMetadata.PromptTokenCount),
-				CompletionTokens: int(chunk.UsageMetadata.CandidatesTokenCount),
-				TotalTokens:      int(chunk.UsageMetadata.TotalTokenCount),
-			}
+		blocks, usage, count := extractGeminiChunk(chunk)
+		if usage != nil {
+			lastUsage = usage
+			totalCount = count
 		}
 
-		blocks := parseGeminiBlocksOrdered(chunk)
 		allBlocks = append(allBlocks, blocks...)
 
-		if callback != nil {
-			for _, block := range blocks {
-				switch block.Kind {
-				case gateway.ContentBlockText:
-					if block.Text != "" {
-						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text}); cbErr != nil {
-							return nil, cbErr
-						}
-					}
-				case gateway.ContentBlockReasoning:
-					if block.Text != "" {
-						if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text}); cbErr != nil {
-							return nil, cbErr
-						}
-					}
-				}
-			}
+		if cbErr := fireBlockCallbacks(blocks, callback); cbErr != nil {
+			return nil, cbErr
 		}
 	}
 
 	if callback != nil {
-		_ = callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: lastUsage})
+		if cbErr := callback(gateway.StreamEvent{Kind: gateway.StreamEventDone, Usage: lastUsage}); cbErr != nil {
+			return nil, cbErr
+		}
 	}
 
 	return &gateway.GenerateContentResponse{Blocks: allBlocks, TokenCount: totalCount, Usage: lastUsage}, nil
+}
+
+// extractGeminiChunk pulls blocks, usage metadata, and total token count from a stream chunk.
+func extractGeminiChunk(chunk *genai.GenerateContentResponse) ([]gateway.ContentBlock, *gateway.UsageMetadata, int) {
+	var usage *gateway.UsageMetadata
+	var totalCount int
+
+	if chunk.UsageMetadata != nil {
+		totalCount = int(chunk.UsageMetadata.TotalTokenCount)
+		usage = &gateway.UsageMetadata{
+			PromptTokens:     int(chunk.UsageMetadata.PromptTokenCount),
+			CompletionTokens: int(chunk.UsageMetadata.CandidatesTokenCount),
+			TotalTokens:      int(chunk.UsageMetadata.TotalTokenCount),
+		}
+	}
+
+	return parseGeminiBlocksOrdered(chunk), usage, totalCount
+}
+
+// fireErrorCallback sends a StreamEventError to the callback if it is non-nil.
+func (g *geminiGateway) fireErrorCallback(callback gateway.StreamCallback, streamErr error) error {
+	if callback == nil {
+		return nil
+	}
+	return callback(gateway.StreamEvent{Kind: gateway.StreamEventError, Error: streamErr.Error(), Recoverable: false})
+}
+
+// fireBlockCallbacks sends stream events for each content block to the callback.
+// Text and reasoning blocks are sent as delta events; tool call blocks are skipped.
+func fireBlockCallbacks(blocks []gateway.ContentBlock, callback gateway.StreamCallback) error {
+	if callback == nil {
+		return nil
+	}
+	for _, block := range blocks {
+		if cbErr := fireBlockCallback(block, callback); cbErr != nil {
+			return cbErr
+		}
+	}
+	return nil
+}
+
+// fireBlockCallback sends a stream event for a single content block.
+func fireBlockCallback(block gateway.ContentBlock, callback gateway.StreamCallback) error {
+	switch block.Kind {
+	case gateway.ContentBlockText:
+		if block.Text != "" {
+			return callback(gateway.StreamEvent{Kind: gateway.StreamEventText, Delta: block.Text})
+		}
+	case gateway.ContentBlockReasoning:
+		if block.Text != "" {
+			return callback(gateway.StreamEvent{Kind: gateway.StreamEventThinking, Delta: block.Text})
+		}
+	case gateway.ContentBlockToolCall:
+		// Tool call blocks are not streamed as incremental events;
+		// they are available in the final response.
+	}
+	return nil
 }
 
 // CountTokens counts tokens for the given content chunks using the Gemini API.
@@ -610,44 +668,56 @@ func (g *geminiGateway) ComputeEmbeddings(
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 
+	// Validate dimensions before entering the retry loop so overflow errors
+	// are returned immediately rather than being retried.
+	if dimensions := request.Dimensions(); dimensions > math.MaxInt32 {
+		return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
+	}
+
 	return RetryWithBackoff(ctx, DefaultRetryConfig(), func(ctx context.Context) ([]gateway.Embedding, error) {
-		contents := make([]*genai.Content, 0, len(request.Chunks()))
-		for _, value := range request.Chunks() {
-			contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
-		}
-
-		config := &genai.EmbedContentConfig{
-			TaskType: string(request.TaskType()),
-		}
-
-		if request.Dimensions() > 0 {
-			dimensions := request.Dimensions()
-			if dimensions > math.MaxInt32 {
-				return nil, fmt.Errorf("dimensions value %d exceeds int32 range for model %q", dimensions, request.Model())
-			}
-
-			dims := int32(dimensions) // #nosec G115 // overflow checked above
-			config.OutputDimensionality = &dims
-		}
-
-		response, err := g.client.Models.EmbedContent(ctx,
-			request.Model(),
-			contents,
-			config,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
-		for _, value := range response.Embeddings {
-			values := make([]float64, len(value.Values))
-			for i, v := range value.Values {
-				values[i] = float64(v)
-			}
-			embeddings = append(embeddings, values)
-		}
-
-		return embeddings, nil
+		return g.computeEmbeddingsOnce(ctx, request)
 	}, fmt.Sprintf("Gemini ComputeEmbeddings for model %q", request.Model()))
+}
+
+// computeEmbeddingsOnce performs a single (non-retried) embedding request to the Gemini API.
+func (g *geminiGateway) computeEmbeddingsOnce(
+	ctx context.Context,
+	request *gateway.ComputeEmbeddingsRequest,
+) ([]gateway.Embedding, error) {
+	contents := make([]*genai.Content, 0, len(request.Chunks()))
+	for _, value := range request.Chunks() {
+		contents = append(contents, genai.NewContentFromText(value, genai.RoleUser))
+	}
+
+	config := buildGeminiEmbedConfig(request)
+
+	response, err := g.client.Models.EmbedContent(ctx, request.Model(), contents, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute embeddings for model %q: %w", request.Model(), err)
+	}
+
+	embeddings := make([]gateway.Embedding, 0, len(response.Embeddings))
+	for _, value := range response.Embeddings {
+		values := make([]float64, len(value.Values))
+		for i, v := range value.Values {
+			values[i] = float64(v)
+		}
+		embeddings = append(embeddings, values)
+	}
+
+	return embeddings, nil
+}
+
+// buildGeminiEmbedConfig constructs the embedding config from a ComputeEmbeddingsRequest.
+func buildGeminiEmbedConfig(request *gateway.ComputeEmbeddingsRequest) *genai.EmbedContentConfig {
+	config := &genai.EmbedContentConfig{
+		TaskType: string(request.TaskType()),
+	}
+
+	if dimensions := request.Dimensions(); dimensions > 0 {
+		dims := int32(dimensions) // #nosec G115 // overflow checked in ComputeEmbeddings before retry
+		config.OutputDimensionality = &dims
+	}
+
+	return config
 }

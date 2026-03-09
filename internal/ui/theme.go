@@ -1,4 +1,4 @@
-// Copyright © 2025 The meowg1k Authors
+// Copyright © 2025 The meowg1k Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package ui provides terminal UI components including themes, widgets, and rendering
@@ -37,60 +37,51 @@ func NewRenderOptions() RenderOptions {
 
 // Theme defines colors and styles used by the UI layer.
 type Theme struct {
-	// Base colors
-	Text       lipgloss.Color
-	Muted      lipgloss.Color
-	Accent     lipgloss.Color
-	Info       lipgloss.Color
-	Success    lipgloss.Color
-	Warn       lipgloss.Color
-	Error      lipgloss.Color
-	Border     lipgloss.Color
-	Highlight  lipgloss.Color
-	Surface1   lipgloss.Color // Progress bar empty blocks
-	Surface2   lipgloss.Color // Subtle UI elements
-	DiffAdd    lipgloss.Color
-	DiffDel    lipgloss.Color
-	DiffHunk   lipgloss.Color
-	DiffHeader lipgloss.Color
-
-	// Flux Terminal semantic colors
-	System      lipgloss.Color // SlateGray - system/infrastructure messages
-	Agent       lipgloss.Color // Magenta - AI/LLM operations
-	Action      lipgloss.Color // Cyan - tool calls, external actions
-	Thought     lipgloss.Color // Dimmed gray - agent reasoning
-	Spinner     lipgloss.Color // Teal - activity spinner
-	InputPrompt lipgloss.Color // White bold - user input prompts
-
-	// Base styles
-	StatusSuccess   lipgloss.Style
-	StatusError     lipgloss.Style
-	StatusWarn      lipgloss.Style
-	StatusInfo      lipgloss.Style
-	PanelStyle      lipgloss.Style
-	PanelTitleStyle lipgloss.Style
-	TableHeader     lipgloss.Style
-	TableRow        lipgloss.Style
-	TableAltRow     lipgloss.Style
-	TableBorder     lipgloss.Style
-	SelectCursor    lipgloss.Style
-	SelectMatch     lipgloss.Style
 	SelectHint      lipgloss.Style
-	SelectInput     lipgloss.Style
 	SelectSelected  lipgloss.Style
+	StepError       lipgloss.Style
+	StepSuccess     lipgloss.Style
+	StepTitle       lipgloss.Style
+	StepBorder      lipgloss.Style
+	ThoughtStyle    lipgloss.Style
+	ActionStyle     lipgloss.Style
+	AgentStyle      lipgloss.Style
+	SystemStyle     lipgloss.Style
 	SelectPreview   lipgloss.Style
-
-	// Flux Terminal semantic styles
-	SystemStyle  lipgloss.Style // For system-level messages
-	AgentStyle   lipgloss.Style // For AI/agent thoughts
-	ActionStyle  lipgloss.Style // For tool/action calls
-	ThoughtStyle lipgloss.Style // For reasoning/thinking (dimmed, italic)
-
-	// Step context styles
-	StepBorder  lipgloss.Style // Border for step containers
-	StepTitle   lipgloss.Style // Step titles
-	StepSuccess lipgloss.Style // Step completion (success)
-	StepError   lipgloss.Style // Step completion (error)
+	PanelStyle      lipgloss.Style
+	StatusError     lipgloss.Style
+	StatusInfo      lipgloss.Style
+	SelectInput     lipgloss.Style
+	StatusWarn      lipgloss.Style
+	SelectMatch     lipgloss.Style
+	SelectCursor    lipgloss.Style
+	TableBorder     lipgloss.Style
+	TableAltRow     lipgloss.Style
+	TableRow        lipgloss.Style
+	StatusSuccess   lipgloss.Style
+	TableHeader     lipgloss.Style
+	PanelTitleStyle lipgloss.Style
+	DiffDel         lipgloss.Color
+	DiffHunk        lipgloss.Color
+	System          lipgloss.Color
+	Muted           lipgloss.Color
+	InputPrompt     lipgloss.Color
+	Spinner         lipgloss.Color
+	Thought         lipgloss.Color
+	Action          lipgloss.Color
+	Agent           lipgloss.Color
+	Text            lipgloss.Color
+	DiffHeader      lipgloss.Color
+	DiffAdd         lipgloss.Color
+	Surface2        lipgloss.Color
+	Surface1        lipgloss.Color
+	Highlight       lipgloss.Color
+	Border          lipgloss.Color
+	Error           lipgloss.Color
+	Warn            lipgloss.Color
+	Success         lipgloss.Color
+	Info            lipgloss.Color
+	Accent          lipgloss.Color
 }
 
 // DefaultTheme returns the default UI theme.
