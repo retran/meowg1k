@@ -359,7 +359,7 @@ func TestApplyStdinFallback_NonEmpty_NotRequired(t *testing.T) {
 
 	// Value is already non-empty, no stdin needed
 	val := starlark.String("existing")
-	result, err := applyStdinFallback(cobraCmd, "flag", paramDef, val, sr)
+	result, err := applyStdinFallback(cobraCmd, "flag", "flag", paramDef, val, sr)
 	assert.NoError(t, err)
 	assert.Equal(t, val, result)
 }
@@ -370,9 +370,9 @@ func TestApplyStdinFallback_EmptyRequired_NoStdin(t *testing.T) {
 	paramDef := &starlarkpkg.Param{Required: true, FromStdin: true}
 	sr := &stdinReader{checked: true, content: ""} // stdin is empty
 
-	_, err := applyStdinFallback(cobraCmd, "myflag", paramDef, starlark.None, sr)
+	_, err := applyStdinFallback(cobraCmd, "my-flag", "my_flag", paramDef, starlark.None, sr)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "myflag")
+	assert.Contains(t, err.Error(), "my_flag")
 	assert.Contains(t, err.Error(), "required")
 }
 
@@ -381,7 +381,7 @@ func TestApplyStdinFallback_EmptyNotRequired_NoStdin(t *testing.T) {
 	paramDef := &starlarkpkg.Param{Required: false, FromStdin: true}
 	sr := &stdinReader{checked: true, content: ""}
 
-	result, err := applyStdinFallback(cobraCmd, "flag", paramDef, starlark.None, sr)
+	result, err := applyStdinFallback(cobraCmd, "flag", "flag", paramDef, starlark.None, sr)
 	assert.NoError(t, err)
 	assert.Equal(t, starlark.None, result)
 }
