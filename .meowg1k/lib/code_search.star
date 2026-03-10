@@ -14,7 +14,7 @@ def handler(ctx):
     results_json = ctx.run(code_search, 
                           query="user authentication and login",
                           limit=5)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     for match in results:
         ctx.ui.info("%s (score: %.2f)" % (match["file"], match["score"]))
@@ -63,7 +63,7 @@ Search codebase semantically using vector embeddings.
 results_json = ctx.run(code_search,
                       query="user authentication and login logic",
                       limit=10)
-matches = ctx.json.decode(results_json)
+matches = ctx.json.parse(results_json)
 
 for match in matches:
     ctx.ui.info("File: " + match["file"])
@@ -96,7 +96,7 @@ def answer_code_question(ctx, question):
     
     # Search for relevant code
     results_json = ctx.run(code_search, query=question, limit=5)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     # Build context from results
     context = "Relevant code:\\n\\n"
@@ -131,7 +131,7 @@ def find_similar_code(ctx, file_path):
     
     # Search for similar code
     results_json = ctx.run(code_search, query=query, limit=10)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     ctx.ui.info("Code similar to " + file_path + ":")
     for match in results:
@@ -152,7 +152,7 @@ def generate_docs_for_topic(ctx, topic):
     results_json = ctx.run(code_search, 
                           query=topic + " implementation and usage",
                           limit=10)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     # Collect code samples
     code_samples = []
@@ -164,7 +164,7 @@ def generate_docs_for_topic(ctx, topic):
     
     # Generate documentation
     prompt = ("Generate documentation for: " + topic + 
-              "\\n\\nBased on these code examples:\\n" + ctx.json.encode(code_samples) +
+              "\\n\\nBased on these code examples:\\n" + ctx.json.stringify(code_samples) +
               "\\n\\nInclude:\\n- Overview\\n- Usage examples\\n- API reference\\n- Best practices")
     
     docs = ctx.run(llm_generate, prompt=prompt, preset="smart")
@@ -189,7 +189,7 @@ def review_with_context(ctx):
     
     # Find similar existing code
     results_json = ctx.run(code_search, query=query, limit=5)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     ctx.ui.info("Similar patterns in codebase:")
     for match in results:
@@ -217,7 +217,7 @@ def manage_index(ctx, action):
         # Test search to verify index exists
         try:
             results_json = ctx.run(code_search, query="test", limit=1)
-            results = ctx.json.decode(results_json)
+            results = ctx.json.parse(results_json)
             ctx.ui.success("Index operational, returned %d results" % len(results))
         except:
             ctx.ui.error("Index not built or corrupted")
@@ -234,7 +234,7 @@ def safe_search(ctx, query):
     # Search with error handling
     try:
         results_json = ctx.run(code_search, query=query, limit=5)
-        return ctx.json.decode(results_json)
+        return ctx.json.parse(results_json)
     except:
         ctx.ui.error("Code search failed - index may not be built")
         ctx.ui.info("Run: meow index build")
@@ -321,7 +321,7 @@ load("//lib/file_ops.star", "file_reader")
 def extract_function(ctx, description):
     # Find and extract function matching description
     results_json = ctx.run(code_search, query=description, limit=1)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     if results:
         match = results[0]
@@ -341,7 +341,7 @@ def code_qa_system(ctx, question):
     
     # Retrieve relevant code
     results_json = ctx.run(code_search, query=question, limit=5)
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     
     # Augment prompt with retrieved context
     context = "\\n\\n".join([r["chunk"] for r in results])
@@ -370,7 +370,17 @@ def code_search_handler(ctx):
     query = ctx.query
     limit = getattr(ctx, "limit", 5)
 
-    results = ctx.index.search(query, limit=limit)
+    # Embed the query text into a vector before searching.
+    # ctx.index.search requires an embedding vector, not a raw string.
+    embeddings = ctx.llm.embed(texts=[query])
+    embedding = embeddings[0]
+
+    results = ctx.index.search(
+        embedding=embedding,
+        snapshots=["workdir", "HEAD"],
+        top_k=limit,
+        min_score=0.3,
+    )
     return ctx.json.stringify(results)
 
 # ==============================================================================

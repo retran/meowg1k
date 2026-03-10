@@ -26,7 +26,7 @@ def handle(ctx):
 
 ## API
 
-### run_agent_turn(ctx, task, preset, system, tools, max_steps, compact_threshold=60)
+### run_agent_turn(ctx, task, preset, system, tools, max_steps, compact_threshold=80)
 
 Run the full agentic loop for a given task.
 
@@ -37,7 +37,7 @@ Args:
     system:            System prompt string.
     tools:             List of tool handles to make available.
     max_steps:         Maximum agent iterations.
-    compact_threshold: Event count threshold for history compaction (default 60).
+    compact_threshold: Event count threshold for history compaction (default 80).
 
 Returns:
     str — the final result string from agent_turn (the full LLM response).
@@ -46,7 +46,7 @@ Returns:
 load("//lib/ui_helpers.star", "make_agentic_stream_handler")
 load("//lib/compaction.star", "maybe_compact")
 
-def run_agent_turn(ctx, task, preset, system, tools, max_steps, compact_threshold=60):
+def run_agent_turn(ctx, task, preset, system, tools, max_steps, compact_threshold=80):
     """Run the full agentic loop: prep step, compaction, agent_turn, turn.done().
 
     Merges any piped stdin into the task automatically.
@@ -58,7 +58,7 @@ def run_agent_turn(ctx, task, preset, system, tools, max_steps, compact_threshol
         system:            System prompt string.
         tools:             List of tool handles.
         max_steps:         Maximum agent iterations.
-        compact_threshold: Compact when event count >= this (default 60).
+        compact_threshold: Compact when event count >= this (default 80).
 
     Returns:
         str — the final result from agent_turn.

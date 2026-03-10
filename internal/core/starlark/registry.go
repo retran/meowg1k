@@ -57,8 +57,12 @@ type FlagDef struct {
 	Short       string
 	Type        string
 	Description string
-	Required    bool
-	FromStdin   bool
+	// ParamKey is the original snake_case param name used to look up values in
+	// the handler context (e.g. "custom_style"). FlagName (the map key) is the
+	// kebab-case CLI flag (e.g. "custom-style").
+	ParamKey  string
+	Required  bool
+	FromStdin bool
 }
 
 // ArgDef defines a positional argument.
@@ -172,13 +176,15 @@ func (r *Registry) CommandFromTool(tool *Tool, nameOverride string) (*Command, e
 	}
 
 	for paramName, param := range tool.Params {
-		cmd.Flags[paramName] = &FlagDef{
+		flagName := strings.ReplaceAll(paramName, "_", "-")
+		cmd.Flags[flagName] = &FlagDef{
 			Short:       param.Short,
 			Type:        param.Type,
 			Default:     param.Default,
 			Required:    param.Required,
 			FromStdin:   param.FromStdin,
 			Description: buildFlagDescription(param),
+			ParamKey:    paramName,
 		}
 	}
 
