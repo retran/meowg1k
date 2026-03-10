@@ -304,11 +304,12 @@ func getFlagValue(cobraCmd *cobra.Command, flagName, flagType string) starlark.V
 }
 
 // resolveParamDef looks up the param definition for a flag from a tool command.
-func resolveParamDef(cmd *starlarkpkg.Command, flagName string) *starlarkpkg.Param {
+// paramKey is the original snake_case param name (flagDef.ParamKey).
+func resolveParamDef(cmd *starlarkpkg.Command, paramKey string) *starlarkpkg.Param {
 	if cmd.Tool == nil {
 		return nil
 	}
-	if p, ok := cmd.Tool.Params[flagName]; ok {
+	if p, ok := cmd.Tool.Params[paramKey]; ok {
 		return p
 	}
 	return nil
@@ -316,7 +317,8 @@ func resolveParamDef(cmd *starlarkpkg.Command, flagName string) *starlarkpkg.Par
 
 // applyStdinFallback reads stdin and fills value if param is from_stdin and value is empty.
 // Returns an error if the param is required and still empty after stdin read.
-func applyStdinFallback(cobraCmd *cobra.Command, flagName string, paramDef *starlarkpkg.Param, value starlark.Value, sr *stdinReader) (starlark.Value, error) {
+// flagName is the kebab-case CLI flag name; paramKey is the snake_case param name.
+func applyStdinFallback(cobraCmd *cobra.Command, flagName string, paramKey string, paramDef *starlarkpkg.Param, value starlark.Value, sr *stdinReader) (starlark.Value, error) {
 	if isEmptyStarlarkValue(value) {
 		sr.read()
 		if sr.content != "" {
@@ -327,12 +329,13 @@ func applyStdinFallback(cobraCmd *cobra.Command, flagName string, paramDef *star
 		if usageErr := cobraCmd.Usage(); usageErr != nil {
 			return nil, fmt.Errorf("failed to print usage: %w", usageErr)
 		}
-		return nil, fmt.Errorf("required parameter '%s' is missing. Use --%s flag or pipe content to stdin", flagName, flagName)
+		return nil, fmt.Errorf("required parameter '%s' is missing. Use --%s flag or pipe content to stdin", paramKey, flagName)
 	}
 	return value, nil
 }
 
 // resolveFlagValue determines the starlark value for a flag, applying defaults and stdin fallback.
+// flagName is the kebab-case CLI flag name; paramKey is the original snake_case param name.
 func resolveFlagValue(
 	cobraCmd *cobra.Command,
 	flagName string,
@@ -352,7 +355,11 @@ func resolveFlagValue(
 	value = starlarkpkg.SanitizeParamValue(paramDef, value)
 
 	if paramDef != nil && paramDef.FromStdin {
-		return applyStdinFallback(cobraCmd, flagName, paramDef, value, sr)
+		paramKey := flagDef.ParamKey
+		if paramKey == "" {
+			paramKey = flagName
+		}
+		return applyStdinFallback(cobraCmd, flagName, paramKey, paramDef, value, sr)
 	}
 
 	return value, nil
@@ -372,13 +379,18 @@ func buildParamMembers(
 	paramsMembers = make(map[string]starlark.Value)
 
 	for flagName, flagDef := range cmd.Flags {
-		paramDef := resolveParamDef(cmd, flagName)
+		// paramKey is the snake_case name used in Starlark (ctx.custom_style, etc.)
+		paramKey := flagDef.ParamKey
+		if paramKey == "" {
+			paramKey = flagName
+		}
+		paramDef := resolveParamDef(cmd, paramKey)
 		value, resolveErr := resolveFlagValue(cobraCmd, flagName, flagDef, paramDef, sr)
 		if resolveErr != nil {
 			return nil, nil, nil, resolveErr
 		}
-		flagsMembers[flagName] = value
-		paramsMembers[flagName] = value
+		flagsMembers[paramKey] = value
+		paramsMembers[paramKey] = value
 	}
 
 	for argName, argDef := range cmd.Args {
