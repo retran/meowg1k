@@ -77,8 +77,12 @@ def extract_structured_data(ctx):
         response_schema=schema,
     )
     
-    # Result is already a dict when response_format="json_object"
-    data = result
+    # Parse result — some providers return a JSON string, others a pre-parsed dict.
+    # Always normalise to a dict so downstream .get() calls work reliably.
+    if type(result) == "string":
+        data = ctx.json.parse(result)
+    else:
+        data = result
     
     # Build formatted output
     output_lines = []
@@ -129,8 +133,7 @@ def extract_structured_data(ctx):
     output_lines.append(ctx.json.stringify(data))
     output_lines.append("```")
     
-    # Join and output
+    # Join and output (ctx.output.writeline for persistent output; no TUI duplicate)
     output = "\n".join(output_lines)
-    ctx.ui.markdown(output)
     ctx.output.writeline(output)
     return output
