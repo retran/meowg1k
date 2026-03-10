@@ -868,6 +868,19 @@ After completing all steps, output a concise markdown summary:
 - Any errors encountered and how they were resolved
 """
 
+def _strip_json_fences(s):
+    """Remove markdown code fences (```json ... ``` or ``` ... ```) from a string."""
+    stripped = s.strip()
+    # Remove leading fence
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline != -1:
+            stripped = stripped[first_newline + 1:]
+    # Remove trailing fence
+    if stripped.endswith("```"):
+        stripped = stripped[:-3].rstrip()
+    return stripped
+
 def create_plan_handler(ctx):
     """Explore the codebase, then generate a grounded task plan."""
     goal = ctx.goal
@@ -887,14 +900,24 @@ def create_plan_handler(ctx):
         on_tool_error="return",
     )
 
-    # result should be a JSON array; validate it parses
-    plan = ctx.json.decode(result)
-    return ctx.json.encode(plan)
+    # Strip markdown fences in case the LLM added them despite instructions.
+    result = _strip_json_fences(result)
+
+    # Validate it parses as a JSON array.
+    plan = ctx.json.parse(result)
+    return ctx.json.stringify(plan)
 
 def execute_plan_handler(ctx):
     """Execute a JSON plan step-by-step using the full tool set."""
     plan_json = ctx.plan
-    tools_list = getattr(ctx, "tools", [])
+    tools_raw = getattr(ctx, "tools", [])
+
+    # The tools param is defined as a string (JSON-encoded list of tool objects).
+    # Parse it into a list when a non-empty string is received.
+    if type(tools_raw) == "string":
+        tools_list = ctx.json.parse(tools_raw) if tools_raw and tools_raw != "[]" else []
+    else:
+        tools_list = tools_raw
 
     plan = ctx.json.decode(plan_json)
 
@@ -929,8 +952,10 @@ def execute_plan_handler(ctx):
 def decompose_task_handler(ctx):
     """Explore the codebase, then decompose a task into subtasks."""
     task = ctx.task
+    max_depth = getattr(ctx, "max_depth", 2)
 
     prompt = ("Task: " + task + "\n\n" +
+              "Maximum decomposition depth: " + str(max_depth) + "\n\n" +
               "Explore the codebase as needed, then output the JSON decomposition.")
 
     result = ctx.llm.agent_turn(
@@ -943,7 +968,8 @@ def decompose_task_handler(ctx):
     )
 
     # Validate it parses as JSON
-    ctx.json.decode(result)
+    result = _strip_json_fences(result)
+    ctx.json.parse(result)
     return result
 
 # ==============================================================================

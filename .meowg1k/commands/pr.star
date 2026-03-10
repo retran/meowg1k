@@ -275,6 +275,7 @@ def setup(styles=None, default_style=None, default_source=None, default_base=Non
             prompt=prompt,
             stream=True,
             on_event=on_event,
+            use_session=False,
         )
         gen_step.done()
         turn.done()

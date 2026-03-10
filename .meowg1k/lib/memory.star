@@ -66,7 +66,7 @@ ctx.run(save_context,
     value="file1.go,file2.go,file3.go")
 
 # Save JSON data
-results_json = ctx.json.encode({"errors": 5, "warnings": 12})
+results_json = ctx.json.stringify({"errors": 5, "warnings": 12})
 ctx.run(save_context, key="analysis_results", value=results_json)
 ```
 
@@ -99,7 +99,7 @@ if error_count != "":
 # Recall and parse JSON
 results_json = ctx.run(recall_context, key="analysis_results")
 if results_json != "":
-    results = ctx.json.decode(results_json)
+    results = ctx.json.parse(results_json)
     ctx.ui.info("Errors: %d, Warnings: %d" % 
         (results["errors"], results["warnings"]))
 
@@ -136,7 +136,7 @@ ctx.run(save_context, key="errors_found", value="3")
 
 # List all saved keys
 keys_json = ctx.run(list_context)
-keys = ctx.json.decode(keys_json)
+keys = ctx.json.parse(keys_json)
 
 ctx.ui.info("Saved context keys:")
 for key in keys:
@@ -207,7 +207,7 @@ Get comprehensive information about the current session.
 **Example:**
 ```python
 info_json = ctx.run(get_session_info)
-info = ctx.json.decode(info_json)
+info = ctx.json.parse(info_json)
 
 ctx.ui.info("Session ID: " + info["id"])
 ctx.ui.info("Tool: " + info["tool_name"])
@@ -243,7 +243,7 @@ def multi_step_analysis_handler(ctx):
         # Phase 1: List files
         ctx.ui.info("Phase 1: Discovering files...")
         files_json = ctx.run(list_directory, path="src", pattern="*.go")
-        files = ctx.json.decode(files_json)
+        files = ctx.json.parse(files_json)
         
         ctx.run(save_context, key="files_to_analyze", value=files_json)
         ctx.run(save_context, key="current_phase", value="discovery_complete")
@@ -255,7 +255,7 @@ def multi_step_analysis_handler(ctx):
         # Phase 2: Analyze files
         ctx.ui.info("Phase 2: Analyzing files...")
         files_json = ctx.run(recall_context, key="files_to_analyze")
-        files = ctx.json.decode(files_json)
+        files = ctx.json.parse(files_json)
         
         processed_count = 0
         for file_path in files:
@@ -322,7 +322,7 @@ def error_collector_handler(ctx):
     if errors_json == "":
         errors = []
     else:
-        errors = ctx.json.decode(errors_json)
+        errors = ctx.json.parse(errors_json)
     
     # Process and collect new errors
     new_error = {
@@ -336,11 +336,11 @@ def error_collector_handler(ctx):
     # Save updated error list
     ctx.run(save_context, 
         key="accumulated_errors",
-        value=ctx.json.encode(errors))
+        value=ctx.json.stringify(errors))
     
     ctx.ui.info("Total errors found: %d" % len(errors))
     
-    return ctx.json.encode(errors)
+    return ctx.json.stringify(errors)
 ```
 
 ### Example 4: Session Checkpoints
@@ -443,7 +443,7 @@ def hierarchical_context_handler(ctx):
     elif operation == "list":
         # List all keys in namespace
         all_keys_json = ctx.run(list_context)
-        all_keys = ctx.json.decode(all_keys_json)
+        all_keys = ctx.json.parse(all_keys_json)
         
         namespace_keys = []
         prefix = namespace + ":"
@@ -451,7 +451,7 @@ def hierarchical_context_handler(ctx):
             if k.startswith(prefix):
                 namespace_keys.append(k[len(prefix):])
         
-        return ctx.json.encode(namespace_keys)
+        return ctx.json.stringify(namespace_keys)
 ```
 
 ### Example 7: Session Resume
@@ -463,7 +463,7 @@ load("//lib/llm.star", "llm_generate")
 def resume_session_handler(ctx):
     # Get session info
     info_json = ctx.run(get_session_info)
-    info = ctx.json.decode(info_json)
+    info = ctx.json.parse(info_json)
     
     ctx.ui.info("Resuming session: " + info["id"])
     
@@ -508,7 +508,7 @@ def collect_metrics_handler(ctx):
             "errors": 0
         }
     else:
-        metrics = ctx.json.decode(metrics_json)
+        metrics = ctx.json.parse(metrics_json)
     
     # Update metrics
     event_type = ctx.params["event"]
@@ -522,7 +522,7 @@ def collect_metrics_handler(ctx):
         metrics["errors"] += 1
     
     # Save updated metrics
-    ctx.run(save_context, key="metrics", value=ctx.json.encode(metrics))
+    ctx.run(save_context, key="metrics", value=ctx.json.stringify(metrics))
     
     # Display metrics
     ctx.ui.info("Session Metrics:")
@@ -531,7 +531,7 @@ def collect_metrics_handler(ctx):
     ctx.ui.info("  API calls: %d" % metrics["api_calls"])
     ctx.ui.info("  Errors: %d" % metrics["errors"])
     
-    return ctx.json.encode(metrics)
+    return ctx.json.stringify(metrics)
 ```
 
 ### Example 9: Conversation Context
@@ -549,7 +549,7 @@ def context_aware_chat_handler(ctx):
     if history_json == "":
         history = []
     else:
-        history = ctx.json.decode(history_json)
+        history = ctx.json.parse(history_json)
     
     # Add user message
     history.append({"role": "user", "content": user_message})
@@ -557,7 +557,7 @@ def context_aware_chat_handler(ctx):
     # If history is too long, summarize
     if len(history) > 20:
         ctx.ui.info("Summarizing long conversation...")
-        old_history = ctx.json.encode(history[:-10])
+        old_history = ctx.json.stringify(history[:-10])
         summary = ctx.run(summarize_history, limit=50)
         
         # Keep summary + recent messages
@@ -580,7 +580,7 @@ def context_aware_chat_handler(ctx):
     history.append({"role": "assistant", "content": response})
     
     # Save updated history
-    ctx.run(save_context, key="conversation_history", value=ctx.json.encode(history))
+    ctx.run(save_context, key="conversation_history", value=ctx.json.stringify(history))
     
     return response
 ```
@@ -593,7 +593,7 @@ load("//lib/memory.star", "save_context", "recall_context", "get_session_info", 
 def distributed_state_handler(ctx):
     # Get session info to identify this worker
     info_json = ctx.run(get_session_info)
-    info = ctx.json.decode(info_json)
+    info = ctx.json.parse(info_json)
     worker_id = info["id"]
     
     # Register this worker
@@ -601,18 +601,18 @@ def distributed_state_handler(ctx):
     if workers_json == "":
         workers = []
     else:
-        workers = ctx.json.decode(workers_json)
+        workers = ctx.json.parse(workers_json)
     
     if worker_id not in workers:
         workers.append(worker_id)
-        ctx.run(save_context, key="active_workers", value=ctx.json.encode(workers))
+        ctx.run(save_context, key="active_workers", value=ctx.json.stringify(workers))
     
     # Claim a task
     pending_tasks_json = ctx.run(recall_context, key="pending_tasks")
     if pending_tasks_json == "":
         return "No tasks available"
     
-    pending_tasks = ctx.json.decode(pending_tasks_json)
+    pending_tasks = ctx.json.parse(pending_tasks_json)
     if len(pending_tasks) == 0:
         return "No tasks available"
     
@@ -621,17 +621,17 @@ def distributed_state_handler(ctx):
     pending_tasks = pending_tasks[1:]
     
     # Save updated task list
-    ctx.run(save_context, key="pending_tasks", value=ctx.json.encode(pending_tasks))
+    ctx.run(save_context, key="pending_tasks", value=ctx.json.stringify(pending_tasks))
     
     # Mark task as in progress
     in_progress_json = ctx.run(recall_context, key="in_progress_tasks")
     if in_progress_json == "":
         in_progress = {}
     else:
-        in_progress = ctx.json.decode(in_progress_json)
+        in_progress = ctx.json.parse(in_progress_json)
     
     in_progress[task] = worker_id
-    ctx.run(save_context, key="in_progress_tasks", value=ctx.json.encode(in_progress))
+    ctx.run(save_context, key="in_progress_tasks", value=ctx.json.stringify(in_progress))
     
     ctx.ui.info("Worker %s claimed task: %s" % (worker_id, task))
     
@@ -660,12 +660,12 @@ else:
 ```python
 # Error: Storing non-JSON then trying to decode
 ctx.run(save_context, key="data", value="not valid json")
-data = ctx.json.decode(ctx.run(recall_context, key="data"))  # Fails
+data = ctx.json.parse(ctx.run(recall_context, key="data"))  # Fails
 
 # Solution: Always encode before saving
 data = {"key": "value"}
-ctx.run(save_context, key="data", value=ctx.json.encode(data))
-data = ctx.json.decode(ctx.run(recall_context, key="data"))  # Works
+ctx.run(save_context, key="data", value=ctx.json.stringify(data))
+data = ctx.json.parse(ctx.run(recall_context, key="data"))  # Works
 ```
 
 **3. Context key collisions**
@@ -755,7 +755,7 @@ ctx.run(save_context, key="key3", value="value3")
 
 # Bundle related data in one save
 data = {"key1": "value1", "key2": "value2", "key3": "value3"}
-ctx.run(save_context, key="bundle", value=ctx.json.encode(data))
+ctx.run(save_context, key="bundle", value=ctx.json.stringify(data))
 ```
 
 ### 4. Clean Up Old Context
@@ -764,7 +764,7 @@ ctx.run(save_context, key="bundle", value=ctx.json.encode(data))
 # Periodically clean up unused context
 def cleanup_context(ctx):
     keys_json = ctx.run(list_context)
-    keys = ctx.json.decode(keys_json)
+    keys = ctx.json.parse(keys_json)
     
     for key in keys:
         if key.startswith("temp_") or key.startswith("cache_"):
@@ -840,14 +840,14 @@ load("//lib/file_ops.star", "list_directory", "file_reader", "file_tools")
 def stateful_file_processor_handler(ctx):
     # Get list of files
     files_json = ctx.run(list_directory, path="src", pattern="*.go")
-    files = ctx.json.decode(files_json)
+    files = ctx.json.parse(files_json)
     
     # Recall processed files
     processed_json = ctx.run(recall_context, key="processed_files")
     if processed_json == "":
         processed = []
     else:
-        processed = ctx.json.decode(processed_json)
+        processed = ctx.json.parse(processed_json)
     
     # Find unprocessed files
     unprocessed = [f for f in files if f not in processed]
@@ -863,7 +863,7 @@ def stateful_file_processor_handler(ctx):
     
     # Mark as processed
     processed.append(next_file)
-    ctx.run(save_context, key="processed_files", value=ctx.json.encode(processed))
+    ctx.run(save_context, key="processed_files", value=ctx.json.stringify(processed))
     
     remaining = len(unprocessed) - 1
     return "Processed: %s (%d remaining)" % (next_file, remaining)
