@@ -4,25 +4,25 @@ go 1.25.8
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/anthropics/anthropic-sdk-go v1.38.0
+	github.com/anthropics/anthropic-sdk-go v1.55.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/charmbracelet/bubbles/v2 v2.1.0
-	github.com/charmbracelet/bubbletea/v2 v2.0.6
-	github.com/charmbracelet/glamour/v2 v2.0.0
+	github.com/charmbracelet/bubbletea/v2 v2.0.7
+	github.com/charmbracelet/glamour/v2 v2.0.1
 	github.com/charmbracelet/huh/v2 v2.0.3
-	github.com/charmbracelet/lipgloss/v2 v2.0.3
+	github.com/charmbracelet/lipgloss/v2 v2.0.4
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/clbanning/mxj/v2 v2.7.0
 	github.com/google/uuid v1.6.0
 	github.com/gosuri/uilive v0.0.4
-	github.com/ncruces/go-sqlite3 v0.34.0
-	github.com/openai/openai-go/v3 v3.32.0
+	github.com/ncruces/go-sqlite3 v0.35.1
+	github.com/openai/openai-go/v3 v3.41.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	go.starlark.net fadfc96def35
-	google.golang.org/genai v1.54.0
+	google.golang.org/genai v1.62.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
