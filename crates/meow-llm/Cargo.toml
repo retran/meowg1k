@@ -11,14 +11,15 @@ publish = false
 async-trait = "0.1"
 meow-core = { path = "../meow-core" }
 rand = "0.9"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "http2"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-tokio = { version = "1", features = ["time", "macros", "rt"] }
+tokio = { version = "1", features = ["time", "macros", "rt", "sync"] }
 tokio-util = "0.7"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util", "net", "io-util"] }
 
 [lints]
 workspace = true
