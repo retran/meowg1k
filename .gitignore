@@ -48,3 +48,7 @@ temp/
 .env
 .env.local
 docker-compose.override.yml
+
+# Claude Code local overrides
+.claude/settings.local.json
+.claude/worktrees/
