@@ -236,13 +236,31 @@ impl Sessions {
     /// function with a boolean is how they would drift back together.
     pub fn events_for_model(&self, id: &SessionId) -> Result<Vec<Event>> {
         let ranges = self.store.compactions(id.as_str())?;
-        let mut out = Vec::new();
-        for event in self.events(id)? {
-            let superseded = ranges
-                .iter()
-                .any(|r| event.seq as i64 >= r.from_seq && event.seq as i64 <= r.to_seq);
-            if !superseded {
-                out.push(event);
+        let events = self.events(id)?;
+
+        // `[R-SESSION-011]` says substitute, not append: the summary stands
+        // where the range stood. Emitting the `Compaction` event at its own
+        // position would put a summary of messages two and three after message
+        // four, which presents the conversation in an order it never had.
+        let summaries: std::collections::HashMap<i64, &Event> = events
+            .iter()
+            .filter(|event| ranges.iter().any(|r| r.seq == event.seq as i64))
+            .map(|event| (event.seq as i64, event))
+            .collect();
+
+        let mut out = Vec::with_capacity(events.len());
+        for event in &events {
+            let seq = event.seq as i64;
+
+            if let Some(range) = ranges.iter().find(|r| r.from_seq == seq)
+                && let Some(summary) = summaries.get(&range.seq)
+            {
+                out.push((*summary).clone());
+            }
+
+            let superseded = ranges.iter().any(|r| seq >= r.from_seq && seq <= r.to_seq);
+            if !superseded && !summaries.contains_key(&seq) {
+                out.push(event.clone());
             }
         }
         Ok(out)

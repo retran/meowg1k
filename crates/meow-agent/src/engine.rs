@@ -59,10 +59,34 @@ impl Engine {
         sink: &mut dyn Sink,
         cancel: &CancellationToken,
     ) -> Outcome {
+        self.resume(spec, Vec::new(), task, ledger, sink, cancel)
+            .await
+    }
+
+    /// Run an agent that already has a conversation behind it.
+    ///
+    /// Satisfies `[R-SESSION-051]`: the caller supplies the message list, so a
+    /// resumed run sees compaction exactly as the original did. Rebuilding it
+    /// here would mean the engine reading a log, and the engine does not know
+    /// the store exists.
+    ///
+    /// The system prompt comes from the spec rather than from the history: an
+    /// agent whose prompt changed between runs should run under the new one,
+    /// which is most of why anybody resumes with a different model.
+    pub async fn resume(
+        &self,
+        spec: &AgentSpec,
+        history: Vec<Message>,
+        task: &str,
+        ledger: &Ledger,
+        sink: &mut dyn Sink,
+        cancel: &CancellationToken,
+    ) -> Outcome {
         let mut messages = Vec::new();
         if let Some(system) = &spec.system {
             messages.push(Message::new(Role::System, system.clone()));
         }
+        messages.extend(history.into_iter().filter(|m| m.role != Role::System));
         messages.push(Message::new(Role::User, task));
 
         let mut run = Run {
