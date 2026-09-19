@@ -12,6 +12,7 @@ description = "The durable record of one agent run"
 
 [dependencies]
 meow-core = { path = "../meow-core" }
+meow-policy = { path = "../meow-policy" }
 meow-store = { path = "../meow-store" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

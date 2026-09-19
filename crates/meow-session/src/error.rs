@@ -35,6 +35,18 @@ pub enum SessionError {
         reason: String,
     },
 
+    /// A fork was asked for at a sequence that cannot be forked at.
+    ///
+    /// `[R-SESSION-053]`: the message names what would work, because "invalid
+    /// sequence" leaves somebody guessing at a number they cannot see.
+    #[error("cannot fork at {at}: {reason}")]
+    ForkPoint {
+        /// What was asked for.
+        at: u64,
+        /// Why not, and what would work instead.
+        reason: String,
+    },
+
     /// A compaction would supersede a range that is already superseded.
     ///
     /// `[R-SESSION-013]`.
