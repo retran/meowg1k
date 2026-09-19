@@ -1,6 +1,6 @@
 module github.com/retran/meowg1k
 
-go 1.25.8
+go 1.25.14
 
 require (
 	github.com/BurntSushi/toml v1.6.0
