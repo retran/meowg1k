@@ -113,9 +113,11 @@ jobs:
           sarif_file: gosec.sarif
           category: gosec
 
+      # Pinned, not @latest: x/vuln v1.8.0 raised its minimum to Go 1.26 and
+      # broke this job without a line of this repository changing.
       - name: Run govulncheck
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
 
       - name: Gitleaks scan
