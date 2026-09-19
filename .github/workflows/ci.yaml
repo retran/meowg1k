@@ -59,6 +59,11 @@ jobs:
         with:
           version: v2.12.2
           args: --enable-only=govet,errcheck,staticcheck --timeout=2m
+          # The action's cache survives a change of linter version and of Go
+          # toolchain, and then serves the first run's diagnostics. Linting
+          # this tree takes seven seconds, so the cache buys less than the
+          # confusion costs.
+          skip-cache: true
 
   # ============================================================
   # Stage 2: Full Lint (parallel, ~3 min)
@@ -82,6 +87,7 @@ jobs:
         with:
           version: v2.12.2
           args: --timeout=5m
+          skip-cache: true
 
   # ============================================================
   # Stage 3: Security Scan (parallel, ~2 min)
