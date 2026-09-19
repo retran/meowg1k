@@ -173,7 +173,6 @@ def compact_now(ctx, preset, instructions=""):
         use_session=False,  # Don't add this call to the session history itself
     )
 
-    # Mark all current events obsolete
     event_ids = [e.get("id", "") for e in events if e.get("id", "") != ""]
     if event_ids:
         ctx.session.mark_obsolete(event_ids)

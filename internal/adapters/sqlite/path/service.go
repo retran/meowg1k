@@ -78,7 +78,6 @@ func (s *Service) GetProjectDBPath() (string, error) {
 func determineMainDBPath() (string, error) {
 	var lastErr error
 
-	// Try XDG_DATA_HOME first
 	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
 		dbDir := filepath.Join(xdgDataHome, "meowg1k")
 		err := os.MkdirAll(dbDir, 0o750) // path derived from env variable; user-controlled is acceptable
@@ -88,7 +87,6 @@ func determineMainDBPath() (string, error) {
 		lastErr = fmt.Errorf("failed to create XDG_DATA_HOME directory: %w", err)
 	}
 
-	// Try HOME/.local/share as fallback
 	if home := os.Getenv("HOME"); home != "" {
 		dbDir := filepath.Join(home, ".local", "share", "meowg1k")
 		err := os.MkdirAll(dbDir, 0o750) // path derived from HOME env variable; user-controlled is acceptable
@@ -98,6 +96,5 @@ func determineMainDBPath() (string, error) {
 		lastErr = fmt.Errorf("failed to create HOME/.local/share directory: %w", err)
 	}
 
-	// Last resort: use current directory
 	return "meowg1k.db", lastErr
 }

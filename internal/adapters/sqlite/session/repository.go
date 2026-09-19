@@ -287,7 +287,6 @@ func (r *Repository) GetEvents(ctx context.Context, sessionID string, limit, off
 		return nil, fmt.Errorf("error iterating events: %w", err)
 	}
 
-	// Load tool calls for all events
 	for _, e := range events {
 		toolCalls, err := r.getToolCallsForEvent(ctx, db, e.ID)
 		if err != nil {

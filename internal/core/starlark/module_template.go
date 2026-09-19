@@ -177,7 +177,6 @@ func starlarkValueToGoInterface(val starlark.Value) interface{} { //nolint:gocog
 		}
 		return result
 	case *starlarkstruct.Struct:
-		// Convert struct to map for template access
 		result := make(map[string]interface{})
 		for _, name := range v.AttrNames() {
 			if attr, err := v.Attr(name); err == nil {

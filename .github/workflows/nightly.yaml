@@ -5,8 +5,8 @@ name: Nightly
 
 on:
   schedule:
-    - cron: '0 2 * * *'  # Run at 2 AM UTC daily
-  workflow_dispatch:  # Allow manual trigger
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: nightly-${{ github.ref }}
@@ -18,9 +18,6 @@ permissions:
   checks: write
 
 jobs:
-  # ============================================================
-  # Job 1: Race Detection Tests (~10 min)
-  # ============================================================
   race-tests:
     name: Tests with Race Detector
     runs-on: ubuntu-latest
@@ -35,7 +32,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -43,9 +40,6 @@ jobs:
       - name: Run tests with race detector
         run: task test:race
 
-  # ============================================================
-  # Job 2: Memory Sanitizer Tests (Linux only, ~10 min)
-  # ============================================================
   msan-tests:
     name: Tests with Memory Sanitizer
     runs-on: ubuntu-latest
@@ -60,7 +54,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -75,9 +69,6 @@ jobs:
         env:
           CC: clang-15
 
-  # ============================================================
-  # Job 3: Benchmark Comparison (~5 min)
-  # ============================================================
   benchmarks:
     name: Benchmark Comparison
     runs-on: ubuntu-latest
@@ -85,7 +76,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
-          fetch-depth: 0  # Fetch all history for comparison
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
@@ -94,7 +85,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -105,11 +96,11 @@ jobs:
       - name: Run current benchmarks
         run: task bench | tee current.bench
 
-      - name: Checkout previous commit
-        run: git checkout HEAD~1
-
       - name: Run previous benchmarks
-        run: task bench | tee previous.bench || echo "Previous benchmarks failed"
+        run: |
+          git stash --include-untracked
+          task bench | tee previous.bench || echo "Previous benchmarks failed"
+          git stash pop
 
       - name: Compare benchmarks
         run: |
@@ -129,9 +120,6 @@ jobs:
             bench-comparison.txt
           retention-days: 30
 
-  # ============================================================
-  # Job 4: Dependency Updates Check (~3 min)
-  # ============================================================
   dependency-check:
     name: Dependency Update Check
     runs-on: ubuntu-latest
@@ -156,9 +144,7 @@ jobs:
           grep '\[' dependencies.txt || echo "All dependencies are up to date!"
 
       - name: Check vulnerability database
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./... || echo "Vulnerability check completed"
+        run: govulncheck ./... || echo "Vulnerability check completed"
 
       - name: Upload dependency report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -167,9 +153,6 @@ jobs:
           path: dependencies.txt
           retention-days: 30
 
-  # ============================================================
-  # Job 5: Comprehensive Security Audit (~5 min)
-  # ============================================================
   comprehensive-security:
     name: Comprehensive Security Audit
     runs-on: ubuntu-latest
@@ -177,7 +160,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
-          fetch-depth: 0  # Full history for gitleaks
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
@@ -196,12 +179,10 @@ jobs:
           category: gosec-nightly
 
       - name: Run govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck -show verbose ./...
+        run: govulncheck -show verbose ./...
 
       - name: Gitleaks full scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -224,9 +205,6 @@ jobs:
           sarif_file: trivy-results.sarif
           category: trivy-nightly
 
-  # ============================================================
-  # Job 6: Coverage Report with Analysis (~5 min)
-  # ============================================================
   coverage-report:
     name: Detailed Coverage Analysis
     runs-on: ubuntu-latest
@@ -241,13 +219,10 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install bc
-        run: sudo apt-get update && sudo apt-get install -y bc
 
       - name: Run tests with coverage
         run: task check:test
@@ -277,23 +252,19 @@ jobs:
             coverage.out
             coverage.html
             coverage-func.txt
-            coverage-badge.svg
           retention-days: 30
 
       - name: Check coverage threshold
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
           echo "Total coverage: ${COVERAGE}%"
-          if (( $(echo "$COVERAGE < 75" | bc -l) )); then
-            echo "❌ Coverage ${COVERAGE}% is below 75% threshold"
+          if awk "BEGIN { exit !($COVERAGE < 75) }"; then
+            echo "Coverage ${COVERAGE}% is below 75% threshold"
             exit 1
           else
-            echo "✅ Coverage ${COVERAGE}% meets 75% threshold"
+            echo "Coverage ${COVERAGE}% meets 75% threshold"
           fi
 
-  # ============================================================
-  # Job 7: Extended Platform Tests (macOS + Windows, ~15 min)
-  # ============================================================
   extended-platform-tests:
     name: Extended Platform Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -312,7 +283,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -323,16 +294,13 @@ jobs:
       - name: Run integration tests
         run: task test:integration
 
-  # ============================================================
-  # Job 8: Go Version Compatibility (~10 min)
-  # ============================================================
   go-version-compatibility:
     name: Go Version Compatibility (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        go-version: ['1.24', '1.25', '1.26']
+        go-version: ['1.25', '1.26']
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
@@ -344,7 +312,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -355,9 +323,6 @@ jobs:
       - name: Build binary
         run: task build
 
-  # ============================================================
-  # Final: Nightly Success Summary
-  # ============================================================
   nightly-success:
     name: Nightly Success
     runs-on: ubuntu-latest
@@ -382,20 +347,20 @@ jobs:
              [[ "${{ needs.coverage-report.result }}" != "success" ]] || \
              [[ "${{ needs.extended-platform-tests.result }}" != "success" ]] || \
              [[ "${{ needs.go-version-compatibility.result }}" != "success" ]]; then
-            echo "❌ One or more nightly jobs failed"
+            echo "One or more nightly jobs failed"
             exit 1
           fi
-          echo "✅ All nightly checks passed!"
+          echo "All nightly checks passed!"
 
       - name: Create summary
         run: |
           echo "## Nightly Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Race detection tests passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Memory sanitizer tests passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Benchmark comparison completed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Dependency checks completed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Comprehensive security audit passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Coverage analysis completed (75%+ threshold)" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Extended platform tests passed" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Go version compatibility verified" >> $GITHUB_STEP_SUMMARY
+          echo "Race detection tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "Memory sanitizer tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "Benchmark comparison completed" >> $GITHUB_STEP_SUMMARY
+          echo "Dependency checks completed" >> $GITHUB_STEP_SUMMARY
+          echo "Comprehensive security audit passed" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage analysis completed (75%+ threshold)" >> $GITHUB_STEP_SUMMARY
+          echo "Extended platform tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "Go version compatibility verified" >> $GITHUB_STEP_SUMMARY

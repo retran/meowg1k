@@ -129,7 +129,8 @@ func (m *Service) shutdown() {
 
 	m.cancel()
 
-	// TODO proper context?
+	// context.Background() is intentional: the parent context is already canceled at this point,
+	// and we want shutdown callbacks to run to completion regardless.
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), m.timeout)
 	defer shutdownCancel()
 

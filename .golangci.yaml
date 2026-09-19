@@ -142,7 +142,7 @@ linters:
       threshold: 100      # Duplicate code threshold (tokens)
 
     unparam:
-      check-exported: false  # Don't check exported functions
+      check-exported: false  # exported godoc requirements are enforced by revive instead
 
     maintidx:
       under: 20          # Maintainability index threshold

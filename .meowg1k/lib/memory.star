@@ -933,7 +933,6 @@ def save_context_handler(ctx):
     key = ctx.key
     value = ctx.value
 
-    # Store as metadata
     ctx.session.set_metadata("context_" + key, value)
     return "Saved context: " + key
 
@@ -941,7 +940,6 @@ def recall_context_handler(ctx):
     """Recall context from session metadata"""
     key = ctx.key
 
-    # Retrieve from metadata
     value = ctx.session.get_metadata("context_" + key)
     if value == None:
         return ""
@@ -963,10 +961,8 @@ def summarize_history_handler(ctx):
     """Summarize session history for context window management"""
     limit = getattr(ctx, "limit", 50)
 
-    # Get recent events
     events = ctx.session.get_events(limit=limit, offset=0)
 
-    # Build history text
     history_text = ""
     for event in events:
         event_type = event.get("type", "unknown")
@@ -982,7 +978,6 @@ def summarize_history_handler(ctx):
     if history_text == "":
         return "No history available"
 
-    # Ask LLM to summarize
     system_prompt = """Summarize the conversation history concisely.
 Focus on:
 - Key decisions made
@@ -1007,13 +1002,10 @@ def get_session_info_handler(ctx):
     status = ctx.session.status()
     parent_id = ctx.session.parent_id()
 
-    # Get metadata
     metadata = ctx.session.get_all_metadata()
 
-    # Get children
     children = ctx.session.get_children()
 
-    # Build info dict
     info = {
         "id": session_id,
         "tool_name": tool_name,
@@ -1025,7 +1017,6 @@ def get_session_info_handler(ctx):
 
     return ctx.json.stringify(info)
 
-# Tool definitions
 save_context = meow.tool(
     name="save_context",
     description="Save context/state to session metadata for later recall",
@@ -1068,7 +1059,6 @@ get_session_info = meow.tool(
     handler=get_session_info_handler,
 )
 
-# Helper functions
 def remember(ctx, key, value):
     """Convenience function to save context"""
     ctx.session.set_metadata("context_" + key, value)
@@ -1080,5 +1070,4 @@ def recall(ctx, key, default=""):
         return default
     return value
 
-# Tool set for memory management
 memory_tools = [save_context, recall_context, list_context, summarize_history, get_session_info]

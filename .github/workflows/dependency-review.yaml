@@ -17,9 +17,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
 
       - name: Review
-        uses: actions/dependency-review-action@774d14bf50b7a2e2460f9f49e25c52503ecab125
+        uses: actions/dependency-review-action@774d14bf50b7a2e2460f9f49e25c52503ecab125 # v4
         with:
           fail-on-severity: moderate

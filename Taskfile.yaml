@@ -7,11 +7,15 @@ vars:
   PROJECT_NAME: meowg1k
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0"
-  LDFLAGS: >
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  BUILD_DATE:
+    sh: date -u '+%Y-%m-%d_%H:%M:%S'
+  LDFLAGS: >-
     -s -w
     -X github.com/retran/meowg1k/internal/version.Version={{.VERSION}}
-    -X github.com/retran/meowg1k/internal/version.BuildDate=$(date -u '+%Y-%m-%d_%H:%M:%S')
-    -X github.com/retran/meowg1k/internal/version.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')
+    -X github.com/retran/meowg1k/internal/version.BuildDate={{.BUILD_DATE}}
+    -X github.com/retran/meowg1k/internal/version.GitCommit={{.GIT_COMMIT}}
   GOFLAGS: -trimpath -buildvcs=false
   COVERAGE_THRESHOLD: 65.0
   # Colors
@@ -23,75 +27,60 @@ tasks:
   deps:install:
     desc: Download and tidy Go modules
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Downloading dependencies...\n"
       - go mod download
       - go mod tidy
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Dependencies installed.\n"
 
   check:all:
-    desc: Run all checks (lint, test, security)
-    cmds:
-      - task: check:lint
-      - task: check:test
-      - task: check:security
+    desc: Run all checks (lint, test, security) in parallel
+    deps:
+      - check:lint
+      - check:test
+      - check:security
 
   check:lint:
     desc: Run golangci-lint
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running linters...\n"
       - golangci-lint run --timeout=5m
 
   check:test:
     desc: Run tests with coverage
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running tests...\n"
       - go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
       - task: internal:coverage-check
 
   check:security:
     desc: Run security checks (gosec, govulncheck)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running security scans...\n"
-      - go run github.com/securego/gosec/v2/cmd/gosec@latest ./...
-      - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - gosec ./...
+      - govulncheck ./...
 
   fix:fmt:
-    desc: Format code (gofumpt, goimports)
+    desc: Format code (goimports via golangci-lint fmt)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Formatting code...\n"
       - golangci-lint fmt
-      - go fmt ./...
 
   fix:lint:
     desc: Auto-fix lint issues
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Fixing lint issues...\n"
       - golangci-lint run --fix --timeout=5m
 
   build:
     desc: Build the binary
-    deps: [clean]
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - bin/meow
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Building {{.PROJECT_NAME}}...\n"
       - mkdir -p bin
       - CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "bin/meow" ./cmd/meow
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Binary built at bin/meow\n"
 
   install:
     desc: Install binary to GOBIN
     cmds:
       - |
         BIN_DIR="$(go env GOBIN)"; [ -z "$BIN_DIR" ] && BIN_DIR="$(go env GOPATH)/bin"
-        printf "{{.BLUE}}[INFO]{{.NC}} Installing to $BIN_DIR...\n"
         CGO_ENABLED=0 GOFLAGS="{{.GOFLAGS}}" go build -ldflags "{{.LDFLAGS}}" -o "$BIN_DIR/meow" ./cmd/meow
 
   release:
@@ -107,101 +96,75 @@ tasks:
   clean:
     desc: Clean artifacts
     cmds:
-      - rm -rf bin coverage.out coverage.html dist
+      - rm -rf bin coverage.out coverage.html dist profiles bench
 
   # ============================================================
   # Development Tasks
   # ============================================================
 
   dev:setup:
-    desc: Install all development dependencies
+    desc: Install all development dependencies and git hooks
     cmds:
       - task: deps:install
       - task: tools:install
       - task: hooks:install
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Development environment setup complete.\n"
 
   dev:run:
-    desc: Run meow with sample configuration
+    desc: Build (if needed) and run meow
     deps: [build]
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running meow...\n"
       - ./bin/meow --help
 
   dev:watch:
     desc: Auto-rebuild on file changes (requires entr)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Watching for changes... (Press Ctrl+C to stop)\n"
-        find . -name '*.go' | entr -c task build
+      - find . -name '*.go' -not -path './vendor/*' | entr -c task build
 
   dev:debug:
     desc: Build with debug flags and run with dlv debugger
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Building debug binary...\n"
       - go build -gcflags="all=-N -l" -o bin/meow-debug ./cmd/meow
-      - |
-        printf "{{.GREEN}}[INFO]{{.NC}} Starting debugger (use 'help' for commands)...\n"
       - dlv exec ./bin/meow-debug
 
   dev:profile:
     desc: Run with CPU and memory profiling enabled
     deps: [build]
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running with profiling...\n"
-        mkdir -p profiles
+      - mkdir -p profiles
       - ./bin/meow --cpuprofile=profiles/cpu.prof --memprofile=profiles/mem.prof
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Profiles saved to profiles/\n"
 
   # ============================================================
   # Testing Tasks
   # ============================================================
 
   test:unit:
-    desc: Run unit tests only
+    desc: Run unit tests only (short mode)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running unit tests...\n"
       - go test -v -short ./...
 
   test:integration:
     desc: Run integration tests
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running integration tests...\n"
       - go test -v -run Integration ./...
 
   test:watch:
     desc: Run tests in watch mode (requires entr)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Watching for test changes...\n"
-        find . -name '*.go' | entr -c go test ./...
+      - find . -name '*.go' -not -path './vendor/*' | entr -c go test ./...
 
   test:race:
     desc: Run tests with race detector
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running tests with race detector...\n"
       - go test -race ./...
 
   test:msan:
     desc: Run tests with memory sanitizer (Linux only, requires clang)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running tests with memory sanitizer...\n"
       - CC=clang go test -msan ./...
 
   test:verbose:
-    desc: Run tests with verbose output
+    desc: Run tests with verbose output, disabling cache
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running tests (verbose)...\n"
       - go test -v -count=1 ./...
 
   # ============================================================
@@ -212,30 +175,22 @@ tasks:
     desc: Generate HTML coverage report
     deps: [check:test]
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Generating HTML coverage report...\n"
       - go tool cover -html=coverage.out -o coverage.html
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Coverage report: coverage.html\n"
 
   coverage:func:
     desc: Show function-level coverage
     deps: [check:test]
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Function coverage:\n"
       - go tool cover -func=coverage.out
 
   coverage:badge:
-    desc: Generate coverage badge data
+    desc: Print coverage percentage and suggested badge color
     deps: [check:test]
     cmds:
       - |
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
-        COLOR="red"
-        if (( $(echo "$COVERAGE > 80.0" | bc -l) )); then COLOR="green"; fi
-        if (( $(echo "$COVERAGE > 60.0" | bc -l) )) && (( $(echo "$COVERAGE <= 80.0" | bc -l) )); then COLOR="yellow"; fi
-        printf "{{.GREEN}}[INFO]{{.NC}} Coverage: $COVERAGE (Color: $COLOR)\n"
+        COVERAGE=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
+        COLOR=$(awk -v c="$COVERAGE" 'BEGIN{ if (c+0 > 80) print "green"; else if (c+0 > 60) print "yellow"; else print "red" }')
+        printf "Coverage: ${COVERAGE}%% (Color: $COLOR)\n"
 
   # ============================================================
   # Linting Tasks
@@ -244,26 +199,12 @@ tasks:
   lint:fast:
     desc: Quick lint with essential linters only
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running fast lint...\n"
       - golangci-lint fmt --diff
       - golangci-lint run --enable-only=govet,errcheck,staticcheck --timeout=2m
 
-  lint:full:
-    desc: Run all configured linters
-    cmds:
-      - task: check:lint
-
-  lint:fix:
-    desc: Auto-fix linting issues
-    cmds:
-      - task: fix:lint
-
   lint:new:
-    desc: Lint only new/changed code
+    desc: Lint only new/changed code (since HEAD~1)
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Linting new code...\n"
       - golangci-lint run --new-from-rev=HEAD~1 --timeout=5m
 
   # ============================================================
@@ -271,33 +212,32 @@ tasks:
   # ============================================================
 
   bench:
-    desc: Run benchmarks
+    desc: Run benchmarks and save results
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running benchmarks...\n"
-        mkdir -p bench
+      - mkdir -p bench
       - go test -bench=. -benchmem -run=^$ ./... | tee bench/current.txt
 
+  bench:baseline:
+    desc: Save current benchmark results as baseline
+    deps: [bench]
+    cmds:
+      - cp bench/current.txt bench/baseline.txt
+
   bench:compare:
-    desc: Compare benchmarks with baseline
+    desc: Compare benchmarks against baseline
     cmds:
       - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Comparing with baseline...\n"
         if [ ! -f bench/baseline.txt ]; then
-          echo "No baseline found. Run 'task bench' to create one."
+          echo "No baseline found. Run 'task bench:baseline' first."
           exit 1
         fi
       - go test -bench=. -benchmem -run=^$ ./... | tee bench/current.txt
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Comparison:\n"
-        go run golang.org/x/perf/cmd/benchstat@latest bench/baseline.txt bench/current.txt
+      - go run golang.org/x/perf/cmd/benchstat@latest bench/baseline.txt bench/current.txt
 
   bench:profile:
-    desc: Run benchmarks with CPU profiling
+    desc: Run benchmarks with CPU and memory profiling
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Running benchmarks with profiling...\n"
-        mkdir -p profiles
+      - mkdir -p profiles
       - go test -bench=. -benchmem -cpuprofile=profiles/bench-cpu.prof -memprofile=profiles/bench-mem.prof -run=^$ ./...
 
   # ============================================================
@@ -305,36 +245,24 @@ tasks:
   # ============================================================
 
   profile:cpu:
-    desc: Generate CPU profile and analyze
+    desc: Generate CPU profile and open with pprof
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Starting CPU profiling...\n"
-        mkdir -p profiles
+      - mkdir -p profiles
       - go test -cpuprofile=profiles/cpu.prof -bench=. ./...
-      - |
-        printf "{{.GREEN}}[INFO]{{.NC}} Opening profile with pprof...\n"
       - go tool pprof -http=:8080 profiles/cpu.prof
 
   profile:mem:
-    desc: Generate memory profile and analyze
+    desc: Generate memory profile and open with pprof
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Starting memory profiling...\n"
-        mkdir -p profiles
+      - mkdir -p profiles
       - go test -memprofile=profiles/mem.prof -bench=. ./...
-      - |
-        printf "{{.GREEN}}[INFO]{{.NC}} Opening profile with pprof...\n"
       - go tool pprof -http=:8080 profiles/mem.prof
 
   profile:trace:
-    desc: Generate execution trace
+    desc: Generate and view execution trace
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Generating execution trace...\n"
-        mkdir -p profiles
+      - mkdir -p profiles
       - go test -trace=profiles/trace.out ./...
-      - |
-        printf "{{.GREEN}}[INFO]{{.NC}} Opening trace viewer...\n"
       - go tool trace profiles/trace.out
 
   # ============================================================
@@ -342,25 +270,21 @@ tasks:
   # ============================================================
 
   ci:local:
-    desc: Run full CI pipeline locally
+    desc: Run full CI pipeline locally (deps → checks → build)
     cmds:
       - task: deps:install
-      - task: check:lint
-      - task: check:test
-      - task: check:security
+      - task: check:all
       - task: build
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} CI pipeline complete!\n"
 
   ci:pre-commit:
-    desc: Run pre-commit checks
+    desc: Run pre-commit checks (fmt, fast lint, unit tests)
     cmds:
       - task: fix:fmt
       - task: lint:fast
       - task: test:unit
 
   ci:pre-push:
-    desc: Run pre-push checks
+    desc: Run pre-push checks (lint, test, build)
     cmds:
       - task: check:lint
       - task: check:test
@@ -373,33 +297,20 @@ tasks:
   tools:install:
     desc: Install development tools
     cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Installing development tools...\n"
       - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
       - go install github.com/securego/gosec/v2/cmd/gosec@latest
       - go install golang.org/x/vuln/cmd/govulncheck@latest
       - go install golang.org/x/perf/cmd/benchstat@latest
       - go install github.com/go-delve/delve/cmd/dlv@latest
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Development tools installed.\n"
-
-  tools:update:
-    desc: Update development tools
-    cmds:
-      - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Updating development tools...\n"
-      - task: tools:install
 
   hooks:install:
-    desc: Install git hooks
+    desc: Install git hooks via pre-commit
     cmds:
       - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Installing git hooks...\n"
         if command -v pre-commit >/dev/null 2>&1; then
           pre-commit install
-          printf "{{.GREEN}}[DONE]{{.NC}} Git hooks installed.\n"
         else
-          printf "{{.BLUE}}[INFO]{{.NC}} pre-commit not found. Install with: pip install pre-commit\n"
+          printf "pre-commit not found. Install with: pip install pre-commit\n"
         fi
 
   # ============================================================
@@ -407,29 +318,22 @@ tasks:
   # ============================================================
 
   release:prepare:
-    desc: Prepare release (run checks, build, test)
+    desc: Prepare release (clean, install, full CI, build)
     cmds:
       - task: clean
       - task: deps:install
       - task: ci:local
-      - |
-        printf "{{.GREEN}}[DONE]{{.NC}} Release preparation complete.\n"
-        printf "{{.BLUE}}[INFO]{{.NC}} Ready to tag and release.\n"
 
   release:tag:
-    desc: Create and push a new release tag
+    desc: Create and push a release tag (prompts for version)
     cmds:
       - |
-        printf "{{.BLUE}}[INFO]{{.NC}} Current version: {{.VERSION}}\n"
-        read -p "Enter new version (e.g., v2.0.0): " VERSION
+        printf "Current version: {{.VERSION}}\n"
+        printf "Enter new version (e.g. v2.0.0): "
+        read -r VERSION
         git tag -a "$VERSION" -m "Release $VERSION"
         git push origin "$VERSION"
-        printf "{{.GREEN}}[DONE]{{.NC}} Tag $VERSION created and pushed.\n"
-
-  release:publish:
-    desc: Publish release via GoReleaser
-    cmds:
-      - task: release
+        printf "Tag $VERSION created and pushed.\n"
 
   # ============================================================
   # Internal Tasks
@@ -440,9 +344,8 @@ tasks:
     silent: true
     cmds:
       - |
-        COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+        COVERAGE=$(go tool cover -func=coverage.out | awk '/^total:/{print $3}' | tr -d '%')
         echo "Coverage: ${COVERAGE}% (Threshold: {{.COVERAGE_THRESHOLD}}%)"
-        if (( $(echo "$COVERAGE < {{.COVERAGE_THRESHOLD}}" | bc -l) )); then
-          echo "FAIL: Coverage below threshold"
-          exit 1
-        fi
+        awk -v c="$COVERAGE" -v t="{{.COVERAGE_THRESHOLD}}" 'BEGIN{
+          if (c+0 < t+0) { print "FAIL: Coverage below threshold"; exit 1 }
+        }'
