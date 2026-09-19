@@ -373,12 +373,11 @@ fn the_terminal_renderer_stays_on_the_main_screen() {
     assert_eq!(meow_ui::tty::RUN_ROWS, 3);
 }
 
-/// [R-TUI-016] the live region is three rows, and a prompt makes it taller
-/// without keeping it that way
+/// [R-TUI-016] the live region is three rows and never changes height, and it
+/// says so when a question is waiting
 #[test]
-fn the_live_region_has_two_fixed_heights() {
+fn the_live_region_keeps_one_height_and_says_when_it_is_waiting() {
     assert_eq!(meow_ui::tty::RUN_ROWS, 3);
-    const { assert!(meow_ui::tty::PROMPT_ROWS > meow_ui::tty::RUN_ROWS) };
 
     let mut tty = Tty::new(TestBackend::new(40, 20), Theme::ascii()).unwrap();
     tty.event(&ViewEvent::Live(LiveKind::RunStart {
@@ -388,9 +387,22 @@ fn the_live_region_has_two_fixed_heights() {
     }))
     .unwrap();
 
-    tty.prompting(true).unwrap();
-    tty.prompting(false).unwrap();
-    tty.finish().unwrap();
+    let running = tty.live_area().height;
+    tty.prompt_open(&["allow shell?".to_owned()]).unwrap();
+
+    let asking = tty.live_area().height;
+    let live = live_text(&mut tty);
+    assert!(
+        live.contains("waiting for your answer"),
+        "the live region does not say a person is being waited on: {live}"
+    );
+
+    tty.prompt_close().unwrap();
+    let after = tty.live_area().height;
+
+    assert_eq!(running, meow_ui::tty::RUN_ROWS);
+    assert_eq!(asking, meow_ui::tty::RUN_ROWS);
+    assert_eq!(after, meow_ui::tty::RUN_ROWS);
 }
 
 /// [R-TUI-011] a finalized line goes into scrollback, and the live region is
@@ -503,6 +515,47 @@ fn a_diagnostic_does_not_tear_through_the_live_region() {
         "a diagnostic was drawn over the live region: {live}"
     );
     assert!(live.contains("git.diff"), "{live}");
+}
+
+/// [R-TUI-060] a prompt lives in the live region and leaves the transcript
+/// above it alone
+#[test]
+fn a_prompt_does_not_overwrite_the_transcript() {
+    let mut tty = Tty::new(TestBackend::new(60, 20), Theme::ascii()).unwrap();
+
+    tty.event(&ViewEvent::Live(LiveKind::Output(Output::Write {
+        text: "already committed".to_owned(),
+    })))
+    .unwrap();
+
+    tty.prompt_open(&[
+        "allow shell?".to_owned(),
+        "  arguments  {\"command\":\"rm -rf build\"}".to_owned(),
+        "[o] once  [a] always  [d] deny  [s] stop".to_owned(),
+    ])
+    .unwrap();
+
+    // The prompt went into the transcript, below what was already there and
+    // over nothing: the live region carries only the fact that an answer is
+    // awaited.
+    let live = live_text(&mut tty);
+    assert!(live.contains("waiting for your answer"), "{live}");
+    assert!(!live.contains("rm -rf build"), "{live}");
+
+    let screen = screen_rows(tty.terminal().backend()).join("\n");
+    let committed = screen.find("already committed");
+    let asked = screen.find("allow shell?");
+    assert!(committed.is_some(), "the transcript was lost: {screen}");
+    assert!(asked.is_some(), "the prompt is nowhere: {screen}");
+    assert!(
+        committed < asked,
+        "the prompt landed above what was already there: {screen}"
+    );
+
+    // And it is still readable after it is answered.
+    tty.prompt_close().unwrap();
+    let after = screen_rows(tty.terminal().backend()).join("\n");
+    assert!(after.contains("allow shell?"), "{after}");
 }
 
 /// [R-TUI-090] NO_COLOR wins over everything

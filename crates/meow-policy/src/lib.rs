@@ -25,5 +25,5 @@ pub use crate::error::{PolicyError, Result};
 pub use crate::policy::{
     Access, Call, Decision, Grants, Narrowed, Policy, REDACTED, Source, Verdict, redact, resolve,
 };
-pub use crate::prompt::{Explanation, Prompt, Timeout, explain};
+pub use crate::prompt::{Answer, Explanation, Prompt, Timeout, explain};
 pub use crate::rule::{NamePattern, Rule, Selector, SelectorKind};

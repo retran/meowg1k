@@ -52,6 +52,20 @@ pub fn build(registry: Option<&Registry>) -> Command {
                 .help("How to render: auto picks by terminal, json emits one object per line"),
         )
         .arg(
+            Arg::new("yes")
+                .long("yes")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .help("Never ask: every decision that needs a person is refused"),
+        )
+        .arg(
+            Arg::new("dry-run")
+                .long("dry-run")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .help("Plan the tool calls and make none of them"),
+        )
+        .arg(
             Arg::new("color")
                 .long("color")
                 .value_name("WHEN")

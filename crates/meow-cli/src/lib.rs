@@ -8,6 +8,7 @@
 //! against its own copy of a list checks that the copy is consistent with
 //! itself.
 
+pub mod ask;
 pub mod exit;
 pub mod render;
 pub mod surface;

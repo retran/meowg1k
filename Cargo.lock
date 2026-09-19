@@ -1714,6 +1714,7 @@ dependencies = [
  "meow-agent",
  "meow-core",
  "meow-llm",
+ "meow-policy",
  "meow-star",
  "meow-ui",
  "ratatui",

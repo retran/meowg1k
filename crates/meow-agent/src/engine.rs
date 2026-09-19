@@ -267,7 +267,7 @@ impl Engine {
             });
 
             let started = std::time::Instant::now();
-            let result = self.invoke(spec, call, deliver, cancel).await;
+            let result = self.invoke(spec, call, record.index, deliver, cancel).await;
             let (content, error) = (result.content, result.error);
             let duration_ms = started.elapsed().as_millis() as u64;
             deliver.send(AgentEvent::ToolEnd {
@@ -285,6 +285,11 @@ impl Engine {
             // [R-AGENT-006]: `denied` when policy refused, `tool_aborted`
             // when a tool failed. A user needs to know the boundary held
             // rather than that something broke.
+            if result.stop {
+                state.steps.push(record);
+                return Turn::Stop(StopReason::Denied, Some(call.name.clone()));
+            }
+
             if spec.on_tool_error == ToolErrorPolicy::Abort {
                 if result.denied {
                     state.steps.push(record);
@@ -310,6 +315,7 @@ impl Engine {
         &self,
         spec: &AgentSpec,
         call: &meow_llm::ToolCall,
+        step: u32,
         deliver: &mut Delivery<'_>,
         cancel: &CancellationToken,
     ) -> Invoked {
@@ -332,7 +338,31 @@ impl Engine {
                 id: call.id.clone(),
                 decision: verdict.decision.as_str().to_owned(),
             });
-            if verdict.decision != meow_policy::Decision::Allow {
+            // [R-POLICY-020]: `ask` becomes `deny` when nobody can be asked,
+            // so an unattended run cannot approve itself. When somebody can
+            // be, the answer decides, and "stop" ends the run rather than
+            // letting the model work around a refusal it was meant to respect.
+            let refused = match (verdict.decision, &spec.approve) {
+                (meow_policy::Decision::Allow, _) => None,
+                (meow_policy::Decision::Ask, Some(approver)) => {
+                    let prompt = meow_policy::Prompt::new(
+                        &judged,
+                        &args,
+                        &verdict,
+                        &policy.sensitive_for(&call.name),
+                        &spec.name,
+                        step,
+                    );
+                    match approver.ask(&prompt) {
+                        meow_policy::Answer::Once | meow_policy::Answer::Always => None,
+                        meow_policy::Answer::Deny => Some(false),
+                        meow_policy::Answer::Stop => Some(true),
+                    }
+                }
+                _ => Some(false),
+            };
+
+            if let Some(stop) = refused {
                 // [R-POLICY-041]: the model is told which tool and that policy
                 // refused, so it can choose another approach rather than
                 // repeating itself against a wall.
@@ -344,6 +374,7 @@ impl Engine {
                     ),
                     error: None,
                     denied: true,
+                    stop,
                 };
             }
         }
@@ -356,6 +387,7 @@ impl Engine {
                     content: format!("the tool failed: {e}"),
                     error: Some(e.to_string()),
                     denied: false,
+                    stop: false,
                 },
             },
         }
@@ -392,6 +424,11 @@ struct Invoked {
     content: String,
     error: Option<String>,
     denied: bool,
+    /// Whether the run should end here, whatever the tool-error policy says.
+    ///
+    /// A person answering "stop" is not reporting a tool failure; they are
+    /// ending the run, and a `report` policy must not talk them out of it.
+    stop: bool,
 }
 
 impl Invoked {
@@ -401,6 +438,7 @@ impl Invoked {
             content,
             error: None,
             denied: false,
+            stop: false,
         }
     }
 }

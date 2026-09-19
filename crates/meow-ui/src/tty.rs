@@ -16,16 +16,13 @@ use crate::Renderer;
 use crate::plain::{cost, duration, total};
 use crate::theme::{Role, Theme};
 
-/// How tall the live region is while a run is in flight.
+/// How tall the live region is, for the life of the process.
 ///
 /// `[R-TUI-016]`. Fixed, because a region that grows with content reflows the
-/// terminal while you are reading it. The larger height is for an approval
-/// prompt, and switching between the two costs one reflow at a moment you are
-/// already looking at.
+/// terminal while you are reading it. It does not grow for a prompt either:
+/// the prompt goes into the transcript, which costs no reflow and leaves the
+/// question where somebody can find it after answering.
 pub const RUN_ROWS: u16 = 3;
-
-/// How tall it is while a prompt is open.
-pub const PROMPT_ROWS: u16 = 12;
 
 /// What the live region is currently showing.
 #[derive(Debug, Clone, Default)]
@@ -55,7 +52,12 @@ where
     terminal: Terminal<B>,
     theme: Theme,
     live: Live,
-    height: u16,
+    /// Whether a question is waiting for an answer.
+    ///
+    /// `[R-TUI-016]`: the live region says so while one is, because the
+    /// transcript above has scrolled and a reader needs to know the run is
+    /// waiting for them rather than for a model.
+    waiting: bool,
     /// The text of the current step, accumulated from deltas.
     ///
     /// Committed once when the step ends: a line per token would put partial
@@ -71,7 +73,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Tty")
-            .field("height", &self.height)
+            .field("waiting", &self.waiting)
             .field("live", &self.live)
             .finish_non_exhaustive()
     }
@@ -98,7 +100,7 @@ where
             terminal,
             theme,
             live: Live::default(),
-            height: RUN_ROWS,
+            waiting: false,
             pending: String::new(),
             decisions: std::collections::HashMap::new(),
             finished: false,
@@ -117,25 +119,6 @@ where
     /// to know which rows are which.
     pub fn live_area(&mut self) -> Rect {
         self.terminal.get_frame().area()
-    }
-
-    /// Give the live region the taller height a prompt needs, or take it back.
-    ///
-    /// `[R-TUI-016]`: two fixed heights, and the region returns to the shorter
-    /// one when the prompt closes.
-    ///
-    /// # Errors
-    ///
-    /// Whatever the backend failed with.
-    pub fn prompting(&mut self, open: bool) -> std::io::Result<()> {
-        let wanted = if open { PROMPT_ROWS } else { RUN_ROWS };
-        if wanted == self.height {
-            return Ok(());
-        }
-        self.height = wanted;
-        // Reflowing here rather than on the next draw, so the prompt appears
-        // at its full height rather than growing into it.
-        self.redraw()
     }
 
     /// Put a finalized line into scrollback.
@@ -191,19 +174,34 @@ where
         }
         let theme = self.theme;
         let live = self.live.clone();
+        let waiting = self.waiting;
         self.terminal
             .draw(|frame| {
                 let area = frame.area();
-                render_live(frame.buffer_mut(), area, &live, theme);
+                render_live(frame.buffer_mut(), area, &live, theme, waiting);
             })
             .map_err(std::io::Error::other)?;
         Ok(())
     }
 }
 
-fn render_live(buffer: &mut ratatui::buffer::Buffer, area: Rect, live: &Live, theme: Theme) {
-    let spinner = theme.spinner(live.frame);
-    let tool = live.tool.as_deref().unwrap_or("thinking");
+fn render_live(
+    buffer: &mut ratatui::buffer::Buffer,
+    area: Rect,
+    live: &Live,
+    theme: Theme,
+    waiting: bool,
+) {
+    let spinner = if waiting {
+        "?"
+    } else {
+        theme.spinner(live.frame)
+    };
+    let tool = if waiting {
+        "waiting for your answer"
+    } else {
+        live.tool.as_deref().unwrap_or("thinking")
+    };
 
     let lines = vec![
         Line::from(vec![
@@ -398,6 +396,26 @@ where
 
             ViewEvent::Logged(_) => Ok(()),
         }
+    }
+
+    fn prompt_open(&mut self, lines: &[String]) -> std::io::Result<()> {
+        // `[R-TUI-060]`: committed, so it appears below everything already in
+        // the transcript and stays there once it is answered. A permission
+        // decision that vanishes when the prompt closes cannot be checked
+        // afterwards.
+        let theme = self.theme;
+        for (i, line) in lines.iter().enumerate() {
+            let role = if i == 0 { Role::Warning } else { Role::Plain };
+            let rendered = Line::from(Span::styled(line.clone(), theme.style(role)));
+            self.insert(rendered)?;
+        }
+        self.waiting = true;
+        self.redraw()
+    }
+
+    fn prompt_close(&mut self) -> std::io::Result<()> {
+        self.waiting = false;
+        self.redraw()
     }
 
     fn finish(&mut self) -> std::io::Result<()> {
