@@ -195,7 +195,8 @@ impl Engine {
             });
 
             let started = std::time::Instant::now();
-            let (content, error) = self.invoke(spec, call, cancel).await;
+            let result = self.invoke(spec, call, deliver, cancel).await;
+            let (content, error) = (result.content, result.error);
             let duration_ms = started.elapsed().as_millis() as u64;
             deliver.send(AgentEvent::ToolEnd {
                 id: call.id.clone(),
@@ -209,9 +210,18 @@ impl Engine {
             // run continues; `abort` stops. An argument correction is not a
             // tool error and never aborts, which [R-AGENT-021] requires, so
             // only a real failure reaches here with `error` set.
-            if error.is_some() && spec.on_tool_error == ToolErrorPolicy::Abort {
-                state.steps.push(record);
-                return Turn::Stop(StopReason::ToolAborted, Some(call.name.clone()));
+            // [R-AGENT-006]: `denied` when policy refused, `tool_aborted`
+            // when a tool failed. A user needs to know the boundary held
+            // rather than that something broke.
+            if spec.on_tool_error == ToolErrorPolicy::Abort {
+                if result.denied {
+                    state.steps.push(record);
+                    return Turn::Stop(StopReason::Denied, Some(call.name.clone()));
+                }
+                if error.is_some() {
+                    state.steps.push(record);
+                    return Turn::Stop(StopReason::ToolAborted, Some(call.name.clone()));
+                }
             }
         }
 
@@ -221,30 +231,60 @@ impl Engine {
 
     /// Check the arguments, then run the tool.
     ///
-    /// Returns what to tell the model, and what went wrong if anything did. A
-    /// correction is not a failure: the second element stays `None`, so an
-    /// abort policy does not fire on the model's first typo.
+    /// Returns what to tell the model, what went wrong if anything did, and
+    /// whether policy refused. A correction is not a failure: the error stays
+    /// `None`, so an abort policy does not fire on the model's first typo.
     async fn invoke(
         &self,
         spec: &AgentSpec,
         call: &meow_llm::ToolCall,
+        deliver: &mut Delivery<'_>,
         cancel: &CancellationToken,
-    ) -> (String, Option<String>) {
+    ) -> Invoked {
         let Some(tool) = spec.tools.get(&call.name) else {
             // [R-AGENT-023]: not found here means not found. No wider
             // registry is consulted.
-            return (
-                format!("no tool named `{}` is available to this agent", call.name),
-                None,
-            );
+            return Invoked::told(format!(
+                "no tool named `{}` is available to this agent",
+                call.name
+            ));
         };
 
         let args: Value = serde_json::from_str(&call.arguments).unwrap_or(Value::Null);
+
+        // [R-POLICY-040]: the decision comes before the tool runs, never after.
+        if let (Some(policy), Some(describe)) = (&spec.policy, &spec.describe_call) {
+            let judged = describe(&call.name, &args);
+            let verdict = policy.evaluate(&judged, &spec.grants);
+            deliver.send(AgentEvent::Policy {
+                id: call.id.clone(),
+                decision: verdict.decision.as_str().to_owned(),
+            });
+            if verdict.decision != meow_policy::Decision::Allow {
+                // [R-POLICY-041]: the model is told which tool and that policy
+                // refused, so it can choose another approach rather than
+                // repeating itself against a wall.
+                let rule = verdict.rule.unwrap_or_else(|| "no rule matched".to_owned());
+                return Invoked {
+                    content: format!(
+                        "policy denied `{}` ({rule}). Try something else.",
+                        call.name
+                    ),
+                    error: None,
+                    denied: true,
+                };
+            }
+        }
+
         match check(&args, &tool.schema()) {
-            Checked::Correction(message) => (message, None),
+            Checked::Correction(message) => Invoked::told(message),
             Checked::Ready(args) => match tool.call(&args, cancel).await {
-                Ok(output) => (output, None),
-                Err(e) => (format!("the tool failed: {e}"), Some(e.to_string())),
+                Ok(output) => Invoked::told(output),
+                Err(e) => Invoked {
+                    content: format!("the tool failed: {e}"),
+                    error: Some(e.to_string()),
+                    denied: false,
+                },
             },
         }
     }
@@ -273,6 +313,24 @@ struct Run<'a, 'b> {
     deliver: Delivery<'b>,
     messages: Vec<Message>,
     state: RunState,
+}
+
+/// What invoking a tool produced.
+struct Invoked {
+    content: String,
+    error: Option<String>,
+    denied: bool,
+}
+
+impl Invoked {
+    /// Something to tell the model that is not a failure.
+    fn told(content: String) -> Self {
+        Self {
+            content,
+            error: None,
+            denied: false,
+        }
+    }
 }
 
 #[derive(Default)]

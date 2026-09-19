@@ -1,0 +1,16 @@
+[package]
+name = "meow-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The permission boundary: what a tool call is allowed to do"
+publish = false
+
+[dependencies]
+globset = "0.4"
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
