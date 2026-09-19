@@ -6,32 +6,17 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use starlark::environment::{FrozenModule, Globals, GlobalsBuilder, Module};
+use starlark::environment::{FrozenModule, Globals, Module};
 use starlark::eval::{Evaluator, FileLoader};
-use starlark::starlark_module;
 use starlark::syntax::{AstModule, Dialect};
-use starlark::values::none::NoneOr;
 
-use crate::declare::{Declaring, globals};
+use crate::declare::globals;
 use crate::error::{Result, StarError, closest};
+use crate::modules::{Modules, NAMES};
 use crate::registry::Registry;
-
-/// The runtime modules a declaration file may load.
-///
-/// `[R-STAR-084]`: `@std//env` and nothing else. Credentials are resolved in
-/// a declaration file, so forbidding the environment outright would make the
-/// normal configuration impossible; every other module stays out, so loading
-/// `.meow/` cannot have consequences.
-const DECLARING_MODULES: &[&str] = &["env"];
-
-/// Every runtime module, whether or not it is available yet.
-///
-/// Listed here so `[R-STAR-003]` can tell "no such module" from "not during
-/// declaration", and so `[R-STAR-091]` has something to suggest from.
-const ALL_MODULES: &[&str] = &[
-    "env", "exec", "fs", "http", "json", "path", "re", "text", "time",
-];
+use crate::state::Declaring;
 
 /// What a workspace turned into.
 #[derive(Debug)]
@@ -40,21 +25,14 @@ pub struct Loaded {
     pub registry: Registry,
     /// Every file that was evaluated, in the order it was first reached.
     pub files: Vec<PathBuf>,
-}
-
-/// `@std//env`, the one module a declaration file may use.
-#[starlark_module]
-fn env_module(builder: &mut GlobalsBuilder) {
-    /// Read an environment variable.
-    fn get(
-        #[starlark(require = pos)] name: String,
-        #[starlark(require = pos)] default: Option<String>,
-    ) -> starlark::Result<NoneOr<String>> {
-        Ok(match std::env::var(&name).ok().or(default) {
-            Some(value) => NoneOr::Other(value),
-            None => NoneOr::None,
-        })
-    }
+    /// The evaluated files, by load key.
+    ///
+    /// Kept because a tool handler lives in one of them and has to survive the
+    /// load: the run phase looks it up here rather than holding a value that
+    /// cannot outlive the evaluator that made it.
+    pub modules: HashMap<String, FrozenModule>,
+    /// The `@std//` table.
+    pub std: Arc<Modules>,
 }
 
 /// Refuse `print`.
@@ -62,7 +40,8 @@ fn env_module(builder: &mut GlobalsBuilder) {
 /// `[R-STAR-082]`: it would write straight through the terminal frame and
 /// corrupt it, so the error names the thing to use instead rather than saying
 /// only that this is not allowed.
-struct NoPrint;
+#[derive(Debug)]
+pub struct NoPrint;
 
 impl starlark::PrintHandler for NoPrint {
     fn println(&self, _text: &str) -> starlark::Result<()> {
@@ -77,7 +56,7 @@ struct Loader<'a> {
     workspace: &'a crate::Workspace,
     state: &'a Declaring,
     globals: &'a Globals,
-    std_env: FrozenModule,
+    std: Arc<Modules>,
     /// `[R-STAR-007]`: a file evaluated once, however many times it is named.
     done: RefCell<HashMap<String, FrozenModule>>,
     /// `[R-STAR-006]`: what is being evaluated right now, innermost last.
@@ -119,26 +98,7 @@ impl Loader<'_> {
     }
 
     fn std_module(&self, name: &str) -> Result<FrozenModule> {
-        if DECLARING_MODULES.contains(&name) {
-            return Ok(self.std_env.clone());
-        }
-        if ALL_MODULES.contains(&name) {
-            // [R-STAR-083] follows from this: a declaration file cannot write
-            // a file, run a command, or make a request, because the modules
-            // that could are not reachable from here.
-            return Err(StarError::ModuleUnavailable {
-                module: format!("@std//{name}"),
-            });
-        }
-        Err(StarError::Load {
-            message: format!(
-                "there is no module `@std//{name}`{}. Available: {}.",
-                closest(name, ALL_MODULES.iter().copied())
-                    .map(|c| format!(". Did you mean `@std//{c}`?"))
-                    .unwrap_or_default(),
-                ALL_MODULES.join(", ")
-            ),
-        })
+        std_module(&self.std, name)
     }
 
     fn local(&self, path: &str) -> Result<FrozenModule> {
@@ -297,22 +257,13 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
     let state = Declaring::new();
     let globals = globals();
 
-    let built = GlobalsBuilder::new().with(env_module).build();
-    let std_env = Module::with_temp_heap(|module| {
-        module.frozen_heap().add_reference(built.heap());
-        for (name, value) in built.iter() {
-            module.set(name, value.to_value());
-        }
-        module
-            .freeze()
-            .map_err(|e| StarError::Starlark(format!("{e:?}")))
-    })?;
+    let std = Arc::new(Modules::build()?);
 
     let loader = Loader {
         workspace,
         state: &state,
         globals: &globals,
-        std_env,
+        std: Arc::clone(&std),
         done: RefCell::new(HashMap::new()),
         stack: RefCell::new(Vec::new()),
         order: RefCell::new(Vec::new()),
@@ -320,10 +271,73 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
 
     loader.local("meow.star")?;
     loader.markdown_agents()?;
+
     let files = loader.order.into_inner();
+    let modules = loader.done.into_inner();
 
     let registry = state.finish();
     registry.resolve()?;
 
-    Ok(Loaded { registry, files })
+    Ok(Loaded {
+        registry,
+        files,
+        modules,
+        std,
+    })
+}
+
+/// Resolve an `@std//` name against the one table.
+///
+/// `[R-STAR-003]`: a name with no module fails listing what there is.
+/// `[R-STAR-011]`: the declaration phase and the run phase call this same
+/// function, so a module cannot exist in one and not the other.
+fn std_module(table: &Modules, name: &str) -> Result<FrozenModule> {
+    table.get(name).cloned().ok_or_else(|| StarError::Load {
+        message: format!(
+            "there is no module `@std//{name}`{}. Available: {}.",
+            closest(name, table.names().map(String::as_str))
+                .map(|c| format!(". Did you mean `@std//{c}`?"))
+                .unwrap_or_default(),
+            NAMES.join(", ")
+        ),
+    })
+}
+
+/// The loader a handler is evaluated against.
+///
+/// A handler's own file was loaded during the declaration phase, so nothing
+/// here evaluates anything: the modules already exist and this hands them out.
+/// Having one is still necessary, because a `load` inside a function body is
+/// evaluated when the function runs.
+#[derive(Debug)]
+pub struct RuntimeLoader<'a> {
+    runtime: &'a crate::run::Runtime,
+}
+
+impl<'a> RuntimeLoader<'a> {
+    /// A loader over a running workspace.
+    pub fn new(runtime: &'a crate::run::Runtime) -> Self {
+        Self { runtime }
+    }
+}
+
+impl FileLoader for RuntimeLoader<'_> {
+    fn load(&self, path: &str) -> starlark::Result<FrozenModule> {
+        let resolved = if let Some(name) = path.strip_prefix("@std//") {
+            std_module(self.runtime.std(), name)
+        } else if let Some(local) = path.strip_prefix("//") {
+            self.runtime
+                .files()
+                .get(local)
+                .cloned()
+                .ok_or_else(|| StarError::Load {
+                    message: format!("`//{local}` was not loaded from .meow/"),
+                })
+        } else {
+            Err(StarError::Load {
+                message: format!("`{path}` is not a load path"),
+            })
+        };
+        resolved.map_err(|e| starlark::Error::new_other(anyhow::anyhow!("{e}")))
+    }
 }

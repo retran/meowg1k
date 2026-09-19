@@ -976,8 +976,12 @@ dependencies = [
 name = "meow-star"
 version = "0.3.0-alpha.0"
 dependencies = [
+ "allocative",
  "anyhow",
+ "async-trait",
  "meow-agent",
+ "meow-core",
+ "meow-llm",
  "meow-policy",
  "serde",
  "serde_json",
@@ -985,6 +989,8 @@ dependencies = [
  "starlark",
  "tempfile",
  "thiserror",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
