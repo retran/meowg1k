@@ -23,8 +23,8 @@ the engine be written once.
 ### The trait
 
 **[R-LLM-001]** A provider MUST implement generation, and MUST declare
-whether it supports streaming, tool calling, structured output, and
-embeddings.
+whether it supports streaming, tool calling, and embeddings, and whether its
+structured output is native or emulated.
 
 **[R-LLM-002]** Calling a capability a provider does not declare MUST fail
 with an error naming the provider and the capability, before any request is
@@ -52,13 +52,19 @@ response.
 once with the same identifier, before returning the response, regardless of
 any session or history setting.
 
+**[R-LLM-015]** A message MAY carry a cache hint. A provider whose API has
+explicit cache breakpoints MUST translate it into one; a provider that caches
+automatically MUST ignore it. The hint MUST NOT change the content of the
+message.
+
 ### Streaming
 
 **[R-LLM-020]** The stream event kinds MUST be exactly: `Text`, `Thinking`,
 `ToolCallStart`, `ToolCallDelta`, `ToolCallEnd`, `Usage`, `Error`, and `Done`.
 
-**[R-LLM-021]** A streaming call MUST return the same aggregated response as
-the equivalent non-streaming call for the same request and model output.
+**[R-LLM-021]** Aggregating a recorded stream MUST produce the same response
+value as parsing the non-streaming body for the same model output. Stating it
+over a recording rather than over two live calls is what makes it checkable.
 
 **[R-LLM-022]** A provider that has no native streaming endpoint MUST declare
 streaming as unsupported rather than synthesising events from a completed
@@ -66,6 +72,11 @@ response.
 
 **[R-LLM-023]** An error raised by the stream consumer MUST abort the request
 and MUST propagate to the caller unchanged.
+
+**[R-LLM-024]** Thinking content MUST be delivered as `Thinking` stream events
+and MUST be preserved on the assistant message it belongs to, because a
+provider can require it to be sent back on a later turn that continues a tool
+call.
 
 ### Errors and retry
 
@@ -88,14 +99,20 @@ after a configured maximum attempt count.
 **[R-LLM-035]** A `QuotaExhausted` error MUST surface immediately with the
 provider named and MUST NOT be retried.
 
+**[R-LLM-037]** A provider MUST distinguish `QuotaExhausted` from a rate limit
+using its own documented signal, not by matching text in a message. When the
+signal is absent, a 429 MUST classify as `Transient`, because retrying a spent
+quota costs a delay while refusing a rate limit costs the run.
+
 **[R-LLM-036]** Every retry MUST check the cancellation token before sleeping
 and before the next attempt.
 
 ### Usage
 
-**[R-LLM-040]** A response MUST report prompt tokens, completion tokens, and
-cached prompt tokens. A provider that does not report cached tokens MUST
-report zero rather than omitting the field.
+**[R-LLM-040]** A response MUST report prompt tokens and completion tokens,
+and MUST report cached prompt tokens as a separate optional count. A provider
+that does not report caching MUST leave that count absent, never zero, so that
+"no cache hits" stays distinguishable from "this provider does not say".
 
 **[R-LLM-041]** When a provider reports no usage at all, the response MUST say
 so explicitly, so that a missing count is distinguishable from a zero count.
@@ -103,8 +120,10 @@ so explicitly, so that a missing count is distinguishable from a zero count.
 ### Structured output
 
 **[R-LLM-050]** A request MAY carry a JSON Schema. A provider that declares
-native structured output MUST use it; one that does not MUST request JSON and
-validate the result against the schema.
+native structured output MUST use it; one that declares emulated structured
+output MUST request JSON and validate the result against the schema. Schema
+support is therefore never refused under [R-LLM-002], only satisfied two
+different ways.
 
 **[R-LLM-051]** A response that fails schema validation MUST be retried with
 the validation error included in the follow-up request, up to a configured
@@ -140,13 +159,18 @@ unsupported instead.
 Cached prompt tokens are not reported anywhere in v0.2.x, which makes the main
 cost lever of a well-built agent invisible.
 
-## Open questions
+## Decisions
 
-- **Prompt caching control.** Anthropic needs explicit cache breakpoints;
-  OpenAI caches automatically. Exposing breakpoints leaks one vendor's model
-  into the trait, and not exposing them leaves the largest saving on the
-  table. Recommendation: an optional `cache_hint` on a message that providers
-  without the concept ignore.
-- **Thinking and reasoning content.** Whether it is persisted to the session
-  or only streamed. Recommendation: stream it, do not persist it, and revisit
-  if a provider requires replaying it.
+**Cache control is an optional hint**, by [R-LLM-015]. Anthropic needs explicit
+breakpoints and OpenAI caches on its own, so the trait carries the weaker of
+the two ideas and lets each provider do what it can with it. Leaving it out
+entirely would forfeit the largest cost saving available to a long agent run.
+
+**Thinking is streamed and stored**, by [R-LLM-024]. Not storing it was the
+first answer, on the grounds that it is bulky and only useful to watch. That
+is wrong on a fact: Anthropic requires thinking blocks to be sent back on a
+later turn that continues a tool call, so discarding them breaks resume and
+multi-turn tool use on the provider the tool is built against first. Storage is
+the cheaper problem, and content addressing plus retention already handle it.
+`meow session export` redacts it by default, because it is the part of a
+transcript least likely to be meant for an audience.
