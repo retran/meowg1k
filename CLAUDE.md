@@ -177,10 +177,11 @@ only exist after `task tools:install`.
   the assertions under test.
 - Coverage gate is 65%. `internal/domain/`, `internal/ports/`, and
   `internal/templates/` have no tests at all; new domain logic needs them.
-- `golangci-lint` currently fails on the Go tree: 473 `goconst` findings, 288
-  of them in test files, plus 5 `staticcheck` and 2 `unconvert`. The `goconst`
-  findings are noise on a frozen tree - do not burn them down by extracting
-  constants. The other seven are real and tracked in #108.
+- `golangci-lint` passes on the Go tree. `goconst` is set to six occurrences
+  and skips tests, because at the default of three a map key used in three
+  places counted as a magic string; `internal/core/starlark/` is excluded from
+  it entirely, since the repetition there is builtin names rather than
+  literals.
 
 </conventions>
 
