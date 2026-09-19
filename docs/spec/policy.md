@@ -41,11 +41,29 @@ with symlinks already resolved, using glob semantics where `**` crosses
 directory boundaries. Resolving the path is the caller's job and MUST happen
 before evaluation, so that evaluation itself touches no filesystem.
 
+**[R-POLICY-014]** A tool MUST act on the exact path the policy evaluated, and
+MUST NOT resolve the path a second time. Re-resolving reopens the window in
+which a path allowed as a file becomes a symlink to somewhere denied.
+
 **[R-POLICY-004]** A `commands` selector MUST match against the full command
 line as a single string, using glob semantics.
 
 **[R-POLICY-005]** A selector that no tool matching the rule's name pattern
 supports MUST fail when the policy is built, not when a call is evaluated.
+
+**[R-POLICY-006]** A call that touches several paths MUST be evaluated once per
+resolved path.
+
+**[R-POLICY-008]** A read that hits a denied path MUST return the allowed
+paths and MUST name every path it skipped, so the model knows its view is
+partial.
+
+**[R-POLICY-009]** A write that hits a denied path MUST be denied as a whole
+and MUST NOT write any path, so the workspace is never left half-applied.
+
+**[R-POLICY-007]** Network tools MUST support a `hosts` selector matching the
+host of the request, so a policy can allow one host without allowing the
+network.
 
 ### Decisions
 
@@ -58,8 +76,9 @@ then allow rules, and MUST return the first match.
 that no rule matched.
 
 **[R-POLICY-013]** Evaluation MUST touch no filesystem, network, or clock,
-and MUST return the same decision for the same resolved call and the same
-policy every time.
+and MUST return the same decision for the same resolved call, the same policy,
+and the same set of session grants. Grants are an input to evaluation, not a
+side effect of it.
 
 ### Ask
 
@@ -75,14 +94,15 @@ paraphrase.
 **[R-POLICY-023]** An approval granted as "always" MUST apply for the current
 process only. The policy layer MUST NOT write a grant back to any file.
 
-**[R-POLICY-024]** A prompt that receives no answer within a configured
-timeout MUST resolve to `deny`.
+**[R-POLICY-024]** An approval prompt MUST wait indefinitely by default. A
+timeout MAY be configured, and when one is configured and expires the prompt
+MUST resolve to `deny`.
 
 ### Narrowing
 
-**[R-POLICY-030]** An agent MAY declare a policy of its own. The effective
-policy for that agent MUST be the intersection of its policy with the
-workspace policy.
+**[R-POLICY-030]** An agent MAY declare a policy of its own. For every call,
+the effective decision MUST be the more restrictive of what the two policies
+say, ordering `deny` above `ask` above `allow`.
 
 **[R-POLICY-031]** An agent policy MUST NOT allow a call the workspace policy
 denies, and MUST NOT turn an `ask` into an `allow`.
@@ -102,10 +122,22 @@ approach.
 **[R-POLICY-042]** Every evaluation MUST produce a `Policy` session event,
 whatever the decision.
 
+### Sensitive values
+
+**[R-POLICY-060]** A rule MAY mark an argument or a result field sensitive. A
+value so marked MUST be redacted in the approval prompt, in the transcript, and
+in every export, and MUST NOT be written to the session log in the clear.
+
+**[R-POLICY-061]** Redaction MUST replace the value with a fixed placeholder
+and MUST NOT reveal its length.
+
 ### Explanation
 
 **[R-POLICY-050]** `meow policy explain <tool> <argument>` MUST return the
-same decision that a real call with those arguments would receive.
+rule decision a real call with those arguments would receive: `allow`, `ask`,
+or `deny`. It MUST NOT claim to predict how an `ask` would be answered, because
+that depends on a person and on grants made during a run that has not
+happened.
 
 **[R-POLICY-051]** The explanation MUST name the matching rule and the file
 and line it was declared on, and MUST report how many higher-precedence rules
@@ -117,16 +149,22 @@ There is no policy layer in v0.2.x. `shell_exec` is an ordinary tool, so an
 agent that is talked into running a command runs it. This whole specification
 is new, and it is the largest single addition of the rewrite.
 
-## Open questions
+## Decisions
 
-- **Path selectors and tools that take many paths.** A glob tool touches
-  paths it discovers at run time. Recommendation: evaluate per resolved path
-  and deny the call if any one path is denied, because a partial result that
-  silently skips denied files is harder to reason about than a refusal.
-- **Network selectors.** `http.*` has no selector in this draft, so a policy
-  can allow HTTP or not, with no host granularity. Recommendation: add a
-  `hosts` selector, but only once a real agent needs network access; guessing
-  the shape now risks a selector nobody can use.
-- **Where the timeout for [R-POLICY-024] is configured** and what its default
-  is. Recommendation: no timeout by default in an interactive session, because
-  a prompt that expires while the user reads it is worse than one that waits.
+**A multi-path read is partial and says so; a multi-path write is all or
+nothing**, by [R-POLICY-008] and [R-POLICY-009]. The first answer denied both
+alike, to avoid a result that looks complete and is not. That is the right fear
+and the wrong fix: naming the skipped paths removes the danger, and denying the
+whole read costs an agent its view of a repository because of one `.env` file
+it never wanted. A write is different, because a partial one leaves the
+workspace in a state nobody chose.
+
+**Network tools get a `hosts` selector now**, by [R-POLICY-007], rather than
+waiting for an agent that needs one. An all-or-nothing network rule forces the
+choice between no network and unrestricted egress, and egress is exactly where
+a prompt-injected agent does the most damage.
+
+**An approval prompt waits**, by [R-POLICY-024]. A prompt that expires while
+you are reading the command it is asking about turns a security decision into
+a reflex. A timeout stays configurable for an unattended terminal that is
+nevertheless a terminal.

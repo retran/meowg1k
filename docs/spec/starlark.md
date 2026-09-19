@@ -71,7 +71,9 @@ being evaluated, and MUST fail inside a handler.
 same name MUST fail naming both declaration sites.
 
 **[R-STAR-032]** A declaration that names a provider, model, or tool that does
-not exist MUST fail at load time, not at first use.
+not exist MUST fail at load time, not at first use. References MUST be resolved
+after every declaration file has been evaluated, so that declaration order
+inside and between files does not matter.
 
 **[R-STAR-033]** A command whose name collides with a built-in MUST fail at
 load time naming the collision, and MUST NOT shadow the built-in.
@@ -101,16 +103,23 @@ Starlark values cannot cross a thread boundary.
 ### Markdown agents
 
 **[R-STAR-050]** A `.md` file under `.meow/agents/` MUST declare an agent
-whose frontmatter keys are exactly the keyword arguments of `meow.agent` and
-whose body is the system prompt.
+whose frontmatter accepts every keyword argument of `meow.agent` except
+`system`, plus `include`. The body supplies `system`, so frontmatter carrying
+it MUST fail.
 
 **[R-STAR-051]** A markdown agent and a Starlark agent MUST produce the same
 value, and MUST be indistinguishable to a caller.
 
 **[R-STAR-052]** Frontmatter that is not valid YAML, or that carries a key
-`meow.agent` does not accept, MUST fail at load time with the file and line.
+outside the set [R-STAR-050] allows, MUST fail at load time with the file and
+line.
 
 **[R-STAR-053]** A `.md` file under `.meow/lib/` MUST be loadable as a string.
+
+**[R-STAR-054]** Frontmatter MAY carry an `include` key naming `.meow/lib/*.md`
+files. Their contents MUST be prepended to the system prompt in the order
+given, separated by a blank line. `include` MUST be the only composition a
+markdown agent has: there MUST be no substitution, conditional, or loop.
 
 ### Tools and arguments
 
@@ -182,14 +191,19 @@ Markdown agents are new. In v0.2.x every agent is a Starlark file, and the
 shipped `lib/agent.star` exists only to hide the boilerplate that makes one
 work.
 
-## Open questions
+## Decisions
 
-- **Whether declaration files may read the environment.** `env.require` is
-  needed for credentials, and it is a side effect. Recommendation: allow
-  `env`, forbid the rest, and note that [R-STAR-083] carves out exactly this.
-- **Whether a handler may declare a tool at run time.** It would allow
-  generated tools; it also makes the tool set unknowable before a run and
-  breaks `meow policy explain`. Recommendation: forbid it.
-- **`.md` agents and `load`.** A markdown agent cannot import a shared prompt
-  the way a Starlark one can. Recommendation: allow a frontmatter key that
-  names `.meow/lib/*.md` files to prepend, rather than inventing templating.
+**Declaration files may read the environment and nothing else**, by
+[R-STAR-084]. Credentials are resolved there, so forbidding it outright would
+make the normal configuration impossible. Every other module stays unavailable,
+so loading `.meow/` cannot have consequences.
+
+**A handler may not declare a tool**, by [R-STAR-030]. Generated tools would be
+useful and would make the tool set unknowable before a run, which breaks
+`meow policy explain` and with it the promise that a permission decision can be
+predicted without triggering it.
+
+**Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
+is the real need; substitution and conditionals are how a configuration format
+turns into a bad programming language. An agent that needs logic is a Starlark
+agent.
