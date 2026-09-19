@@ -5,7 +5,7 @@ package model
 
 import model2 "github.com/retran/meowg1k/internal/domain/model"
 
-// Registry is the private implementation of the Registry interface.
+// Registry holds the in-memory collection of registered model definitions.
 type Registry struct {
 	models map[string]model2.Info
 }

@@ -158,10 +158,7 @@ func (s *Service) resolvePresetInternal( //nolint:gocognit,gocyclo,funlen // com
 		Grammar:              preset.Request.Grammar,
 	}
 
-	// Merge cache configuration (preset overrides defaults)
-	// Default: caching is enabled with 168h (7 days) TTL
 	if !resolved.CacheEnabled && resolved.CacheTTL == 0 {
-		// First preset in chain - set defaults
 		resolved.CacheEnabled = true
 		resolved.CacheTTL = 168 * time.Hour // 7 days default
 	}

@@ -132,7 +132,6 @@ func csvStringify(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, 
 				cell := v.Index(j)
 				val, ok := starlark.AsString(cell)
 				if !ok {
-					// Try to convert to string for non-string types
 					if intVal, err := starlark.AsInt32(cell); err == nil {
 						val = fmt.Sprintf("%d", intVal)
 					} else if floatVal, ok := starlark.AsFloat(cell); ok {
@@ -164,7 +163,6 @@ func csvStringify(_ *starlark.Thread, _ *starlark.Builtin, args starlark.Tuple, 
 				} else {
 					val, ok := starlark.AsString(cellValue)
 					if !ok {
-						// Try to convert to string for non-string types
 						if intVal, err := starlark.AsInt32(cellValue); err == nil {
 							val = fmt.Sprintf("%d", intVal)
 						} else if floatVal, ok := starlark.AsFloat(cellValue); ok {

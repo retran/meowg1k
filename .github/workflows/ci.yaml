@@ -19,6 +19,7 @@ permissions:
   contents: read
   checks: write
   pull-requests: write
+  security-events: write
 
 jobs:
   # ============================================================
@@ -37,20 +38,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
+      - name: golangci-lint (fast)
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-
-      - name: Run fast lint
-        run: task lint:fast
+          version: v2.11.2
+          args: --enable-only=govet,errcheck,staticcheck --timeout=2m
 
   # ============================================================
-  # Stage 2: Full Lint (parallel, ~3 min)
+  # Stage 2: Full Lint & Markdown (parallel, ~3 min)
   # ============================================================
   full-lint:
     name: Full Lint
@@ -67,7 +62,7 @@ jobs:
           cache: true
 
       - name: golangci-lint (full)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           version: v2.11.2
           args: --timeout=5m
@@ -87,7 +82,7 @@ jobs:
           globs: '**/*.md'
 
       - name: YAML Lint
-        uses: ibiqlik/action-yamllint@v3
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c # v3.1.1
         with:
           config_file: .yamllint.yaml
           file_or_dir: .
@@ -110,6 +105,7 @@ jobs:
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
         with:
           go-version-file: go.mod
+          cache: true
 
       - name: Run gosec
         uses: securego/gosec@424fc4cd9c82ea0fd6bee9cd49c2db2c3cc0c93f # v2.22.11
@@ -128,7 +124,7 @@ jobs:
           govulncheck ./...
 
       - name: Gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -154,19 +150,15 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install bc (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y bc
-
       - name: Run Tests
         run: task check:test
 
-      - name: Upload Coverage (Ubuntu only)
+      - name: Upload Coverage
         if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
         with:
@@ -191,7 +183,7 @@ jobs:
           cache: true
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: arduino/setup-task@24c5e13bce349197642746563945fcdf9355e8f4 # v2.0.0
         with:
           version: 3.x
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -238,7 +230,15 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
         run: |
-          go build -o bin/meow${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/meow
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.1.0")
+          GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          BUILD_DATE=$(date -u '+%Y-%m-%d_%H:%M:%S')
+          LDFLAGS="-s -w \
+            -X github.com/retran/meowg1k/internal/version.Version=${VERSION} \
+            -X github.com/retran/meowg1k/internal/version.BuildDate=${BUILD_DATE} \
+            -X github.com/retran/meowg1k/internal/version.GitCommit=${GIT_COMMIT}"
+          go build -trimpath -ldflags "${LDFLAGS}" \
+            -o bin/meow${{ matrix.goos == 'windows' && '.exe' || '' }} ./cmd/meow
 
       - name: Upload Artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -257,14 +257,23 @@ jobs:
     if: always()
     steps:
       - name: Check all jobs succeeded
+        env:
+          FULL_LINT: ${{ needs.full-lint.result }}
+          MARKDOWN_LINT: ${{ needs.markdown-lint.result }}
+          SECURITY: ${{ needs.security.result }}
+          TEST: ${{ needs.test.result }}
+          INTEGRATION: ${{ needs.integration-test.result }}
+          BUILD: ${{ needs.build.result }}
         run: |
-          if [[ "${{ needs.full-lint.result }}" != "success" ]] || \
-             [[ "${{ needs.markdown-lint.result }}" != "success" ]] || \
-             [[ "${{ needs.security.result }}" != "success" ]] || \
-             [[ "${{ needs.test.result }}" != "success" ]] || \
-             [[ "${{ needs.integration-test.result }}" != "success" ]] || \
-             [[ "${{ needs.build.result }}" != "success" ]]; then
-            echo "One or more CI jobs failed"
+          failed=()
+          [ "$FULL_LINT"     != "success" ] && failed+=("full-lint")
+          [ "$MARKDOWN_LINT" != "success" ] && failed+=("markdown-lint")
+          [ "$SECURITY"      != "success" ] && failed+=("security")
+          [ "$TEST"          != "success" ] && failed+=("test")
+          [ "$INTEGRATION"   != "success" ] && failed+=("integration-test")
+          [ "$BUILD"         != "success" ] && failed+=("build")
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Failed jobs: ${failed[*]}"
             exit 1
           fi
-          echo "All CI checks passed!"
+          echo "All CI checks passed."

@@ -29,11 +29,9 @@ def temperature(value, name="temperature"):
     Example:
         temp = validators.temperature(ctx.params.get("temperature", 0.7))
     """
-    # Type check
     if type(value) not in ["int", "float"]:
         fail("%s: must be a number, got %s" % (name, type(value)))
     
-    # Range check
     if value < 0.0 or value > 2.0:
         fail("%s: must be between 0.0 and 2.0, got %s" % (name, value))
     
@@ -56,11 +54,9 @@ def non_empty(name, value):
     Example:
         message = validators.non_empty("message", ctx.params.get("message"))
     """
-    # Type check
     if type(value) != "string":
         fail("%s: must be a string, got %s" % (name, type(value)))
     
-    # Empty check
     stripped = value.strip()
     if len(stripped) == 0:
         fail("%s: cannot be empty or whitespace-only" % name)
@@ -131,7 +127,6 @@ def positive_int(name, value):
     if type(value) != "int":
         fail("%s: must be an integer, got %s" % (name, type(value)))
     
-    # Positive check
     if value <= 0:
         fail("%s: must be positive, got %d" % (name, value))
     
@@ -154,11 +149,9 @@ def port_number(value, name="port"):
     Example:
         port = validators.port_number(ctx.params.get("port", 8080))
     """
-    # Type check
     if type(value) != "int":
         fail("%s: must be an integer, got %s" % (name, type(value)))
     
-    # Range check
     if value < 1 or value > 65535:
         fail("%s: must be between 1 and 65535, got %d" % (name, value))
     

@@ -37,6 +37,7 @@ func Execute() error {
 		}
 		return fmt.Errorf("failed to execute command: %w", err)
 	}
+
 	return nil
 }
 

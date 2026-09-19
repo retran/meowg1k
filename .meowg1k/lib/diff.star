@@ -1,18 +1,12 @@
-# ==============================================================================
-# Diff Analysis Library (lib/diff.star)
-# ==============================================================================
-# Adaptive diff analysis strategies for commit and PR generation.
-#
-# Features:
-#   - Automatic strategy selection (map-reduce vs unified)
-#   - File-by-file summarization for large changesets
-#   - Memory-efficient caching of fetched diffs
-#   - Configurable size thresholds
-#   - Clean, structured output following terminal UI design system
-#
-# Public API:
-#   - build_analysis_prompt(ctx, files, target, template_vars, templates)
-# ==============================================================================
+"""
+Adaptive diff analysis strategies for commit and PR generation.
+
+Automatically selects between map-reduce and unified strategies based on changeset
+size, with configurable thresholds and memory-efficient caching.
+
+Public API:
+    build_analysis_prompt(ctx, files, target, template_vars, templates)
+"""
 
 _MAX_UNIFIED_DIFF_CHARS = 50000
 _MAX_FILE_DIFF_CHARS = 8000
