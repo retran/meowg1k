@@ -1,6 +1,6 @@
 # Agent
 
-Status: draft
+Status: approved 2026-09-19
 Elaborates: docs/design/0.3.0-architecture.md sections 3, 4.1, 5, 7; docs/design/0.3.0-starlark-api.md section 5
 
 ## Scope

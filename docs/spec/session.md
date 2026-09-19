@@ -1,6 +1,6 @@
 # Session
 
-Status: draft
+Status: approved 2026-09-19
 Elaborates: docs/design/0.3.0-sessions.md, all sections
 
 ## Scope
