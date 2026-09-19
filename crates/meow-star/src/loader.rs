@@ -145,6 +145,20 @@ impl Loader<'_> {
         let file = self.workspace.resolve_local(path)?;
         let key = path.to_owned();
 
+        // [R-STAR-053]: a markdown file has no Starlark in it, so it becomes a
+        // module with one symbol rather than something to evaluate. Routing it
+        // through `load` rather than giving it a builtin of its own means the
+        // escape check, the cycle check, and the evaluate-once cache all apply
+        // to it without being written twice.
+        if path.ends_with(".md") {
+            if let Some(module) = self.done.borrow().get(&key) {
+                return Ok(module.clone());
+            }
+            let module = self.prompt_module(&file)?;
+            self.done.borrow_mut().insert(key, module.clone());
+            return Ok(module);
+        }
+
         if let Some(module) = self.done.borrow().get(&key) {
             return Ok(module.clone());
         }
@@ -166,11 +180,74 @@ impl Loader<'_> {
         Ok(module)
     }
 
-    fn evaluate(&self, file: &PathBuf, name: &str) -> Result<FrozenModule> {
-        let source = std::fs::read_to_string(file).map_err(|source| StarError::Io {
+    /// Read every `.md` file under `.meow/agents/`.
+    ///
+    /// After `meow.star`, so a markdown agent and a Starlark agent compete for
+    /// a name on equal terms and `[R-STAR-031]` reports the collision either
+    /// way round. Sorted, so a duplicate names the same two files whatever
+    /// order the directory happens to be read in.
+    fn markdown_agents(&self) -> Result<()> {
+        let dir = self.workspace.config_dir().join("agents");
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return Ok(());
+        };
+
+        let mut files: Vec<PathBuf> = entries
+            .filter_map(std::result::Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "md"))
+            .collect();
+        files.sort();
+
+        for file in files {
+            let Some(name) = crate::markdown::name_of(&file) else {
+                continue;
+            };
+            let text = self.read(&file)?;
+            self.order.borrow_mut().push(file.clone());
+            let declared =
+                crate::markdown::agent(&file, &name, &text, |path| self.prompt_text(path))?;
+            self.state.registry_mut().add_agent(declared)?;
+        }
+        Ok(())
+    }
+
+    /// Wrap a markdown file as a module exporting its text.
+    fn prompt_module(&self, file: &PathBuf) -> Result<FrozenModule> {
+        let text = self.read(file)?;
+        self.order.borrow_mut().push(file.clone());
+        Module::with_temp_heap(|module| {
+            let value = module.heap().alloc(text.as_str());
+            module.set("text", value);
+            module
+                .freeze()
+                .map_err(|e| StarError::Starlark(format!("{e:?}")))
+        })
+    }
+
+    /// Read a `.meow/lib/*.md` prompt named by an `include`.
+    ///
+    /// `[R-STAR-054]`. The path goes through the same check every other load
+    /// does, so an `include` cannot reach outside `.meow/` either.
+    fn prompt_text(&self, path: &str) -> Result<String> {
+        if !path.ends_with(".md") {
+            return Err(StarError::Load {
+                message: format!("`include` names a markdown file, and `{path}` is not one"),
+            });
+        }
+        let file = self.workspace.resolve_local(path.trim_start_matches('/'))?;
+        Ok(self.read(&file)?.trim().to_owned())
+    }
+
+    fn read(&self, file: &PathBuf) -> Result<String> {
+        std::fs::read_to_string(file).map_err(|source| StarError::Io {
             path: file.clone(),
             source,
-        })?;
+        })
+    }
+
+    fn evaluate(&self, file: &PathBuf, name: &str) -> Result<FrozenModule> {
+        let source = self.read(file)?;
         self.order.borrow_mut().push(file.clone());
 
         let ast = AstModule::parse(name, source, &Dialect::Extended)
@@ -242,6 +319,7 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
     };
 
     loader.local("meow.star")?;
+    loader.markdown_agents()?;
     let files = loader.order.into_inner();
 
     let registry = state.finish();

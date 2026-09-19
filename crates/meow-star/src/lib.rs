@@ -7,18 +7,21 @@
 //! workspace accumulates. It depends on `meow-agent` and never the other way
 //! round, which is what lets the engine be tested without a script.
 
+pub mod agent;
 pub mod args;
 pub mod declare;
 pub mod error;
 pub mod loader;
+pub mod markdown;
 pub mod registry;
 pub mod schema;
 pub mod workspace;
 
+pub use agent::{AgentDecl, Fields, Source};
 pub use args::{Arg, Args};
 pub use declare::{Declaring, Phase};
 pub use error::{Result, StarError};
 pub use loader::{Loaded, load};
-pub use registry::{AgentDecl, Model, Origin, Provider, Registry, ToolDecl};
+pub use registry::{Model, Origin, Provider, Registry, ToolDecl};
 pub use schema::Violation;
 pub use workspace::Workspace;
