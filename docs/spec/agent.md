@@ -34,7 +34,9 @@ an error that discards the transcript.
 whatever the stop reason, including when that text is empty.
 
 **[R-AGENT-004]** An outcome MUST carry the step transcript, the usage
-totals, and the session identifier.
+totals, the session identifier, and a detail string that explains the stop
+reason: which budget axis bound the run, which tool aborted it, which rule
+denied it.
 
 **[R-AGENT-005]** A model response with no tool calls MUST stop the run with
 `finished`, including when its text is empty. Empty text MUST NOT be treated
