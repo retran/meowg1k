@@ -1,18 +1,32 @@
 # Copyright © 2025 The meowg1k Authors
 # SPDX-License-Identifier: Apache-2.0
 
-# CI for the v0.3.0 Rust tree. It runs only on the `rust` integration branch
-# and pull requests targeting it, so the frozen Go tree on `dev` keeps its own
-# workflows untouched until the rewrite replaces it.
+# CI for the v0.3.0 Rust tree, on both long-lived branches. The path filter
+# keeps it off Go-only changes, so `dev` runs the Go workflows for the frozen
+# v0.2.1 tree and this one for the rewrite, and neither pays for the other.
 name: Rust
 
 on:
   push:
-    branches: [rust]
-    paths-ignore: ["**.md"]
+    branches: [rust, dev]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "clippy.toml"
+      - "deny.toml"
+      - ".github/workflows/rust.yaml"
   pull_request:
-    branches: [rust]
-    paths-ignore: ["**.md"]
+    branches: [rust, dev]
+    paths:
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "clippy.toml"
+      - "deny.toml"
+      - ".github/workflows/rust.yaml"
 
 concurrency:
   group: rust-${{ github.ref }}
