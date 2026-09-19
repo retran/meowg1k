@@ -1,0 +1,19 @@
+[package]
+name = "meow-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The SQLite database a meowg1k workspace keeps"
+
+[dependencies]
+blake3 = "1"
+rusqlite = { version = "0.37", features = ["bundled"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+rusqlite = { version = "0.37", features = ["bundled"] }
+tempfile = "3"
+
+[lints]
+workspace = true
