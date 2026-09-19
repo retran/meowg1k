@@ -11,6 +11,7 @@
 pub mod ask;
 pub mod exit;
 pub mod render;
+pub mod session;
 pub mod surface;
 pub mod wire;
 

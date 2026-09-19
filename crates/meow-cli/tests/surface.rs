@@ -345,3 +345,123 @@ meow.command(meow.tool(name = "who", about = "ask", run = who))
         stderr(&output)
     );
 }
+
+/// [R-TUI-074] --continue with nothing to continue fails rather than starting
+/// a fresh run
+#[test]
+fn continue_with_nothing_to_continue_fails() {
+    let dir = workspace(WORKSPACE);
+    let output = run(dir.path(), &["--continue", "greet", "world"]);
+
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("no earlier session"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(stderr(&output).contains("greet"), "{}", stderr(&output));
+
+    // And nothing ran, so nothing was written.
+    assert!(stdout(&output).trim().is_empty(), "{}", stdout(&output));
+}
+
+/// [R-SESSION-054] [R-TUI-074] a run starts a session, and --continue adds to
+/// the most recent one of that command
+#[test]
+fn continue_adds_to_the_most_recent_session_of_that_command() {
+    let dir = workspace(WORKSPACE);
+
+    assert_eq!(code(&run(dir.path(), &["greet", "one"])), 0);
+    assert_eq!(code(&run(dir.path(), &["greet", "two"])), 0);
+
+    let listed = run(dir.path(), &["session", "list"]);
+    assert_eq!(
+        stdout(&listed).lines().count(),
+        2,
+        "a second run should be a second session: {}",
+        stdout(&listed)
+    );
+
+    // Continuing adds to one of them rather than making a third.
+    assert_eq!(code(&run(dir.path(), &["--continue", "greet", "three"])), 0);
+    let after = run(dir.path(), &["session", "list"]);
+    assert_eq!(
+        stdout(&after).lines().count(),
+        2,
+        "--continue started a new session: {}",
+        stdout(&after)
+    );
+}
+
+/// [R-TUI-074] --continue picks the command being invoked, not the newest run
+#[test]
+fn continue_does_not_resume_another_commands_session() {
+    let dir = workspace(WORKSPACE);
+
+    assert_eq!(code(&run(dir.path(), &["greet", "one"])), 0);
+    // `gate` has never run, so there is nothing of its own to continue even
+    // though `greet` has a session sitting right there.
+    let output = run(dir.path(), &["--continue", "gate"]);
+
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(stderr(&output).contains("gate"), "{}", stderr(&output));
+}
+
+/// `meow session export` writes a transcript in both formats.
+#[test]
+fn a_session_exports_as_markdown_and_as_json() {
+    let dir = workspace(WORKSPACE);
+    assert_eq!(code(&run(dir.path(), &["greet", "world"])), 0);
+
+    let markdown = run(dir.path(), &["session", "export", "@last"]);
+    assert_eq!(code(&markdown), 0, "{}", stderr(&markdown));
+    assert!(
+        stdout(&markdown).contains("# greet"),
+        "{}",
+        stdout(&markdown)
+    );
+
+    let json = run(dir.path(), &["session", "export", "@last", "--as", "json"]);
+    assert_eq!(code(&json), 0, "{}", stderr(&json));
+    let first: serde_json::Value =
+        serde_json::from_str(stdout(&json).lines().next().unwrap()).unwrap();
+    assert_eq!(first["type"], "Schema");
+}
+
+/// `meow session fork` branches, and refuses a sequence that is not there.
+#[test]
+fn a_session_forks_and_refuses_a_bad_point() {
+    let dir = workspace(WORKSPACE);
+    assert_eq!(code(&run(dir.path(), &["greet", "world"])), 0);
+
+    let forked = run(dir.path(), &["session", "fork", "@last", "--at", "1"]);
+    assert_eq!(code(&forked), 0, "{}", stderr(&forked));
+    assert_eq!(stdout(&forked).trim().len(), 26, "{}", stdout(&forked));
+
+    let refused = run(dir.path(), &["session", "fork", "@last", "--at", "999"]);
+    assert_eq!(code(&refused), 2, "{}", stderr(&refused));
+    assert!(
+        stderr(&refused).contains("cannot fork at 999"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+/// `meow session gc` deletes by age and keeps a named session.
+#[test]
+fn gc_deletes_what_retention_no_longer_keeps() {
+    let dir = workspace(WORKSPACE);
+    assert_eq!(code(&run(dir.path(), &["greet", "one"])), 0);
+    assert_eq!(code(&run(dir.path(), &["greet", "two"])), 0);
+
+    let swept = run(dir.path(), &["session", "gc", "--keep", "1"]);
+    assert_eq!(code(&swept), 0, "{}", stderr(&swept));
+    assert!(
+        stdout(&swept).starts_with("deleted\t"),
+        "{}",
+        stdout(&swept)
+    );
+
+    let left = run(dir.path(), &["session", "list"]);
+    assert_eq!(stdout(&left).lines().count(), 1, "{}", stdout(&left));
+}

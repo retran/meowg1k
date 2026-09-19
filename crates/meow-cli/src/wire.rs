@@ -9,7 +9,6 @@ use std::sync::Arc;
 use clap::ArgMatches;
 use meow_agent::Engine;
 use meow_llm::{Anthropic, Http, Provider};
-use meow_star::port::quiet::Memory;
 use meow_star::{Loaded, Ports, Registry, Runtime, Workspace};
 use serde_json::{Map, Value};
 use tokio_util::sync::CancellationToken;
@@ -46,6 +45,7 @@ pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded
         "providers" => providers(&loaded.registry),
         "doctor" => doctor(&workspace, &loaded.registry),
         "policy" => policy(sub, &loaded.registry),
+        "session" => session(sub, &workspace),
         "run" => match sub.get_one::<String>("name") {
             Some(name) => invoke(matches, name, &Map::new(), workspace, loaded),
             None => Ending::Usage,
@@ -135,6 +135,168 @@ fn policy(matches: &ArgMatches, registry: &Registry) -> Ending {
         }
         _ => Ending::Usage,
     }
+}
+
+/// `meow session ...`
+fn session(matches: &ArgMatches, workspace: &Workspace) -> Ending {
+    let mut sessions = match crate::session::open(workspace) {
+        Ok(sessions) => sessions,
+        Err(e) => {
+            eprintln!("{e}");
+            return Ending::Stopped(meow_core::StopReason::Failed);
+        }
+    };
+
+    let found = |sessions: &meow_session::Sessions, matches: &ArgMatches| {
+        matches
+            .get_one::<String>("id")
+            .ok_or_else(|| "no session was named".to_owned())
+            .and_then(|needle| sessions.resolve(needle).map_err(|e| e.to_string()))
+    };
+
+    match matches.subcommand() {
+        Some(("list", sub)) => {
+            let agent = sub.get_one::<String>("agent").map(String::as_str);
+            let limit = sub.get_one::<i64>("limit").copied().unwrap_or(20);
+            match sessions.list(agent, limit) {
+                Ok(rows) => {
+                    for row in &rows {
+                        println!("{}", crate::session::describe(&sessions, row));
+                    }
+                    Ending::Passed
+                }
+                Err(e) => failed(&e),
+            }
+        }
+
+        Some(("show", sub)) => match found(&sessions, sub) {
+            Ok(session) => {
+                match sessions.export_markdown(&session.id, &meow_session::Redaction::default()) {
+                    Ok(export) => {
+                        print!("{}", export.text);
+                        Ending::Passed
+                    }
+                    Err(e) => failed(&e),
+                }
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                Ending::Usage
+            }
+        },
+
+        Some(("fork", sub)) => {
+            let at = sub.get_one::<u64>("at").copied().unwrap_or(1);
+            let origin = match found(&sessions, sub) {
+                Ok(session) => session.id,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return Ending::Usage;
+                }
+            };
+            let id = meow_core::SessionId::new(now_millis(), entropy());
+            match sessions.fork(&origin, at, &id) {
+                Ok(id) => {
+                    println!("{id}");
+                    Ending::Passed
+                }
+                // A bad fork point is the caller naming a sequence that is not
+                // there, which is a usage mistake and not a storage failure.
+                Err(e) => {
+                    eprintln!("{e}");
+                    Ending::Usage
+                }
+            }
+        }
+
+        Some(("export", sub)) => {
+            let session = match found(&sessions, sub) {
+                Ok(session) => session,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return Ending::Usage;
+                }
+            };
+            let redaction = meow_session::Redaction {
+                arguments: Vec::new(),
+                include_thinking: sub.get_flag("thinking"),
+            };
+            let export = if sub.get_one::<String>("as").is_some_and(|f| f == "json") {
+                sessions.export_json(&session.id, &redaction)
+            } else {
+                sessions.export_markdown(&session.id, &redaction)
+            };
+            match export {
+                Ok(export) => {
+                    print!("{}", export.text);
+                    Ending::Passed
+                }
+                Err(e) => failed(&e),
+            }
+        }
+
+        Some(("gc", sub)) => {
+            let retention = meow_session::Retention {
+                max_age_secs: sub
+                    .get_one::<i64>("older-than-days")
+                    .map(|days| days * 24 * 60 * 60),
+                max_count: sub.get_one::<usize>("keep").copied(),
+                max_bytes: None,
+                include_named: sub.get_flag("named"),
+            };
+            match sessions.sweep(retention, now_secs()) {
+                Ok(swept) => {
+                    for id in &swept.deleted {
+                        println!("deleted\t{}", id.short());
+                    }
+                    for id in &swept.kept {
+                        println!("kept\t{}\tnamed", id.short());
+                    }
+                    Ending::Passed
+                }
+                Err(e) => failed(&e),
+            }
+        }
+
+        _ => Ending::Usage,
+    }
+}
+
+fn failed(e: &impl std::fmt::Display) -> Ending {
+    eprintln!("{e}");
+    Ending::Stopped(meow_core::StopReason::Failed)
+}
+
+/// Now, in milliseconds, for minting an identifier.
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
+}
+
+/// Now, in seconds, for retention.
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
+/// Eighty bits of entropy for an identifier.
+///
+/// From the clock's sub-millisecond digits and the process id rather than a
+/// random number generator: an identifier needs to be unique within a
+/// workspace, not unguessable, and one fewer dependency is worth more than
+/// cryptographic randomness nothing depends on.
+fn entropy() -> [u8; 10] {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    let pid = std::process::id();
+    let mut out = [0_u8; 10];
+    out[..4].copy_from_slice(&nanos.to_be_bytes());
+    out[4..8].copy_from_slice(&pid.to_be_bytes());
+    out[8..].copy_from_slice(&(nanos as u16).to_be_bytes());
+    out
 }
 
 fn completions(matches: &ArgMatches) -> Ending {
@@ -282,6 +444,22 @@ fn invoke(
             .is_some_and(|c| c == "never"),
     }));
 
+    // The session is opened before the run, because `--continue` decides what
+    // the run is given and not what it does afterwards.
+    let session = match open_session(&workspace, name, args, matches.get_flag("continue")) {
+        Ok(session) => session,
+        Err(Opening::Missing(message)) => {
+            // Asking to continue something that is not there is a mistake in
+            // what was typed, not a broken workspace.
+            eprintln!("{message}");
+            return Ending::Usage;
+        }
+        Err(Opening::Broken(message)) => {
+            eprintln!("{message}");
+            return Ending::Config;
+        }
+    };
+
     // One object answers questions and approvals alike, so an `always` and a
     // `ctx.ask` cannot disagree about whether anybody is there.
     let terminal = Arc::new(ask::Terminal::new(
@@ -303,7 +481,7 @@ fn invoke(
             dry_run: matches.get_flag("dry-run"),
             ask: Arc::clone(&terminal) as Arc<dyn meow_star::port::Ask>,
             stdin: Arc::new(crate::ask::Stdin),
-            session: Arc::new(Memory::new("local")),
+            session: Arc::clone(&session) as Arc<dyn meow_star::port::Session>,
         },
         cancel.clone(),
     ));
@@ -317,16 +495,68 @@ fn invoke(
     sink.finish();
 
     match result {
-        Ok(Ok(returned)) => exit::finished(verdict(&returned)),
+        Ok(Ok(returned)) => {
+            // The run finished either way: a handler that returned false
+            // reported a verdict about what it looked at, not about the run.
+            session.finish(meow_core::StopReason::Finished, None);
+            exit::finished(verdict(&returned))
+        }
         Ok(Err(e)) => {
             eprintln!("{e}");
+            session.finish(meow_core::StopReason::Failed, Some(&e.to_string()));
             Ending::Stopped(meow_core::StopReason::Failed)
         }
         Err(e) => {
             eprintln!("the run did not finish: {e}");
+            session.finish(meow_core::StopReason::Failed, None);
             Ending::Stopped(meow_core::StopReason::Failed)
         }
     }
+}
+
+/// Open the session this run writes to.
+///
+/// `[R-TUI-074]`: `--continue` resumes the most recent session of the command
+/// being invoked and fails when there is none, rather than quietly starting a
+/// fresh run somebody thought they were adding to.
+fn open_session(
+    workspace: &Workspace,
+    agent: &str,
+    args: &Map<String, Value>,
+    resuming: bool,
+) -> std::result::Result<Arc<crate::session::Log>, Opening> {
+    let sessions = crate::session::open(workspace).map_err(|e| Opening::Broken(e.to_string()))?;
+
+    let previous = if resuming {
+        let found = crate::session::most_recent(&sessions, agent)
+            .map_err(|e| Opening::Broken(e.to_string()))?;
+        Some(found.ok_or_else(|| {
+            Opening::Missing(format!(
+                "`--continue` found no earlier session of `{agent}` in this workspace"
+            ))
+        })?)
+    } else {
+        None
+    };
+
+    let task = args
+        .get("task")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+
+    crate::session::Log::open(sessions, agent, &task, previous, now_millis(), entropy())
+        .map(Arc::new)
+        .map_err(|e| Opening::Broken(e.to_string()))
+}
+
+/// Why a session could not be opened.
+#[derive(Debug)]
+enum Opening {
+    /// `--continue` found nothing to continue.
+    Missing(String),
+    /// The store would not open, or the log would not be written.
+    Broken(String),
 }
 
 /// What a handler's return value says about the run.
