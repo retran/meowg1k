@@ -37,6 +37,34 @@ pub trait Renderer {
     /// Whatever writing to the sink failed with.
     fn event(&mut self, event: &ViewEvent) -> std::io::Result<()>;
 
+    /// Show a prompt and leave it up until it is answered.
+    ///
+    /// `[R-TUI-060]`: it occupies the live region and never overwrites the
+    /// transcript above it. A renderer with no live region writes to stderr,
+    /// which is right for the same reason: stdout may be a pipe carrying a
+    /// result, and a question does not belong in it.
+    ///
+    /// # Errors
+    ///
+    /// Whatever writing to the sink failed with.
+    fn prompt_open(&mut self, lines: &[String]) -> std::io::Result<()> {
+        use std::io::Write;
+        let mut err = std::io::stderr();
+        for line in lines {
+            writeln!(err, "{line}")?;
+        }
+        err.flush()
+    }
+
+    /// Take the prompt down again.
+    ///
+    /// # Errors
+    ///
+    /// Whatever writing to the sink failed with.
+    fn prompt_close(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+
     /// Finish: flush, and put the terminal back as it was found.
     ///
     /// # Errors

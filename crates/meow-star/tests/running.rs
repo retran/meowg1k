@@ -218,6 +218,8 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
             ask: Arc::new(Willing("yes".to_owned())) as Arc<dyn Ask>,
             stdin: Arc::new(Piped("piped text".to_owned())) as Arc<dyn Stdin>,
             session: Arc::new(meow_star::port::quiet::Memory::new("s-1")) as Arc<dyn Session>,
+            approve: None,
+            dry_run: false,
         },
         CancellationToken::new(),
     ));
@@ -638,4 +640,54 @@ meow.command(meow.tool(name = "probe", about = "call a tool", run = handler))
 
     call(&h.runtime, "probe", args(&[])).await;
     assert_eq!(h.out.lines(), ["write: 42"]);
+}
+
+/// [R-TUI-050] ctx.ask has exactly text, confirm, and select
+#[tokio::test(flavor = "multi_thread")]
+async fn ctx_ask_has_exactly_three_calls() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+def handler(ctx):
+    ctx.out.write(",".join(sorted(dir(ctx.ask))))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "look at ask", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+    assert_eq!(h.out.lines(), ["write: confirm,select,text"]);
+}
+
+/// [R-TUI-041] ctx.out has exactly the ten calls the spec fixes it at
+#[tokio::test(flavor = "multi_thread")]
+async fn ctx_out_has_exactly_ten_calls() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+def handler(ctx):
+    ctx.out.write(",".join(sorted(dir(ctx.out))))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "look at out", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+    assert_eq!(
+        h.out.lines(),
+        ["write: diff,error,finding,json,markdown,note,step,table,warn,write"],
+        "ctx.out is not the ten semantic calls"
+    );
 }
