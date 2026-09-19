@@ -131,6 +131,11 @@ crate hard to change and proves nothing a user could observe.
 Keep the default `rustfmt`; there is no project style beyond it. Clippy runs
 with `-D warnings`, and an `#[allow]` needs a comment saying why.
 
+`allow-unwrap-in-tests` in `clippy.toml` covers `#[test]` functions and
+`#[cfg(test)]` modules, and not a plain helper function in an integration test
+file. Put `#![allow(clippy::unwrap_used)]` at the top of such a file with a
+line saying that is why, rather than scattering attributes.
+
 Derive `Debug` on every public type. Prefer `&str` over `String` in arguments,
 `impl Trait` in argument position for simple bounds, and a named type in return
 position when the caller has to name it.
