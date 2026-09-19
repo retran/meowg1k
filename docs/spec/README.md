@@ -95,8 +95,9 @@ the only thing that stops it being reopened.
 ## Status
 
 All eight component specifications are drafted, with 262 requirements
-between them, and every open question is closed. None is approved yet, and no
-implementation exists.
+between them, and every open question is closed. They were approved on
+2026-09-19 and are the acceptance criteria for the work in
+`docs/design/0.3.0-plan.md`.
 
 | Area | File | Requirements |
 | --- | --- | --- |
