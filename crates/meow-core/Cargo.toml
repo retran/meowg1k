@@ -7,7 +7,6 @@ repository.workspace = true
 description = "Domain types shared across the meowg1k workspace"
 
 [dependencies]
-thiserror = { workspace = true }
 
 [lints]
 workspace = true

@@ -80,5 +80,5 @@ description = "Review pending snapshot changes"
 # What CI runs, in the order that fails fastest first. Run this before opening
 # a pull request.
 [tasks.all]
-depends = ["fmt-check", "check", "test", "doc", "deny", "lint-md"]
+depends = ["fmt-check", "check", "test", "doc", "deny", "unused-deps", "lint-md"]
 description = "Everything CI checks"
