@@ -5,8 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::Value;
-
+pub use crate::agent::AgentDecl;
 use crate::args::Args;
 use crate::error::{Result, StarError, closest};
 
@@ -96,25 +95,6 @@ pub struct ToolDecl {
     pub origin: Origin,
 }
 
-/// An agent, as declared.
-#[derive(Debug, Clone)]
-pub struct AgentDecl {
-    /// What to call it.
-    pub name: String,
-    /// What it does.
-    pub about: String,
-    /// Which model.
-    pub model: String,
-    /// How it is framed.
-    pub system: String,
-    /// What it may call, by name.
-    pub tools: Vec<String>,
-    /// A schema the answer must satisfy.
-    pub output: Option<Value>,
-    /// Where it was declared.
-    pub origin: Origin,
-}
-
 /// Everything one workspace declared.
 ///
 /// One table, per `[R-STAR-010]`. v0.2.x assembled its context in two places,
@@ -128,6 +108,7 @@ pub struct Registry {
     tools: BTreeMap<String, ToolDecl>,
     agents: BTreeMap<String, AgentDecl>,
     commands: BTreeMap<String, Origin>,
+    policy: Option<(meow_policy::Policy, Origin)>,
 }
 
 impl Registry {
@@ -186,6 +167,29 @@ impl Registry {
         }
         self.agents.insert(a.name.clone(), a);
         Ok(())
+    }
+
+    /// Set what every agent in this workspace may do.
+    ///
+    /// One policy, declared once. Two `meow.policy` calls would have to be
+    /// combined, and there is no combination that is obviously right: taking
+    /// the stricter surprises whoever wrote the second, and taking the later
+    /// makes the result depend on load order.
+    ///
+    /// # Errors
+    ///
+    /// [`StarError::Duplicate`] naming both declaration sites.
+    pub fn set_policy(&mut self, policy: meow_policy::Policy, origin: Origin) -> Result<()> {
+        if let Some((_, first)) = &self.policy {
+            return Err(duplicate("policy", "workspace", first, &origin));
+        }
+        self.policy = Some((policy, origin));
+        Ok(())
+    }
+
+    /// What every agent in this workspace may do, when one was declared.
+    pub fn policy(&self) -> Option<&meow_policy::Policy> {
+        self.policy.as_ref().map(|(policy, _)| policy)
     }
 
     /// Put something on the command line.
