@@ -1,0 +1,20 @@
+[package]
+name = "meow-star"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The Starlark surface: what a user writes, and how it is loaded"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+serde_json = { workspace = true }
+starlark = "0.14"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
