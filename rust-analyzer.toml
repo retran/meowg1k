@@ -1,0 +1,10 @@
+[files]
+excludeDirs = [
+    ".claude",
+    ".github",
+    ".meowg1k",
+    "cmd",
+    "docs",
+    "internal",
+    "target",
+]
