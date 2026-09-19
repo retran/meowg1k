@@ -757,3 +757,73 @@ async fn a_schema_the_provider_gave_up_on_fails_the_run() {
     assert!(outcome.detail.unwrap_or_default().contains("schema"));
     assert_eq!(outcome.value, None);
 }
+
+/// [R-POLICY-040] the policy decides before the tool runs
+/// [R-POLICY-041] a denied call tells the model which tool and why
+/// [R-POLICY-042] every evaluation produces an event
+/// [R-AGENT-006] `denied` is the stop reason when policy refused
+#[tokio::test]
+async fn policy_stops_a_tool_before_it_runs_and_says_so() {
+    use meow_policy::{Access, Call, Decision, Policy, Rule};
+
+    let probe = Probe::new("shell");
+    let ran = Arc::clone(&probe.ran);
+    let policy = Policy::new().with(
+        Decision::Allow,
+        Rule::new("meow.star:3", "fs.read").unwrap(),
+    );
+    let describe: meow_agent::DescribeCall =
+        Arc::new(|name: &str, _args: &Value| Call::new(name, Access::Write));
+
+    let provider = Scripted::new(vec![calls("shell", "{}"), says("tried something else")]);
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(probe))
+        .with_policy(policy, describe);
+
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Collect::without_deltas();
+    let outcome = Engine::new(provider)
+        .run(&spec, "t", &ledger, &mut sink, &CancellationToken::new())
+        .await;
+
+    assert_eq!(ran.load(Ordering::SeqCst), 0, "the tool must not have run");
+    assert_eq!(
+        outcome.stop,
+        StopReason::Finished,
+        "report continues by default"
+    );
+    assert!(
+        sink.events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::Policy { decision, .. } if decision == "deny")),
+        "the decision must be recorded"
+    );
+}
+
+/// [R-AGENT-006] denied and tool_aborted are told apart
+#[tokio::test]
+async fn a_denial_stops_with_denied_and_a_failure_with_tool_aborted() {
+    use meow_policy::{Access, Call, Decision, Policy, Rule};
+
+    let describe: meow_agent::DescribeCall =
+        Arc::new(|name: &str, _args: &Value| Call::new(name, Access::Write));
+
+    // Policy refuses: the boundary held.
+    let provider = Scripted::new(vec![calls("shell", "{}")]);
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("shell")))
+        .with_policy(Policy::new(), describe.clone())
+        .on_tool_error(ToolErrorPolicy::Abort);
+    let outcome = run(&spec, provider).await;
+    assert_eq!(outcome.stop, StopReason::Denied);
+
+    // The tool runs and fails: something broke.
+    let provider = Scripted::new(vec![calls("shell", "{}")]);
+    let allowed = Policy::new().with(Decision::Allow, Rule::new("meow.star:1", "shell").unwrap());
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("shell").failing()))
+        .with_policy(allowed, describe)
+        .on_tool_error(ToolErrorPolicy::Abort);
+    let outcome = run(&spec, provider).await;
+    assert_eq!(outcome.stop, StopReason::ToolAborted);
+}

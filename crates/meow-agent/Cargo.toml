@@ -11,6 +11,7 @@ publish = false
 async-trait = "0.1"
 meow-core = { path = "../meow-core" }
 meow-llm = { path = "../meow-llm" }
+meow-policy = { path = "../meow-policy" }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { version = "1", features = ["time", "macros", "rt", "sync"] }
