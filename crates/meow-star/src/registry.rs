@@ -83,6 +83,12 @@ pub struct ToolDecl {
     pub name: String,
     /// What it does, in the model's terms.
     pub about: String,
+    /// Where its implementation lives.
+    ///
+    /// A name rather than the function itself: the file it is defined in is
+    /// frozen once loading ends, and a value from before the freeze cannot
+    /// outlive the evaluator that made it.
+    pub handler: crate::run::Handler,
     /// What it takes.
     ///
     /// Kept as the declaration rather than as a finished schema, because
@@ -288,6 +294,11 @@ impl Registry {
     /// One tool.
     pub fn tool(&self, name: &str) -> Option<&ToolDecl> {
         self.tools.get(name)
+    }
+
+    /// Every tool, by name.
+    pub fn tools(&self) -> impl Iterator<Item = &ToolDecl> {
+        self.tools.values()
     }
 
     /// One agent.
