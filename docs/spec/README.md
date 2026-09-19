@@ -88,19 +88,19 @@ Anything undecided, with the options and a recommendation.
 
 ## Status
 
-All eight component specifications are drafted, with 230
-requirements between them. None is approved yet, and no implementation exists.
+All eight component specifications are drafted, with 236 requirements
+between them. None is approved yet, and no implementation exists.
 
 | Area | File | Requirements |
 | --- | --- | --- |
 | `AGENT` | `agent.md` | 36 |
-| `STAR` | `starlark.md` | 36 |
+| `STAR` | `starlark.md` | 37 |
 | `POLICY` | `policy.md` | 22 |
-| `SESSION` | `session.md` | 34 |
+| `SESSION` | `session.md` | 35 |
 | `LLM` | `llm.md` | 26 |
-| `STORE` | `store.md` | 19 |
+| `STORE` | `store.md` | 22 |
 | `INDEX` | `index.md` | 21 |
-| `TUI` | `tui.md` | 36 |
+| `TUI` | `tui.md` | 37 |
 
 Drafting them together rather than one at a time was a deliberate trade. It
 caught four contradictions between the design documents that a sequential pass
