@@ -1,0 +1,23 @@
+[package]
+name = "meow-agent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "The agent loop: tools, budgets, cancellation, and an outcome that explains itself"
+publish = false
+
+[dependencies]
+async-trait = "0.1"
+meow-core = { path = "../meow-core" }
+meow-llm = { path = "../meow-llm" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["time", "macros", "rt", "sync"] }
+tokio-util = "0.7"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util"] }
+
+[lints]
+workspace = true
