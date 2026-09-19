@@ -12,6 +12,7 @@ description = "Domain types shared across the meowg1k workspace"
 
 [dependencies]
 serde = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

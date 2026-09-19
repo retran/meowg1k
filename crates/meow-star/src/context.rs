@@ -11,6 +11,7 @@
 
 use std::sync::OnceLock;
 
+use meow_core::view::Output;
 use serde_json::Value;
 use starlark::environment::{Globals, GlobalsBuilder, Module};
 use starlark::eval::Evaluator;
@@ -101,24 +102,37 @@ fn top_level(builder: &mut GlobalsBuilder) {
     }
 }
 
+/// `ctx.out`: the ten semantic calls.
+///
+/// `[R-TUI-040]` fixes the set, and `[R-TUI-041]` is why nothing here
+/// positions a cursor, draws a frame, or paginates: a script says what a thing
+/// is and each renderer decides how it looks. v0.2.x had twenty-two layout
+/// builtins, so presentation was decided in userland and could not be fixed
+/// centrally.
 #[starlark_module]
 fn out_module(builder: &mut GlobalsBuilder) {
-    /// A line of plain text.
+    /// A line of plain output.
     fn write(
         #[starlark(require = pos)] text: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.write")?.runtime.out().write(&text);
-        Ok(NoneType)
+        emit(eval, "ctx.out.write", Output::Write { text })
     }
 
-    /// An aside: counts, timings, what was skipped.
+    /// Markdown: rendered in a terminal, raw in a pipe, a string in JSON.
+    fn markdown(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator,
+    ) -> starlark::Result<NoneType> {
+        emit(eval, "ctx.out.markdown", Output::Markdown { text })
+    }
+
+    /// A de-emphasised aside.
     fn note(
         #[starlark(require = pos)] text: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.note")?.runtime.out().note(&text);
-        Ok(NoneType)
+        emit(eval, "ctx.out.note", Output::Note { text })
     }
 
     /// Something the reader should act on.
@@ -126,29 +140,65 @@ fn out_module(builder: &mut GlobalsBuilder) {
         #[starlark(require = pos)] text: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.warn")?.runtime.out().warn(&text);
-        Ok(NoneType)
+        emit(eval, "ctx.out.warn", Output::Warn { text })
     }
 
-    /// A step in a longer piece of work.
+    /// Something that went wrong.
+    fn error(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator,
+    ) -> starlark::Result<NoneType> {
+        emit(eval, "ctx.out.error", Output::Error { text })
+    }
+
+    /// A labelled phase in the transcript.
     fn step(
         #[starlark(require = pos)] text: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.step")?.runtime.out().step(&text);
-        Ok(NoneType)
+        emit(eval, "ctx.out.step", Output::Step { text })
     }
 
-    /// Text to render as markdown.
-    fn markdown(
-        #[starlark(require = pos)] text: String,
+    /// Rows under headings.
+    fn table<'v>(
+        #[starlark(require = pos)] rows: StarValue<'v>,
+        #[starlark(require = named)] columns: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<NoneType> {
+        let columns = strings(columns, "columns")?;
+        let rows = match rows.to_json_value().map_err(oops)? {
+            Value::Array(items) => items
+                .into_iter()
+                .map(|row| match row {
+                    Value::Array(cells) => Ok(cells.iter().map(render_cell).collect()),
+                    other => Err(oops(format!("a row must be a list, and one is {other}"))),
+                })
+                .collect::<starlark::Result<Vec<Vec<String>>>>()?,
+            other => return Err(oops(format!("`rows` must be a list, and is {other}"))),
+        };
+
+        // Checked here rather than left to the renderer: a short row would be
+        // padded by one renderer, truncated by another, and misaligned in a
+        // pipe, which is three behaviours for one mistake.
+        for (i, row) in rows.iter().enumerate() {
+            if row.len() != columns.len() {
+                return Err(oops(format!(
+                    "row {i} has {} cells and there are {} columns",
+                    row.len(),
+                    columns.len()
+                )));
+            }
+        }
+
+        emit(eval, "ctx.out.table", Output::Table { columns, rows })
+    }
+
+    /// A unified diff.
+    fn diff(
+        #[starlark(require = pos)] patch: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.markdown")?
-            .runtime
-            .out()
-            .markdown(&text);
-        Ok(NoneType)
+        emit(eval, "ctx.out.diff", Output::Diff { patch })
     }
 
     /// One result, with where it is and how much it matters.
@@ -158,11 +208,51 @@ fn out_module(builder: &mut GlobalsBuilder) {
         #[starlark(require = pos)] summary: String,
         eval: &mut Evaluator,
     ) -> starlark::Result<NoneType> {
-        running(eval, "ctx.out.finding")?
-            .runtime
-            .out()
-            .finding(&severity, &location, &summary);
-        Ok(NoneType)
+        emit(
+            eval,
+            "ctx.out.finding",
+            Output::Finding {
+                severity,
+                location,
+                summary,
+            },
+        )
+    }
+
+    /// A structured payload, first class under `--format json`.
+    fn json<'v>(
+        #[starlark(require = pos)] value: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<NoneType> {
+        let value = value.to_json_value().map_err(oops)?;
+        emit(eval, "ctx.out.json", Output::Json { value })
+    }
+}
+
+fn emit(eval: &mut Evaluator, what: &str, output: Output) -> starlark::Result<NoneType> {
+    crate::port::say(running(eval, what)?.runtime.events(), output);
+    Ok(NoneType)
+}
+
+fn render_cell(cell: &Value) -> String {
+    match cell {
+        Value::String(text) => text.clone(),
+        other => other.to_string(),
+    }
+}
+
+fn strings(value: StarValue<'_>, what: &str) -> starlark::Result<Vec<String>> {
+    match value.to_json_value().map_err(oops)? {
+        Value::Array(items) => items
+            .into_iter()
+            .map(|item| match item {
+                Value::String(text) => Ok(text),
+                other => Err(oops(format!(
+                    "`{what}` must hold strings, and carries {other}"
+                ))),
+            })
+            .collect(),
+        other => Err(oops(format!("`{what}` must be a list, and is {other}"))),
     }
 }
 
