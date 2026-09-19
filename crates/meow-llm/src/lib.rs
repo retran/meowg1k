@@ -14,6 +14,7 @@
 
 mod anthropic;
 mod error;
+mod http;
 mod message;
 mod provider;
 mod retry;
@@ -23,6 +24,7 @@ mod transport;
 
 pub use crate::anthropic::Anthropic;
 pub use crate::error::{Class, LlmError, Result};
+pub use crate::http::Http;
 pub use crate::message::{Message, Request, Response, Role, ToolCall, ToolDefinition};
 pub use crate::provider::{Capabilities, Provider, Structured, check_supported};
 pub use crate::retry::{Retry, with_retry};
