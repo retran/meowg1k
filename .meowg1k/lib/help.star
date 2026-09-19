@@ -1,12 +1,10 @@
-# ==============================================================================
-# Help Text Formatting Library (lib/help.star)
-# ==============================================================================
-# Shared utilities for building consistent CLI help text descriptions.
-#
-# Public API:
-#   - build_choices_desc(title, choices, default, get_desc=None)
-#   - build_preset_desc(default_preset)
-# ==============================================================================
+"""
+Shared utilities for building consistent CLI help text descriptions.
+
+Public API:
+    build_choices_desc(title, choices, default, get_desc=None)
+    build_preset_desc(default_preset)
+"""
 
 def build_choices_desc(title, choices, default, get_desc=None):
     """Build a formatted description for enumeration parameters.

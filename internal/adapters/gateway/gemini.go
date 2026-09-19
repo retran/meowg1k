@@ -34,7 +34,7 @@ type geminiGateway struct {
 	client *genai.Client
 }
 
-// NewGeminiGateway creates and initializes a new unified GeminiGateway.
+// newGeminiGateway creates and initializes a new unified GeminiGateway.
 // baseURL overrides the default Gemini API endpoint when non-empty (useful for testing).
 func newGeminiGateway(ctx context.Context, apiKey string, baseURL string) (ports.Gateway, error) {
 	cfg := &genai.ClientConfig{
