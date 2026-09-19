@@ -70,7 +70,7 @@ impl Handler {
 
 /// Everything a run needs that outlives one handler.
 pub struct Runtime {
-    engine: Arc<Engine>,
+    engines: HashMap<String, Arc<Engine>>,
     handle: tokio::runtime::Handle,
     workspace: Workspace,
     registry: Arc<Registry>,
@@ -110,13 +110,13 @@ impl Runtime {
     pub fn new(
         loaded: crate::loader::Loaded,
         workspace: Workspace,
-        engine: Arc<Engine>,
+        engines: HashMap<String, Arc<Engine>>,
         handle: tokio::runtime::Handle,
         ports: Ports,
         cancel: CancellationToken,
     ) -> Self {
         Self {
-            engine,
+            engines,
             handle,
             workspace,
             registry: Arc::new(loaded.registry),
@@ -209,6 +209,48 @@ impl Runtime {
         })
     }
 
+    /// The engine that serves an agent's model.
+    ///
+    /// A workspace declares several providers and each model names one, so
+    /// which engine runs an agent is a property of the declarations rather
+    /// than of the run. The engine itself takes one provider and has no way to
+    /// know that `claude-haiku-4-5` belongs to Anthropic, which is why the
+    /// choice is made here.
+    ///
+    /// # Errors
+    ///
+    /// [`StarError::Unknown`] when no engine was built for the provider the
+    /// model names, which means a credential was missing at startup.
+    fn engine_for(&self, model: &str) -> Result<&Arc<Engine>> {
+        let declared = self
+            .registry
+            .model(model)
+            .ok_or_else(|| StarError::Unknown {
+                kind: "model",
+                name: model.to_owned(),
+                closest: closest(model, self.registry.models().map(|m| m.name.as_str())),
+            })?;
+        self.engines
+            .get(&declared.provider)
+            .ok_or_else(|| StarError::Unknown {
+                kind: "provider",
+                name: declared.provider.clone(),
+                closest: closest(&declared.provider, self.engines.keys().map(String::as_str)),
+            })
+    }
+
+    /// Which model an agent names.
+    fn agent_model(&self, name: &str) -> Result<String> {
+        self.registry
+            .agent(name)
+            .map(|a| a.model.clone())
+            .ok_or_else(|| StarError::Unknown {
+                kind: "agent",
+                name: name.to_owned(),
+                closest: closest(name, self.registry.agents().map(|a| a.name.as_str())),
+            })
+    }
+
     /// Run a declared agent to its end.
     ///
     /// # Errors
@@ -228,11 +270,9 @@ impl Runtime {
             Some(caller) => caller.child(spec.budget),
             None => Ledger::new(spec.budget),
         };
+        let engine = Arc::clone(self.engine_for(&self.agent_model(name)?)?);
         let mut sink = crate::run::sink(self);
-        Ok(self.block_on(
-            self.engine
-                .run(&spec, task, &ledger, sink.as_mut(), &self.cancel),
-        ))
+        Ok(self.block_on(engine.run(&spec, task, &ledger, sink.as_mut(), &self.cancel)))
     }
 
     /// Assemble an agent's specification from what was declared.
@@ -314,12 +354,8 @@ impl Runtime {
                     continue;
                 }
                 let spec = Arc::new(self.agent_spec(name, depth + 1)?);
-                set = set.with(SubAgent::new(
-                    spec,
-                    Arc::clone(&self.engine),
-                    ledger,
-                    depth + 1,
-                ));
+                let engine = Arc::clone(self.engine_for(&self.agent_model(name)?)?);
+                set = set.with(SubAgent::new(spec, engine, ledger, depth + 1));
                 continue;
             }
             return Err(StarError::Unknown {

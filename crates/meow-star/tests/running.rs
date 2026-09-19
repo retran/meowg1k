@@ -206,7 +206,12 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
     let runtime = Arc::new(Runtime::new(
         loaded,
         workspace,
-        Arc::new(Engine::new(Arc::clone(&provider) as Arc<dyn Provider>)),
+        // One engine per declared provider, keyed by the name a model gives it.
+        std::iter::once((
+            "p".to_owned(),
+            Arc::new(Engine::new(Arc::clone(&provider) as Arc<dyn Provider>)),
+        ))
+        .collect(),
         tokio::runtime::Handle::current(),
         Ports {
             events: Arc::clone(&out) as Arc<dyn Events>,

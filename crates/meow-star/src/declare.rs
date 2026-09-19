@@ -8,7 +8,7 @@ use starlark::environment::GlobalsBuilder;
 use starlark::eval::Evaluator;
 use starlark::starlark_module;
 use starlark::values::Value as StarValue;
-use starlark::values::none::NoneType;
+use starlark::values::none::{NoneOr, NoneType};
 use starlark::values::tuple::UnpackTuple;
 use starlark::values::typing::StarlarkCallable;
 
@@ -54,7 +54,7 @@ fn as_json(value: StarValue<'_>) -> starlark::Result<Value> {
 }
 
 fn as_object(value: Option<StarValue<'_>>, what: &str) -> starlark::Result<Map<String, Value>> {
-    match value {
+    match present(value) {
         None => Ok(Map::new()),
         Some(value) => match as_json(value)? {
             Value::Object(map) => Ok(map),
@@ -65,6 +65,16 @@ fn as_object(value: Option<StarValue<'_>>, what: &str) -> starlark::Result<Map<S
     }
 }
 
+/// Drop an argument that was given as `None`.
+///
+/// Starlark has no way to leave a keyword argument out conditionally, so
+/// `api_key = get("KEY")` passes `None` when the variable is unset. Treating
+/// an explicit `None` as absent is what makes that idiom work; the alternative
+/// is every declaration file growing an `if`.
+fn present(value: Option<StarValue<'_>>) -> Option<StarValue<'_>> {
+    value.filter(|v| !v.is_none())
+}
+
 /// Read a nested declaration through the shape both Starlark and YAML use.
 ///
 /// `[R-STAR-051]`: one structure, filled from either syntax, so a default can
@@ -73,7 +83,9 @@ fn from_json<T: serde::de::DeserializeOwned>(
     value: Option<StarValue<'_>>,
     what: &str,
 ) -> starlark::Result<Option<T>> {
-    let Some(value) = value else { return Ok(None) };
+    let Some(value) = present(value) else {
+        return Ok(None);
+    };
     let json = as_json(value)?;
     serde_json::from_value(json)
         .map(Some)
@@ -118,7 +130,7 @@ fn as_names<'v>(
 }
 
 fn as_strings(value: Option<StarValue<'_>>, what: &str) -> starlark::Result<Vec<String>> {
-    match value {
+    match present(value) {
         None => Ok(Vec::new()),
         Some(value) => match as_json(value)? {
             Value::Array(items) => items
@@ -144,7 +156,7 @@ fn declarations(builder: &mut GlobalsBuilder) {
     fn provider<'v>(
         #[starlark(require = named)] name: String,
         #[starlark(require = named)] kind: String,
-        #[starlark(require = named)] api_key: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] api_key: NoneOr<String>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
         let state = declaring(eval, "meow.provider")?;
@@ -154,7 +166,7 @@ fn declarations(builder: &mut GlobalsBuilder) {
             .add_provider(Provider {
                 name,
                 kind,
-                api_key,
+                api_key: api_key.into_option(),
                 origin,
             })
             .map_err(fail)?;
@@ -235,24 +247,24 @@ fn declarations(builder: &mut GlobalsBuilder) {
         #[starlark(require = named)] name: String,
         #[starlark(require = named)] model: String,
         #[starlark(require = named)] system: String,
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
         #[starlark(require = named)] tools: Option<StarValue<'v>>,
         #[starlark(require = named)] budget: Option<StarValue<'v>>,
         #[starlark(require = named)] compaction: Option<StarValue<'v>>,
         #[starlark(require = named)] output: Option<StarValue<'v>>,
-        #[starlark(require = named)] on_tool_error: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] on_tool_error: NoneOr<String>,
         #[starlark(require = named)] policy: Option<StarValue<'v>>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<crate::value::Agent> {
         let fields = agent::Fields {
             model: Some(model),
             system: Some(system),
-            about,
+            about: about.into_option(),
             tools: Some(as_names(tools, "tools", eval.heap())?),
             budget: from_json(budget, "budget")?,
             compaction: from_json(compaction, "compaction")?,
             output: output.map(as_json).transpose()?,
-            on_tool_error,
+            on_tool_error: on_tool_error.into_option(),
             policy: from_json(policy, "policy")?,
             include: None,
         };
@@ -313,82 +325,102 @@ fn declarations(builder: &mut GlobalsBuilder) {
 fn arg_constructors(builder: &mut GlobalsBuilder) {
     /// A string argument.
     fn string(
-        #[starlark(require = named)] about: Option<String>,
-        #[starlark(require = named)] default: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+        #[starlark(require = named, default = NoneOr::None)] default: NoneOr<String>,
         #[starlark(require = named, default = true)] required: bool,
-        #[starlark(require = named)] positional: Option<u32>,
-        #[starlark(require = named)] max_len: Option<u32>,
-        #[starlark(require = named)] pattern: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] positional: NoneOr<u32>,
+        #[starlark(require = named, default = NoneOr::None)] max_len: NoneOr<u32>,
+        #[starlark(require = named, default = NoneOr::None)] pattern: NoneOr<String>,
     ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "string" });
-        describe(&mut node, about, default.map(Value::String));
-        put(&mut node, "maxLength", max_len.map(|v| json!(v)));
-        put(&mut node, "pattern", pattern.map(Value::String));
-        Ok(args::annotate(node, required, positional))
+        describe(
+            &mut node,
+            about.into_option(),
+            default.into_option().map(Value::String),
+        );
+        put(
+            &mut node,
+            "maxLength",
+            max_len.into_option().map(|v| json!(v)),
+        );
+        put(
+            &mut node,
+            "pattern",
+            pattern.into_option().map(Value::String),
+        );
+        Ok(args::annotate(node, required, positional.into_option()))
     }
 
     /// A whole-number argument.
     fn int(
-        #[starlark(require = named)] about: Option<String>,
-        #[starlark(require = named)] default: Option<i64>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+        #[starlark(require = named, default = NoneOr::None)] default: NoneOr<i64>,
         #[starlark(require = named, default = true)] required: bool,
-        #[starlark(require = named)] positional: Option<u32>,
-        #[starlark(require = named)] min: Option<i64>,
-        #[starlark(require = named)] max: Option<i64>,
+        #[starlark(require = named, default = NoneOr::None)] positional: NoneOr<u32>,
+        #[starlark(require = named, default = NoneOr::None)] min: NoneOr<i64>,
+        #[starlark(require = named, default = NoneOr::None)] max: NoneOr<i64>,
     ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "integer" });
-        describe(&mut node, about, default.map(|v| json!(v)));
-        put(&mut node, "minimum", min.map(|v| json!(v)));
-        put(&mut node, "maximum", max.map(|v| json!(v)));
-        Ok(args::annotate(node, required, positional))
+        describe(
+            &mut node,
+            about.into_option(),
+            default.into_option().map(|v| json!(v)),
+        );
+        put(&mut node, "minimum", min.into_option().map(|v| json!(v)));
+        put(&mut node, "maximum", max.into_option().map(|v| json!(v)));
+        Ok(args::annotate(node, required, positional.into_option()))
     }
 
     /// A number argument.
     fn float<'v>(
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
         #[starlark(require = named)] default: Option<StarValue<'v>>,
         #[starlark(require = named, default = true)] required: bool,
-        #[starlark(require = named)] positional: Option<u32>,
+        #[starlark(require = named, default = NoneOr::None)] positional: NoneOr<u32>,
         #[starlark(require = named)] min: Option<StarValue<'v>>,
         #[starlark(require = named)] max: Option<StarValue<'v>>,
     ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "number" });
         describe(
             &mut node,
-            about,
-            default.map(as_f64).transpose()?.map(|v| json!(v)),
+            about.into_option(),
+            present(default).map(as_f64).transpose()?.map(|v| json!(v)),
         );
         put(
             &mut node,
             "minimum",
-            min.map(as_f64).transpose()?.map(|v| json!(v)),
+            present(min).map(as_f64).transpose()?.map(|v| json!(v)),
         );
         put(
             &mut node,
             "maximum",
-            max.map(as_f64).transpose()?.map(|v| json!(v)),
+            present(max).map(as_f64).transpose()?.map(|v| json!(v)),
         );
-        Ok(args::annotate(node, required, positional))
+        Ok(args::annotate(node, required, positional.into_option()))
     }
 
     /// A flag that is either on or off.
     fn bool(
-        #[starlark(require = named)] about: Option<String>,
-        #[starlark(require = named)] default: Option<bool>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+        #[starlark(require = named, default = NoneOr::None)] default: NoneOr<bool>,
         #[starlark(require = named, default = false)] required: bool,
     ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "boolean" });
-        describe(&mut node, about, default.map(Value::Bool));
+        describe(
+            &mut node,
+            about.into_option(),
+            default.into_option().map(Value::Bool),
+        );
         Ok(args::annotate(node, required, None))
     }
 
     /// One of a fixed set of strings.
     fn r#enum<'v>(
         #[starlark(require = named)] values: StarValue<'v>,
-        #[starlark(require = named)] about: Option<String>,
-        #[starlark(require = named)] default: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+        #[starlark(require = named, default = NoneOr::None)] default: NoneOr<String>,
         #[starlark(require = named, default = true)] required: bool,
-        #[starlark(require = named)] positional: Option<u32>,
+        #[starlark(require = named, default = NoneOr::None)] positional: NoneOr<u32>,
     ) -> starlark::Result<Value> {
         let values = as_strings(Some(values), "values")?;
         if values.is_empty() {
@@ -396,6 +428,7 @@ fn arg_constructors(builder: &mut GlobalsBuilder) {
                 "`meow.arg.enum` needs at least one value"
             )));
         }
+        let default = default.into_option();
         if let Some(default) = &default
             && !values.contains(default)
         {
@@ -404,21 +437,21 @@ fn arg_constructors(builder: &mut GlobalsBuilder) {
             )));
         }
         let mut node = json!({ "type": "string", "enum": values });
-        describe(&mut node, about, default.map(Value::String));
-        Ok(args::annotate(node, required, positional))
+        describe(&mut node, about.into_option(), default.map(Value::String));
+        Ok(args::annotate(node, required, positional.into_option()))
     }
 
     /// A list of one element type.
     fn list<'v>(
         #[starlark(require = named)] element: StarValue<'v>,
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
         #[starlark(require = named, default = true)] required: bool,
-        #[starlark(require = named)] positional: Option<u32>,
+        #[starlark(require = named, default = NoneOr::None)] positional: NoneOr<u32>,
     ) -> starlark::Result<Value> {
         let element = schema::for_model(&as_json(element)?);
         let mut node = json!({ "type": "array", "items": element });
-        describe(&mut node, about, None);
-        Ok(args::annotate(node, required, positional))
+        describe(&mut node, about.into_option(), None);
+        Ok(args::annotate(node, required, positional.into_option()))
     }
 }
 
@@ -429,7 +462,7 @@ fn schema_constructors(builder: &mut GlobalsBuilder) {
     fn object<'v>(
         #[starlark(require = named)] fields: StarValue<'v>,
         #[starlark(require = named)] required: Option<StarValue<'v>>,
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
     ) -> starlark::Result<Value> {
         let fields = as_object(Some(fields), "fields")?;
         let fields = fields
@@ -438,57 +471,65 @@ fn schema_constructors(builder: &mut GlobalsBuilder) {
             .collect();
         let required = as_strings(required, "required")?;
         let mut node = schema::object(fields, required).map_err(fail)?;
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// A list of one element type.
     fn list<'v>(
         #[starlark(require = named)] element: StarValue<'v>,
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
     ) -> starlark::Result<Value> {
         let element = schema::for_model(&as_json(element)?);
         let mut node = json!({ "type": "array", "items": element });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// Text.
-    fn string(#[starlark(require = named)] about: Option<String>) -> starlark::Result<Value> {
+    fn string(
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+    ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "string" });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// A whole number.
-    fn int(#[starlark(require = named)] about: Option<String>) -> starlark::Result<Value> {
+    fn int(
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+    ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "integer" });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// A number.
-    fn float(#[starlark(require = named)] about: Option<String>) -> starlark::Result<Value> {
+    fn float(
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+    ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "number" });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// True or false.
-    fn bool(#[starlark(require = named)] about: Option<String>) -> starlark::Result<Value> {
+    fn bool(
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
+    ) -> starlark::Result<Value> {
         let mut node = json!({ "type": "boolean" });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 
     /// One of a fixed set of strings.
     fn r#enum<'v>(
         #[starlark(require = named)] values: StarValue<'v>,
-        #[starlark(require = named)] about: Option<String>,
+        #[starlark(require = named, default = NoneOr::None)] about: NoneOr<String>,
     ) -> starlark::Result<Value> {
         let values = as_strings(Some(values), "values")?;
         let mut node = json!({ "type": "string", "enum": values });
-        describe(&mut node, about, None);
+        describe(&mut node, about.into_option(), None);
         Ok(node)
     }
 }

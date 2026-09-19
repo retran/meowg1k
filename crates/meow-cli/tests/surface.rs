@@ -1,0 +1,294 @@
+// Copyright © 2025 The meowg1k Authors
+// SPDX-License-Identifier: Apache-2.0
+
+//! The command surface, and what the process exits with.
+//!
+//! The binary is driven as a binary: `cargo test` builds it and these run it
+//! against a temporary workspace. An exit code that a shell can branch on is
+//! only worth having if something checks the shell's view of it, and that view
+//! is a process, not a function.
+#![allow(clippy::unwrap_used)]
+
+use std::path::Path;
+use std::process::{Command, Output};
+
+use tempfile::TempDir;
+
+/// The binary this test was built alongside.
+fn meow() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_meow"))
+}
+
+/// Enough of a workspace to declare a provider, a model, and two commands.
+const WORKSPACE: &str = r#"
+meow.provider(name = "anthropic", kind = "anthropic", api_key = "k")
+meow.model(
+    name = "fast",
+    provider = "anthropic",
+    id = "claude-haiku-4-5",
+    context = 200000,
+    max_output = 8192,
+)
+
+def greet(ctx):
+    ctx.out.write("hello, %s" % ctx.args.name)
+    return "true"
+
+meow.command(meow.tool(
+    name = "greet",
+    about = "say hello",
+    run = greet,
+    args = {"name": meow.arg.string(about = "who to greet", positional = 0)},
+))
+
+def gate(ctx):
+    return "false"
+
+meow.command(meow.tool(name = "gate", about = "report a failure", run = gate))
+"#;
+
+fn workspace(source: &str) -> TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join(".meow");
+    std::fs::create_dir_all(&config).unwrap();
+    std::fs::write(config.join("meow.star"), source).unwrap();
+    dir
+}
+
+fn run(dir: &Path, args: &[&str]) -> Output {
+    meow()
+        .current_dir(dir)
+        // The key comes from the declaration in these tests, and a variable
+        // left over from the developer's shell would hide a missing one.
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("NO_COLOR")
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+fn stdout(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+fn stderr(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+fn code(output: &Output) -> i32 {
+    output.status.code().unwrap_or(-1)
+}
+
+/// [R-TUI-070] a declared command is reachable at the top level, with no prefix
+#[test]
+fn a_declared_command_needs_no_prefix() {
+    let dir = workspace(WORKSPACE);
+
+    let direct = run(dir.path(), &["greet", "world"]);
+    assert_eq!(code(&direct), 0, "{}", stderr(&direct));
+    assert_eq!(stdout(&direct).trim(), "hello, world");
+
+    // And it shows up in the help, which is how anybody finds it.
+    let help = run(dir.path(), &["--help"]);
+    assert!(stdout(&help).contains("greet"), "{}", stdout(&help));
+    assert!(stdout(&help).contains("say hello"), "{}", stdout(&help));
+}
+
+/// [R-TUI-070] a declared command's arguments become flags described by their
+/// declaration
+#[test]
+fn a_declared_argument_becomes_a_described_flag() {
+    let dir = workspace(WORKSPACE);
+    let help = run(dir.path(), &["greet", "--help"]);
+
+    assert!(stdout(&help).contains("who to greet"), "{}", stdout(&help));
+    assert!(stdout(&help).contains("(required)"), "{}", stdout(&help));
+}
+
+/// [R-TUI-071] built-ins are grouped, and only the named ones stay at the top
+#[test]
+fn only_the_named_builtins_stay_at_the_top_level() {
+    let dir = workspace(WORKSPACE);
+    let help = stdout(&run(dir.path(), &["--help"]));
+
+    // Everything at the top level is either one of the nine, a group, one of
+    // this workspace's own commands, or clap's own `help`.
+    let commands: Vec<String> = help
+        .lines()
+        .skip_while(|line| !line.starts_with("Commands:"))
+        .skip(1)
+        .take_while(|line| !line.trim().is_empty())
+        .filter_map(|line| line.split_whitespace().next().map(str::to_owned))
+        .collect();
+
+    assert!(!commands.is_empty(), "{help}");
+
+    let declared = ["greet", "gate", "help"];
+    for command in &commands {
+        let known = meow_cli::surface::TOP_LEVEL.contains(&command.as_str())
+            || meow_cli::surface::GROUPS.contains(&command.as_str())
+            || declared.contains(&command.as_str());
+        assert!(
+            known,
+            "`{command}` is at the top level and is neither a named built-in, a group, nor declared"
+        );
+    }
+
+    // And at least one group is actually present, or the rule is vacuous.
+    assert!(
+        commands
+            .iter()
+            .any(|c| meow_cli::surface::GROUPS.contains(&c.as_str())),
+        "no group is present: {help}"
+    );
+}
+
+/// [R-TUI-071] a grouped built-in is not also at the top level
+#[test]
+fn a_grouped_builtin_is_reachable_only_through_its_group() {
+    let dir = workspace(WORKSPACE);
+
+    let grouped = run(dir.path(), &["policy", "show"]);
+    assert_eq!(code(&grouped), 0, "{}", stderr(&grouped));
+
+    let ungrouped = run(dir.path(), &["show"]);
+    assert_eq!(code(&ungrouped), 2, "{}", stderr(&ungrouped));
+}
+
+/// [R-TUI-080] a finished run whose handler returned nothing exits zero, and
+/// one that returned false exits one
+#[test]
+fn the_handlers_verdict_decides_between_zero_and_one() {
+    let dir = workspace(WORKSPACE);
+
+    assert_eq!(code(&run(dir.path(), &["greet", "world"])), 0);
+    assert_eq!(code(&run(dir.path(), &["gate"])), 1);
+}
+
+/// [R-TUI-080] a bad command line exits two
+#[test]
+fn a_usage_mistake_exits_two() {
+    let dir = workspace(WORKSPACE);
+
+    assert_eq!(code(&run(dir.path(), &["nonesuch"])), 2);
+    assert_eq!(
+        code(&run(dir.path(), &["greet"])),
+        2,
+        "a missing argument is a usage mistake"
+    );
+    assert_eq!(code(&run(dir.path(), &["greet", "a", "--nope"])), 2);
+}
+
+/// [R-TUI-080] a workspace that will not load exits seven, and says why
+#[test]
+fn a_broken_workspace_exits_seven() {
+    let dir = workspace("meow.provider(name = \"a\")\n");
+    let output = run(dir.path(), &["check"]);
+
+    assert_eq!(code(&output), 7, "{}", stderr(&output));
+    assert!(stderr(&output).contains("meow.star"), "{}", stderr(&output));
+}
+
+/// [R-TUI-080] running outside a workspace exits seven and names what to do
+#[test]
+fn no_workspace_exits_seven() {
+    let dir = tempfile::tempdir().unwrap();
+    let output = run(dir.path(), &["check"]);
+
+    assert_eq!(code(&output), 7, "{}", stderr(&output));
+    assert!(stderr(&output).contains("meow init"), "{}", stderr(&output));
+}
+
+/// [R-TUI-080] a missing credential exits six
+#[test]
+fn a_missing_credential_exits_six() {
+    let dir = workspace(
+        r#"
+meow.provider(name = "anthropic", kind = "anthropic")
+meow.model(name = "fast", provider = "anthropic", id = "m", context = 1, max_output = 1)
+"#,
+    );
+
+    let output = run(dir.path(), &["doctor"]);
+    assert_eq!(code(&output), 6, "{}", stdout(&output));
+    assert!(stdout(&output).contains("missing"), "{}", stdout(&output));
+}
+
+/// Help and version are not usage mistakes, whatever stream they go to.
+#[test]
+fn help_and_version_exit_zero() {
+    let dir = workspace(WORKSPACE);
+
+    assert_eq!(code(&run(dir.path(), &["--help"])), 0);
+    assert_eq!(code(&run(dir.path(), &["version"])), 0);
+
+    let version = run(dir.path(), &["version"]);
+    assert!(
+        stdout(&version).starts_with("meow "),
+        "{}",
+        stdout(&version)
+    );
+}
+
+/// [R-TUI-002] --format json selects the JSON renderer even from a terminal
+#[test]
+fn format_json_produces_one_object_per_line() {
+    let dir = workspace(WORKSPACE);
+    let output = run(dir.path(), &["--format", "json", "greet", "world"]);
+
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+
+    let lines: Vec<serde_json::Value> = stdout(&output)
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+
+    assert_eq!(lines[0]["type"], "Schema");
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["call"] == "write" && l["text"] == "hello, world"),
+        "{lines:?}"
+    );
+}
+
+/// `meow init` writes a workspace that loads.
+#[test]
+fn init_writes_something_that_loads() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let created = run(dir.path(), &["init"]);
+    assert_eq!(code(&created), 0, "{}", stderr(&created));
+
+    let checked = meow()
+        .current_dir(dir.path())
+        .env("ANTHROPIC_API_KEY", "k")
+        .arg("check")
+        .output()
+        .unwrap();
+    assert_eq!(code(&checked), 0, "{}", stderr(&checked));
+
+    // A second init does not overwrite what is already there.
+    let again = run(dir.path(), &["init"]);
+    assert_eq!(code(&again), 7, "{}", stderr(&again));
+}
+
+/// `meow models` and `meow providers` report what was declared.
+#[test]
+fn models_and_providers_list_what_was_declared() {
+    let dir = workspace(WORKSPACE);
+
+    let models = run(dir.path(), &["models"]);
+    assert!(
+        stdout(&models).contains("claude-haiku-4-5"),
+        "{}",
+        stdout(&models)
+    );
+
+    let providers = run(dir.path(), &["providers"]);
+    assert!(
+        stdout(&providers).contains("key present"),
+        "{}",
+        stdout(&providers)
+    );
+}
