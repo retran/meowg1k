@@ -87,8 +87,9 @@ list, and MUST present the same schema there as a tool declared with
 `meow.tool`.
 
 **[R-STAR-042]** `agent.run(task, ...)` MUST return a value carrying `text`,
-`value`, `stop`, `ok`, `usage`, `steps`, and `session`, with `stop` taking one
-of the six values in [R-AGENT-002].
+`value`, `stop`, `detail`, `ok`, `usage`, `steps`, and `session`, with `stop`
+taking one of the six values in [R-AGENT-002] and `detail` carrying the
+explanation required by [R-AGENT-004].
 
 **[R-STAR-043]** `agent.call(...)` MUST build an invocation without running
 it, and `meow.parallel([...])` MUST accept a list of such invocations.
@@ -114,8 +115,10 @@ value, and MUST be indistinguishable to a caller.
 ### Tools and arguments
 
 **[R-STAR-060]** `meow.arg` MUST support the types `string`, `int`, `float`,
-`bool`, `enum`, and `list`, each with an optional default, an optional
-`about`, and type-appropriate constraints.
+`bool`, `enum`, and `list`, each with an optional default and an optional
+`about`. `string` MUST accept `max_len` and `pattern`; `int` and `float` MUST
+accept `min` and `max`; `enum` MUST require its list of values; `list` MUST
+require an element type.
 
 **[R-STAR-061]** One argument declaration MUST produce the command-line flag,
 the help text, and the JSON Schema sent to the model, so the three cannot
@@ -146,9 +149,13 @@ calling script thread and MUST NOT expose a future or a callback to Starlark.
 **[R-STAR-082]** `print` MUST fail with an error directing the caller to
 `ctx.out`.
 
-**[R-STAR-083]** Evaluation of `.meow/` MUST be free of side effects outside
-the declaration registry: a declaration file MUST NOT read files, run
-commands, or make requests.
+**[R-STAR-083]** A declaration file MUST NOT write files, run commands, or
+make network requests.
+
+**[R-STAR-084]** While `.meow/` is being evaluated, only `load` and `@std//env`
+MUST be callable. Every other runtime module MUST fail with an error saying it
+is unavailable during declaration. `@std//env` is carved out because
+credentials are resolved there.
 
 ### Diagnostics
 

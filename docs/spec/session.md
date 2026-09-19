@@ -36,8 +36,13 @@ and `Finished`.
 **[R-SESSION-004]** Every event MUST carry the timestamp at which it was
 recorded, in UTC.
 
-**[R-SESSION-005]** A session MUST begin with exactly one `Started` event and,
-once terminal, MUST contain exactly one `Finished` event as its last event.
+**[R-SESSION-005]** A session MUST hold one or more runs. Each run MUST begin
+with a `Started` event and, once it has ended, MUST be closed by exactly one
+`Finished` event before the next `Started` event.
+
+**[R-SESSION-006]** Resuming a session MUST append a new `Started` event, so
+that a session that has already ended can be continued without rewriting the
+event that ended it.
 
 ### Compaction
 
@@ -87,11 +92,13 @@ the workspace and MUST resolve like an identifier.
 of the terminal states `finished`, `budget`, `cancelled`, `denied`,
 `tool_aborted`, or `failed`.
 
-**[R-SESSION-041]** The terminal state MUST be derived from the `Finished`
-event, not stored separately, so that no field can disagree with the log.
+**[R-SESSION-041]** The state MUST be derived from the log and not stored
+separately, so that no field can disagree with it: `running` when the last
+event is not `Finished`, and otherwise the stop reason that last `Finished`
+event carries.
 
-**[R-SESSION-042]** Opening a session that has no `Finished` event and whose
-recording process is no longer alive MUST append
+**[R-SESSION-042]** Opening a session whose last event is not `Finished` and
+whose recording process is no longer alive MUST append
 `Finished { stop: failed, reason: "process exited" }` and MUST NOT leave the
 session reported as running.
 
@@ -144,8 +151,9 @@ total database size, and MUST apply the strictest of the configured limits.
 
 ### Export
 
-**[R-SESSION-090]** JSON export MUST emit the same event schema, field names,
-and schema version as a live `--format json` run.
+**[R-SESSION-090]** JSON export MUST use the schema definition and version
+number that the live `--format json` renderer uses, and every persisted event
+kind MUST serialise identically in both, per [R-TUI-032].
 
 **[R-SESSION-091]** Markdown export MUST include the transcript, the tool
 calls with their policy decisions, and the usage totals.
