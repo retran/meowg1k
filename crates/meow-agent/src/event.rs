@@ -65,6 +65,18 @@ pub enum AgentEvent {
         /// Which step.
         step: u32,
     },
+    /// A range of the conversation was summarised.
+    ///
+    /// `[R-AGENT-042]`: the engine emits it and whoever persists writes the
+    /// session event. The engine does not know the store exists.
+    Compacted {
+        /// The messages this replaces, by position.
+        supersedes: std::ops::Range<usize>,
+        /// What stands in for them.
+        summary: String,
+        /// How many tokens that saved.
+        tokens_saved: u32,
+    },
     /// The run ended.
     RunEnd {
         /// Why it stopped.

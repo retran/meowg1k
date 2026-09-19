@@ -827,3 +827,370 @@ async fn a_denial_stops_with_denied_and_a_failure_with_tool_aborted() {
     let outcome = run(&spec, provider).await;
     assert_eq!(outcome.stop, StopReason::ToolAborted);
 }
+
+// ---------------------------------------------------------------------------
+// M6: compaction, sub-agents, concurrency
+// ---------------------------------------------------------------------------
+
+fn long_message(n: usize) -> meow_llm::Message {
+    meow_llm::Message::new(meow_llm::Role::User, "x".repeat(n))
+}
+
+/// [R-AGENT-040] compaction happens before the call that would not fit
+/// [R-AGENT-041] the most recent messages stay verbatim
+#[test]
+fn compaction_triggers_on_the_threshold_and_keeps_the_recent_ones() {
+    use meow_agent::{Compaction, estimate_tokens, range_to_compact};
+
+    let policy = Compaction {
+        at: 0.8,
+        keep_recent: 2,
+        model: None,
+    };
+    let mut messages = vec![meow_llm::Message::new(meow_llm::Role::System, "system")];
+    messages.extend((0..10).map(|_| long_message(400)));
+
+    let window = estimate_tokens(&messages) * 2;
+    assert_eq!(
+        range_to_compact(&messages, &policy, window),
+        None,
+        "under the threshold"
+    );
+
+    let window = (estimate_tokens(&messages) as f32 / 0.9) as u32;
+    let range = range_to_compact(&messages, &policy, window).expect("over the threshold");
+    assert_eq!(range.start, 1, "the system message stays");
+    assert_eq!(range.end, messages.len() - 2, "the two most recent stay");
+}
+
+/// [R-AGENT-042] compaction records the range and deletes nothing
+/// [R-AGENT-044] it summarises rather than dropping, and says what it saved
+#[tokio::test]
+async fn compaction_summarises_and_records_what_it_replaced() {
+    use meow_agent::Compaction;
+
+    // Step one asks for a tool, which grows the conversation; step two is
+    // where compaction has something to do.
+    // A bulky first turn, so the summary genuinely replaces more than it
+    // costs. On a two-message conversation a summary is longer than what it
+    // replaces, and reporting a saving of zero there is truthful rather than
+    // a defect.
+    let mut bulky = calls("probe", "{}");
+    bulky.text = "a long explanation of what the agent is about to do. ".repeat(40);
+    let provider = Scripted::new(vec![bulky, says("a summary"), says("done")]);
+
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe")))
+        .with_context_window(10)
+        .with_compaction(Compaction {
+            at: 0.1,
+            keep_recent: 1,
+            model: None,
+        })
+        .with_system("a system prompt long enough to cross the threshold on its own");
+
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Collect::without_deltas();
+    Engine::new(provider)
+        .run(
+            &spec,
+            "and a task",
+            &ledger,
+            &mut sink,
+            &CancellationToken::new(),
+        )
+        .await;
+
+    let compacted = sink.events.iter().find_map(|e| match e {
+        AgentEvent::Compacted {
+            supersedes,
+            summary,
+            tokens_saved,
+        } => Some((supersedes.clone(), summary.clone(), *tokens_saved)),
+        _ => None,
+    });
+    let (range, summary, saved) = compacted.expect("a compaction should have been recorded");
+    assert!(!range.is_empty(), "the range it replaced must be named");
+    assert_eq!(summary, "a summary", "and the summary that stands in");
+    assert!(saved > 0, "and what it saved, so the cost is visible");
+}
+
+/// [R-AGENT-043] a compaction that fails stops the run
+#[tokio::test]
+async fn a_failed_compaction_fails_the_run_rather_than_sending_an_over_long_context() {
+    use meow_agent::Compaction;
+
+    // One reply grows the conversation; the script then runs out, so the
+    // summariser's call fails.
+    let provider = Scripted::new(vec![calls("probe", "{}")]);
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe")))
+        .with_context_window(10)
+        .with_compaction(Compaction {
+            at: 0.1,
+            keep_recent: 1,
+            model: None,
+        })
+        .with_system("a system prompt long enough to cross the threshold on its own");
+
+    let outcome = run(&spec, provider).await;
+    assert_eq!(outcome.stop, StopReason::Failed);
+    assert!(
+        outcome.detail.unwrap_or_default().contains("compaction"),
+        "the run must say what failed"
+    );
+}
+
+/// [R-AGENT-045] compaction may name its own model
+#[tokio::test]
+async fn compaction_uses_its_own_model_when_given_one() {
+    use meow_agent::Compaction;
+
+    // A provider that records which model each request named.
+    struct Watching(std::sync::Mutex<Vec<String>>);
+    #[async_trait::async_trait]
+    impl Provider for Watching {
+        fn name(&self) -> &str {
+            "watching"
+        }
+        fn capabilities(&self) -> Capabilities {
+            Capabilities {
+                streaming: false,
+                tools: false,
+                structured: Structured::Emulated,
+                embeddings: false,
+            }
+        }
+        async fn generate(&self, r: &Request, _: &CancellationToken) -> meow_llm::Result<Response> {
+            let first = self.0.lock().map(|s| s.is_empty()).unwrap_or(false);
+            if let Ok(mut seen) = self.0.lock() {
+                seen.push(r.model.clone());
+            }
+            // Grow the conversation once, so there is something to summarise.
+            Ok(if first {
+                calls("probe", "{}")
+            } else {
+                says("ok")
+            })
+        }
+    }
+
+    let provider = Arc::new(Watching(std::sync::Mutex::new(Vec::new())));
+    let spec = AgentSpec::new("a", "expensive")
+        .with_tools(ToolSet::new().with(Probe::new("probe")))
+        .with_context_window(10)
+        .with_compaction(Compaction {
+            at: 0.1,
+            keep_recent: 1,
+            model: Some("cheap".into()),
+        })
+        .with_system("a system prompt long enough to cross the threshold on its own");
+
+    let ledger = Ledger::new(spec.budget);
+    Engine::new(Arc::clone(&provider) as Arc<dyn Provider>)
+        .run(&spec, "t", &ledger, &mut Discard, &CancellationToken::new())
+        .await;
+
+    let seen = provider.0.lock().unwrap().clone();
+    assert!(
+        seen.contains(&"cheap".to_owned()),
+        "the summariser is cheap: {seen:?}"
+    );
+    assert_eq!(
+        seen.first().map(String::as_str),
+        Some("expensive"),
+        "the agent itself is not"
+    );
+}
+
+/// [R-AGENT-050] a sub-agent runs on its own, under the caller's budget
+/// [R-AGENT-051] its outcome comes back with text, stop reason, and value
+#[tokio::test]
+async fn a_sub_agent_returns_its_text_and_its_stop_reason() {
+    use meow_agent::SubAgent;
+
+    let provider = Scripted::new(vec![says("the sub-agent's conclusion")]);
+    let engine = Arc::new(Engine::new(provider));
+    let child = Arc::new(AgentSpec::new("reviewer", "m"));
+    let parent_ledger = Ledger::new(Budget::default());
+
+    let tool = SubAgent::new(child, Arc::clone(&engine), &parent_ledger, 0);
+    let out = tool
+        .call(&json!({"task": "review this"}), &CancellationToken::new())
+        .await
+        .unwrap();
+
+    let parsed: Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(parsed["text"], "the sub-agent's conclusion");
+    assert_eq!(
+        parsed["stop"], "finished",
+        "a caller must be able to tell partial from complete"
+    );
+}
+
+/// [R-AGENT-052] nesting too deep is a tool error, not a panic
+#[tokio::test]
+async fn nesting_past_the_limit_is_reported_rather_than_fatal() {
+    use meow_agent::SubAgent;
+
+    let engine = Arc::new(Engine::new(Scripted::new(vec![says("never reached")])));
+    let mut child = AgentSpec::new("deep", "m");
+    child.max_depth = 2;
+    let ledger = Ledger::new(Budget::default());
+
+    let tool = SubAgent::new(Arc::new(child), engine, &ledger, 2);
+    let err = tool
+        .call(&json!({"task": "t"}), &CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("limit"), "got {err}");
+}
+
+/// [R-AGENT-053] a sub-agent does not see its caller's messages
+#[tokio::test]
+async fn a_sub_agent_starts_from_its_task_and_nothing_else() {
+    use meow_agent::SubAgent;
+
+    // A provider that records the conversation it was given.
+    struct Recording(std::sync::Mutex<Vec<Vec<String>>>);
+    #[async_trait::async_trait]
+    impl Provider for Recording {
+        fn name(&self) -> &str {
+            "recording"
+        }
+        fn capabilities(&self) -> Capabilities {
+            Capabilities {
+                streaming: false,
+                tools: false,
+                structured: Structured::Emulated,
+                embeddings: false,
+            }
+        }
+        async fn generate(&self, r: &Request, _: &CancellationToken) -> meow_llm::Result<Response> {
+            if let Ok(mut seen) = self.0.lock() {
+                seen.push(r.messages.iter().map(|m| m.content.clone()).collect());
+            }
+            Ok(says("ok"))
+        }
+    }
+
+    let provider = Arc::new(Recording(std::sync::Mutex::new(Vec::new())));
+    let engine = Arc::new(Engine::new(Arc::clone(&provider) as Arc<dyn Provider>));
+    let ledger = Ledger::new(Budget::default());
+
+    let tool = SubAgent::new(Arc::new(AgentSpec::new("child", "m")), engine, &ledger, 0);
+    tool.call(&json!({"task": "the sub-task"}), &CancellationToken::new())
+        .await
+        .unwrap();
+
+    let seen = provider.0.lock().unwrap().clone();
+    let conversation = seen.first().expect("the child should have been asked");
+    assert_eq!(conversation, &vec!["the sub-task".to_owned()]);
+    assert!(
+        !conversation.iter().any(|m| m.contains("caller")),
+        "nothing of the caller's may cross"
+    );
+}
+
+/// [R-AGENT-060] results come back in the order given
+/// [R-AGENT-061] one failure does not abort the others
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_fan_out_returns_in_order_and_survives_one_failure() {
+    use meow_agent::{Invocation, run_parallel};
+
+    // One provider that answers by task, so a test can make exactly one fail.
+    struct ByTask;
+    #[async_trait::async_trait]
+    impl Provider for ByTask {
+        fn name(&self) -> &str {
+            "by-task"
+        }
+        fn capabilities(&self) -> Capabilities {
+            Capabilities {
+                streaming: false,
+                tools: false,
+                structured: Structured::Emulated,
+                embeddings: false,
+            }
+        }
+        async fn generate(&self, r: &Request, _: &CancellationToken) -> meow_llm::Result<Response> {
+            let task = r
+                .messages
+                .last()
+                .map(|m| m.content.clone())
+                .unwrap_or_default();
+            if task == "b" {
+                return Err(LlmError::Http {
+                    provider: "by-task".into(),
+                    status: 400,
+                    message: "no".into(),
+                    retry_after: None,
+                    quota_exhausted: false,
+                });
+            }
+            Ok(says(&format!("answered {task}")))
+        }
+    }
+
+    let engine = Arc::new(Engine::new(Arc::new(ByTask)));
+    let ledger = Ledger::new(Budget::default());
+    let invocations: Vec<Invocation> = ["a", "b", "c"]
+        .into_iter()
+        .map(|t| Invocation {
+            spec: Arc::new(AgentSpec::new(t, "m")),
+            task: t.to_owned(),
+        })
+        .collect();
+
+    let out = run_parallel(engine, invocations, &ledger, &CancellationToken::new()).await;
+    assert_eq!(out.len(), 3);
+    assert_eq!(
+        out[0].text, "answered a",
+        "in the order given, not the order finished"
+    );
+    assert_eq!(
+        out[1].stop,
+        StopReason::Failed,
+        "the failure is a result, not an abort"
+    );
+    assert_eq!(out[2].text, "answered c", "and the third still ran");
+}
+
+/// [R-AGENT-062] a fan-out shares the caller's budget
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_fan_out_cannot_spend_more_than_the_caller_has() {
+    use meow_agent::{Invocation, run_parallel};
+
+    let engine = Arc::new(Engine::new(Scripted::new(
+        (0..10).map(|_| says("ok")).collect(),
+    )));
+    // Three branches, each declaring plenty, against a caller with three steps.
+    let ledger = Ledger::new(Budget {
+        steps: Some(3),
+        ..Budget::unbounded()
+    });
+    let invocations: Vec<Invocation> = (0..6)
+        .map(|i| Invocation {
+            spec: Arc::new(AgentSpec::new(format!("a{i}"), "m").with_budget(Budget {
+                steps: Some(100),
+                ..Budget::unbounded()
+            })),
+            task: format!("t{i}"),
+        })
+        .collect();
+
+    let out = run_parallel(engine, invocations, &ledger, &CancellationToken::new()).await;
+    let finished = out
+        .iter()
+        .filter(|o| o.stop == StopReason::Finished)
+        .count();
+    assert_eq!(
+        finished, 3,
+        "the caller's three steps, not six branches' hundred each"
+    );
+    assert_eq!(
+        out.iter().filter(|o| o.stop == StopReason::Budget).count(),
+        3,
+        "and the rest are stopped, not silently dropped"
+    );
+}
