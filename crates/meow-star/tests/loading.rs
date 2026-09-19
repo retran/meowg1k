@@ -213,19 +213,30 @@ fn a_file_loaded_twice_is_evaluated_once() {
     assert!(loaded.registry.model("fast").is_some());
 }
 
-/// [R-STAR-010] one module table decides what exists and what is available
+/// [R-STAR-010] one module table decides what exists, and a module that
+/// exists resolves in both phases
 #[test]
-fn one_table_separates_an_unknown_module_from_an_unavailable_one() {
+fn one_table_separates_an_unknown_module_from_an_unavailable_call() {
     let unknown = workspace(&[("meow.star", r#"load("@std//nope", "x")"#)]);
-    let unavailable = workspace(&[("meow.star", r#"load("@std//fs", "read")"#)]);
-
     let unknown = load_at(&unknown).unwrap_err().to_string();
-    let unavailable = load_at(&unavailable).unwrap_err().to_string();
-
     assert!(unknown.contains("there is no module"), "{unknown}");
+
+    // A module that exists loads in the declaration phase. What it refuses is
+    // being called there, which is the distinction [R-STAR-084] draws.
+    let loads = workspace(&[("meow.star", "load(\"@std//json\", \"parse\")")]);
     assert!(
-        unavailable.contains("not available while .meow/ is being loaded"),
-        "a registered module is reported as missing: {unavailable}"
+        load_at(&loads).is_ok(),
+        "a module that exists would not load"
+    );
+
+    let called = workspace(&[(
+        "meow.star",
+        "load(\"@std//json\", \"parse\")\nparse(\"{}\")",
+    )]);
+    let called = load_at(&called).unwrap_err().to_string();
+    assert!(
+        called.contains("not available while .meow/ is being loaded"),
+        "a module call during declaration was allowed: {called}"
     );
 }
 
@@ -281,8 +292,7 @@ fn a_command_may_not_take_a_builtin_name() {
         "meow.star",
         &format!(
             r#"{PRELUDE}
-meow.agent(name = "session", model = "fast", system = "help")
-meow.command(name = "session")
+meow.command(meow.agent(name = "session", model = "fast", system = "help"))
 "#
         ),
     )]);
@@ -300,28 +310,45 @@ fn print_fails_and_points_at_ctx_out() {
     assert!(error.contains("ctx.out"), "{error}");
 }
 
-/// [R-STAR-083] a declaration file cannot write a file or run a command
+/// [R-STAR-083] a declaration file has no way to reach the world, because
+/// every module but `env` refuses to be called during declaration
 #[test]
 fn a_declaration_file_cannot_reach_the_world() {
-    for module in ["fs", "exec", "http"] {
-        let dir = workspace(&[("meow.star", &format!(r#"load("@std//{module}", "x")"#))]);
+    let calls = [
+        ("json", "parse(\"{}\")", "parse"),
+        ("path", "join(\"a\", \"b\")", "join"),
+        ("text", "dedent(\"x\")", "dedent"),
+    ];
+
+    for (module, call, symbol) in calls {
+        let dir = workspace(&[(
+            "meow.star",
+            &format!("load(\"@std//{module}\", \"{symbol}\")\n{call}"),
+        )]);
         let error = load_at(&dir).unwrap_err().to_string();
         assert!(
             error.contains("not available while .meow/ is being loaded"),
-            "@std//{module} was reachable during declaration: {error}"
+            "@std//{module} was usable during declaration: {error}"
         );
     }
 }
 
 /// [R-STAR-084] only load and @std//env are callable during declaration
 #[test]
-fn only_env_is_available_during_declaration() {
+fn only_env_is_callable_during_declaration() {
     let allowed = workspace(&[("meow.star", "load(\"@std//env\", \"get\")\nget(\"PATH\")")]);
     assert!(load_at(&allowed).is_ok());
 
-    let refused = workspace(&[("meow.star", r#"load("@std//time", "now")"#)]);
+    let refused = workspace(&[(
+        "meow.star",
+        "load(\"@std//text\", \"tokens\")\ntokens(\"hello\")",
+    )]);
     let error = load_at(&refused).unwrap_err().to_string();
-    assert!(error.contains("@std//time"), "{error}");
+    assert!(error.contains("text.tokens"), "{error}");
+    assert!(
+        error.contains("not available while .meow/ is being loaded"),
+        "{error}"
+    );
 }
 
 /// [R-STAR-080] each load owns its evaluators, and nothing survives into the

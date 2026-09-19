@@ -8,7 +8,9 @@ description = "The Starlark surface: what a user writes, and how it is loaded"
 publish = false
 
 [dependencies]
+allocative = "0.3"
 anyhow = { workspace = true }
+async-trait = "0.1"
 meow-agent = { path = "../meow-agent" }
 meow-policy = { path = "../meow-policy" }
 serde = { workspace = true }
@@ -16,9 +18,14 @@ serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 starlark = "0.14"
 thiserror = { workspace = true }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+tokio-util = "0.7"
 
 [dev-dependencies]
+meow-core = { path = "../meow-core" }
+meow-llm = { path = "../meow-llm" }
 tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 
 [lints]
 workspace = true

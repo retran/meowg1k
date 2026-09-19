@@ -17,129 +17,30 @@ use crate::args::{self, Args};
 use crate::error::StarError;
 use crate::registry::{Model, Provider, ToolDecl};
 use crate::schema;
-
-/// Which half of a run is executing.
-///
-/// `[R-STAR-030]` and `[R-STAR-084]` both turn on this one bit: a declaration
-/// call is refused outside `Phase::Declaring`, and a runtime module is refused
-/// inside it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Phase {
-    /// `.meow/` is being evaluated.
-    Declaring,
-    /// A handler is running.
-    Running,
-}
-
-/// Holds [`Declaring`].
-///
-/// The module exists for its inner attribute. `ProvidesStaticType` is an
-/// unsafe trait and its derive writes the `unsafe impl` as a sibling item, so
-/// an `#[allow]` on the struct does not cover it. Scoping the exemption to
-/// this module keeps the workspace-wide denial intact everywhere else, and
-/// there is no unsafe block of ours in here to hide behind it.
-mod state {
-    #![allow(unsafe_code)]
-
-    use std::cell::{Cell, RefCell};
-
-    use starlark::any::ProvidesStaticType;
-
-    use crate::declare::Phase;
-    use crate::registry::{Origin, Registry};
-
-    /// What the declaration files are building.
-    ///
-    /// Held behind `Evaluator::extra`, which hands out a shared reference, so
-    /// the interior mutability is not a shortcut around a borrow but the only
-    /// shape the evaluator offers.
-    #[derive(Debug, ProvidesStaticType)]
-    pub struct Declaring {
-        registry: RefCell<Registry>,
-        file: RefCell<String>,
-        phase: Cell<Phase>,
-    }
-
-    impl Default for Declaring {
-        fn default() -> Self {
-            Self::new()
-        }
-    }
-
-    impl Declaring {
-        /// Start with nothing declared.
-        pub fn new() -> Self {
-            Self {
-                registry: RefCell::new(Registry::new()),
-                file: RefCell::new(String::new()),
-                phase: Cell::new(Phase::Declaring),
-            }
-        }
-
-        /// Say which file is being evaluated, and get back the one it replaced.
-        ///
-        /// The caller restores the previous name, because a `load` evaluates a
-        /// second file in the middle of the first and an origin recorded after
-        /// that would otherwise name the wrong one.
-        pub fn entering(&self, file: &str) -> String {
-            self.file.replace(file.to_owned())
-        }
-
-        /// Which phase the evaluator is in.
-        pub fn phase(&self) -> Phase {
-            self.phase.get()
-        }
-
-        /// Move to the running phase, after `.meow/` has been evaluated.
-        pub fn running(&self) {
-            self.phase.set(Phase::Running);
-        }
-
-        /// Take the registry out once loading is done.
-        pub fn finish(self) -> Registry {
-            self.registry.into_inner()
-        }
-
-        /// Borrow what has been declared so far.
-        pub fn registry(&self) -> std::cell::Ref<'_, Registry> {
-            self.registry.borrow()
-        }
-
-        /// Borrow it to add to it.
-        pub(crate) fn registry_mut(&self) -> std::cell::RefMut<'_, Registry> {
-            self.registry.borrow_mut()
-        }
-
-        /// Which file a declaration made now belongs to.
-        pub(crate) fn origin(&self) -> Origin {
-            Origin(self.file.borrow().clone())
-        }
-    }
-}
-
-pub use state::Declaring;
+use crate::state::{Declaring, Phase};
 
 /// Reach the declaration state from inside a builtin.
+///
+/// `[R-STAR-030]`: a handler that could declare a tool would make the tool set
+/// unknowable before a run, and `meow policy explain` depends on it being
+/// knowable. The error names the phase rather than saying only that the call
+/// failed, because "not available" leaves a reader guessing whether they typed
+/// it wrong.
 fn declaring<'a>(eval: &Evaluator<'_, 'a, '_>, what: &str) -> starlark::Result<&'a Declaring> {
-    let state = eval
+    if let Some(state) = eval
         .extra
         .and_then(|extra| extra.downcast_ref::<Declaring>())
-        .ok_or_else(|| {
-            starlark::Error::new_other(anyhow::anyhow!("`{what}` is not available here"))
-        })?;
-
-    // [R-STAR-030]: a handler that could declare a tool would make the tool
-    // set unknowable before a run, and `meow policy explain` depends on it
-    // being knowable.
-    if state.phase() != Phase::Declaring {
-        return Err(starlark::Error::new_other(anyhow::anyhow!(
-            "{}",
-            StarError::NotDeclaring {
-                what: what.to_owned()
-            }
-        )));
+    {
+        return Ok(state);
     }
-    Ok(state)
+    let message = match crate::run::phase_of(eval) {
+        Some(Phase::Running) => StarError::NotDeclaring {
+            what: what.to_owned(),
+        }
+        .to_string(),
+        _ => format!("`{what}` is not available here"),
+    };
+    Err(starlark::Error::new_other(anyhow::anyhow!("{message}")))
 }
 
 fn fail(e: StarError) -> starlark::Error {
@@ -188,6 +89,32 @@ fn as_f64(value: StarValue<'_>) -> starlark::Result<f64> {
             "must be a number, and is {other}"
         ))),
     }
+}
+
+/// Read a `tools` list, which may hold values or names.
+///
+/// `[R-STAR-041]`: an agent value goes where a tool value goes. A markdown
+/// agent can only write names, so both forms land on the same list and
+/// `[R-STAR-051]` holds without a second code path.
+fn as_names<'v>(
+    value: Option<StarValue<'v>>,
+    what: &str,
+    heap: starlark::values::Heap<'v>,
+) -> starlark::Result<Vec<String>> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::new();
+    for item in value.iterate(heap)? {
+        let Some(name) = crate::value::name_of(item) else {
+            return Err(starlark::Error::new_other(anyhow::anyhow!(
+                "`{what}` takes tools, agents, or their names, and carries {}",
+                item.get_type()
+            )));
+        };
+        out.push(name);
+    }
+    Ok(out)
 }
 
 fn as_strings(value: Option<StarValue<'_>>, what: &str) -> starlark::Result<Vec<String>> {
@@ -273,22 +200,23 @@ fn declarations(builder: &mut GlobalsBuilder) {
         #[starlark(require = named)] run: StarlarkCallable<'v>,
         #[starlark(require = named)] args: Option<StarValue<'v>>,
         eval: &mut Evaluator<'v, '_, '_>,
-    ) -> starlark::Result<NoneType> {
+    ) -> starlark::Result<crate::value::Tool> {
         let fields = as_object(args, "args")?;
-        let _ = run;
+        let handler = crate::run::Handler::parse(&run.0.to_string()).map_err(fail)?;
         let args = Args::new(fields).map_err(fail)?;
         let state = declaring(eval, "meow.tool")?;
         let origin = state.origin();
         state
             .registry_mut()
             .add_tool(ToolDecl {
-                name,
+                name: name.clone(),
                 about,
+                handler,
                 args,
                 origin,
             })
             .map_err(fail)?;
-        Ok(NoneType)
+        Ok(crate::value::tool(&name))
     }
 
     /// Declare an agent.
@@ -315,12 +243,12 @@ fn declarations(builder: &mut GlobalsBuilder) {
         #[starlark(require = named)] on_tool_error: Option<String>,
         #[starlark(require = named)] policy: Option<StarValue<'v>>,
         eval: &mut Evaluator<'v, '_, '_>,
-    ) -> starlark::Result<NoneType> {
+    ) -> starlark::Result<crate::value::Agent> {
         let fields = agent::Fields {
             model: Some(model),
             system: Some(system),
             about,
-            tools: Some(as_strings(tools, "tools")?),
+            tools: Some(as_names(tools, "tools", eval.heap())?),
             budget: from_json(budget, "budget")?,
             compaction: from_json(compaction, "compaction")?,
             output: output.map(as_json).transpose()?,
@@ -335,14 +263,20 @@ fn declarations(builder: &mut GlobalsBuilder) {
             .build(&name, agent::Source::Starlark, &origin, |_| unreachable!())
             .map_err(fail)?;
         state.registry_mut().add_agent(declared).map_err(fail)?;
-        Ok(NoneType)
+        Ok(crate::value::agent(&name))
     }
 
     /// Put a declared tool or agent on the command line.
     fn command<'v>(
-        #[starlark(require = named)] name: String,
+        #[starlark(require = pos)] what: StarValue<'v>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
+        let name = crate::value::name_of(what).ok_or_else(|| {
+            starlark::Error::new_other(anyhow::anyhow!(
+                "`meow.command` takes a tool or an agent, and was given {}",
+                what.get_type()
+            ))
+        })?;
         let state = declaring(eval, "meow.command")?;
         let origin = state.origin();
         state
@@ -559,6 +493,18 @@ fn schema_constructors(builder: &mut GlobalsBuilder) {
     }
 }
 
+/// The half of the `meow` global a handler uses.
+#[starlark_module]
+fn runtime_calls(builder: &mut GlobalsBuilder) {
+    /// Run several invocations and return their results in the order given.
+    fn parallel<'v>(
+        #[starlark(require = pos)] invocations: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        crate::value::parallel(invocations, eval)
+    }
+}
+
 /// `print`, defined only to refuse.
 ///
 /// `[R-STAR-082]`: leaving it undefined would also fail, with "variable
@@ -596,6 +542,7 @@ pub fn globals() -> starlark::environment::Globals {
         .with(refusals)
         .with_namespace("meow", |builder| {
             declarations(builder);
+            runtime_calls(builder);
             builder.namespace("arg", arg_constructors);
             builder.namespace("schema", schema_constructors);
         })
