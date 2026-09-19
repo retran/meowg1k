@@ -11,6 +11,7 @@
 //! thread boundary, which the type system correctly refuses.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use meow_agent::{
@@ -77,6 +78,8 @@ pub struct Runtime {
     files: HashMap<String, FrozenModule>,
     std: Arc<crate::modules::Modules>,
     events: Arc<dyn Events>,
+    approve: Option<Arc<dyn meow_agent::Approver>>,
+    dry_run: bool,
     ask: Arc<dyn Ask>,
     stdin: Arc<dyn Stdin>,
     session: Arc<dyn Session>,
@@ -97,6 +100,13 @@ impl std::fmt::Debug for Runtime {
 pub struct Ports {
     /// Where events go.
     pub events: Arc<dyn Events>,
+    /// Who answers when the policy says to ask.
+    ///
+    /// `None` resolves every `ask` to `deny`, per `[R-POLICY-020]`: an
+    /// unattended run must not be able to approve itself.
+    pub approve: Option<Arc<dyn meow_agent::Approver>>,
+    /// Whether to plan tool calls instead of making them.
+    pub dry_run: bool,
     /// How to ask a person something.
     pub ask: Arc<dyn Ask>,
     /// What was piped in.
@@ -123,6 +133,8 @@ impl Runtime {
             files: loaded.modules,
             std: loaded.std,
             events: ports.events,
+            approve: ports.approve,
+            dry_run: ports.dry_run,
             ask: ports.ask,
             stdin: ports.stdin,
             session: ports.session,
@@ -319,7 +331,8 @@ impl Runtime {
                 .clone()
                 .or_else(|| self.registry.policy().cloned()),
             grants: meow_policy::Grants::new(),
-            describe_call: None,
+            approve: self.approve.clone(),
+            describe_call: Some(describe_call(self.workspace.root().to_path_buf())),
         })
     }
 
@@ -338,6 +351,16 @@ impl Runtime {
         let mut set = ToolSet::new();
         for name in names {
             if let Some(tool) = self.registry.tool(name) {
+                if self.dry_run {
+                    set = set.with(Planned {
+                        events: Arc::clone(&self.events),
+                        name: tool.name.clone(),
+                        about: tool.about.clone(),
+                        schema: tool.args.json_schema(),
+                        warned: std::sync::atomic::AtomicBool::new(false),
+                    });
+                    continue;
+                }
                 set = set.with(StarlarkTool {
                     runtime: Arc::clone(self),
                     name: tool.name.clone(),
@@ -447,6 +470,83 @@ impl Runtime {
     pub(crate) fn std(&self) -> &crate::modules::Modules {
         &self.std
     }
+}
+
+/// Turn a tool call into something the policy can judge.
+///
+/// `[R-POLICY-003]`: the paths are resolved here, before the decision, and the
+/// tool acts on exactly these. Re-resolving afterwards reopens the window in
+/// which a path allowed as a file becomes a symbolic link to somewhere denied.
+///
+/// The convention is the argument's name. The engine does not know which
+/// argument is a path and which is a command line, and a declaration does not
+/// say; naming one `path`, `paths`, `file`, `command`, or `url` is what marks
+/// it, and a tool that wants to be governed uses those names.
+fn describe_call(root: PathBuf) -> meow_agent::DescribeCall {
+    Arc::new(move |name: &str, args: &Value| {
+        let write = name.contains("write")
+            || name.contains("remove")
+            || name.contains("append")
+            || name.contains("mkdir");
+        let access = if write {
+            meow_policy::Access::Write
+        } else {
+            meow_policy::Access::Read
+        };
+
+        let mut call = meow_policy::Call::new(name, access);
+
+        let mut paths = Vec::new();
+        for key in ["path", "file", "paths", "files"] {
+            match args.get(key) {
+                Some(Value::String(one)) => paths.push(resolve(&root, one)),
+                Some(Value::Array(many)) => {
+                    paths.extend(
+                        many.iter()
+                            .filter_map(Value::as_str)
+                            .map(|p| resolve(&root, p)),
+                    );
+                }
+                _ => {}
+            }
+        }
+        if !paths.is_empty() {
+            call = call.with_paths(paths);
+        }
+
+        if let Some(command) = args.get("command").and_then(Value::as_str) {
+            call = call.with_command(command);
+        }
+        if let Some(url) = args.get("url").and_then(Value::as_str)
+            && let Some(host) = host_of(url)
+        {
+            call = call.with_host(host);
+        }
+
+        call
+    })
+}
+
+/// A path as the policy will judge it: absolute, with symbolic links resolved.
+fn resolve(root: &Path, path: &str) -> PathBuf {
+    let given = Path::new(path);
+    let joined = if given.is_absolute() {
+        given.to_path_buf()
+    } else {
+        root.join(given)
+    };
+    // A path that does not exist yet cannot be resolved, and a write to a new
+    // file is exactly that case. The lexical form is what the policy judges
+    // then, which is the same thing the tool will create.
+    meow_policy::resolve(&joined).unwrap_or(joined)
+}
+
+/// The host part of a URL, without parsing the whole thing.
+fn host_of(url: &str) -> Option<&str> {
+    let rest = url.split_once("://")?.1;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let host = host.rsplit_once('@').map_or(host, |(_, h)| h);
+    Some(host.split(':').next().unwrap_or(host)).filter(|h| !h.is_empty())
 }
 
 /// Where an agent's events go while a handler is waiting on it.
@@ -589,6 +689,74 @@ impl Sink for Relay {
             }
         }
         Ok(())
+    }
+}
+
+/// A tool that is planned rather than run.
+///
+/// Satisfies `[R-TUI-072]`: the policy decision still happens, because the
+/// engine takes it before the tool is reached, and the transcript records what
+/// would have run. The model is fed a placeholder.
+///
+/// The warning is the important half. A dry run diverges from a real one the
+/// moment the first placeholder goes back to the model, because what the model
+/// does next depends on a result it never received. Everything after that
+/// point is a plausible run, not the run.
+struct Planned {
+    events: Arc<dyn Events>,
+    name: String,
+    about: String,
+    schema: Value,
+    warned: std::sync::atomic::AtomicBool,
+}
+
+impl std::fmt::Debug for Planned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Planned").field("name", &self.name).finish()
+    }
+}
+
+#[async_trait::async_trait]
+impl Tool for Planned {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        &self.about
+    }
+
+    fn schema(&self) -> Value {
+        self.schema.clone()
+    }
+
+    async fn call(
+        &self,
+        args: &Value,
+        _cancel: &CancellationToken,
+    ) -> std::result::Result<String, ToolError> {
+        use std::sync::atomic::Ordering;
+
+        if !self.warned.swap(true, Ordering::Relaxed) {
+            crate::port::say(
+                self.events.as_ref(),
+                meow_core::view::Output::Warn {
+                    text: "this is a dry run: from here on the model is answering a result it never received, so what follows is a plausible run rather than the run".to_owned(),
+                },
+            );
+        }
+
+        crate::port::say(
+            self.events.as_ref(),
+            meow_core::view::Output::Note {
+                text: format!("would run {}({args})", self.name),
+            },
+        );
+
+        Ok(format!(
+            "this was a dry run, so `{}` did not run and there is no result. Continue as if it had succeeded.",
+            self.name
+        ))
     }
 }
 

@@ -55,9 +55,17 @@ cannot observe, which is what committing finalized lines immediately buys.
 **[R-TUI-015]** Diagnostics from the logging layer MUST be inserted into
 scrollback in order, and MUST NOT be drawn over the live region.
 
-**[R-TUI-016]** The live region MUST be three rows high while a run is in
-flight. While an approval prompt is open it MUST take a larger fixed height,
-and it MUST return to three rows when the prompt closes.
+**[R-TUI-016]** The live region MUST be three rows high, and MUST NOT change
+height. An approval prompt MUST be committed to the transcript rather than
+drawn in the live region, and while one is open the live region MUST say that
+an answer is awaited.
+
+> Amended 2026-09-20, superseding the original, which required a second larger
+> height for a prompt. `ratatui` fixes an inline viewport's height when the
+> terminal is constructed and offers no way to take the backend back, so
+> changing it means rebuilding over a backend that cannot be recovered. The
+> replacement is also better: a permission decision you were asked about stays
+> in the transcript instead of disappearing when the prompt closes.
 
 ### Plain rendering
 
@@ -107,8 +115,12 @@ terminal or `--yes` was given, and MUST NOT block.
 
 ### Approval
 
-**[R-TUI-060]** An approval prompt MUST occupy the live region only, and MUST
-NOT overwrite the transcript above it.
+**[R-TUI-060]** An approval prompt MUST NOT overwrite anything already in the
+transcript, and MUST remain readable after it is answered.
+
+> Amended 2026-09-20 alongside [R-TUI-016], which moved the prompt out of the
+> live region. What the original protected - a prompt that scribbles over what
+> you were reading - is still forbidden.
 
 **[R-TUI-061]** The prompt MUST show the tool name, the exact arguments, the
 matching rule, and the agent and step, and MUST offer once, always, deny, and
@@ -195,9 +207,11 @@ frame. [R-TUI-015] routes them into scrollback instead.
 ## Decisions
 
 **The live region is a fixed three rows**, by [R-TUI-016]. A region that grows
-with content reflows the terminal while you are reading it. Two fixed heights,
-one for a run and one for a prompt, cost one reflow each at moments you are
-already looking at.
+with content reflows the terminal while you are reading it, and one that
+changes height for a prompt reflows it twice at the moment you are reading the
+command you are being asked to approve. The prompt is committed to the
+transcript instead, which costs no reflow at all and leaves the question and
+its answer where somebody can find them afterwards.
 
 **`--format json` streams as JSONL**, by [R-TUI-030]. A consumer can react
 mid-run, and anyone who wants one document is one `jq -s` away. The reverse is
