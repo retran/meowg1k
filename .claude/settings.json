@@ -39,5 +39,16 @@
       "Read(./.meowg1k/.data/**)",
       "Read(./.meowg1k/.logs/**)"
     ]
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
   }
 }

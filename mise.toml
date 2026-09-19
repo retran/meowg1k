@@ -29,6 +29,17 @@ gh = "latest"
 # Frozen Go tree, v0.2.1 and earlier. It stays until the Rust tree replaces it.
 golangci-lint = "2"
 
+# rustup's shim in ~/.cargo/bin usually wins on PATH, and it dispatches on
+# RUSTUP_TOOLCHAIN, which mise sets to the concrete toolchain it resolved.
+# mise installs rust-analyzer into its own copy, so the bare `rust-analyzer`
+# command can still fail with "Unknown binary" and exit 1 - which is what an
+# editor or the Claude Code LSP tool reports as a server crash. Installing the
+# component into the active toolchain as well costs a download and removes the
+# trap.
+[tasks.setup]
+run = "rustup component add rust-analyzer"
+description = "Make rust-analyzer resolvable through rustup's shim as well"
+
 [tasks.build]
 run = "cargo build --workspace"
 description = "Build every crate in debug"
