@@ -113,6 +113,17 @@ const MIGRATIONS: &[Migration] = &[
         ALTER TABLE sessions ADD COLUMN state TEXT;
     "#,
     },
+    Migration {
+        version: 3,
+        sql: r#"
+        -- [R-SESSION-052] asks a fork to record where it came from, so a
+        -- reader of a forked session can find the run it branched off and the
+        -- point it branched at. Two columns rather than a JSON field, because
+        -- `meow session list` shows them and a list should not parse.
+        ALTER TABLE sessions ADD COLUMN origin_id TEXT REFERENCES sessions(id) ON DELETE SET NULL;
+        ALTER TABLE sessions ADD COLUMN origin_seq INTEGER;
+    "#,
+    },
 ];
 
 /// The highest version this binary knows how to reach.
