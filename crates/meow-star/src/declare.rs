@@ -12,9 +12,10 @@ use starlark::values::none::NoneType;
 use starlark::values::tuple::UnpackTuple;
 use starlark::values::typing::StarlarkCallable;
 
+use crate::agent;
 use crate::args::{self, Args};
 use crate::error::StarError;
-use crate::registry::{AgentDecl, Model, Provider, ToolDecl};
+use crate::registry::{Model, Provider, ToolDecl};
 use crate::schema;
 
 /// Which half of a run is executing.
@@ -163,6 +164,21 @@ fn as_object(value: Option<StarValue<'_>>, what: &str) -> starlark::Result<Map<S
     }
 }
 
+/// Read a nested declaration through the shape both Starlark and YAML use.
+///
+/// `[R-STAR-051]`: one structure, filled from either syntax, so a default can
+/// only be decided in one place.
+fn from_json<T: serde::de::DeserializeOwned>(
+    value: Option<StarValue<'_>>,
+    what: &str,
+) -> starlark::Result<Option<T>> {
+    let Some(value) = value else { return Ok(None) };
+    let json = as_json(value)?;
+    serde_json::from_value(json)
+        .map(Some)
+        .map_err(|e| starlark::Error::new_other(anyhow::anyhow!("`{what}`: {e}")))
+}
+
 fn as_f64(value: StarValue<'_>) -> starlark::Result<f64> {
     match as_json(value)? {
         Value::Number(n) => n.as_f64().ok_or_else(|| {
@@ -276,31 +292,49 @@ fn declarations(builder: &mut GlobalsBuilder) {
     }
 
     /// Declare an agent.
+    ///
+    /// The keyword arguments are `[R-STAR-040]`'s set, and they are collected
+    /// into [`agent::Fields`] rather than used directly, because a markdown
+    /// agent fills the same structure and `[R-STAR-051]` asks the two to come
+    /// out identical. Naming them explicitly here rather than taking `**kwargs`
+    /// keeps Starlark's own error for a misspelled argument, which points at
+    /// the call.
+    // `meow.agent` takes the ten keyword arguments `[R-STAR-040]` names.
+    // Grouping them into a struct would satisfy the lint and change the
+    // Starlark surface, and the Starlark surface is the product.
+    #[allow(clippy::too_many_arguments)]
     fn agent<'v>(
         #[starlark(require = named)] name: String,
         #[starlark(require = named)] model: String,
         #[starlark(require = named)] system: String,
         #[starlark(require = named)] about: Option<String>,
         #[starlark(require = named)] tools: Option<StarValue<'v>>,
+        #[starlark(require = named)] budget: Option<StarValue<'v>>,
+        #[starlark(require = named)] compaction: Option<StarValue<'v>>,
         #[starlark(require = named)] output: Option<StarValue<'v>>,
+        #[starlark(require = named)] on_tool_error: Option<String>,
+        #[starlark(require = named)] policy: Option<StarValue<'v>>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
-        let tools = as_strings(tools, "tools")?;
-        let output = output.map(as_json).transpose()?;
+        let fields = agent::Fields {
+            model: Some(model),
+            system: Some(system),
+            about,
+            tools: Some(as_strings(tools, "tools")?),
+            budget: from_json(budget, "budget")?,
+            compaction: from_json(compaction, "compaction")?,
+            output: output.map(as_json).transpose()?,
+            on_tool_error,
+            policy: from_json(policy, "policy")?,
+            include: None,
+        };
+
         let state = declaring(eval, "meow.agent")?;
         let origin = state.origin();
-        state
-            .registry_mut()
-            .add_agent(AgentDecl {
-                name,
-                about: about.unwrap_or_default(),
-                model,
-                system,
-                tools,
-                output,
-                origin,
-            })
+        let declared = fields
+            .build(&name, agent::Source::Starlark, &origin, |_| unreachable!())
             .map_err(fail)?;
+        state.registry_mut().add_agent(declared).map_err(fail)?;
         Ok(NoneType)
     }
 
@@ -318,19 +352,24 @@ fn declarations(builder: &mut GlobalsBuilder) {
         Ok(NoneType)
     }
 
-    /// Declare a permission rule.
+    /// Declare what every agent in this workspace may do.
     ///
-    /// The rule itself is parsed by `meow-policy`; this call exists so that
-    /// `[R-STAR-030]` covers it, and so a policy written inside a handler is
-    /// refused rather than quietly applied after the calls it should govern.
+    /// `[R-STAR-030]` covers this call for the same reason it covers the
+    /// others: a policy written inside a handler would be applied after the
+    /// calls it was meant to govern, which reads as a permission bug rather
+    /// than as a mistake in the file.
     fn policy<'v>(
-        #[starlark(require = named)] tools: StarValue<'v>,
-        #[starlark(require = named)] decision: String,
+        #[starlark(require = named)] rules: StarValue<'v>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
-        let _ = as_strings(Some(tools), "tools")?;
-        let _ = declaring(eval, "meow.policy")?;
-        let _ = decision;
+        let rules: Vec<agent::RuleFields> = from_json(Some(rules), "rules")?.unwrap_or_default();
+        let state = declaring(eval, "meow.policy")?;
+        let origin = state.origin();
+        let policy = agent::build_policy(&rules, &origin).map_err(fail)?;
+        state
+            .registry_mut()
+            .set_policy(policy, origin)
+            .map_err(fail)?;
         Ok(NoneType)
     }
 }
