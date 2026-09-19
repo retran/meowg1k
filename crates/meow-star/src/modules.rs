@@ -31,7 +31,7 @@ use crate::error::{Result, StarError};
 use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
-pub const NAMES: &[&str] = &["env", "json", "path", "text"];
+pub const NAMES: &[&str] = &["env", "json", "path", "search", "text"];
 
 /// Every `@std//` module, built once per load.
 #[derive(Debug)]
@@ -49,6 +49,7 @@ impl Modules {
         table.insert("env".to_owned(), freeze(env_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);
+        table.insert("search".to_owned(), freeze(search_module)?);
         table.insert("text".to_owned(), freeze(text_module)?);
         Ok(Self(table))
     }
@@ -216,6 +217,60 @@ fn path_module(builder: &mut GlobalsBuilder) {
             state.runtime.workspace().root().join(given)
         };
         Ok(out.to_string_lossy().into_owned())
+    }
+}
+
+/// `@std//search`: asking the index a question.
+#[starlark_module]
+fn search_module(builder: &mut GlobalsBuilder) {
+    /// Rank the workspace against a question, by meaning.
+    ///
+    /// Returns a list of structs carrying the path, the line range, the text,
+    /// and the score, so a result can be cited rather than only read.
+    fn code<'v>(
+        #[starlark(require = pos)] query: String,
+        #[starlark(require = named, default = 10)] limit: u32,
+        #[starlark(require = named)] paths: Option<StarValue<'v>>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "search.code")?;
+
+        let paths = match paths {
+            None => Vec::new(),
+            Some(value) if value.is_none() => Vec::new(),
+            Some(value) => match value.to_json_value().map_err(oops)? {
+                serde_json::Value::Array(items) => items
+                    .into_iter()
+                    .filter_map(|item| item.as_str().map(str::to_owned))
+                    .collect(),
+                other => return Err(oops(format!("`paths` must be a list, and is {other}"))),
+            },
+        };
+
+        // `[R-STAR-081]`: the call blocks this thread. The index reads a file
+        // and may reach a provider, and neither is something Starlark can
+        // wait on itself.
+        let found = state
+            .runtime
+            .search()
+            .code(&query, limit as usize, &paths)
+            .map_err(oops)?;
+
+        let heap = eval.heap();
+        let results: Vec<StarValue<'v>> = found
+            .into_iter()
+            .map(|hit| {
+                heap.alloc(starlark::values::structs::AllocStruct([
+                    ("path", heap.alloc(hit.path)),
+                    ("first_line", heap.alloc(hit.first_line as u32)),
+                    ("last_line", heap.alloc(hit.last_line as u32)),
+                    ("text", heap.alloc(hit.text)),
+                    ("score", heap.alloc(f64::from(hit.score))),
+                ]))
+            })
+            .collect();
+
+        Ok(heap.alloc(results))
     }
 }
 

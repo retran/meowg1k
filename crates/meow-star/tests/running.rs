@@ -220,6 +220,7 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
             session: Arc::new(meow_star::port::quiet::Memory::new("s-1")) as Arc<dyn Session>,
             approve: None,
             dry_run: false,
+            search: Arc::new(meow_star::port::quiet::NoIndex),
         },
         CancellationToken::new(),
     ));
