@@ -1,0 +1,16 @@
+[package]
+name = "meow-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "One event stream, three renderers"
+publish = false
+
+[dependencies]
+meow-core = { path = "../meow-core" }
+ratatui = "0.30"
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
