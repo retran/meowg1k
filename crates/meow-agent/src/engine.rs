@@ -91,6 +91,11 @@ impl Engine {
             let step = ledger.steps_taken();
             run.deliver.send(AgentEvent::StepStart { step });
 
+            if let Err(why) = self.compact(&mut run, cancel).await {
+                run.deliver.send(AgentEvent::StepEnd { step });
+                break (StopReason::Failed, Some(why));
+            }
+
             match self.turn(&mut run, step).await {
                 Turn::Done => {
                     run.deliver.send(AgentEvent::StepEnd { step });
@@ -124,6 +129,73 @@ impl Engine {
             usage: run.state.usage,
             steps: run.state.steps,
         }
+    }
+
+    /// Summarise the older part of the conversation, when it has grown too
+    /// long for the model to hold.
+    ///
+    /// Satisfies `[R-AGENT-040]` by acting before the next call rather than
+    /// after a provider rejects one; `[R-AGENT-044]` by summarising rather
+    /// than dropping, because a silent drop leaves the model confidently wrong
+    /// about what it already knows; `[R-AGENT-042]` by emitting the event that
+    /// records the range, without deleting anything; and `[R-AGENT-043]` by
+    /// failing the run when the summary cannot be produced, rather than
+    /// carrying on with a context the provider will reject anyway.
+    async fn compact(
+        &self,
+        run: &mut Run<'_, '_>,
+        cancel: &CancellationToken,
+    ) -> Result<(), String> {
+        let policy = &run.spec.compaction;
+        let Some(range) =
+            crate::compaction::range_to_compact(&run.messages, policy, run.spec.context_window)
+        else {
+            return Ok(());
+        };
+
+        let before = crate::compaction::estimate_tokens(&run.messages[range.clone()]);
+        let transcript: String = run.messages[range.clone()]
+            .iter()
+            .map(|m| format!("{:?}: {}\n", m.role, m.content))
+            .collect();
+
+        let mut request = Request::new(
+            policy
+                .model
+                .clone()
+                .unwrap_or_else(|| run.spec.model.clone()),
+            vec![
+                Message::new(
+                    Role::System,
+                    "Summarise this conversation. Keep decisions, file names, \
+                     and anything the next turn needs. Drop pleasantries.",
+                ),
+                Message::new(Role::User, transcript),
+            ],
+            1024,
+        );
+        request.tools.clear();
+
+        let summary = match self.provider.generate(&request, cancel).await {
+            Ok(r) => r.text,
+            Err(e) => return Err(format!("compaction failed: {e}")),
+        };
+
+        let replacement = Message::new(
+            Role::User,
+            format!("Summary of the earlier conversation:\n{summary}"),
+        );
+        let saved = before.saturating_sub(crate::compaction::estimate_tokens(
+            std::slice::from_ref(&replacement),
+        ));
+
+        run.deliver.send(AgentEvent::Compacted {
+            supersedes: range.clone(),
+            summary,
+            tokens_saved: saved,
+        });
+        run.messages.splice(range, std::iter::once(replacement));
+        Ok(())
     }
 
     /// One pass: ask the model, then run whatever it asked for.
