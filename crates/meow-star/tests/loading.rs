@@ -386,3 +386,117 @@ fn a_near_miss_suggests_the_declared_name() {
     let error = load_at(&dir).unwrap_err().to_string();
     assert!(error.contains("Did you mean `fast`?"), "{error}");
 }
+
+/// A workspace with a chat model and an embedding model.
+const TWO_KINDS: &str = r#"
+meow.provider(name = "p", kind = "anthropic")
+meow.model(name = "fast", provider = "p", id = "m", context = 1, max_output = 1)
+meow.model(
+    name = "embed",
+    provider = "p",
+    id = "e",
+    context = 1,
+    max_output = 0,
+    kind = "embedding",
+)
+"#;
+
+/// [R-STAR-034] a model says what it is for, and chat is the default
+#[test]
+fn a_model_declares_what_it_is_for() {
+    let dir = workspace(&[("meow.star", TWO_KINDS)]);
+    let loaded = load_at(&dir).unwrap();
+
+    assert_eq!(
+        loaded.registry.model("fast").unwrap().kind,
+        meow_star::registry::ModelKind::Chat,
+        "a model that says nothing should answer"
+    );
+    assert_eq!(
+        loaded.registry.model("embed").unwrap().kind,
+        meow_star::registry::ModelKind::Embedding
+    );
+
+    let wrong = workspace(&[(
+        "meow.star",
+        &format!(
+            r#"{TWO_KINDS}meow.model(name = "odd", provider = "p", id = "x", context = 1, max_output = 1, kind = "oracle")"#
+        ),
+    )]);
+    let error = load_at(&wrong).unwrap_err().to_string();
+    assert!(error.contains("`chat` or `embedding`"), "{error}");
+}
+
+/// [R-STAR-034] an agent given an embedding model is refused, naming both
+#[test]
+fn an_agent_may_not_use_an_embedding_model() {
+    let dir = workspace(&[(
+        "meow.star",
+        &format!(r#"{TWO_KINDS}meow.agent(name = "helper", model = "embed", system = "s")"#),
+    )]);
+
+    let error = load_at(&dir).unwrap_err().to_string();
+    assert!(error.contains("agent `helper`"), "{error}");
+    assert!(error.contains("needs a chat model"), "{error}");
+    assert!(error.contains("`embed` is an embedding model"), "{error}");
+}
+
+/// [R-STAR-035] an index says which model embeds the workspace
+#[test]
+fn an_index_declares_its_model_and_parameters() {
+    let dir = workspace(&[(
+        "meow.star",
+        &format!(
+            r#"{TWO_KINDS}meow.index(model = "embed", chunk_lines = 40, overlap = 8, max_bytes = 500000)"#
+        ),
+    )]);
+
+    let declared = load_at(&dir).unwrap().registry.index().cloned().unwrap();
+
+    assert_eq!(declared.model, "embed");
+    assert_eq!(declared.chunk_lines, Some(40));
+    assert_eq!(declared.overlap, Some(8));
+    assert_eq!(declared.max_bytes, Some(500_000));
+}
+
+/// [R-STAR-035] an index on a chat model is refused, naming both
+#[test]
+fn an_index_may_not_use_a_chat_model() {
+    let dir = workspace(&[(
+        "meow.star",
+        &format!(r#"{TWO_KINDS}meow.index(model = "fast")"#),
+    )]);
+
+    let error = load_at(&dir).unwrap_err().to_string();
+    assert!(error.contains("meow.index"), "{error}");
+    assert!(error.contains("needs an embedding model"), "{error}");
+    assert!(error.contains("`fast` is a chat model"), "{error}");
+}
+
+/// [R-STAR-035] an index is declared at most once
+#[test]
+fn an_index_may_be_declared_only_once() {
+    let dir = workspace(&[(
+        "meow.star",
+        &format!(
+            r#"{TWO_KINDS}
+meow.index(model = "embed")
+meow.index(model = "embed")
+"#
+        ),
+    )]);
+
+    let error = load_at(&dir).unwrap_err().to_string();
+    assert!(
+        error.contains("index `workspace` is declared twice"),
+        "{error}"
+    );
+}
+
+/// A workspace that declares no index loads; only an index command fails.
+#[test]
+fn a_workspace_without_an_index_still_loads() {
+    let dir = workspace(&[("meow.star", TWO_KINDS)]);
+    let loaded = load_at(&dir).unwrap();
+    assert!(loaded.registry.index().is_none());
+}

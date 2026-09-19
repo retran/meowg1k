@@ -53,6 +53,39 @@ pub struct Provider {
     pub origin: Origin,
 }
 
+/// What a model is for.
+///
+/// `[R-STAR-034]`. Two kinds rather than one, because an agent given an
+/// embedding model and an index given a chat model both fail in ways that look
+/// like a bad answer rather than a bad declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ModelKind {
+    /// It answers.
+    #[default]
+    Chat,
+    /// It turns text into vectors.
+    Embedding,
+}
+
+impl ModelKind {
+    /// How it is written in a declaration.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Chat => "chat",
+            Self::Embedding => "embedding",
+        }
+    }
+
+    /// Read the spelling.
+    pub fn parse(text: &str) -> Option<Self> {
+        match text {
+            "chat" => Some(Self::Chat),
+            "embedding" => Some(Self::Embedding),
+            _ => None,
+        }
+    }
+}
+
 /// A named model configuration.
 ///
 /// Presets are gone. v0.2.x had provider, model, and preset, where the third
@@ -72,6 +105,28 @@ pub struct Model {
     pub max_output: u32,
     /// How much to explore.
     pub temperature: Option<f32>,
+    /// What it is for.
+    pub kind: ModelKind,
+    /// Where it was declared.
+    pub origin: Origin,
+}
+
+/// How a workspace is indexed.
+///
+/// `[R-STAR-035]`: which model embeds it, and the parameters `[R-INDEX-003]`
+/// and `[R-INDEX-012]` call configured. Declared at most once, because two
+/// declarations would leave the index built by whichever the loader reached
+/// first.
+#[derive(Debug, Clone)]
+pub struct IndexDecl {
+    /// Which model embeds the workspace.
+    pub model: String,
+    /// How many lines a chunk holds.
+    pub chunk_lines: Option<u32>,
+    /// How many lines two neighbours share.
+    pub overlap: Option<u32>,
+    /// The size at which a file is skipped.
+    pub max_bytes: Option<u64>,
     /// Where it was declared.
     pub origin: Origin,
 }
@@ -115,6 +170,7 @@ pub struct Registry {
     agents: BTreeMap<String, AgentDecl>,
     commands: BTreeMap<String, Origin>,
     policy: Option<(meow_policy::Policy, Origin)>,
+    index: Option<IndexDecl>,
 }
 
 impl Registry {
@@ -173,6 +229,29 @@ impl Registry {
         }
         self.agents.insert(a.name.clone(), a);
         Ok(())
+    }
+
+    /// Say how this workspace is indexed.
+    ///
+    /// # Errors
+    ///
+    /// [`StarError::Duplicate`] naming both declaration sites.
+    pub fn set_index(&mut self, index: IndexDecl) -> Result<()> {
+        if let Some(first) = &self.index {
+            return Err(duplicate(
+                "index",
+                "workspace",
+                &first.origin,
+                &index.origin,
+            ));
+        }
+        self.index = Some(index);
+        Ok(())
+    }
+
+    /// How this workspace is indexed, when it says.
+    pub fn index(&self) -> Option<&IndexDecl> {
+        self.index.as_ref()
     }
 
     /// Set what every agent in this workspace may do.
@@ -240,11 +319,21 @@ impl Registry {
             }
         }
         for agent in self.agents.values() {
-            if !self.models.contains_key(&agent.model) {
+            let Some(model) = self.models.get(&agent.model) else {
                 return Err(StarError::Unknown {
                     kind: "model",
                     name: agent.model.clone(),
                     closest: closest(&agent.model, self.models.keys().map(String::as_str)),
+                });
+            };
+            // [R-STAR-034]: an agent given an embedding model produces
+            // nonsense that looks like an answer, so it is refused here.
+            if model.kind != ModelKind::Chat {
+                return Err(StarError::WrongKind {
+                    name: model.name.clone(),
+                    wanted: ModelKind::Chat.as_str(),
+                    is: model.kind.as_str(),
+                    used_by: format!("agent `{}`", agent.name),
                 });
             }
             for tool in &agent.tools {
@@ -263,6 +352,24 @@ impl Registry {
                 }
             }
         }
+        if let Some(index) = &self.index {
+            let Some(model) = self.models.get(&index.model) else {
+                return Err(StarError::Unknown {
+                    kind: "model",
+                    name: index.model.clone(),
+                    closest: closest(&index.model, self.models.keys().map(String::as_str)),
+                });
+            };
+            if model.kind != ModelKind::Embedding {
+                return Err(StarError::WrongKind {
+                    name: model.name.clone(),
+                    wanted: ModelKind::Embedding.as_str(),
+                    is: model.kind.as_str(),
+                    used_by: "meow.index".to_owned(),
+                });
+            }
+        }
+
         for name in self.commands.keys() {
             if !self.tools.contains_key(name) && !self.agents.contains_key(name) {
                 return Err(StarError::Unknown {
