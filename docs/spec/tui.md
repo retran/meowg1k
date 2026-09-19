@@ -45,9 +45,10 @@ and MUST NOT be redrawn afterwards.
 **[R-TUI-012]** Only the live region MUST be redrawn, and it MUST show the
 current tool, the elapsed time, the step count, and the budget consumed.
 
-**[R-TUI-013]** On any exit, including an interrupt, the transcript already in
-scrollback MUST remain valid and the live region MUST be replaced by a final
-line naming the stop reason.
+**[R-TUI-013]** On any exit the process can observe, including an interrupt,
+the live region MUST be replaced by a final line naming the stop reason. The
+transcript already in scrollback MUST remain valid even on an exit the process
+cannot observe, which is what committing finalized lines immediately buys.
 
 **[R-TUI-014]** A terminal resize MUST reflow only the live region.
 
@@ -126,8 +127,10 @@ of the command line, without a prefix.
 `doctor`, `trust`, `completions`, and `version`.
 
 **[R-TUI-072]** `--dry-run` MUST evaluate policy and plan tool calls without
-executing any, and the transcript MUST record what would have run and how
-policy would have decided.
+executing any, feeding the model a placeholder result for each. The transcript
+MUST record what would have run and how policy would have decided, and MUST
+state that the run diverges from a real one after the first tool call, because
+the model's next move depends on a result it never received.
 
 **[R-TUI-073]** `--yes` MUST make every `ask` decision resolve to `deny`, per
 [R-POLICY-020], and MUST NOT make any decision more permissive.
@@ -150,11 +153,13 @@ the handler's return value:
 | 4 | `cancelled` |
 | 5 | `denied` |
 | 6 | Provider or credential failure |
+| 9 | `failed` for any other reason, such as a storage error |
 | 7 | Configuration error: `.meow/` failed to load |
 | 8 | `tool_aborted` |
 
 **[R-TUI-081]** An exit code MUST NOT be reused for a different stop reason,
-so that a shell can branch on it.
+so that a shell can branch on it. Every stop reason in [R-AGENT-002] MUST map
+to exactly one code.
 
 ### Theme and accessibility
 

@@ -23,9 +23,9 @@ the engine returns.
 
 ### Outcome
 
-**[R-AGENT-001]** Every run that starts MUST return an `AgentOutcome`, or a
-cancellation error. The engine MUST NOT report a stop condition by returning
-an error that discards the transcript.
+**[R-AGENT-001]** Every run that starts MUST return an `AgentOutcome`. No stop
+condition, cancellation included, may be reported as an error, because an error
+discards the transcript the run already paid for.
 
 **[R-AGENT-002]** The stop reasons MUST be exactly: `finished`, `budget`,
 `cancelled`, `denied`, `tool_aborted`, and `failed`.
@@ -40,7 +40,8 @@ denied it.
 
 **[R-AGENT-005]** A model response with no tool calls MUST stop the run with
 `finished`, including when its text is empty. Empty text MUST NOT be treated
-as a failure.
+as a failure, and the outcome's detail MUST record that the model returned no
+text, so a caller is not handed a silent success.
 
 **[R-AGENT-006]** `denied` MUST be the stop reason when the run ends because
 policy denied a call and the error policy is `abort`; `tool_aborted` MUST be
@@ -62,6 +63,10 @@ unbounded.
 **[R-AGENT-013]** A sub-agent's spend MUST count against its caller's
 remaining budget, transitively.
 
+**[R-AGENT-017]** Budget MUST be reserved before a call, not checked before and
+charged after. Concurrent invocations sharing one budget MUST NOT be able to
+overspend it by each observing the same remaining amount.
+
 **[R-AGENT-014]** A sub-agent MUST NOT be given a budget larger than its
 caller's remaining budget.
 
@@ -78,7 +83,9 @@ arguments against the tool's schema.
 
 **[R-AGENT-021]** A required argument the model omitted MUST NOT be replaced
 with a default or a zero value. The engine MUST return a message to the model
-naming the argument and its type, and MUST continue the run.
+naming the argument and its type, and MUST continue the run. An argument
+correction is not a tool error and MUST NOT abort the run under any error
+policy.
 
 **[R-AGENT-022]** An optional argument the model omitted MUST take its
 declared default, and an argument with no default MUST be absent rather than
@@ -133,7 +140,8 @@ MUST fall back to the agent's model when none is given.
 the calling session recorded as its parent.
 
 **[R-AGENT-051]** A sub-agent's outcome MUST be returned to the calling model
-as a tool result containing its text and its stop reason.
+as a tool result containing its text, its stop reason, and its parsed value
+when it declared an output schema.
 
 **[R-AGENT-052]** The engine MUST refuse to start a sub-agent that would
 exceed the configured maximum nesting depth, and MUST report that refusal as a
@@ -161,9 +169,15 @@ the engine MUST stop starting new ones once the budget is exhausted.
 `EventSink`: run start and end, step start and end, text and thinking deltas,
 tool call start and end, policy decisions, and usage.
 
+**[R-AGENT-073]** A sink MUST be able to decline delta events. When it does,
+the engine MUST deliver the completed text once per step instead, because a
+sink backed by a script callback would otherwise pay one call per token.
+
 **[R-AGENT-071]** An error returned by the sink MUST be handled identically
-for every event kind. The engine MUST NOT propagate a sink error for one kind
-and swallow it for another.
+for every event kind: the engine MUST stop delivering to that sink, MUST record
+a `Note` event naming the error, and MUST continue the run. Rendering is not
+the work, so a broken sink MUST NOT destroy a run in progress, and it MUST NOT
+fail silently either.
 
 **[R-AGENT-072]** The engine MUST function with no sink attached.
 

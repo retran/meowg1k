@@ -94,18 +94,18 @@ the only thing that stops it being reopened.
 
 ## Status
 
-All eight component specifications are drafted, with 255 requirements
+All eight component specifications are drafted, with 262 requirements
 between them, and every open question is closed. None is approved yet, and no
 implementation exists.
 
 | Area | File | Requirements |
 | --- | --- | --- |
-| `AGENT` | `agent.md` | 40 |
+| `AGENT` | `agent.md` | 42 |
 | `STAR` | `starlark.md` | 38 |
-| `POLICY` | `policy.md` | 26 |
+| `POLICY` | `policy.md` | 29 |
 | `SESSION` | `session.md` | 37 |
-| `LLM` | `llm.md` | 28 |
-| `STORE` | `store.md` | 24 |
+| `LLM` | `llm.md` | 29 |
+| `STORE` | `store.md` | 25 |
 | `INDEX` | `index.md` | 24 |
 | `TUI` | `tui.md` | 38 |
 

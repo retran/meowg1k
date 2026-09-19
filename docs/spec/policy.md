@@ -41,6 +41,10 @@ with symlinks already resolved, using glob semantics where `**` crosses
 directory boundaries. Resolving the path is the caller's job and MUST happen
 before evaluation, so that evaluation itself touches no filesystem.
 
+**[R-POLICY-014]** A tool MUST act on the exact path the policy evaluated, and
+MUST NOT resolve the path a second time. Re-resolving reopens the window in
+which a path allowed as a file becomes a symlink to somewhere denied.
+
 **[R-POLICY-004]** A `commands` selector MUST match against the full command
 line as a single string, using glob semantics.
 
@@ -72,8 +76,9 @@ then allow rules, and MUST return the first match.
 that no rule matched.
 
 **[R-POLICY-013]** Evaluation MUST touch no filesystem, network, or clock,
-and MUST return the same decision for the same resolved call and the same
-policy every time.
+and MUST return the same decision for the same resolved call, the same policy,
+and the same set of session grants. Grants are an input to evaluation, not a
+side effect of it.
 
 ### Ask
 
@@ -95,9 +100,9 @@ MUST resolve to `deny`.
 
 ### Narrowing
 
-**[R-POLICY-030]** An agent MAY declare a policy of its own. The effective
-policy for that agent MUST be the intersection of its policy with the
-workspace policy.
+**[R-POLICY-030]** An agent MAY declare a policy of its own. For every call,
+the effective decision MUST be the more restrictive of what the two policies
+say, ordering `deny` above `ask` above `allow`.
 
 **[R-POLICY-031]** An agent policy MUST NOT allow a call the workspace policy
 denies, and MUST NOT turn an `ask` into an `allow`.
@@ -117,10 +122,22 @@ approach.
 **[R-POLICY-042]** Every evaluation MUST produce a `Policy` session event,
 whatever the decision.
 
+### Sensitive values
+
+**[R-POLICY-060]** A rule MAY mark an argument or a result field sensitive. A
+value so marked MUST be redacted in the approval prompt, in the transcript, and
+in every export, and MUST NOT be written to the session log in the clear.
+
+**[R-POLICY-061]** Redaction MUST replace the value with a fixed placeholder
+and MUST NOT reveal its length.
+
 ### Explanation
 
 **[R-POLICY-050]** `meow policy explain <tool> <argument>` MUST return the
-same decision that a real call with those arguments would receive.
+rule decision a real call with those arguments would receive: `allow`, `ask`,
+or `deny`. It MUST NOT claim to predict how an `ask` would be answered, because
+that depends on a person and on grants made during a run that has not
+happened.
 
 **[R-POLICY-051]** The explanation MUST name the matching rule and the file
 and line it was declared on, and MUST report how many higher-precedence rules

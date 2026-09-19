@@ -22,8 +22,9 @@ The index API: build, update, query, stats, clear. The rows it writes through
 ### Walking
 
 **[R-INDEX-001]** Indexing MUST respect `.gitignore`, `.meowignore`, and the
-workspace's own `.meow/.data/` exclusion, and MUST NOT index a file any of
-them excludes.
+workspace's own `.meow/.data/` exclusion. `.meowignore` MUST support negation,
+so a path `.gitignore` excludes can be indexed deliberately; `.meow/.data/`
+MUST NOT be re-includable.
 
 **[R-INDEX-002]** Indexing MUST skip files it detects as binary, and MUST
 record how many it skipped.
@@ -34,8 +35,9 @@ MUST report each skip, so a missing result is explainable.
 **[R-INDEX-004]** Indexing MUST NOT follow a symlink that leaves the
 workspace.
 
-**[R-INDEX-005]** Indexing MUST cover every text file the exclusions allow,
-including Markdown and other prose, not only source code.
+**[R-INDEX-005]** Indexing MUST NOT exclude a file for being prose rather
+than source. Markdown and plain text are indexed on the same terms as code,
+subject to the same exclusions.
 
 ### Chunking
 
@@ -45,13 +47,18 @@ produce the same chunks, with the same boundaries, on every run.
 **[R-INDEX-011]** A chunk MUST carry its source path, its byte range, and its
 line range, so a result can be cited precisely.
 
-**[R-INDEX-012]** Chunks MUST overlap by a configured number of tokens, so a
-definition split across a boundary is retrievable from either side.
+**[R-INDEX-012]** Chunks MUST overlap by a configured number of lines, so a
+definition split across a boundary is retrievable from either side. Overlap is
+counted in lines rather than tokens because boundaries are lines, and the two
+units cannot both be exact.
 
 **[R-INDEX-013]** A chunk MUST NOT exceed the embedding model's input limit.
 
 **[R-INDEX-014]** Chunk boundaries MUST fall on line boundaries. A chunk MUST
-NOT begin or end part-way through a line.
+NOT begin or end part-way through a line, except where a single line exceeds
+the embedding model's input limit, in which case that line MUST be split and
+the split MUST be reported, so a minified file cannot make the two rules
+unsatisfiable.
 
 ### Embedding
 
@@ -68,7 +75,9 @@ re-embed chunks whose vectors are already stored.
 ### Incremental update
 
 **[R-INDEX-030]** Update MUST re-embed a file only when its content hash
-differs from the stored one.
+differs from the stored one. The hash MUST cover the chunking parameters as
+well as the content, so changing chunk size or overlap does not leave stale
+chunks that look current.
 
 **[R-INDEX-031]** Update MUST remove the chunks of a file that no longer
 exists or that has become excluded.

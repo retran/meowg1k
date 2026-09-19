@@ -71,7 +71,9 @@ being evaluated, and MUST fail inside a handler.
 same name MUST fail naming both declaration sites.
 
 **[R-STAR-032]** A declaration that names a provider, model, or tool that does
-not exist MUST fail at load time, not at first use.
+not exist MUST fail at load time, not at first use. References MUST be resolved
+after every declaration file has been evaluated, so that declaration order
+inside and between files does not matter.
 
 **[R-STAR-033]** A command whose name collides with a built-in MUST fail at
 load time naming the collision, and MUST NOT shadow the built-in.
@@ -101,14 +103,16 @@ Starlark values cannot cross a thread boundary.
 ### Markdown agents
 
 **[R-STAR-050]** A `.md` file under `.meow/agents/` MUST declare an agent
-whose frontmatter keys are exactly the keyword arguments of `meow.agent` and
-whose body is the system prompt.
+whose frontmatter accepts every keyword argument of `meow.agent` except
+`system`, plus `include`. The body supplies `system`, so frontmatter carrying
+it MUST fail.
 
 **[R-STAR-051]** A markdown agent and a Starlark agent MUST produce the same
 value, and MUST be indistinguishable to a caller.
 
 **[R-STAR-052]** Frontmatter that is not valid YAML, or that carries a key
-`meow.agent` does not accept, MUST fail at load time with the file and line.
+outside the set [R-STAR-050] allows, MUST fail at load time with the file and
+line.
 
 **[R-STAR-053]** A `.md` file under `.meow/lib/` MUST be loadable as a string.
 

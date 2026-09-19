@@ -29,9 +29,9 @@ SQLite database at `.meow/.data/meow.db`, resolved from the workspace root.
 **[R-STORE-002]** The store MUST enable write-ahead logging and foreign key
 enforcement on every connection, and MUST set `synchronous` to `NORMAL`.
 
-**[R-STORE-007]** The database MUST be stored unencrypted, and `meow doctor`
-MUST report that it is, together with its path, so that a user deciding what a
-workspace may hold is told rather than left to assume.
+**[R-STORE-007]** The store MUST NOT encrypt the database, and `meow doctor`
+MUST report that it is unencrypted, together with its path, so that a user
+deciding what a workspace may hold is told rather than left to assume.
 
 **[R-STORE-008]** The database and its side files MUST be created readable and
 writable by their owner only, on every platform that has file permissions.
@@ -69,14 +69,21 @@ naming the hash, and MUST NOT return empty content.
 
 ### Writing
 
-**[R-STORE-020]** All writes belonging to one agent turn MUST be committed in
-a single transaction.
+**[R-STORE-020]** Each event MUST be committed on its own. A turn MUST NOT be
+written in one transaction held open across tool execution: the log is
+append-only, so a half-written turn is a true record of how far the run got,
+and holding the single write lock for the length of a tool would block every
+other session and lose that tool's result on a crash.
 
 **[R-STORE-021]** A failed write MUST propagate as an error to the caller. The
 store MUST NOT log a failure and continue.
 
 **[R-STORE-022]** The store MUST allow one writer at a time and MUST allow
 readers concurrently with that writer.
+
+**[R-STORE-024]** A bulk write such as an index build MUST commit in bounded
+batches and MUST NOT hold the write lock for the length of the operation, so
+that indexing cannot block an agent run.
 
 **[R-STORE-023]** A write that blocks on another writer MUST wait up to a
 configured busy timeout of at least 5 seconds before failing.
@@ -102,8 +109,11 @@ database so retention can act on it.
 
 ### Cache
 
-**[R-STORE-045]** The store MUST provide a cache keyed by a hash of the request
-that produced the entry, holding generation and embedding responses.
+**[R-STORE-045]** The store MUST provide a cache keyed by a hash of the
+request that produced the entry. Embedding responses MUST be cached by
+default. Generation responses MUST NOT be cached unless the caller asks,
+because an agent that retries wants a fresh attempt and a cache would hand it
+the answer that already failed.
 
 **[R-STORE-046]** A cache entry MUST record the model that produced it, and a
 lookup MUST miss when the model differs, so that changing a model cannot return

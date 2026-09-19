@@ -64,7 +64,9 @@ earlier `Compaction` event already supersedes.
 tokens, cached prompt tokens, and cost as separate typed fields.
 
 **[R-SESSION-021]** Cost MUST be computed when the event is written, from the
-price table in effect at that moment, and MUST NOT be recomputed on read.
+price table in effect at that moment, and MUST NOT be recomputed on read. A
+model with no price in the table MUST record the cost as absent, never as zero,
+so an unpriced model does not read as a free one.
 
 **[R-SESSION-022]** A session MUST report its totals as the sum of its own
 `Usage` events plus the totals of its child sessions.
@@ -72,8 +74,10 @@ price table in effect at that moment, and MUST NOT be recomputed on read.
 ### Identity
 
 **[R-SESSION-030]** Every session MUST have a full identifier that sorts by
-creation time, and a short identifier that is the shortest unique prefix of at
-least six characters within the workspace.
+creation time, and a short identifier that is a fixed eight-character prefix of
+it. The length is fixed rather than "shortest unique" so that an identifier
+written into a commit message or an issue keeps resolving as sessions
+accumulate.
 
 **[R-SESSION-031]** Resolving a short identifier that matches more than one
 session MUST fail with an error listing the candidates, and MUST NOT pick one.
@@ -84,7 +88,8 @@ workspace, `@last-N` to the Nth most recent, and `@<agent-name>` to the most
 recent session of that agent.
 
 **[R-SESSION-033]** A session MAY carry a name. A name MUST be unique within
-the workspace and MUST resolve like an identifier.
+the workspace, MUST NOT begin with `@`, and MUST resolve like an identifier, so
+that a name can never shadow a selector.
 
 ### Lifecycle
 
@@ -92,15 +97,17 @@ the workspace and MUST resolve like an identifier.
 of the terminal states `finished`, `budget`, `cancelled`, `denied`,
 `tool_aborted`, or `failed`.
 
-**[R-SESSION-041]** The state MUST be derived from the log and not stored
-separately, so that no field can disagree with it: `running` when the last
-event is not `Finished`, and otherwise the stop reason that last `Finished`
-event carries.
+**[R-SESSION-041]** The state MUST be defined by the log: `running` when the
+last event is not `Finished`, and otherwise the stop reason that last
+`Finished` event carries. A denormalised copy MAY be kept so that listing a
+thousand sessions does not read a thousand events, provided it is rebuildable
+from the log and the log wins on any disagreement.
 
-**[R-SESSION-043]** While a run is in flight its writer MUST record a
-heartbeat timestamp at a fixed interval. A session whose last event is not
-`Finished` and whose heartbeat is older than three intervals MUST be treated as
-dead.
+**[R-SESSION-043]** While a run is in flight its writer MUST update a
+heartbeat timestamp on the session row at a fixed interval. The heartbeat MUST
+NOT be an event, because it is mutable and the log is not. A session whose last
+event is not `Finished` and whose heartbeat is older than three intervals MUST
+be treated as dead.
 
 **[R-SESSION-042]** Opening a session whose last event is not `Finished` and
 whose recording process is no longer alive MUST append
@@ -116,8 +123,10 @@ existing sequence, and MUST NOT create a new session.
 [R-SESSION-011], so a resumed run sees compaction exactly as the original did.
 
 **[R-SESSION-052]** Forking at sequence `n` MUST create a new session whose
-first `n` events are copies referencing the same blobs, MUST record the origin
-session and sequence, and MUST NOT modify the origin.
+first `n` events are copies referencing the same blobs, MUST increment the
+reference count of every blob so referenced, MUST record the origin session and
+sequence, and MUST NOT modify the origin. Without the increment, collecting the
+origin would delete content the fork still points at.
 
 **[R-SESSION-053]** Forking at a sequence that does not exist, or at a
 sequence inside a superseded range, MUST fail with an error naming the valid
@@ -163,8 +172,8 @@ kind MUST serialise identically in both, per [R-TUI-032].
 **[R-SESSION-091]** Markdown export MUST include the transcript, the tool
 calls with their policy decisions, and the usage totals.
 
-**[R-SESSION-092]** Export MUST redact values the policy marked sensitive, in
-both formats.
+**[R-SESSION-092]** Export MUST redact every value the policy marked
+sensitive under [R-POLICY-060], in both formats.
 
 **[R-SESSION-093]** Export MUST omit thinking content unless it is asked for
 explicitly, because it is the part of a transcript least likely to be meant for
