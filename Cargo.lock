@@ -1761,6 +1761,7 @@ name = "meow-session"
 version = "0.3.0-alpha.0"
 dependencies = [
  "meow-core",
+ "meow-policy",
  "meow-store",
  "serde_json",
  "tempfile",
