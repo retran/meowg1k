@@ -9,27 +9,28 @@
 //! handler without a terminal, which is most of what makes the run phase
 //! testable at all.
 
+use meow_core::view::{LiveKind, Output, ViewEvent};
 use serde_json::Value;
 
-/// Where a handler's output goes.
+/// Where everything a run produces goes.
 ///
-/// The methods are what `0.3.0-starlark-api.md` section 6 lists, and they are
-/// deliberately not one `write` with a severity argument: a renderer decides
-/// differently for each, and a severity string is one typo away from being
-/// silently ignored.
-pub trait Out: Send + Sync + std::fmt::Debug {
-    /// A line of plain text.
-    fn write(&self, text: &str);
-    /// An aside: counts, timings, what was skipped.
-    fn note(&self, text: &str);
-    /// Something the reader should act on.
-    fn warn(&self, text: &str);
-    /// A step in a longer piece of work.
-    fn step(&self, text: &str);
-    /// Text to render as markdown.
-    fn markdown(&self, text: &str);
-    /// One result, with where it is and how much it matters.
-    fn finding(&self, severity: &str, location: &str, summary: &str);
+/// One stream and one method. `[R-TUI-042]` asks each `ctx.out` call to
+/// produce a typed event that all three renderers handle, and the engine's own
+/// events travel the same way, so a renderer sees one vocabulary rather than
+/// two that have to be kept level. A trait with a method per call would let a
+/// renderer quietly handle nine of the ten.
+///
+/// The ten script calls are the variants of [`Output`], fixed by
+/// `[R-TUI-040]`; `[R-TUI-041]` is why none of them positions a cursor, draws
+/// a frame, or paginates.
+pub trait Events: Send + Sync + std::fmt::Debug {
+    /// Take one event.
+    fn event(&self, event: ViewEvent);
+}
+
+/// Send one thing a handler said.
+pub fn say(events: &dyn Events, output: Output) {
+    events.event(ViewEvent::Live(LiveKind::Output(output)));
 }
 
 /// A question could not be asked.
@@ -104,19 +105,14 @@ pub trait Session: Send + Sync + std::fmt::Debug {
 
 /// Ports that do nothing, for a run with no terminal.
 pub mod quiet {
-    use super::{Ask, AskError, Out, Session, Stdin};
+    use super::{Ask, AskError, Events, Session, Stdin};
 
-    /// Discards everything written to it.
+    /// Discards everything sent to it.
     #[derive(Debug, Default)]
     pub struct Silent;
 
-    impl Out for Silent {
-        fn write(&self, _text: &str) {}
-        fn note(&self, _text: &str) {}
-        fn warn(&self, _text: &str) {}
-        fn step(&self, _text: &str) {}
-        fn markdown(&self, _text: &str) {}
-        fn finding(&self, _severity: &str, _location: &str, _summary: &str) {}
+    impl Events for Silent {
+        fn event(&self, _event: meow_core::view::ViewEvent) {}
     }
 
     /// Refuses every question.

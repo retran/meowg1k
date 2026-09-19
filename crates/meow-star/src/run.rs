@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::args::Args;
 use crate::error::{Result, StarError, closest};
-use crate::port::{Ask, Out, Session, Stdin};
+use crate::port::{Ask, Events, Session, Stdin};
 use crate::registry::Registry;
 use crate::state::{Phase, Running};
 use crate::workspace::Workspace;
@@ -76,7 +76,7 @@ pub struct Runtime {
     registry: Arc<Registry>,
     files: HashMap<String, FrozenModule>,
     std: Arc<crate::modules::Modules>,
-    out: Arc<dyn Out>,
+    events: Arc<dyn Events>,
     ask: Arc<dyn Ask>,
     stdin: Arc<dyn Stdin>,
     session: Arc<dyn Session>,
@@ -95,8 +95,8 @@ impl std::fmt::Debug for Runtime {
 /// What a caller has to supply to run anything.
 #[derive(Debug)]
 pub struct Ports {
-    /// Where output goes.
-    pub out: Arc<dyn Out>,
+    /// Where events go.
+    pub events: Arc<dyn Events>,
     /// How to ask a person something.
     pub ask: Arc<dyn Ask>,
     /// What was piped in.
@@ -122,7 +122,7 @@ impl Runtime {
             registry: Arc::new(loaded.registry),
             files: loaded.modules,
             std: loaded.std,
-            out: ports.out,
+            events: ports.events,
             ask: ports.ask,
             stdin: ports.stdin,
             session: ports.session,
@@ -140,9 +140,9 @@ impl Runtime {
         &self.workspace
     }
 
-    /// Where output goes.
-    pub fn out(&self) -> &dyn Out {
-        self.out.as_ref()
+    /// Where events go.
+    pub fn events(&self) -> &dyn Events {
+        self.events.as_ref()
     }
 
     /// How to ask a person something.
@@ -416,23 +416,141 @@ impl Runtime {
 /// Where an agent's events go while a handler is waiting on it.
 fn sink(runtime: &Arc<Runtime>) -> Box<dyn Sink + Send> {
     Box::new(Relay {
-        out: Arc::clone(&runtime.out),
+        events: Arc::clone(&runtime.events),
+        session: runtime.session.id(),
+        started: std::time::Instant::now(),
+        names: HashMap::new(),
+        steps: 0,
+        usage: meow_core::Usage::default(),
     })
 }
 
-/// Turns engine events into lines on the output port.
+/// Turns what the engine reports into what a renderer reads.
+///
+/// The mapping lives here rather than in `meow-ui`, because the engine's event
+/// type belongs to `meow-agent` and `meow-ui` is not allowed to know the
+/// engine exists. That boundary is what lets a renderer be driven from a
+/// recorded log with no engine behind it.
+///
+/// It also keeps the little state the view needs and the engine does not: the
+/// name a tool call was made under, how many steps have passed, and what has
+/// been spent. The engine has no reason to repeat those on every event, and a
+/// renderer has no way to derive them.
 struct Relay {
-    out: Arc<dyn Out>,
+    events: Arc<dyn Events>,
+    session: String,
+    started: std::time::Instant,
+    names: HashMap<String, String>,
+    steps: u32,
+    usage: meow_core::Usage,
+}
+
+impl Relay {
+    fn elapsed_ms(&self) -> u64 {
+        u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
+    }
+
+    fn send(&self, event: meow_core::view::ViewEvent) {
+        self.events.event(event);
+    }
+
+    /// Tell the live region where the run has got to.
+    ///
+    /// `[R-TUI-012]` wants the current tool, the elapsed time, the step count,
+    /// and the budget consumed, and this is the only place that knows all four
+    /// at once.
+    fn progress(&self, tool: Option<String>) {
+        self.send(meow_core::view::ViewEvent::Live(
+            meow_core::view::LiveKind::Progress {
+                step: self.steps,
+                elapsed_ms: self.elapsed_ms(),
+                tokens: self.usage.prompt.saturating_add(self.usage.completion),
+                cost_micros: self.usage.cost_micros,
+                tool,
+            },
+        ));
+    }
 }
 
 impl Sink for Relay {
     fn event(&mut self, event: meow_agent::AgentEvent) -> std::result::Result<(), String> {
+        use meow_agent::AgentEvent as E;
+        use meow_core::view::{LiveKind, ViewEvent};
+
         match event {
-            meow_agent::AgentEvent::Text(delta) => self.out.write(&delta),
-            meow_agent::AgentEvent::ToolStart { name, .. } => {
-                self.out.step(&format!("{name}(...)"));
+            E::RunStart { agent } => {
+                self.send(ViewEvent::Live(LiveKind::RunStart {
+                    agent,
+                    model: String::new(),
+                    session: self.session.clone(),
+                }));
             }
-            _ => {}
+            E::StepStart { step } => {
+                self.steps = step;
+                self.send(ViewEvent::Live(LiveKind::StepStart { step }));
+                self.progress(None);
+            }
+            E::Text(delta) => self.send(ViewEvent::Live(LiveKind::TextDelta { delta })),
+            E::Thinking(delta) => self.send(ViewEvent::Live(LiveKind::ThinkingDelta { delta })),
+            E::StepText { .. } | E::StepEnd { .. } => {}
+            E::ToolStart { id, name, args } => {
+                self.names.insert(id.clone(), name.clone());
+                self.send(ViewEvent::Live(LiveKind::ToolStart {
+                    id,
+                    name: name.clone(),
+                    args,
+                }));
+                self.progress(Some(name));
+            }
+            E::ToolEnd {
+                id,
+                duration_ms,
+                error,
+            } => {
+                let name = self.names.remove(&id).unwrap_or_default();
+                self.send(ViewEvent::Live(LiveKind::ToolEnd {
+                    id,
+                    name,
+                    duration_ms,
+                    error,
+                }));
+                self.progress(None);
+            }
+            E::Policy { id, decision } => {
+                self.send(ViewEvent::Logged(meow_core::EventKind::Policy {
+                    id,
+                    decision,
+                    rule: None,
+                    source: "rule".to_owned(),
+                }));
+            }
+            E::Usage(usage) => {
+                self.usage = self.usage.add(&usage);
+                self.progress(None);
+            }
+            E::Compacted {
+                supersedes,
+                summary,
+                tokens_saved,
+            } => {
+                let start = u64::try_from(supersedes.start).unwrap_or(0);
+                let end = u64::try_from(supersedes.end.saturating_sub(1)).unwrap_or(0);
+                self.send(ViewEvent::Logged(meow_core::EventKind::Compaction {
+                    supersedes: start..=end,
+                    summary,
+                    tokens_saved,
+                }));
+            }
+            E::RunEnd { stop, detail } => {
+                self.send(ViewEvent::Live(LiveKind::RunEnd {
+                    stop,
+                    detail,
+                    steps: self.steps,
+                    usage: self.usage,
+                    elapsed_ms: self.elapsed_ms(),
+                    session: self.session.clone(),
+                }));
+            }
         }
         Ok(())
     }

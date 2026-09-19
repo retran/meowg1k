@@ -9,8 +9,9 @@ use std::sync::{Arc, Mutex};
 
 use meow_agent::Engine;
 use meow_core::Usage;
+use meow_core::view::{LiveKind, Output, ViewEvent};
 use meow_llm::{Capabilities, LlmError, Provider, Request, Response, Structured, ToolCall};
-use meow_star::port::{Ask, AskError, Out, Session, Stdin};
+use meow_star::port::{Ask, AskError, Events, Session, Stdin};
 use meow_star::{Ports, Runtime, Workspace, load};
 use serde_json::{Map, Value, json};
 use tempfile::TempDir;
@@ -29,24 +30,31 @@ impl Recorder {
     }
 }
 
-impl Out for Recorder {
-    fn write(&self, text: &str) {
-        self.push("write", text);
-    }
-    fn note(&self, text: &str) {
-        self.push("note", text);
-    }
-    fn warn(&self, text: &str) {
-        self.push("warn", text);
-    }
-    fn step(&self, text: &str) {
-        self.push("step", text);
-    }
-    fn markdown(&self, text: &str) {
-        self.push("markdown", text);
-    }
-    fn finding(&self, severity: &str, location: &str, summary: &str) {
-        self.push("finding", &format!("{severity} {location} {summary}"));
+impl Events for Recorder {
+    fn event(&self, event: ViewEvent) {
+        // Only what a handler said: the engine's own events have their own
+        // tests, and mixing them in here would make every assertion depend on
+        // how many progress ticks happened to fire.
+        let ViewEvent::Live(LiveKind::Output(output)) = event else {
+            return;
+        };
+        let text = match &output {
+            Output::Write { text }
+            | Output::Markdown { text }
+            | Output::Note { text }
+            | Output::Warn { text }
+            | Output::Error { text }
+            | Output::Step { text }
+            | Output::Diff { patch: text } => text.clone(),
+            Output::Table { columns, rows } => format!("{columns:?} {rows:?}"),
+            Output::Finding {
+                severity,
+                location,
+                summary,
+            } => format!("{severity} {location} {summary}"),
+            Output::Json { value } => value.to_string(),
+        };
+        self.push(output.call(), &text);
     }
 }
 
@@ -201,7 +209,7 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
         Arc::new(Engine::new(Arc::clone(&provider) as Arc<dyn Provider>)),
         tokio::runtime::Handle::current(),
         Ports {
-            out: Arc::clone(&out) as Arc<dyn Out>,
+            events: Arc::clone(&out) as Arc<dyn Events>,
             ask: Arc::new(Willing("yes".to_owned())) as Arc<dyn Ask>,
             stdin: Arc::new(Piped("piped text".to_owned())) as Arc<dyn Stdin>,
             session: Arc::new(meow_star::port::quiet::Memory::new("s-1")) as Arc<dyn Session>,
