@@ -9,10 +9,15 @@
 //!
 //! `docs/spec/index.md` is normative.
 
+pub mod ann;
 pub mod chunk;
+pub mod embed;
 pub mod error;
+pub mod index;
 pub mod walk;
 
 pub use crate::chunk::{Chunk, Chunking};
+pub use crate::embed::{Embed, Rejected};
 pub use crate::error::{IndexError, Result};
+pub use crate::index::{Built, Hit, Index, Query};
 pub use crate::walk::{Walk, Walked};
