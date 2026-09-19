@@ -1,0 +1,6 @@
+# `unwrap_used` and `expect_used` are denied at the workspace level. A test
+# that unwraps is saying "this cannot fail, and if it does I want the test to
+# fail loudly", which is correct, so exempt tests instead of scattering
+# `#[allow]` through them.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

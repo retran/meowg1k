@@ -177,6 +177,15 @@ repos:
           - //
 
       - id: insert-license
+        name: Insert license header (Rust)
+        files: \.rs$
+        args:
+          - --license-filepath
+          - LICENSE_HEADER.txt
+          - --comment-style
+          - //
+
+      - id: insert-license
         name: Insert license header (YAML)
         files: \.(yaml|yml)$
         args:
