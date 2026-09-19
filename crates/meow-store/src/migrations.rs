@@ -124,6 +124,41 @@ const MIGRATIONS: &[Migration] = &[
         ALTER TABLE sessions ADD COLUMN origin_seq INTEGER;
     "#,
     },
+    Migration {
+        version: 4,
+        sql: r#"
+        -- [R-INDEX-050] puts the vectors in the same database as everything
+        -- else, which is what lets a chunk share the blob table with a tool
+        -- result quoting the same file.
+
+        -- One row per indexed file. The hash covers the chunking parameters
+        -- as well as the content, per [R-INDEX-030], so changing the chunk
+        -- size does not leave chunks that look current.
+        CREATE TABLE index_files (
+            path    TEXT PRIMARY KEY,
+            hash    TEXT NOT NULL,
+            chunks  INTEGER NOT NULL,
+            at      INTEGER NOT NULL
+        ) STRICT;
+
+        -- One row per chunk. `vector` is null until the chunk is embedded,
+        -- which is what makes a build resumable under [R-INDEX-022]: an
+        -- interrupted run finds its own work half done and does the rest.
+        CREATE TABLE index_chunks (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            path       TEXT NOT NULL REFERENCES index_files(path) ON DELETE CASCADE,
+            first_line INTEGER NOT NULL,
+            last_line  INTEGER NOT NULL,
+            start_byte INTEGER NOT NULL,
+            end_byte   INTEGER NOT NULL,
+            text       TEXT NOT NULL,
+            vector     BLOB
+        ) STRICT;
+
+        CREATE INDEX index_chunks_path ON index_chunks(path);
+        CREATE INDEX index_chunks_pending ON index_chunks(vector) WHERE vector IS NULL;
+    "#,
+    },
 ];
 
 /// The highest version this binary knows how to reach.
