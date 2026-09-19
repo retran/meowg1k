@@ -21,6 +21,7 @@ clap_complete = "4"
 meow-agent = { path = "../meow-agent" }
 meow-core = { path = "../meow-core" }
 meow-llm = { path = "../meow-llm" }
+meow-policy = { path = "../meow-policy" }
 meow-star = { path = "../meow-star" }
 meow-ui = { path = "../meow-ui" }
 ratatui = { version = "0.30", features = ["crossterm"] }

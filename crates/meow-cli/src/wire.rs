@@ -9,11 +9,12 @@ use std::sync::Arc;
 use clap::ArgMatches;
 use meow_agent::Engine;
 use meow_llm::{Anthropic, Http, Provider};
-use meow_star::port::quiet::{Closed, Memory, NoTerminal};
+use meow_star::port::quiet::Memory;
 use meow_star::{Loaded, Ports, Registry, Runtime, Workspace};
 use serde_json::{Map, Value};
 use tokio_util::sync::CancellationToken;
 
+use crate::ask;
 use crate::exit::{self, Ending};
 use crate::render::{self, Environment};
 
@@ -281,6 +282,13 @@ fn invoke(
             .is_some_and(|c| c == "never"),
     }));
 
+    // One object answers questions and approvals alike, so an `always` and a
+    // `ctx.ask` cannot disagree about whether anybody is there.
+    let terminal = Arc::new(ask::Terminal::new(
+        ask::Interaction::detect(matches.get_flag("yes")),
+        Arc::clone(&sink),
+    ));
+
     let cancel = CancellationToken::new();
     watch(&runtime, cancel.clone());
 
@@ -291,8 +299,10 @@ fn invoke(
         runtime.handle().clone(),
         Ports {
             events: Arc::clone(&sink) as Arc<dyn meow_star::port::Events>,
-            ask: Arc::new(NoTerminal),
-            stdin: Arc::new(Closed),
+            approve: Some(Arc::clone(&terminal) as Arc<dyn meow_agent::Approver>),
+            dry_run: matches.get_flag("dry-run"),
+            ask: Arc::clone(&terminal) as Arc<dyn meow_star::port::Ask>,
+            stdin: Arc::new(crate::ask::Stdin),
             session: Arc::new(Memory::new("local")),
         },
         cancel.clone(),
