@@ -36,6 +36,14 @@ pub struct AgentSpec {
     pub on_tool_error: ToolErrorPolicy,
     /// The most tokens one model call may produce.
     pub max_output_tokens: u32,
+    /// When and how to summarise a long run.
+    pub compaction: crate::compaction::Compaction,
+    /// How many tokens the model can hold at once.
+    pub context_window: u32,
+    /// How deep a chain of sub-agents may go.
+    ///
+    /// `[R-AGENT-052]`.
+    pub max_depth: u32,
     /// What this agent may do.
     ///
     /// `None` permits everything, which is only right for a test. A real
@@ -80,6 +88,9 @@ impl AgentSpec {
             output: None,
             on_tool_error: ToolErrorPolicy::default(),
             max_output_tokens: 4096,
+            compaction: crate::compaction::Compaction::default(),
+            context_window: 200_000,
+            max_depth: 4,
             policy: None,
             grants: meow_policy::Grants::new(),
             describe_call: None,
@@ -111,6 +122,20 @@ impl AgentSpec {
     #[must_use]
     pub fn with_output(mut self, schema: Value) -> Self {
         self.output = Some(schema);
+        self
+    }
+
+    /// Say when and how to summarise.
+    #[must_use]
+    pub fn with_compaction(mut self, compaction: crate::compaction::Compaction) -> Self {
+        self.compaction = compaction;
+        self
+    }
+
+    /// Say how much the model can hold.
+    #[must_use]
+    pub fn with_context_window(mut self, tokens: u32) -> Self {
+        self.context_window = tokens;
         self
     }
 
