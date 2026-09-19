@@ -94,7 +94,6 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc *doma
 	}
 	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Defer rollback errors are not critical
 
-	// Insert content blob
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO content_blobs (content_hash, content) VALUES (?, ?) ON CONFLICT(content_hash) DO NOTHING`,
 		doc.ContentHash, content,
@@ -103,7 +102,6 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc *doma
 		return 0, fmt.Errorf("failed to insert content blob: %w", err)
 	}
 
-	// Insert document version
 	res, err := tx.ExecContext(ctx,
 		`INSERT INTO document_versions (file_path, git_commit_hash_first_seen, content_hash) VALUES (?, ?, ?)`,
 		doc.FilePath, doc.GitCommitHashFirstSeen, doc.ContentHash,
@@ -117,7 +115,6 @@ func (r *Repository) AddDocumentVersionWithChunks(ctx context.Context, doc *doma
 		return 0, fmt.Errorf("failed to get last insert ID for document version: %w", err)
 	}
 
-	// Insert chunks if any
 	if len(chunks) > 0 {
 		if err := insertChunks(ctx, tx, versionID, chunks); err != nil {
 			return 0, err

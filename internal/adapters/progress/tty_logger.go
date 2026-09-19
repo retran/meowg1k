@@ -320,7 +320,6 @@ func (l *TTYLogger) stopSpinnerUnsafe() {
 	close(l.spinner.done)
 	l.spinner = nil
 
-	// Flush to clear the spinner
 	if err := l.writer.Flush(); err != nil {
 		l.err = err
 	}
@@ -336,7 +335,6 @@ func (l *TTYLogger) stopProgressUnsafe() {
 	close(l.progress.done)
 	l.progress = nil
 
-	// Flush to clear the progress bar
 	if err := l.writer.Flush(); err != nil {
 		l.err = err
 	}

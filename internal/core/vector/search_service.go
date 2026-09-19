@@ -71,7 +71,6 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("topK must be positive, got %d", topK)
 	}
 
-	// Step 1: Load index dump from meta repository
 	key := fmt.Sprintf("idx_dump_%s", snapshotName)
 	dumpBytes, err := s.metaRepo.GetValue(ctx, key)
 	if err != nil {
@@ -82,7 +81,6 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("no index found for snapshot %q", snapshotName)
 	}
 
-	// Step 2: Deserialize the dump
 	var dump IndexDump
 	dumpBuffer := bytes.NewReader(dumpBytes)
 	dumpDecoder := gob.NewDecoder(dumpBuffer)
@@ -90,7 +88,6 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("failed to decode index dump for snapshot %q: %w", snapshotName, err)
 	}
 
-	// Step 3: Deserialize HNSW index using Import
 	hnswBuffer := bytes.NewReader(dump.HNSWData)
 
 	hnswIndex := NewGraph[int64]()
@@ -98,23 +95,15 @@ func (s *SearchService) Search(
 		return nil, fmt.Errorf("failed to import HNSW graph for snapshot %q: %w", snapshotName, err)
 	}
 
-	// Step 4: Convert searchindex embedding from float64 to float32
 	queryVec := make([]float32, len(queryEmbedding))
 	for i, val := range queryEmbedding {
 		queryVec[i] = float32(val)
 	}
 
-	// Step 5: Perform HNSW search
-	// Search returns nodes where Key is the chunk ID
 	searchResults := hnswIndex.Search(queryVec, topK)
 
-	// Step 6: Convert results to QueryResult format
-	// Note: HNSW returns results by distance (lower is closer), but we need similarity scores
-	// For cosine distance, similarity = 1 - distance (assuming distance is normalized to [0,1])
 	results := make([]QueryResult, 0, len(searchResults))
 	for _, node := range searchResults {
-		// Calculate similarity from the embeddings
-		// We'll compute cosine similarity: dot(searchindex, node) / (||searchindex|| * ||node||)
 		similarity := cosineSimilarity(queryVec, node.Value)
 
 		results = append(results, QueryResult{
