@@ -78,6 +78,60 @@ impl Prompt {
     }
 }
 
+/// What a person said to an approval prompt.
+///
+/// Four answers, by `[R-TUI-061]`. "Always" is the one worth stating twice:
+/// `[R-POLICY-023]` and `[R-TUI-062]` both say it lasts for the process and
+/// nothing writes it back to a file, because a permission granted in a hurry
+/// should not outlive the terminal it was granted in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Answer {
+    /// Allow this call.
+    Once,
+    /// Allow this call and every later one to the same tool, this process only.
+    Always,
+    /// Refuse this call, and let the model try something else.
+    Deny,
+    /// Refuse this call and end the run.
+    Stop,
+}
+
+impl Answer {
+    /// The key a person presses.
+    pub fn key(self) -> char {
+        match self {
+            Self::Once => 'o',
+            Self::Always => 'a',
+            Self::Deny => 'd',
+            Self::Stop => 's',
+        }
+    }
+
+    /// What the prompt offers to do.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Once => "once",
+            Self::Always => "always",
+            Self::Deny => "deny",
+            Self::Stop => "stop",
+        }
+    }
+
+    /// Read a keypress.
+    pub fn from_key(key: char) -> Option<Self> {
+        Some(match key.to_ascii_lowercase() {
+            'o' | 'y' => Self::Once,
+            'a' => Self::Always,
+            'd' | 'n' => Self::Deny,
+            's' | 'q' => Self::Stop,
+            _ => return None,
+        })
+    }
+
+    /// Every answer, in the order a prompt offers them.
+    pub const ALL: [Self; 4] = [Self::Once, Self::Always, Self::Deny, Self::Stop];
+}
+
 /// What `meow policy explain` answers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Explanation {

@@ -292,3 +292,56 @@ fn models_and_providers_list_what_was_declared() {
         stdout(&providers)
     );
 }
+
+/// [R-TUI-051] asking with no terminal fails, and does not block
+#[test]
+fn asking_with_no_terminal_fails_rather_than_waiting() {
+    let dir = workspace(
+        r#"
+meow.provider(name = "anthropic", kind = "anthropic", api_key = "k")
+meow.model(name = "fast", provider = "anthropic", id = "m", context = 1, max_output = 1)
+
+def who(ctx):
+    return ctx.ask.text("who are you?", default = "nobody")
+
+meow.command(meow.tool(name = "who", about = "ask", run = who))
+"#,
+    );
+
+    // `output()` gives the child a closed stdin, which is the case a pipeline
+    // produces. A test that hung here would hang the suite, which is the
+    // failure this requirement exists to prevent.
+    let output = run(dir.path(), &["who"]);
+
+    assert_ne!(code(&output), 0);
+    assert!(
+        stderr(&output).contains("needs a terminal"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// [R-TUI-073] --yes refuses rather than approving
+#[test]
+fn yes_refuses_rather_than_approving() {
+    let dir = workspace(
+        r#"
+meow.provider(name = "anthropic", kind = "anthropic", api_key = "k")
+meow.model(name = "fast", provider = "anthropic", id = "m", context = 1, max_output = 1)
+
+def who(ctx):
+    return ctx.ask.confirm("shall I?", default = True)
+
+meow.command(meow.tool(name = "who", about = "ask", run = who))
+"#,
+    );
+
+    let output = run(dir.path(), &["--yes", "who"]);
+
+    assert_ne!(code(&output), 0, "{}", stdout(&output));
+    assert!(
+        stderr(&output).contains("not answered"),
+        "--yes answered a question instead of refusing it: {}",
+        stderr(&output)
+    );
+}

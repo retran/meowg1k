@@ -18,6 +18,21 @@ pub enum ToolErrorPolicy {
     Abort,
 }
 
+/// Who answers an approval prompt.
+///
+/// `[R-POLICY-024]`: it waits. A prompt that expires while you are reading the
+/// command it is asking about turns a security decision into a reflex, so
+/// there is no timeout here and the implementation decides whether to have
+/// one.
+///
+/// The engine calls this and does nothing else with the answer: an "always"
+/// is remembered by whoever implements this, which is what keeps
+/// `[R-POLICY-023]` true without a grant travelling back into a file.
+pub trait Approver: Send + Sync + std::fmt::Debug {
+    /// Ask, and wait.
+    fn ask(&self, prompt: &meow_policy::Prompt) -> meow_policy::Answer;
+}
+
 /// An agent, declared.
 pub struct AgentSpec {
     /// What to call it.
@@ -52,6 +67,11 @@ pub struct AgentSpec {
     pub policy: Option<meow_policy::Policy>,
     /// Grants a person made during this process.
     pub grants: meow_policy::Grants,
+    /// Who answers when the policy says to ask.
+    ///
+    /// `None` resolves every `ask` to `deny`, which is `[R-POLICY-020]`: an
+    /// unattended run must not be able to approve itself.
+    pub approve: Option<std::sync::Arc<dyn Approver>>,
     /// How a tool call turns into something the policy can judge.
     ///
     /// The engine does not know which arguments are paths or which is a
@@ -93,6 +113,7 @@ impl AgentSpec {
             max_depth: 4,
             policy: None,
             grants: meow_policy::Grants::new(),
+            approve: None,
             describe_call: None,
         }
     }

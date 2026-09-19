@@ -26,5 +26,5 @@ pub use crate::engine::Engine;
 pub use crate::event::{AgentEvent, Collect, Discard, Sink};
 pub use crate::nested::{Invocation, SubAgent, run_parallel};
 pub use crate::outcome::{Outcome, Step};
-pub use crate::spec::{AgentSpec, DescribeCall, ToolErrorPolicy};
+pub use crate::spec::{AgentSpec, Approver, DescribeCall, ToolErrorPolicy};
 pub use crate::tool::{Checked, Tool, ToolError, ToolSet, check};

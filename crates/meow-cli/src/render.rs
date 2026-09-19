@@ -32,6 +32,20 @@ impl Sink {
         Self(Mutex::new(renderer))
     }
 
+    /// Put a question up in the live region.
+    pub fn prompt_open(&self, lines: &[String]) {
+        if let Ok(mut renderer) = self.0.lock() {
+            let _ = renderer.prompt_open(lines);
+        }
+    }
+
+    /// Take it down again.
+    pub fn prompt_close(&self) {
+        if let Ok(mut renderer) = self.0.lock() {
+            let _ = renderer.prompt_close();
+        }
+    }
+
     /// Flush and put the terminal back as it was found.
     pub fn finish(&self) {
         if let Ok(mut renderer) = self.0.lock() {
