@@ -1956,6 +1956,7 @@ dependencies = [
  "clap_complete",
  "meow-agent",
  "meow-core",
+ "meow-index",
  "meow-llm",
  "meow-policy",
  "meow-session",

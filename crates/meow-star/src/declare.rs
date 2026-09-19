@@ -174,6 +174,10 @@ fn declarations(builder: &mut GlobalsBuilder) {
     }
 
     /// Declare a model an agent can name.
+    // Seven named arguments describe one model; grouping them into a struct
+    // would satisfy the lint and change the Starlark surface, and the
+    // Starlark surface is the product.
+    #[allow(clippy::too_many_arguments)]
     fn model<'v>(
         #[starlark(require = named)] name: String,
         #[starlark(require = named)] provider: String,
@@ -181,8 +185,19 @@ fn declarations(builder: &mut GlobalsBuilder) {
         #[starlark(require = named)] context: u32,
         #[starlark(require = named)] max_output: u32,
         #[starlark(require = named)] temperature: Option<StarValue<'v>>,
+        #[starlark(require = named, default = NoneOr::None)] kind: NoneOr<String>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
+        // [R-STAR-034]: `chat` unless it says otherwise, because most models
+        // in most workspaces answer and only the index needs the other kind.
+        let kind = match kind.into_option().as_deref() {
+            None => crate::registry::ModelKind::Chat,
+            Some(text) => crate::registry::ModelKind::parse(text).ok_or_else(|| {
+                starlark::Error::new_other(anyhow::anyhow!(
+                    "`kind` is `chat` or `embedding`, and is `{text}`"
+                ))
+            })?,
+        };
         let state = declaring(eval, "meow.model")?;
         let origin = state.origin();
         state
@@ -194,7 +209,11 @@ fn declarations(builder: &mut GlobalsBuilder) {
                 context,
                 max_output,
                 #[allow(clippy::cast_possible_truncation)]
-                temperature: temperature.map(as_f64).transpose()?.map(|t| t as f32),
+                temperature: present(temperature)
+                    .map(as_f64)
+                    .transpose()?
+                    .map(|t| t as f32),
+                kind,
                 origin,
             })
             .map_err(fail)?;
@@ -294,6 +313,34 @@ fn declarations(builder: &mut GlobalsBuilder) {
         state
             .registry_mut()
             .add_command(&name, origin)
+            .map_err(fail)?;
+        Ok(NoneType)
+    }
+
+    /// Say how this workspace is indexed.
+    ///
+    /// `[R-STAR-035]`: which model embeds it, and the chunking parameters
+    /// `[R-INDEX-003]` and `[R-INDEX-012]` call configured. Choosing a model
+    /// for somebody is how an index gets built by one model and queried by
+    /// another.
+    fn index<'v>(
+        #[starlark(require = named)] model: String,
+        #[starlark(require = named, default = NoneOr::None)] chunk_lines: NoneOr<u32>,
+        #[starlark(require = named, default = NoneOr::None)] overlap: NoneOr<u32>,
+        #[starlark(require = named, default = NoneOr::None)] max_bytes: NoneOr<u32>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<NoneType> {
+        let state = declaring(eval, "meow.index")?;
+        let origin = state.origin();
+        state
+            .registry_mut()
+            .set_index(crate::registry::IndexDecl {
+                model,
+                chunk_lines: chunk_lines.into_option(),
+                overlap: overlap.into_option(),
+                max_bytes: max_bytes.into_option().map(u64::from),
+                origin,
+            })
             .map_err(fail)?;
         Ok(NoneType)
     }

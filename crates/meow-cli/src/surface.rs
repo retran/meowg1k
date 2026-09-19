@@ -213,6 +213,41 @@ fn builtins() -> Vec<Command> {
                             .help("Delete named sessions too"),
                     ),
             ),
+        Command::new("index")
+            .about("Work with the semantic index")
+            .subcommand_required(true)
+            .subcommand(
+                Command::new("build").about("Walk the workspace, chunk it, and embed what changed"),
+            )
+            .subcommand(
+                Command::new("update")
+                    .about("Chunk what changed without embedding it")
+                    .long_about(
+                        "Walk the workspace and re-chunk the files whose content or chunking \
+                         changed, leaving the embedding to `meow index build`.",
+                    ),
+            )
+            .subcommand(Command::new("stats").about("Say how much is indexed"))
+            .subcommand(
+                Command::new("query")
+                    .about("Ask the index a question")
+                    .arg(Arg::new("text").required(true).help("What to look for"))
+                    .arg(
+                        Arg::new("limit")
+                            .long("limit")
+                            .value_name("N")
+                            .default_value("10")
+                            .value_parser(clap::value_parser!(u32).range(1..)),
+                    )
+                    .arg(
+                        Arg::new("path")
+                            .long("path")
+                            .value_name("GLOB")
+                            .action(ArgAction::Append)
+                            .help("Only files matching this glob; may be repeated"),
+                    ),
+            )
+            .subcommand(Command::new("clear").about("Forget the index, keeping everything else")),
         Command::new("policy")
             .about("Work with permission rules")
             .subcommand_required(true)

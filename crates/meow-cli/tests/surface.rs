@@ -465,3 +465,131 @@ fn gc_deletes_what_retention_no_longer_keeps() {
     let left = run(dir.path(), &["session", "list"]);
     assert_eq!(stdout(&left).lines().count(), 1, "{}", stdout(&left));
 }
+
+/// A workspace with an index and a command that searches it.
+const INDEXED: &str = r#"
+meow.provider(name = "anthropic", kind = "anthropic", api_key = "k")
+meow.model(name = "fast", provider = "anthropic", id = "m", context = 1, max_output = 1)
+meow.model(
+    name = "embed",
+    provider = "anthropic",
+    id = "voyage-3",
+    context = 32000,
+    max_output = 0,
+    kind = "embedding",
+)
+
+meow.index(model = "embed", chunk_lines = 40, overlap = 8)
+
+load("@std//search", "code")
+
+def find(ctx):
+    for hit in code(ctx.args.text, limit = 3):
+        ctx.out.write("%s:%d" % (hit.path, hit.first_line))
+    return "true"
+
+meow.command(meow.tool(
+    name = "find",
+    about = "search the workspace",
+    run = find,
+    args = {"text": meow.arg.string(positional = 0)},
+))
+"#;
+
+/// [R-TUI-071] `index` is a group, and its commands live under it
+#[test]
+fn the_index_commands_are_grouped() {
+    let dir = workspace(INDEXED);
+
+    let grouped = run(dir.path(), &["index", "stats"]);
+    assert_eq!(code(&grouped), 0, "{}", stderr(&grouped));
+    assert!(stdout(&grouped).contains("chunks"), "{}", stdout(&grouped));
+
+    // And not at the top level.
+    assert_eq!(code(&run(dir.path(), &["stats"])), 2);
+}
+
+/// [R-STAR-035] a workspace that declares no index is told to declare one
+#[test]
+fn an_index_command_without_a_declaration_says_so() {
+    let dir = workspace(WORKSPACE);
+    let output = run(dir.path(), &["index", "stats"]);
+
+    assert_eq!(code(&output), 7, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("declares no index"),
+        "{}",
+        stderr(&output)
+    );
+    assert!(
+        stderr(&output).contains("meow.index"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// `meow index update` chunks the workspace and reports what it did.
+#[test]
+fn index_update_chunks_and_reports() {
+    let dir = workspace(INDEXED);
+    std::fs::write(dir.path().join("retry.rs"), "// the retry budget\n").unwrap();
+
+    let first = run(dir.path(), &["index", "update"]);
+    assert_eq!(code(&first), 0, "{}", stderr(&first));
+    assert!(stdout(&first).contains("added\t2"), "{}", stdout(&first));
+
+    let again = run(dir.path(), &["index", "update"]);
+    assert!(
+        stdout(&again).contains("unchanged\t2"),
+        "{}",
+        stdout(&again)
+    );
+
+    let stats = run(dir.path(), &["index", "stats"]);
+    assert!(stdout(&stats).contains("embedded\t0"), "{}", stdout(&stats));
+    assert!(stdout(&stats).contains("model\t-"), "{}", stdout(&stats));
+}
+
+/// [R-INDEX-041] a query before a build says the index is empty
+#[test]
+fn a_query_before_a_build_says_the_index_is_empty() {
+    let dir = workspace(INDEXED);
+    let output = run(dir.path(), &["index", "query", "retry"]);
+
+    assert_eq!(code(&output), 2, "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("meow index build"),
+        "{}",
+        stderr(&output)
+    );
+}
+
+/// [R-INDEX-052] `meow index clear` forgets the index
+#[test]
+fn index_clear_forgets_what_was_chunked() {
+    let dir = workspace(INDEXED);
+    assert_eq!(code(&run(dir.path(), &["index", "update"])), 0);
+
+    let cleared = run(dir.path(), &["index", "clear"]);
+    assert_eq!(code(&cleared), 0, "{}", stderr(&cleared));
+
+    let stats = run(dir.path(), &["index", "stats"]);
+    assert!(stdout(&stats).contains("chunks\t0"), "{}", stdout(&stats));
+}
+
+/// [R-STAR-021] `search.code` is reached with `load`, and says why when there
+/// is nothing to search
+#[test]
+fn search_code_is_loaded_and_reports_an_empty_index() {
+    let dir = workspace(INDEXED);
+    let output = run(dir.path(), &["find", "retry budget"]);
+
+    // The workspace loads and the handler runs; what fails is the search, and
+    // it names the thing to do about it.
+    assert_ne!(code(&output), 0);
+    assert!(
+        stderr(&output).contains("meow index build"),
+        "{}",
+        stderr(&output)
+    );
+}

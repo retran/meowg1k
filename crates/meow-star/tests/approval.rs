@@ -222,6 +222,7 @@ fn harness(approve: Option<Arc<dyn Approver>>, dry_run: bool, turns: Vec<Respons
             events: Arc::clone(&out) as Arc<dyn Events>,
             approve,
             dry_run,
+            search: Arc::new(meow_star::port::quiet::NoIndex),
             ask: Arc::new(Nobody),
             stdin: Arc::new(Closed),
             session: Arc::new(meow_star::port::quiet::Memory::new("s-1")) as Arc<dyn Session>,
