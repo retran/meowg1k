@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/meow-agent", "crates/meow-cli", "crates/meow-core", "crates/meow-llm", "crates/meow-policy", "crates/meow-session", "crates/meow-star", "crates/meow-store", "crates/meow-ui"]
+members = ["crates/meow-agent", "crates/meow-cli", "crates/meow-core", "crates/meow-index", "crates/meow-llm", "crates/meow-policy", "crates/meow-session", "crates/meow-star", "crates/meow-store", "crates/meow-ui"]
 resolver = "3"
 
 [workspace.dependencies]
