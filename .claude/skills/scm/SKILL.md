@@ -42,18 +42,21 @@ the system, and a check that trips on those gets ignored within a week.
 
 ## Branches
 
-Two long-lived branches, and you commit to neither directly. `dev` carries the
-Go tree, frozen at `v0.2.1`. `rust` carries the v0.3.0 rewrite and has its own
-CI, which is what lets the rewrite land in reviewable pieces while `v0.2.1`
-stays fixable.
+`dev` is the only long-lived branch, and you never commit to it directly. It
+carries both trees: the Go implementation frozen at `v0.2.1`, and the v0.3.0
+Rust workspace under `crates/`. They share a branch so that every change is
+reviewed against the same base and watched by the same automation, and the
+Go tree goes when the Rust tree replaces it.
 
-Branch off whichever one your change belongs to, and open the pull request
-against that same branch. When v0.3.0 is ready, `rust` merges into `dev` once
-and `dev` becomes the Rust tree.
+Branch off `dev` and open the pull request against `dev`. Never commit to it
+directly, including for a one-line fix, because a change that skipped review
+is invisible to everyone who reads the pull request log to learn what
+happened.
 
-Never commit to a long-lived branch directly, including for a one-line fix,
-because a change that skipped review is invisible to everyone who reads the
-pull request log to learn what happened.
+Which checks run depends on what you touched. `ci.yaml` covers the Go tree and
+`rust.yaml` covers the Rust one, each filtered by path, so a change to
+`crates/` does not compile Go and a change to `internal/` does not compile
+Rust.
 
 Name the branch `<type>/<short-slug>`, using the same types as commit subjects:
 
@@ -108,10 +111,16 @@ Link the issue with `Closes #123` so the merge closes it.
 
 ## Merging
 
-Squash merge, always. The branch's commit history is working material - the
-sequence in which you happened to discover things - and it is noise in `dev`.
-One squashed commit per pull request keeps `dev` a list of changes, each of
-which built and passed CI.
+Squash merge. It is the only method the repository allows - merge commits and
+rebase merges are both turned off in the GitHub settings - so this is not a
+preference you can weigh against something else, and an integration pull
+request is not an exception. `gh pr merge --merge` fails with "Merge commits
+are not allowed on this repository."
+
+The result suits the branch anyway. A branch's commit history is working
+material, the sequence in which you happened to discover things, and one
+squashed commit per pull request keeps `dev` a list of changes rather than a
+list of steps.
 
 Two consequences follow:
 
@@ -124,8 +133,17 @@ Two consequences follow:
 
 Delete the branch after the merge.
 
-Never merge without explicit approval, and never merge a pull request whose
-checks are red or still running.
+Never merge without explicit approval, and never merge while checks are still
+running.
+
+Red checks need a judgement, not a reflex. Compare against the base branch
+before you decide: `gh run list --branch dev --limit 5` tells you whether a
+failure arrived with your change or was already there. A failure your change
+caused blocks the merge. A failure the base branch already had does not, and
+saying so is part of the merge - name each one, say what it belongs to, and
+link the issue that tracks it. Treating an inherited failure as a blocker
+would freeze the repository until somebody fixes an unrelated tree, and
+treating it as invisible is how a red base becomes permanent.
 
 ## Tags and releases
 
