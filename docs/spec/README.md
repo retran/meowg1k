@@ -88,6 +88,30 @@ Anything undecided, with the options and a recommendation.
 
 ## Status
 
-No specs are written yet. The v0.3.0 design documents are approved at the
-architecture level; component specs get written ahead of the work that
-implements them, one at a time, with `/spec`.
+All eight component specifications are drafted, with 230
+requirements between them. None is approved yet, and no implementation exists.
+
+| Area | File | Requirements |
+| --- | --- | --- |
+| `AGENT` | `agent.md` | 36 |
+| `STAR` | `starlark.md` | 36 |
+| `POLICY` | `policy.md` | 22 |
+| `SESSION` | `session.md` | 34 |
+| `LLM` | `llm.md` | 26 |
+| `STORE` | `store.md` | 19 |
+| `INDEX` | `index.md` | 21 |
+| `TUI` | `tui.md` | 36 |
+
+Drafting them together rather than one at a time was a deliberate trade. It
+caught four contradictions between the design documents that a sequential pass
+would have met one at a time, months apart: three different lists of stop
+reasons, an exit code table missing an outcome, a context member documented in
+one place and not the other, and a count that disagreed with the list beneath
+it. All four were fixed in the design documents, since a specification that
+contradicts its source is the wrong thing to correct.
+
+The cost is that these drafts are ahead of the code. The `starlark-rust` spike
+in `docs/design/0.3.0-architecture.md` section 12 has not run, and if the
+`!Send` value model fights the module design, `starlark.md` and `agent.md` will
+need amendments. Use `/amend-spec` when that happens rather than rewording a
+requirement in place.
