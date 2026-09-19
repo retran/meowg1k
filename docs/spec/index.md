@@ -34,6 +34,9 @@ MUST report each skip, so a missing result is explainable.
 **[R-INDEX-004]** Indexing MUST NOT follow a symlink that leaves the
 workspace.
 
+**[R-INDEX-005]** Indexing MUST cover every text file the exclusions allow,
+including Markdown and other prose, not only source code.
+
 ### Chunking
 
 **[R-INDEX-010]** Chunking MUST be deterministic: the same file content MUST
@@ -46,6 +49,9 @@ line range, so a result can be cited precisely.
 definition split across a boundary is retrievable from either side.
 
 **[R-INDEX-013]** A chunk MUST NOT exceed the embedding model's input limit.
+
+**[R-INDEX-014]** Chunk boundaries MUST fall on line boundaries. A chunk MUST
+NOT begin or end part-way through a line.
 
 ### Embedding
 
@@ -84,6 +90,9 @@ MUST apply both.
 **[R-INDEX-043]** A query MUST be answerable without a network call when the
 embedding of the query itself is cached.
 
+**[R-INDEX-044]** A query MUST accept a path filter, expressed as globs, and
+MUST apply it before ranking.
+
 ### Storage
 
 **[R-INDEX-050]** Vectors MUST be stored through `meow-store` in the same
@@ -110,16 +119,22 @@ oversized chunk is generic; [R-INDEX-021] requires naming the file.
 Nothing in v0.2.x records which embedding model built the index, so changing
 the model silently produces nonsense scores.
 
-## Open questions
+## Decisions
 
-- **Chunking strategy.** v0.2.x has a plain-text strategy only. A syntax-aware
-  splitter using tree-sitter gives better boundaries at the cost of a grammar
-  per language. Recommendation: start with the plain-text splitter, measure
-  recall on a real repository, and only then decide, because the measurement
-  is cheap and the grammar dependency is not.
-- **Which vector index.** `hnsw_rs` and `usearch` both fit. Recommendation:
-  decide by measuring recall and build time against the existing v0.2.x index
-  on this repository, rather than by reputation.
-- **Whether to index Markdown prose alongside code.** It helps a question
-  about the design documents and dilutes code results. Recommendation: index
-  it, and let a query filter by path.
+**Chunking is line-oriented**, by [R-INDEX-014]. A syntax-aware splitter using
+tree-sitter would give better boundaries and costs a grammar per language, a
+build dependency, and a fallback for every language without one. The line
+splitter is the thing to measure against; replacing it is an amendment once
+there is a recall number that justifies the dependency.
+
+**The vector index is `hnsw_rs`.** It is pure Rust, so it keeps the single
+static binary and the `unsafe_code = "deny"` lint intact, which `usearch`
+would not. The reason to revisit is a measurement, not a preference: if recall
+or build time on this repository is unacceptable, the C++ implementation earns
+its cost then.
+
+**Prose is indexed alongside code**, by [R-INDEX-005], and a query narrows with
+a path filter, by [R-INDEX-044]. Excluding prose would make the design
+documents unsearchable by the agents most likely to need them, and dilution is
+the caller's problem to solve with a filter rather than the index's to solve by
+guessing.

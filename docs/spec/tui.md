@@ -54,6 +54,10 @@ line naming the stop reason.
 **[R-TUI-015]** Diagnostics from the logging layer MUST be inserted into
 scrollback in order, and MUST NOT be drawn over the live region.
 
+**[R-TUI-016]** The live region MUST be three rows high while a run is in
+flight. While an approval prompt is open it MUST take a larger fixed height,
+and it MUST return to three rows when the prompt closes.
+
 ### Plain rendering
 
 **[R-TUI-020]** The plain renderer MUST emit no ANSI escape sequences and MUST
@@ -183,12 +187,14 @@ exit code beyond success and failure, so an agent cannot act as a gate.
 Ten `log.Printf` calls in `module_llm.go` write straight through the live
 frame. [R-TUI-015] routes them into scrollback instead.
 
-## Open questions
+## Decisions
 
-- **The live region's height.** A fixed three lines is predictable; growing it
-  for an approval prompt costs a reflow. Recommendation: fixed at three, and
-  let the approval prompt take a larger fixed height while it is open.
-- **Whether `--format json` should stream or buffer.** Streaming lets a
-  consumer react mid-run; buffering lets the output be a single JSON document.
-  Recommendation: stream as JSONL, because the buffered form is one `jq -s`
-  away and the streaming form is not recoverable from a document.
+**The live region is a fixed three rows**, by [R-TUI-016]. A region that grows
+with content reflows the terminal while you are reading it. Two fixed heights,
+one for a run and one for a prompt, cost one reflow each at moments you are
+already looking at.
+
+**`--format json` streams as JSONL**, by [R-TUI-030]. A consumer can react
+mid-run, and anyone who wants one document is one `jq -s` away. The reverse is
+not true: a buffered document cannot be turned back into a stream that arrives
+while the run is happening.

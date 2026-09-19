@@ -52,6 +52,11 @@ response.
 once with the same identifier, before returning the response, regardless of
 any session or history setting.
 
+**[R-LLM-015]** A message MAY carry a cache hint. A provider whose API has
+explicit cache breakpoints MUST translate it into one; a provider that caches
+automatically MUST ignore it. The hint MUST NOT change the content of the
+message.
+
 ### Streaming
 
 **[R-LLM-020]** The stream event kinds MUST be exactly: `Text`, `Thinking`,
@@ -66,6 +71,11 @@ response.
 
 **[R-LLM-023]** An error raised by the stream consumer MUST abort the request
 and MUST propagate to the caller unchanged.
+
+**[R-LLM-024]** Thinking content MUST be delivered as `Thinking` stream events
+and MUST be preserved on the assistant message it belongs to, because a
+provider can require it to be sent back on a later turn that continues a tool
+call.
 
 ### Errors and retry
 
@@ -140,13 +150,18 @@ unsupported instead.
 Cached prompt tokens are not reported anywhere in v0.2.x, which makes the main
 cost lever of a well-built agent invisible.
 
-## Open questions
+## Decisions
 
-- **Prompt caching control.** Anthropic needs explicit cache breakpoints;
-  OpenAI caches automatically. Exposing breakpoints leaks one vendor's model
-  into the trait, and not exposing them leaves the largest saving on the
-  table. Recommendation: an optional `cache_hint` on a message that providers
-  without the concept ignore.
-- **Thinking and reasoning content.** Whether it is persisted to the session
-  or only streamed. Recommendation: stream it, do not persist it, and revisit
-  if a provider requires replaying it.
+**Cache control is an optional hint**, by [R-LLM-015]. Anthropic needs explicit
+breakpoints and OpenAI caches on its own, so the trait carries the weaker of
+the two ideas and lets each provider do what it can with it. Leaving it out
+entirely would forfeit the largest cost saving available to a long agent run.
+
+**Thinking is streamed and stored**, by [R-LLM-024]. Not storing it was the
+first answer, on the grounds that it is bulky and only useful to watch. That
+is wrong on a fact: Anthropic requires thinking blocks to be sent back on a
+later turn that continues a tool call, so discarding them breaks resume and
+multi-turn tool use on the provider the tool is built against first. Storage is
+the cheaper problem, and content addressing plus retention already handle it.
+`meow session export` redacts it by default, because it is the part of a
+transcript least likely to be meant for an audience.

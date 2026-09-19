@@ -97,6 +97,11 @@ separately, so that no field can disagree with it: `running` when the last
 event is not `Finished`, and otherwise the stop reason that last `Finished`
 event carries.
 
+**[R-SESSION-043]** While a run is in flight its writer MUST record a
+heartbeat timestamp at a fixed interval. A session whose last event is not
+`Finished` and whose heartbeat is older than three intervals MUST be treated as
+dead.
+
 **[R-SESSION-042]** Opening a session whose last event is not `Finished` and
 whose recording process is no longer alive MUST append
 `Finished { stop: failed, reason: "process exited" }` and MUST NOT leave the
@@ -161,6 +166,10 @@ calls with their policy decisions, and the usage totals.
 **[R-SESSION-092]** Export MUST redact values the policy marked sensitive, in
 both formats.
 
+**[R-SESSION-093]** Export MUST omit thinking content unless it is asked for
+explicitly, because it is the part of a transcript least likely to be meant for
+an audience.
+
 ## Changes from v0.2.x
 
 `ctx.session.mark_obsolete(ids)` mutated the log, so a compacted run could no
@@ -179,13 +188,20 @@ and a session whose process died stayed `running` forever.
 Fork did not exist, so investigating a run that went wrong at step 9 of 40 cost
 a full rerun.
 
-## Open questions
+## Decisions
 
-- **Cross-workspace sessions.** An agent run against a monorepo subdirectory
-  writes to that subdirectory's `.meow/`. Recommendation: keep sessions
-  workspace-local, since the alternative needs a global identifier scheme and
-  nobody has asked.
-- **How to detect a dead recording process** for [R-SESSION-042]. A stored
-  process id plus a start timestamp is portable and racy; an advisory lock is
-  exact and needs platform work. Recommendation: process id plus start time,
-  and treat a false negative as harmless because the next open retries.
+**Sessions are workspace-local.** A run against a monorepo subdirectory writes
+to that subdirectory's `.meow/`, which [R-SESSION-030] and [R-STAR-001] already
+require between them. A global store would need a global identifier scheme and
+a way to decide which workspace a session belongs to, and nobody has asked for
+either.
+
+**Liveness is a heartbeat**, by [R-SESSION-043]. The first answer was a
+process identifier plus its start time, chosen for being portable. It is not:
+reading another process's start time means procfs on Linux, sysctl on macOS,
+and a Win32 call on Windows, which is the same per-platform work as the
+advisory lock it was preferred over, for a weaker guarantee.
+
+A heartbeat needs no platform code at all, and the window in which a dead
+session still looks alive is bounded by the interval and tunable. The cost is
+one small write per interval on a run that is already writing events.

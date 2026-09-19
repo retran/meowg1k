@@ -27,7 +27,14 @@ append, query, and a transaction handle.
 SQLite database at `.meow/.data/meow.db`, resolved from the workspace root.
 
 **[R-STORE-002]** The store MUST enable write-ahead logging and foreign key
-enforcement on every connection.
+enforcement on every connection, and MUST set `synchronous` to `NORMAL`.
+
+**[R-STORE-007]** The database MUST be stored unencrypted, and `meow doctor`
+MUST report that it is, together with its path, so that a user deciding what a
+workspace may hold is told rather than left to assume.
+
+**[R-STORE-008]** The database and its side files MUST be created readable and
+writable by their owner only, on every platform that has file permissions.
 
 **[R-STORE-003]** The store MUST record the schema version it was written
 under in a `meta` table.
@@ -121,13 +128,19 @@ silently incomplete.
 Content addressing is new. v0.2.x stores each tool result inline, so an agent
 that reads the same file at three steps stores it three times.
 
-## Open questions
+## Decisions
 
-- **Encryption at rest.** Tool output can contain secrets a policy did not
-  catch. SQLCipher would cover it at the cost of a C dependency and a key
-  management story. Recommendation: leave it out of v0.3.0, document that the
-  database is plaintext, and revisit when someone asks.
-- **`synchronous` level.** `NORMAL` with WAL loses at most the last
-  transaction on power failure and is much faster than `FULL`. Recommendation:
-  `NORMAL`, because a lost final turn is recoverable by rerunning and the write
-  path is on the agent's critical path.
+**The database is plaintext, with owner-only permissions**, by [R-STORE-007]
+and [R-STORE-008]. Encrypting it would need SQLCipher, a C dependency the
+workspace otherwise avoids, and a key management story nobody has designed.
+
+The first answer stopped at "plaintext, and we say so", which accepted the risk
+without doing the cheap part. File permissions cost one flag and stop every
+other account on the machine from reading a transcript. They are not
+encryption, and the honest place to keep a secret out of the log is still the
+policy.
+
+**`synchronous` is `NORMAL`**, by [R-STORE-002]. With write-ahead logging that
+loses at most the last transaction on a power failure, which costs a rerun of
+one turn. `FULL` would buy that back at a cost paid on the agent's critical
+path, on every write.

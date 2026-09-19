@@ -68,6 +68,9 @@ caller's remaining budget.
 **[R-AGENT-015]** The budget MUST be checked before each model call and after
 each tool result, so a run cannot overshoot by a whole step.
 
+**[R-AGENT-016]** The default budget MUST be 200,000 tokens, 40 steps, and 30
+minutes, with cost unbounded.
+
 ### Tool calls
 
 **[R-AGENT-020]** Before invoking a tool the engine MUST validate the
@@ -116,6 +119,14 @@ messages verbatim.
 **[R-AGENT-043]** A compaction that fails MUST fail the run rather than
 continuing with an over-long context that the provider will reject.
 
+**[R-AGENT-044]** Compaction MUST summarise the superseded range with a model
+call and MUST record the number of tokens the summary saved. It MUST NOT drop
+messages without summarising them, because a silent drop leaves the model
+confidently wrong about what it already knows.
+
+**[R-AGENT-045]** The compaction policy MUST accept a model of its own, and
+MUST fall back to the agent's model when none is given.
+
 ### Sub-agents
 
 **[R-AGENT-050]** An agent used as a tool MUST run in its own session, with
@@ -127,6 +138,11 @@ as a tool result containing its text and its stop reason.
 **[R-AGENT-052]** The engine MUST refuse to start a sub-agent that would
 exceed the configured maximum nesting depth, and MUST report that refusal as a
 tool error rather than a panic.
+
+**[R-AGENT-053]** A sub-agent's message list MUST NOT contain its caller's
+messages. The only information that crosses MUST be the task and the arguments
+the caller passed, so that an agent behaves the same wherever it is called
+from.
 
 ### Concurrency
 
@@ -179,15 +195,32 @@ Budgets, cancellation, and compaction do not exist in the engine.
 bug in an event handler is fatal for text deltas and silent for tool events.
 [R-AGENT-071] makes the two consistent.
 
-## Open questions
+## Decisions
 
-- **Whether a sub-agent shares its parent's message history.** Sharing gives
-  context; isolating gives a clean budget and a reusable agent.
-  Recommendation: isolate, and pass what the sub-agent needs in its task,
-  because a shared history makes an agent's behaviour depend on its caller.
-- **Whether compaction should summarise or drop.** Summarising costs a model
-  call at the worst moment; dropping loses information silently.
-  Recommendation: summarise, and record the token count saved so the cost is
-  visible.
-- **The default budget.** A bounded default is required by [R-AGENT-012], but
-  the numbers are a product decision that wants real runs behind it.
+**Sub-agents are isolated**, by [R-AGENT-053]. Sharing the caller's history
+would give a sub-agent more context, and it would also make the same agent
+behave differently depending on who called it, which makes it untestable and
+its budget unpredictable.
+
+**Compaction summarises**, by [R-AGENT-044]. It costs a model call at the
+moment the run is already long, and the alternative is losing information
+without saying so. Recording the tokens saved makes that cost visible instead
+of mysterious.
+
+That cost is why [R-AGENT-045] lets compaction name its own model. Summarising
+is a cheap task that the first draft would have run on the agent's expensive
+model, at the worst possible moment, on every long run.
+
+**The default budget is 200,000 tokens, 40 steps, and 30 minutes**, by
+[R-AGENT-016]. Tokens and steps are what actually bound cost, and they are set
+so a runaway loop costs cents rather than dollars.
+
+Wall clock is the axis that misfires. It bounds patience, not spend, and a
+slow provider or a long tool makes it fire on a run that is working perfectly,
+turning a good answer into a `budget` stop with partial results. Five minutes,
+the first number chosen, is less than 40 steps of a slow model. Thirty minutes
+still stops a wedged run without punishing a slow one.
+
+Cost stays unbounded because capping it means estimating the price of a call
+before making it, and the token cap is the same guard with fewer moving
+parts.

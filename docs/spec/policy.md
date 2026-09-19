@@ -47,6 +47,20 @@ line as a single string, using glob semantics.
 **[R-POLICY-005]** A selector that no tool matching the rule's name pattern
 supports MUST fail when the policy is built, not when a call is evaluated.
 
+**[R-POLICY-006]** A call that touches several paths MUST be evaluated once per
+resolved path.
+
+**[R-POLICY-008]** A read that hits a denied path MUST return the allowed
+paths and MUST name every path it skipped, so the model knows its view is
+partial.
+
+**[R-POLICY-009]** A write that hits a denied path MUST be denied as a whole
+and MUST NOT write any path, so the workspace is never left half-applied.
+
+**[R-POLICY-007]** Network tools MUST support a `hosts` selector matching the
+host of the request, so a policy can allow one host without allowing the
+network.
+
 ### Decisions
 
 **[R-POLICY-010]** Evaluation MUST check deny rules first, then ask rules,
@@ -75,8 +89,9 @@ paraphrase.
 **[R-POLICY-023]** An approval granted as "always" MUST apply for the current
 process only. The policy layer MUST NOT write a grant back to any file.
 
-**[R-POLICY-024]** A prompt that receives no answer within a configured
-timeout MUST resolve to `deny`.
+**[R-POLICY-024]** An approval prompt MUST wait indefinitely by default. A
+timeout MAY be configured, and when one is configured and expires the prompt
+MUST resolve to `deny`.
 
 ### Narrowing
 
@@ -117,16 +132,22 @@ There is no policy layer in v0.2.x. `shell_exec` is an ordinary tool, so an
 agent that is talked into running a command runs it. This whole specification
 is new, and it is the largest single addition of the rewrite.
 
-## Open questions
+## Decisions
 
-- **Path selectors and tools that take many paths.** A glob tool touches
-  paths it discovers at run time. Recommendation: evaluate per resolved path
-  and deny the call if any one path is denied, because a partial result that
-  silently skips denied files is harder to reason about than a refusal.
-- **Network selectors.** `http.*` has no selector in this draft, so a policy
-  can allow HTTP or not, with no host granularity. Recommendation: add a
-  `hosts` selector, but only once a real agent needs network access; guessing
-  the shape now risks a selector nobody can use.
-- **Where the timeout for [R-POLICY-024] is configured** and what its default
-  is. Recommendation: no timeout by default in an interactive session, because
-  a prompt that expires while the user reads it is worse than one that waits.
+**A multi-path read is partial and says so; a multi-path write is all or
+nothing**, by [R-POLICY-008] and [R-POLICY-009]. The first answer denied both
+alike, to avoid a result that looks complete and is not. That is the right fear
+and the wrong fix: naming the skipped paths removes the danger, and denying the
+whole read costs an agent its view of a repository because of one `.env` file
+it never wanted. A write is different, because a partial one leaves the
+workspace in a state nobody chose.
+
+**Network tools get a `hosts` selector now**, by [R-POLICY-007], rather than
+waiting for an agent that needs one. An all-or-nothing network rule forces the
+choice between no network and unrestricted egress, and egress is exactly where
+a prompt-injected agent does the most damage.
+
+**An approval prompt waits**, by [R-POLICY-024]. A prompt that expires while
+you are reading the command it is asking about turns a security decision into
+a reflex. A timeout stays configurable for an unattended terminal that is
+nevertheless a terminal.
