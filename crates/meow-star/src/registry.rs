@@ -291,6 +291,16 @@ impl Registry {
         self.models.get(name)
     }
 
+    /// Every model, by name.
+    pub fn models(&self) -> impl Iterator<Item = &Model> {
+        self.models.values()
+    }
+
+    /// Every provider, by name.
+    pub fn providers(&self) -> impl Iterator<Item = &Provider> {
+        self.providers.values()
+    }
+
     /// One tool.
     pub fn tool(&self, name: &str) -> Option<&ToolDecl> {
         self.tools.get(name)
