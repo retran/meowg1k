@@ -15,8 +15,10 @@ store, and the terminal UI.
 
 The repository is mid-transition. `v0.2.1` is the final Go implementation and is
 tagged. `v0.3.0` will be a ground-up redesign in canonical Rust — not a
-transliteration of the Go code. See `docs/rust-rewrite.md` for the plan. Until
-the Rust tree exists, everything below describes the Go codebase.
+transliteration of the Go code. The design is in `docs/design/`:
+`0.3.0-architecture.md`, `0.3.0-starlark-api.md`, `0.3.0-sessions.md`, and
+`0.3.0-tui.md`. Until the Rust tree exists, everything below describes the Go
+codebase.
 </project>
 
 <principles>
