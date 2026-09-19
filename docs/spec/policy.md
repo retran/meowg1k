@@ -1,6 +1,6 @@
 # Policy
 
-Status: draft
+Status: approved 2026-09-19
 Elaborates: docs/design/0.3.0-architecture.md section 5.3;
 docs/design/0.3.0-starlark-api.md section 9; docs/design/0.3.0-tui.md section 7
 

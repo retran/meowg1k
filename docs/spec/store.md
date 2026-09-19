@@ -1,6 +1,6 @@
 # Store
 
-Status: draft
+Status: approved 2026-09-19
 Elaborates: docs/design/0.3.0-architecture.md sections 4, 6; docs/design/0.3.0-sessions.md sections 3, 4, 8, 11
 
 ## Scope
