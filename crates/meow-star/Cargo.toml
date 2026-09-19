@@ -9,7 +9,11 @@ publish = false
 
 [dependencies]
 anyhow = { workspace = true }
+meow-agent = { path = "../meow-agent" }
+meow-policy = { path = "../meow-policy" }
+serde = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
 starlark = "0.14"
 thiserror = { workspace = true }
 
