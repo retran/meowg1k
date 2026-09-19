@@ -13,7 +13,9 @@
 mod event;
 mod id;
 mod usage;
+pub mod view;
 
 pub use crate::event::{EventKind, StopReason};
 pub use crate::id::SessionId;
 pub use crate::usage::Usage;
+pub use crate::view::{LiveKind, Output, SCHEMA_VERSION, ViewEvent};
