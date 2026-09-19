@@ -1,0 +1,52 @@
+[workspace]
+members = ["crates/meow-core"]
+resolver = "3"
+
+[workspace.package]
+version = "0.3.0-alpha.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/retran/meowg1k"
+
+
+# Every crate inherits these with `lints.workspace = true`.
+[workspace.lints.rust]
+# Deny rather than forbid: a crate that genuinely needs `unsafe` can override
+# this with an `#![allow]` and a comment saying why, and that override is
+# visible in review. `forbid` cannot be overridden at all, which turns a rare
+# justified case into a fight with the lint.
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# The terminal renderer owns the cursor. A stray `println!` writes straight
+# through the live frame and corrupts it, which is how the Go implementation
+# lost its display to ten `log.Printf` calls in the agent loop. Only
+# `meow-cli` may print, and it overrides these two.
+print_stdout = "deny"
+print_stderr = "deny"
+
+# `unwrap` in a library turns a recoverable error into a process death. Tests
+# are exempt through `clippy.toml`, and `expect` stays a warning because it
+# carries a message that explains the invariant.
+unwrap_used = "deny"
+expect_used = "warn"
+
+dbg_macro = "deny"
+todo = "deny"
+
+# `release` sits inside the development loop, so it stays fast to build. Thin
+# LTO is most of the win for a fraction of the link time.
+[profile.release]
+lto = "thin"
+
+# `dist` is what ships. Fat LTO with one codegen unit lets the agent loop
+# inline across crate boundaries, at a link cost that is fine to pay once in
+# CI. Any published measurement should name the profile it came from.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1

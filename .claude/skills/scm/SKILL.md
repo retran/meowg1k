@@ -42,9 +42,18 @@ the system, and a check that trips on those gets ignored within a week.
 
 ## Branches
 
-Work on a feature branch off `dev`. Never commit to `dev` directly, including
-for a one-line fix, because a change that skipped review is invisible to
-everyone who reads the pull request log to learn what happened.
+Two long-lived branches, and you commit to neither directly. `dev` carries the
+Go tree, frozen at `v0.2.1`. `rust` carries the v0.3.0 rewrite and has its own
+CI, which is what lets the rewrite land in reviewable pieces while `v0.2.1`
+stays fixable.
+
+Branch off whichever one your change belongs to, and open the pull request
+against that same branch. When v0.3.0 is ready, `rust` merges into `dev` once
+and `dev` becomes the Rust tree.
+
+Never commit to a long-lived branch directly, including for a one-line fix,
+because a change that skipped review is invisible to everyone who reads the
+pull request log to learn what happened.
 
 Name the branch `<type>/<short-slug>`, using the same types as commit subjects:
 
