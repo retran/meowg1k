@@ -5,6 +5,31 @@
 version = 2
 yanked = "deny"
 
+# Four crates in the tree are unmaintained rather than vulnerable, and all four
+# arrive through `starlark`, which pins them. None has a safe upgrade, and
+# there is no version of `starlark` that drops them, so the choice is between
+# recording them here and not using Starlark at all.
+#
+# Listed one by one rather than silenced with `unmaintained = "workspace"`,
+# because a new advisory against a crate this workspace depends on directly
+# should still fail the check. Revisit each when `starlark` releases a version
+# that moves off it.
+ignore = [
+    # `fxhash`, through `starlark_map`. A hash function whose author archived
+    # the repository. `rustc-hash` is the successor and `starlark_map` has not
+    # moved to it.
+    { id = "RUSTSEC-2025-0057", reason = "starlark_map pins fxhash; no safe upgrade exists" },
+    # `paste`, through `starlark`. A macro helper whose author stopped
+    # maintaining it. It expands at compile time and is absent from the binary.
+    { id = "RUSTSEC-2024-0436", reason = "starlark pins paste; compile-time only, and no safe upgrade exists" },
+    # `derivative`, through `starlark`. A derive helper, also compile-time only.
+    { id = "RUSTSEC-2024-0388", reason = "starlark pins derivative; compile-time only, and no safe upgrade exists" },
+    # `atomic-polyfill`, through `starlark`'s line editor. It polyfills atomics
+    # on targets that lack them, which none of the targets in
+    # `.github/workflows/rust.yaml` are.
+    { id = "RUSTSEC-2023-0089", reason = "reached through starlark; polyfills atomics on targets this project does not build for" },
+]
+
 [licenses]
 version = 2
 # meowg1k ships under Apache-2.0, so every dependency has to be compatible with
