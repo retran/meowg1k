@@ -201,6 +201,19 @@ impl Policy {
         self
     }
 
+    /// Every rule, strictest first.
+    ///
+    /// The order is the order `evaluate` considers them in, so a reader of
+    /// `meow policy show` sees what actually wins rather than what was
+    /// written first.
+    pub fn rules(&self) -> impl Iterator<Item = (Decision, &Rule)> {
+        self.deny
+            .iter()
+            .map(|r| (Decision::Deny, r))
+            .chain(self.ask.iter().map(|r| (Decision::Ask, r)))
+            .chain(self.allow.iter().map(|r| (Decision::Allow, r)))
+    }
+
     /// Check that every selector applies to something.
     ///
     /// Satisfies `[R-POLICY-005]`. `supports` answers which selectors a tool
