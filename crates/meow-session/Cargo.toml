@@ -1,5 +1,5 @@
 [package]
-name = "meow-core"
+name = "meow-session"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,10 +8,16 @@ repository.workspace = true
 # version contract and cargo-deny can treat their path dependencies as the
 # non-hazard they are.
 publish = false
-description = "Domain types shared across the meowg1k workspace"
+description = "The durable record of one agent run"
 
 [dependencies]
-serde = { workspace = true }
+meow-core = { path = "../meow-core" }
+meow-store = { path = "../meow-store" }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

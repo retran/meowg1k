@@ -36,7 +36,11 @@ unused-allowed-license = "allow"
 # it saves; a duplicate that matters shows up in binary size and gets its own
 # issue.
 multiple-versions = "warn"
+# A dependency with no version constraint is a real hazard from a registry and
+# not from the crate next door: a path dependency inside this workspace is
+# built from the tree it is read from, so there is no version to pin.
 wildcards = "deny"
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

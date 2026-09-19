@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+# Internal to the workspace. Only the `meow` binary ships, so these carry no
+# version contract and cargo-deny can treat their path dependencies as the
+# non-hazard they are.
+publish = false
 description = "The SQLite database a meowg1k workspace keeps"
 
 [dependencies]
