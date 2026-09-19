@@ -26,6 +26,17 @@ pub struct EventRow {
     pub body: String,
 }
 
+/// A session and when it was created, for retention.
+#[derive(Debug, Clone)]
+pub struct AgedSession {
+    /// Its identifier.
+    pub id: String,
+    /// The name somebody gave it, if any.
+    pub name: Option<String>,
+    /// When it was created, in seconds since the Unix epoch.
+    pub created_at: i64,
+}
+
 /// A summarised range, as the store holds it.
 #[derive(Debug, Clone, Copy)]
 pub struct CompactionRow {
@@ -64,9 +75,37 @@ impl Store {
     ///
     /// One event, one commit, per `[R-STORE-020]`.
     pub fn append(&self, session_id: &str, seq: i64, kind: &str, body: &str) -> Result<()> {
+        self.append_with_payload(session_id, seq, kind, body, None)
+    }
+
+    /// Append one event whose bulk lives in a blob.
+    ///
+    /// The body is still written: a reader of the log must be able to say what
+    /// happened without fetching anything, and `[R-SESSION-052]` counts the
+    /// referents of whatever the body points at.
+    ///
+    /// # Errors
+    ///
+    /// Whatever SQLite said.
+    pub fn append_with_payload(
+        &self,
+        session_id: &str,
+        seq: i64,
+        kind: &str,
+        body: &str,
+        payload: Option<&crate::BlobHash>,
+    ) -> Result<()> {
         self.conn().execute(
-            "INSERT INTO events(session_id, seq, at, kind, body) VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![session_id, seq, now_secs(), kind, body],
+            "INSERT INTO events(session_id, seq, at, kind, body, payload)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                session_id,
+                seq,
+                now_secs(),
+                kind,
+                body,
+                payload.map(crate::BlobHash::as_str)
+            ],
         )?;
         Ok(())
     }
@@ -143,8 +182,8 @@ impl Store {
             "SELECT coalesce(sum(prompt), 0),
                     coalesce(sum(completion), 0),
                     sum(cached),
-                    sum(cached IS NOT NULL),
-                    sum(cost_micros IS NULL),
+                    coalesce(sum(cached IS NOT NULL), 0),
+                    coalesce(sum(cost_micros IS NULL), 0),
                     sum(cost_micros)
              FROM usage WHERE session_id = ?1",
             [session_id],
@@ -237,6 +276,25 @@ impl Store {
                 name: r.get(1)?,
                 agent: r.get(2)?,
                 parent_id: r.get(3)?,
+            })
+        })?;
+        rows.collect::<std::result::Result<_, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Every session with the time it was created, oldest first.
+    ///
+    /// Retention deletes from the old end, so it needs the age and the whole
+    /// set rather than a page of the newest.
+    pub fn sessions_by_age(&self) -> Result<Vec<AgedSession>> {
+        let conn = self.conn();
+        let mut stmt =
+            conn.prepare("SELECT id, name, created_at FROM sessions ORDER BY created_at, id")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(AgedSession {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                created_at: r.get(2)?,
             })
         })?;
         rows.collect::<std::result::Result<_, _>>()

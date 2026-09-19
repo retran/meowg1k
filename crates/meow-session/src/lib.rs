@@ -13,14 +13,20 @@
 //! owns the rows, and knows nothing about the engine that produces the events.
 
 mod error;
+mod export;
+mod fork;
 mod log;
 mod resolve;
+mod retention;
 
 use meow_core::SessionId;
 
 pub use crate::error::{Result, SessionError};
+pub use crate::export::{Export, Redaction};
+pub use crate::fork::Origin;
 pub use crate::log::{Event, Sessions};
 pub use crate::resolve::Selector;
+pub use crate::retention::{Retention, Swept};
 
 /// What state a session is in.
 ///

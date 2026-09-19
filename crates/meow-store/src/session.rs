@@ -9,6 +9,8 @@
 //! reference count of every blob the session referenced and nothing above the
 //! store can see those counts.
 
+use rusqlite::OptionalExtension;
+
 use crate::blob::BlobHash;
 use crate::error::{Result, StoreError};
 use crate::{Store, now_secs};
@@ -74,6 +76,108 @@ impl Store {
                 payload.map(BlobHash::as_str)
             ],
         )?;
+        Ok(())
+    }
+
+    /// Add one referent to a payload that is already stored.
+    ///
+    /// `[R-SESSION-052]`: a fork copies event rows that point at the origin's
+    /// blobs, and without this the origin could be collected out from under
+    /// them. Separate from [`Store::put_blob`] because the bytes are already
+    /// here and reading them back only to hash them again would be work for
+    /// nothing.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::BlobMissing`] when there is nothing to retain, which
+    /// means the caller has a hash from somewhere other than this store.
+    pub fn retain_blob(&self, hash: &BlobHash) -> Result<()> {
+        let changed = self.conn().execute(
+            "UPDATE blobs SET refcount = refcount + 1 WHERE hash = ?1",
+            [hash.as_str()],
+        )?;
+        if changed == 0 {
+            return Err(StoreError::BlobMissing {
+                hash: hash.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    /// Record where a session was forked from.
+    pub fn set_origin(&self, id: &str, origin_id: &str, origin_seq: i64) -> Result<()> {
+        self.conn().execute(
+            "UPDATE sessions SET origin_id = ?1, origin_seq = ?2 WHERE id = ?3",
+            rusqlite::params![origin_id, origin_seq, id],
+        )?;
+        Ok(())
+    }
+
+    /// Where a session was forked from, when it was.
+    pub fn origin(&self, id: &str) -> Result<Option<(String, i64)>> {
+        Ok(self
+            .conn()
+            .query_row(
+                "SELECT origin_id, origin_seq FROM sessions WHERE id = ?1",
+                [id],
+                |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<i64>>(1)?)),
+            )
+            .optional()?
+            .and_then(|(id, seq)| Some((id?, seq?))))
+    }
+
+    /// Copy the first `upto` events of one session into another.
+    ///
+    /// Satisfies the copying half of `[R-SESSION-052]`: the rows are copies
+    /// referencing the same blobs, every referenced blob gains a referent, and
+    /// the origin is not touched. The usage and compaction side tables come
+    /// too, because a rebuild reads them rather than the bodies and a fork
+    /// that lost them would show a different conversation from the one it
+    /// branched off.
+    ///
+    /// One transaction: a half-copied fork would be a session whose log is
+    /// shorter than it claims.
+    ///
+    /// # Errors
+    ///
+    /// Whatever SQLite said.
+    pub fn copy_events(&mut self, from: &str, to: &str, upto: i64) -> Result<()> {
+        let hashes: Vec<String> = {
+            let conn = self.conn();
+            let mut stmt = conn.prepare(
+                "SELECT payload FROM events
+                 WHERE session_id = ?1 AND seq <= ?2 AND payload IS NOT NULL",
+            )?;
+            let rows = stmt.query_map(rusqlite::params![from, upto], |r| r.get::<_, String>(0))?;
+            rows.collect::<std::result::Result<_, _>>()?
+        };
+
+        let tx = self.conn_mut().transaction()?;
+        tx.execute(
+            "INSERT INTO events(session_id, seq, at, kind, body, payload)
+             SELECT ?1, seq, at, kind, body, payload FROM events
+             WHERE session_id = ?2 AND seq <= ?3",
+            rusqlite::params![to, from, upto],
+        )?;
+        tx.execute(
+            "INSERT INTO usage(session_id, seq, prompt, completion, cached, cost_micros)
+             SELECT ?1, seq, prompt, completion, cached, cost_micros FROM usage
+             WHERE session_id = ?2 AND seq <= ?3",
+            rusqlite::params![to, from, upto],
+        )?;
+        tx.execute(
+            "INSERT INTO compactions(session_id, seq, from_seq, to_seq, tokens_saved)
+             SELECT ?1, seq, from_seq, to_seq, tokens_saved FROM compactions
+             WHERE session_id = ?2 AND seq <= ?3",
+            rusqlite::params![to, from, upto],
+        )?;
+        for hash in &hashes {
+            tx.execute(
+                "UPDATE blobs SET refcount = refcount + 1 WHERE hash = ?1",
+                [hash],
+            )?;
+        }
+        tx.commit()?;
         Ok(())
     }
 
