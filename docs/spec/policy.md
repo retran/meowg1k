@@ -36,15 +36,16 @@ further with a selector belonging to that tool: `paths` for file tools,
 (`fs.*`) and an exact name (`fs.read`), and MUST NOT support a leading
 wildcard.
 
-**[R-POLICY-003]** A `paths` selector MUST match against the path the tool
-would touch, resolved to an absolute path with symlinks followed, using glob
-semantics where `**` crosses directory boundaries.
+**[R-POLICY-003]** A `paths` selector MUST match against an absolute path
+with symlinks already resolved, using glob semantics where `**` crosses
+directory boundaries. Resolving the path is the caller's job and MUST happen
+before evaluation, so that evaluation itself touches no filesystem.
 
 **[R-POLICY-004]** A `commands` selector MUST match against the full command
 line as a single string, using glob semantics.
 
-**[R-POLICY-005]** A selector naming a tool that has no such selector MUST
-fail when the policy is built, not when a call is evaluated.
+**[R-POLICY-005]** A selector that no tool matching the rule's name pattern
+supports MUST fail when the policy is built, not when a call is evaluated.
 
 ### Decisions
 
@@ -56,8 +57,9 @@ then allow rules, and MUST return the first match.
 **[R-POLICY-012]** A decision MUST name the rule that produced it, or record
 that no rule matched.
 
-**[R-POLICY-013]** Evaluation MUST be free of input and output, and MUST
-return the same decision for the same call and the same policy every time.
+**[R-POLICY-013]** Evaluation MUST touch no filesystem, network, or clock,
+and MUST return the same decision for the same resolved call and the same
+policy every time.
 
 ### Ask
 

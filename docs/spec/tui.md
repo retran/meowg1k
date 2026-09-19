@@ -71,11 +71,16 @@ with a `type` field.
 **[R-TUI-031]** The stream MUST begin with an event carrying the schema
 version.
 
-**[R-TUI-032]** The event schema MUST be identical to the one
-`meow session export --format json` emits, per [R-SESSION-090].
+**[R-TUI-032]** The live stream and `meow session export --format json` MUST
+share one schema definition and one version number, and every persisted event
+kind MUST serialise identically in both.
 
 **[R-TUI-033]** With `--format json`, stdout MUST carry only the event stream.
 Diagnostics MUST go to stderr.
+
+**[R-TUI-034]** A kind that exists only while a run is in flight, such as a
+text delta, MUST NOT appear in an export, and an export MUST NOT emit a kind
+the live stream cannot.
 
 ### Script output
 

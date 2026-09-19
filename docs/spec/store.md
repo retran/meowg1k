@@ -46,9 +46,10 @@ versions and MUST NOT modify the file.
 
 ### Blobs
 
-**[R-STORE-010]** Event payloads larger than 512 bytes MUST be stored in a
-`blobs` table keyed by the BLAKE3 hash of their content, and referenced from
-the event by that hash.
+**[R-STORE-010]** Every event payload MUST be addressed by the BLAKE3 hash of
+its content. The store MAY keep a payload under 512 bytes inline rather than in
+the `blobs` table, and that choice MUST be invisible to a reader: the same hash
+MUST return the same bytes either way.
 
 **[R-STORE-011]** Writing a blob whose hash is already present MUST NOT store
 a second copy and MUST NOT fail.
@@ -91,6 +92,18 @@ either removes the whole session or fails.
 
 **[R-STORE-042]** The store MUST provide the total on-disk size of the
 database so retention can act on it.
+
+### Cache
+
+**[R-STORE-045]** The store MUST provide a cache keyed by a hash of the request
+that produced the entry, holding generation and embedding responses.
+
+**[R-STORE-046]** A cache entry MUST record the model that produced it, and a
+lookup MUST miss when the model differs, so that changing a model cannot return
+another model's answer.
+
+**[R-STORE-047]** Cache eviction MUST be by total size and age, and evicting an
+entry MUST NOT affect any session that quoted it.
 
 ## Changes from v0.2.x
 

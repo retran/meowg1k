@@ -22,16 +22,16 @@ the engine be written once.
 
 ### The trait
 
-**[R-LLM-001]** A provider MUST implement generation, streaming generation,
-and MUST declare whether it supports tool calling, structured output, and
+**[R-LLM-001]** A provider MUST implement generation, and MUST declare
+whether it supports streaming, tool calling, structured output, and
 embeddings.
 
 **[R-LLM-002]** Calling a capability a provider does not declare MUST fail
 with an error naming the provider and the capability, before any request is
 sent.
 
-**[R-LLM-003]** No type from a vendor SDK or wire format may appear in the
-signature of a trait method.
+**[R-LLM-003]** A trait method signature MUST NOT name a type from a vendor
+SDK or wire format.
 
 ### Messages and tools
 
