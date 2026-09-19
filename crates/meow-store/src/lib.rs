@@ -15,6 +15,7 @@
 mod blob;
 mod cache;
 mod error;
+mod index;
 mod kv;
 mod migrations;
 mod rows;
@@ -27,6 +28,7 @@ use rusqlite::Connection;
 pub use crate::blob::BlobHash;
 pub use crate::cache::CacheKind;
 pub use crate::error::{Result, StoreError};
+pub use crate::index::{ChunkRow, FileChange};
 pub use crate::rows::{AgedSession, CompactionRow, EventRow, UsageTotals};
 pub use crate::session::SessionRow;
 
