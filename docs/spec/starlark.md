@@ -78,6 +78,24 @@ inside and between files does not matter.
 **[R-STAR-033]** A command whose name collides with a built-in MUST fail at
 load time naming the collision, and MUST NOT shadow the built-in.
 
+**[R-STAR-034]** `meow.model` MUST accept a `kind` of `chat` or `embedding`,
+defaulting to `chat`. An agent naming an embedding model, or an index naming a
+chat model, MUST fail at load time naming both the model and the kind it is.
+
+> Added 2026-09-20. The index needs an embedding model and nothing said how a
+> workspace names one, so [R-INDEX-051] could record which model built an index
+> that no declaration could choose.
+
+**[R-STAR-035]** `meow.index` MUST declare which model embeds the workspace and
+MAY set the chunk size, the overlap, and the file-size limit that [R-INDEX-003]
+and [R-INDEX-012] call configured. It MUST be declarable at most once, and an
+index command in a workspace that declares none MUST fail saying so rather than
+choosing a model.
+
+> Added 2026-09-20 alongside [R-STAR-034]. Choosing a model for somebody is
+> how an index gets built by one model and queried by another, which
+> [R-INDEX-051] exists to catch after the fact and this prevents.
+
 ### Agents
 
 **[R-STAR-040]** `meow.agent` MUST require `name`, `model`, and `system`, and

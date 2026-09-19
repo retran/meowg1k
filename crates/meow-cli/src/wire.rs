@@ -46,6 +46,7 @@ pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded
         "doctor" => doctor(&workspace, &loaded.registry),
         "policy" => policy(sub, &loaded.registry),
         "session" => session(sub, &workspace),
+        "index" => index(sub, &workspace, &loaded.registry),
         "run" => match sub.get_one::<String>("name") {
             Some(name) => invoke(matches, name, &Map::new(), workspace, loaded),
             None => Ending::Usage,
@@ -262,6 +263,151 @@ fn session(matches: &ArgMatches, workspace: &Workspace) -> Ending {
     }
 }
 
+/// `meow index ...`
+fn index(matches: &ArgMatches, workspace: &Workspace, registry: &Registry) -> Ending {
+    let (model_id, chunking, walk) = match crate::index::configure(registry) {
+        Ok(configured) => configured,
+        Err(message) => {
+            // [R-STAR-035]: a workspace that declares no index is told to
+            // declare one rather than having a model chosen for it.
+            eprintln!("{message}");
+            return Ending::Config;
+        }
+    };
+
+    let mut index = match crate::index::open(workspace, chunking, walk) {
+        Ok(index) => index,
+        Err(e) => return failed(&e),
+    };
+
+    match matches.subcommand() {
+        Some(("stats", _)) => {
+            let (total, embedded) = match index.counts() {
+                Ok(counts) => counts,
+                Err(e) => return failed(&e),
+            };
+            let built_by = index.model().ok().flatten();
+            println!("chunks\t{total}");
+            println!("embedded\t{embedded}");
+            println!("model\t{}", built_by.as_deref().unwrap_or("-"));
+            Ending::Passed
+        }
+
+        Some(("clear", _)) => match index.clear() {
+            Ok(()) => {
+                println!("cleared");
+                Ending::Passed
+            }
+            Err(e) => failed(&e),
+        },
+
+        Some(("update", _)) => match index.update() {
+            Ok(built) => {
+                report(&built);
+                Ending::Passed
+            }
+            Err(e) => failed(&e),
+        },
+
+        Some(("build", _)) => {
+            let built = match index.update() {
+                Ok(built) => built,
+                Err(e) => return failed(&e),
+            };
+            report(&built);
+
+            let Some((runtime, embedder)) = embedder(registry, &model_id) else {
+                eprintln!("no credential for the provider `{model_id}` is served by");
+                return Ending::Provider;
+            };
+            let _guard = runtime;
+
+            match index.embed(&embedder, meow_index::embed::DEFAULT_BATCH) {
+                Ok(count) => {
+                    println!("embedded\t{count}");
+                    Ending::Passed
+                }
+                Err(e) => failed(&e),
+            }
+        }
+
+        Some(("query", sub)) => {
+            let Some(text) = sub.get_one::<String>("text") else {
+                return Ending::Usage;
+            };
+            let paths: Vec<String> = sub
+                .get_many::<String>("path")
+                .map(|values| values.cloned().collect())
+                .unwrap_or_default();
+
+            let Some((runtime, embedder)) = embedder(registry, &model_id) else {
+                eprintln!("no credential for the provider `{model_id}` is served by");
+                return Ending::Provider;
+            };
+            let _guard = runtime;
+
+            let query = meow_index::Query {
+                limit: sub.get_one::<u32>("limit").copied().unwrap_or(10) as usize,
+                min_score: 0.0,
+                paths,
+            };
+
+            match index.query(&embedder, text, &query) {
+                Ok(hits) => {
+                    for hit in hits {
+                        println!(
+                            "{}:{}-{}\t{:.3}",
+                            hit.path, hit.first_line, hit.last_line, hit.score
+                        );
+                    }
+                    Ending::Passed
+                }
+                // An empty index is somebody forgetting to build one, which is
+                // a mistake in what was typed rather than a broken workspace.
+                Err(e @ meow_index::IndexError::Empty) => {
+                    eprintln!("{e}");
+                    Ending::Usage
+                }
+                Err(e) => failed(&e),
+            }
+        }
+
+        _ => Ending::Usage,
+    }
+}
+
+/// What an update did, one line per outcome that happened.
+fn report(built: &meow_index::Built) {
+    println!("added\t{}", built.added);
+    println!("changed\t{}", built.changed);
+    println!("removed\t{}", built.removed);
+    println!("unchanged\t{}", built.unchanged);
+    if built.skipped > 0 {
+        println!("skipped\t{}", built.skipped);
+    }
+}
+
+/// An embedder, and the runtime it blocks on.
+///
+/// The runtime is returned so the caller keeps it alive: an embedder that
+/// outlived its reactor would block for ever on the first request.
+fn embedder(
+    registry: &Registry,
+    model_id: &str,
+) -> Option<(tokio::runtime::Runtime, crate::index::Embedder)> {
+    let declared = registry.index().and_then(|i| registry.model(&i.model))?;
+    let provider = built_providers(registry).remove(&declared.provider)?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .ok()?;
+    let handle = runtime.handle().clone();
+    Some((
+        runtime,
+        crate::index::Embedder::new(provider, handle, model_id.to_owned()),
+    ))
+}
+
 fn failed(e: &impl std::fmt::Display) -> Ending {
     eprintln!("{e}");
     Ending::Stopped(meow_core::StopReason::Failed)
@@ -434,6 +580,7 @@ fn invoke(
             return Ending::Provider;
         }
     };
+    let built = built_providers(&loaded.registry);
 
     let sink = Arc::new(render::build(Environment {
         json: matches
@@ -470,6 +617,12 @@ fn invoke(
     let cancel = CancellationToken::new();
     watch(&runtime, cancel.clone());
 
+    // Built before the runtime takes the workspace and the registry, because
+    // it reads both. A workspace that declares no index, or one whose
+    // embedding provider has no credential, still runs: `search.code` is what
+    // fails, and it says why.
+    let search = searcher(&workspace, &loaded.registry, &built, runtime.handle());
+
     let star = Arc::new(Runtime::new(
         loaded,
         workspace,
@@ -482,6 +635,7 @@ fn invoke(
             ask: Arc::clone(&terminal) as Arc<dyn meow_star::port::Ask>,
             stdin: Arc::new(crate::ask::Stdin),
             session: Arc::clone(&session) as Arc<dyn meow_star::port::Session>,
+            search,
         },
         cancel.clone(),
     ));
@@ -578,6 +732,53 @@ fn watch(runtime: &tokio::runtime::Runtime, cancel: CancellationToken) {
             cancel.cancel();
         }
     });
+}
+
+/// Search over this workspace's index, or something that says why not.
+fn searcher(
+    workspace: &Workspace,
+    registry: &Registry,
+    providers: &HashMap<String, Arc<dyn Provider>>,
+    handle: &tokio::runtime::Handle,
+) -> Arc<dyn meow_star::port::Search> {
+    let refused = || Arc::new(meow_star::port::quiet::NoIndex) as Arc<dyn meow_star::port::Search>;
+
+    let Ok((model_id, chunking, walk)) = crate::index::configure(registry) else {
+        return refused();
+    };
+    let Some(declared) = registry.index().and_then(|i| registry.model(&i.model)) else {
+        return refused();
+    };
+    let Some(provider) = providers.get(&declared.provider) else {
+        return refused();
+    };
+    let Ok(index) = crate::index::open(workspace, chunking, walk) else {
+        return refused();
+    };
+
+    Arc::new(crate::index::Searcher::new(
+        index,
+        crate::index::Embedder::new(Arc::clone(provider), handle.clone(), model_id),
+    ))
+}
+
+/// One provider per declared name, for whatever needs the provider itself.
+fn built_providers(registry: &Registry) -> HashMap<String, Arc<dyn Provider>> {
+    let mut out = HashMap::new();
+    for declared in registry.providers() {
+        let Some(key) = credential(declared) else {
+            continue;
+        };
+        if declared.kind == "anthropic"
+            && let Ok(transport) = Http::new(declared.name.clone())
+        {
+            out.insert(
+                declared.name.clone(),
+                Arc::new(Anthropic::new(transport, key)) as Arc<dyn Provider>,
+            );
+        }
+    }
+    out
 }
 
 /// Build one engine per declared provider.
