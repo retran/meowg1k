@@ -93,7 +93,7 @@ func (g *anthropicGateway) doGenerateContent(
 	}
 
 	params := anthropic.MessageNewParams{
-		Model:     anthropic.Model(model),
+		Model:     model,
 		Messages:  messages,
 		MaxTokens: int64(request.MaxOutputTokens()),
 	}
@@ -372,7 +372,7 @@ func (g *anthropicGateway) CountTokens(ctx context.Context, model string, texts 
 	}
 
 	result, err := g.client.Messages.CountTokens(ctx, anthropic.MessageCountTokensParams{
-		Model:    anthropic.Model(model),
+		Model:    model,
 		Messages: messages,
 	})
 	if err != nil {

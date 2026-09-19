@@ -141,6 +141,16 @@ linters:
     dupl:
       threshold: 100      # Duplicate code threshold (tokens)
 
+    goconst:
+      # A literal repeated across table-driven cases is the test being
+      # readable. Extracting it into a constant makes the case harder to read
+      # and the linter quieter, which is a bad trade.
+      ignore-tests: true
+      # The default of three is too low to mean anything: a map key used in
+      # three places is not a magic string. Six finds the literals where a
+      # typo in one copy would actually go unnoticed.
+      min-occurrences: 6
+
     unparam:
       check-exported: false  # exported godoc requirements are enforced by revive instead
 
@@ -149,6 +159,15 @@ linters:
 
   exclusions:
     rules:
+      # The Starlark module files register builtins by name: "parse" in each
+      # data module, "output" wherever a context is assembled, "diff" in two.
+      # The repetition is the API surface, declared once per module, not a
+      # magic string a typo could change unnoticed - a wrong name fails that
+      # module's own tests immediately.
+      - path: internal/core/starlark/
+        linters:
+          - goconst
+
       # Relax linting for test files
       - path: _test\.go
         linters:
