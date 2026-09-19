@@ -284,7 +284,22 @@ impl Runtime {
         };
         let engine = Arc::clone(self.engine_for(&self.agent_model(name)?)?);
         let mut sink = crate::run::sink(self);
-        Ok(self.block_on(engine.run(&spec, task, &ledger, sink.as_mut(), &self.cancel)))
+
+        // `[R-SESSION-051]`: the history is whatever the session says it saw,
+        // superseded ranges and all. An empty one is a fresh run, which is
+        // `[R-SESSION-054]`: continuation is never inferred.
+        let history = self.session.history();
+
+        Ok(
+            self.block_on(engine.resume(
+                &spec,
+                history,
+                task,
+                &ledger,
+                sink.as_mut(),
+                &self.cancel,
+            )),
+        )
     }
 
     /// Assemble an agent's specification from what was declared.
@@ -553,9 +568,11 @@ fn host_of(url: &str) -> Option<&str> {
 fn sink(runtime: &Arc<Runtime>) -> Box<dyn Sink + Send> {
     Box::new(Relay {
         events: Arc::clone(&runtime.events),
+        log: Arc::clone(&runtime.session),
         session: runtime.session.id(),
         started: std::time::Instant::now(),
         names: HashMap::new(),
+        said: String::new(),
         steps: 0,
         usage: meow_core::Usage::default(),
     })
@@ -574,9 +591,12 @@ fn sink(runtime: &Arc<Runtime>) -> Box<dyn Sink + Send> {
 /// renderer has no way to derive them.
 struct Relay {
     events: Arc<dyn Events>,
+    log: Arc<dyn Session>,
     session: String,
     started: std::time::Instant,
     names: HashMap<String, String>,
+    /// What the model has said in the step that is running.
+    said: String,
     steps: u32,
     usage: meow_core::Usage,
 }
@@ -588,6 +608,26 @@ impl Relay {
 
     fn send(&self, event: meow_core::view::ViewEvent) {
         self.events.event(event);
+    }
+
+    /// Write down what the model said in a step, if it said anything.
+    fn wrote(&self, text: String) {
+        if text.trim().is_empty() {
+            return;
+        }
+        self.log.record(meow_core::EventKind::Assistant {
+            content: text,
+            tool_calls: Vec::new(),
+        });
+    }
+
+    /// Show it and write it down.
+    ///
+    /// One call, because an event that reached the transcript and not the log
+    /// is a run whose record disagrees with what somebody watched happen.
+    fn keep(&self, kind: meow_core::EventKind) {
+        self.log.record(kind.clone());
+        self.send(meow_core::view::ViewEvent::Logged(kind));
     }
 
     /// Tell the live region where the run has got to.
@@ -626,11 +666,27 @@ impl Sink for Relay {
                 self.send(ViewEvent::Live(LiveKind::StepStart { step }));
                 self.progress(None);
             }
-            E::Text(delta) => self.send(ViewEvent::Live(LiveKind::TextDelta { delta })),
+            E::Text(delta) => {
+                self.said.push_str(&delta);
+                self.send(ViewEvent::Live(LiveKind::TextDelta { delta }));
+            }
             E::Thinking(delta) => self.send(ViewEvent::Live(LiveKind::ThinkingDelta { delta })),
-            E::StepText { .. } | E::StepEnd { .. } => {}
+            // Whichever of the two a sink asked for: with deltas the text
+            // arrives in pieces and is written down when the step ends, and
+            // without them it arrives whole. Recording both would log every
+            // step twice.
+            E::StepText { text, .. } => self.wrote(text),
+            E::StepEnd { .. } => {
+                let text = std::mem::take(&mut self.said);
+                self.wrote(text);
+            }
             E::ToolStart { id, name, args } => {
                 self.names.insert(id.clone(), name.clone());
+                self.log.record(meow_core::EventKind::ToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    args: args.clone(),
+                });
                 self.send(ViewEvent::Live(LiveKind::ToolStart {
                     id,
                     name: name.clone(),
@@ -644,6 +700,12 @@ impl Sink for Relay {
                 error,
             } => {
                 let name = self.names.remove(&id).unwrap_or_default();
+                self.log.record(meow_core::EventKind::ToolResult {
+                    id: id.clone(),
+                    output: String::new(),
+                    duration_ms,
+                    error: error.clone(),
+                });
                 self.send(ViewEvent::Live(LiveKind::ToolEnd {
                     id,
                     name,
@@ -653,15 +715,18 @@ impl Sink for Relay {
                 self.progress(None);
             }
             E::Policy { id, decision } => {
-                self.send(ViewEvent::Logged(meow_core::EventKind::Policy {
+                // `[R-SESSION-070]` and `[R-SESSION-071]`: before the tool
+                // runs, and for the denials as well as the approvals.
+                self.keep(meow_core::EventKind::Policy {
                     id,
                     decision,
                     rule: None,
                     source: "rule".to_owned(),
-                }));
+                });
             }
             E::Usage(usage) => {
                 self.usage = self.usage.add(&usage);
+                self.keep(meow_core::EventKind::Usage(usage));
                 self.progress(None);
             }
             E::Compacted {
@@ -671,11 +736,11 @@ impl Sink for Relay {
             } => {
                 let start = u64::try_from(supersedes.start).unwrap_or(0);
                 let end = u64::try_from(supersedes.end.saturating_sub(1)).unwrap_or(0);
-                self.send(ViewEvent::Logged(meow_core::EventKind::Compaction {
+                self.keep(meow_core::EventKind::Compaction {
                     supersedes: start..=end,
                     summary,
                     tokens_saved,
-                }));
+                });
             }
             E::RunEnd { stop, detail } => {
                 self.send(ViewEvent::Live(LiveKind::RunEnd {
