@@ -18,9 +18,10 @@ struct Migration {
 
 /// Every migration, in ascending order. Append only; never edit one that has
 /// shipped, because a database somewhere has already applied it.
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    sql: r#"
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        sql: r#"
         CREATE TABLE meta (
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -73,7 +74,46 @@ const MIGRATIONS: &[Migration] = &[Migration {
         CREATE INDEX events_by_session ON events(session_id, seq);
         CREATE INDEX cache_by_age ON cache(created_at);
     "#,
-}];
+    },
+    Migration {
+        version: 2,
+        sql: r#"
+        -- The event's own fields, as JSON. Small and opaque to the store:
+        -- meow-session owns what the shape means.
+        ALTER TABLE events ADD COLUMN body TEXT NOT NULL DEFAULT '{}';
+
+        -- [R-SESSION-020] wants these summable without parsing a string, and
+        -- [R-SESSION-022] sums them across a session tree, so they are columns
+        -- rather than part of the JSON body. cost_micros is nullable because
+        -- [R-SESSION-021] forbids recording an unpriced model as free.
+        CREATE TABLE usage (
+            session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            seq         INTEGER NOT NULL,
+            prompt      INTEGER NOT NULL,
+            completion  INTEGER NOT NULL,
+            cached      INTEGER,
+            cost_micros INTEGER,
+            PRIMARY KEY (session_id, seq)
+        ) STRICT;
+
+        -- [R-SESSION-011] and [R-SESSION-013] both ask which ranges are
+        -- superseded, on every rebuild, so the range is queryable.
+        CREATE TABLE compactions (
+            session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            seq          INTEGER NOT NULL,
+            from_seq     INTEGER NOT NULL,
+            to_seq       INTEGER NOT NULL,
+            tokens_saved INTEGER NOT NULL,
+            PRIMARY KEY (session_id, seq)
+        ) STRICT;
+
+        -- A rebuildable copy of the state, which [R-SESSION-041] permits so
+        -- that listing a thousand sessions does not read a thousand events.
+        -- The log wins on any disagreement.
+        ALTER TABLE sessions ADD COLUMN state TEXT;
+    "#,
+    },
+];
 
 /// The highest version this binary knows how to reach.
 pub(crate) fn latest_version() -> u32 {
