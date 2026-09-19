@@ -479,3 +479,109 @@ fn clear_removes_the_index_and_nothing_else() {
         "the sessions were cleared too"
     );
 }
+
+/// The search structure is built once and kept, so a second query does not
+/// pay for it again.
+#[test]
+fn the_graph_is_written_once_and_reused() {
+    let dir = workspace(FILES);
+    let mut index = index(&dir);
+    index.update().unwrap();
+
+    let embedder = Counting::new("small");
+    index.embed(&embedder, 8).unwrap();
+
+    let stamp = dir.path().join(".meow/.data/index.hnsw.stamp");
+    assert!(!stamp.exists(), "a build should not need the graph");
+
+    index.query(&embedder, "retry", &Query::default()).unwrap();
+    assert!(stamp.exists(), "the first query did not keep the graph");
+    let built = std::fs::read_to_string(&stamp).unwrap();
+
+    index.query(&embedder, "colour", &Query::default()).unwrap();
+    assert_eq!(
+        std::fs::read_to_string(&stamp).unwrap(),
+        built,
+        "the second query rebuilt the graph"
+    );
+}
+
+/// A graph built for other chunks is rebuilt rather than searched.
+#[test]
+fn a_stale_graph_is_rebuilt() {
+    let dir = workspace(FILES);
+    let mut index = index(&dir);
+    index.update().unwrap();
+
+    let embedder = Counting::new("small");
+    index.embed(&embedder, 8).unwrap();
+    index.query(&embedder, "retry", &Query::default()).unwrap();
+
+    let stamp = dir.path().join(".meow/.data/index.hnsw.stamp");
+    let before = std::fs::read_to_string(&stamp).unwrap();
+
+    std::fs::write(
+        dir.path().join("src/budget.rs"),
+        "// another budget for retry\n",
+    )
+    .unwrap();
+    index.update().unwrap();
+    index.embed(&embedder, 8).unwrap();
+
+    let hits = index
+        .query(
+            &embedder,
+            "retry budget",
+            &Query {
+                limit: 10,
+                ..Query::default()
+            },
+        )
+        .unwrap();
+
+    assert_ne!(
+        std::fs::read_to_string(&stamp).unwrap(),
+        before,
+        "the graph was not rebuilt for the new chunks"
+    );
+    assert!(
+        hits.iter().any(|h| h.path == "src/budget.rs"),
+        "the new file is not searchable: {hits:?}"
+    );
+}
+
+/// A graph whose files are damaged costs a rebuild, not an answer.
+#[test]
+fn a_damaged_graph_is_rebuilt_rather_than_fatal() {
+    let dir = workspace(FILES);
+    let mut index = index(&dir);
+    index.update().unwrap();
+
+    let embedder = Counting::new("small");
+    index.embed(&embedder, 8).unwrap();
+    index.query(&embedder, "retry", &Query::default()).unwrap();
+
+    // The graph is a cache over rows that are still there.
+    std::fs::write(dir.path().join(".meow/.data/index.hnsw.ids"), "nonsense\n").unwrap();
+
+    let hits = index.query(&embedder, "retry", &Query::default()).unwrap();
+    assert!(!hits.is_empty(), "a bad cache lost the answer");
+}
+
+/// [R-INDEX-052] clear forgets the graph as well as the rows.
+#[test]
+fn clear_forgets_the_graph() {
+    let dir = workspace(FILES);
+    let mut index = index(&dir);
+    index.update().unwrap();
+    index.embed(&Counting::new("small"), 8).unwrap();
+    index
+        .query(&Counting::new("small"), "retry", &Query::default())
+        .unwrap();
+
+    let stamp = dir.path().join(".meow/.data/index.hnsw.stamp");
+    assert!(stamp.exists());
+
+    index.clear().unwrap();
+    assert!(!stamp.exists(), "a cleared index kept its graph");
+}

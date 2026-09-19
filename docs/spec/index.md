@@ -136,17 +136,11 @@ build dependency, and a fallback for every language without one. The line
 splitter is the thing to measure against; replacing it is an amendment once
 there is a recall number that justifies the dependency.
 
-**Search is an exact scan, not an approximate one.** No requirement here asks
-for approximate nearest neighbours; [R-INDEX-040] asks for ranking by
-descending similarity, and comparing the query against every stored vector
-gives that with perfect recall and no index to persist, invalidate, or rebuild.
-This repository produces a few thousand chunks, and a few thousand dot products
-are not the slow part of a query that also makes a network call.
-
-When a measurement says otherwise, `hnsw_rs` is the library to reach for: it is
-pure Rust, so it keeps the single static binary and the `unsafe_code = "deny"`
-lint intact, which `usearch` would not. Updated 2026-09-20; the original
-decision named `hnsw_rs` outright, before there was a corpus to measure.
+**The vector index is `hnsw_rs`.** It is pure Rust, so it keeps the single
+static binary and the `unsafe_code = "deny"` lint intact, which `usearch`
+would not. The reason to revisit is a measurement, not a preference: if recall
+or build time on this repository is unacceptable, the C++ implementation earns
+its cost then.
 
 **Prose is indexed alongside code**, by [R-INDEX-005], and a query narrows with
 a path filter, by [R-INDEX-044]. Excluding prose would make the design

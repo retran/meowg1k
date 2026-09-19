@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use meow_store::Store;
 
+use crate::ann;
 use crate::chunk::Chunking;
 use crate::embed::{self, Embed, Rejected};
 use crate::error::{IndexError, Result};
@@ -146,6 +147,7 @@ impl Index {
     pub fn clear(&mut self) -> Result<()> {
         self.store.index_clear().map_err(store_failed)?;
         self.store.kv_delete(MODEL_KEY).map_err(store_failed)?;
+        self.graph().forget();
         Ok(())
     }
 
@@ -314,33 +316,42 @@ impl Index {
             });
         }
 
-        let rows = self.store.index_embedded().map_err(store_failed)?;
-        if rows.is_empty() {
+        let (chunks, max_id) = self.store.index_signature().map_err(store_failed)?;
+        if chunks == 0 {
             return Err(IndexError::Empty);
         }
+        let signature = ann::Signature { chunks, max_id };
 
-        let filter = self.matcher(&query.paths)?;
+        // [R-INDEX-044]: the filter decides which nodes the walk may visit,
+        // so it narrows the search rather than narrowing its results. A
+        // filter applied afterwards would return the best ten overall and
+        // then throw most of them away.
+        let allowed = self.allowed(&query.paths)?;
 
         // The query's own embedding is cached, so asking the same thing twice
         // costs one request. `[R-INDEX-043]`.
         let vector = self.query_vector(embedder, text)?;
 
-        let mut hits: Vec<Hit> = rows
+        let found = self.nearest(&signature, &vector, query.limit, allowed.as_deref())?;
+
+        // The text is read for the handful of rows that won, not for every
+        // row that was scored.
+        let ids: Vec<i64> = found.iter().map(|(id, _)| *id).collect();
+        let rows = self.store.index_rows(&ids).map_err(store_failed)?;
+
+        let mut hits: Vec<Hit> = found
             .into_iter()
-            // Filtered before ranking, so a limit of ten returns the best ten
-            // inside the filter rather than whatever survives it.
-            .filter(|row| filter.as_ref().is_none_or(|f| f.is_match(&row.path)))
-            .filter_map(|row| {
-                let stored = embed::from_bytes(row.vector.as_deref()?)?;
+            .filter(|(_, score)| *score >= query.min_score)
+            .filter_map(|(id, score)| {
+                let row = rows.iter().find(|row| row.id == id)?;
                 Some(Hit {
-                    score: embed::similarity(&vector, &stored),
-                    path: row.path,
+                    path: row.path.clone(),
                     first_line: row.first_line.max(0) as usize,
                     last_line: row.last_line.max(0) as usize,
-                    text: row.text,
+                    text: row.text.clone(),
+                    score,
                 })
             })
-            .filter(|hit| hit.score >= query.min_score)
             .collect();
 
         hits.sort_by(|a, b| {
@@ -356,6 +367,68 @@ impl Index {
         hits.truncate(query.limit);
 
         Ok(hits)
+    }
+
+    /// Search the graph, building it first when it is missing or stale.
+    ///
+    /// `[R-INDEX-022]`'s neighbour in spirit: the graph is a cache over the
+    /// rows, so losing it costs a rebuild and never an answer. A stale one is
+    /// noticed by its stamp rather than trusted.
+    fn nearest(
+        &self,
+        signature: &ann::Signature,
+        vector: &[f32],
+        limit: usize,
+        allowed: Option<&[usize]>,
+    ) -> Result<Vec<(i64, f32)>> {
+        let location = self.graph();
+
+        if !location.is_current(*signature) {
+            let vectors = self.store.index_vectors().map_err(store_failed)?;
+            ann::build(&vectors, *signature, &location)?;
+        }
+
+        match ann::nearest(&location, vector, limit, allowed) {
+            Ok(found) => Ok(found),
+            // A graph that will not load is a cache that went bad, and the
+            // rows it was built from are still here. One rebuild, then the
+            // failure is real.
+            Err(_) => {
+                let vectors = self.store.index_vectors().map_err(store_failed)?;
+                ann::build(&vectors, *signature, &location)?;
+                ann::nearest(&location, vector, limit, allowed)
+            }
+        }
+    }
+
+    /// Where the graph lives.
+    fn graph(&self) -> ann::Location {
+        ann::Location::new(self.root.join(".meow").join(".data"))
+    }
+
+    /// Which nodes a path filter allows, as graph node positions.
+    ///
+    /// `None` when there is no filter, which lets the search skip the check
+    /// entirely rather than pass one that always says yes.
+    fn allowed(&self, globs: &[String]) -> Result<Option<Vec<usize>>> {
+        let Some(matcher) = self.matcher(globs)? else {
+            return Ok(None);
+        };
+
+        // Node positions follow the order `index_vectors` returns, which is by
+        // identifier, and `index_id_paths` uses the same order. The two lists
+        // line up because both are `ORDER BY id` over the same rows.
+        let allowed = self
+            .store
+            .index_id_paths()
+            .map_err(store_failed)?
+            .into_iter()
+            .enumerate()
+            .filter(|(_, (_, path))| matcher.is_match(path))
+            .map(|(node, _)| node)
+            .collect();
+
+        Ok(Some(allowed))
     }
 
     /// The embedding of a query, from the cache when it is there.

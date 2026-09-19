@@ -9,6 +9,7 @@ publish = false
 
 [dependencies]
 globset = "0.4"
+hnsw_rs = "0.3.4"
 ignore = "0.4"
 meow-store = { path = "../meow-store" }
 thiserror = { workspace = true }

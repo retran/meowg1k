@@ -9,6 +9,7 @@
 //!
 //! `docs/spec/index.md` is normative.
 
+pub mod ann;
 pub mod chunk;
 pub mod embed;
 pub mod error;

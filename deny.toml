@@ -28,6 +28,11 @@ ignore = [
     # on targets that lack them, which none of the targets in
     # `.github/workflows/rust.yaml` are.
     { id = "RUSTSEC-2023-0089", reason = "reached through starlark; polyfills atomics on targets this project does not build for" },
+    # `bincode` 1.x, through `hnsw_rs`, which uses it to write and read the
+    # vector graph. Unmaintained rather than vulnerable, and the only data it
+    # ever decodes is a file this binary wrote into the workspace's own
+    # `.meow/.data/`. `hnsw_rs` has no feature that drops it.
+    { id = "RUSTSEC-2025-0141", reason = "hnsw_rs pins bincode 1.x; it decodes only files this binary wrote, and no feature drops it" },
 ]
 
 [licenses]

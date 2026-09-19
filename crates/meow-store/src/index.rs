@@ -120,13 +120,62 @@ impl Store {
         )
     }
 
-    /// Every chunk that has been embedded.
-    pub fn index_embedded(&self) -> Result<Vec<ChunkRow>> {
-        self.rows(
+    /// Every embedded chunk's identifier and vector, and nothing else.
+    ///
+    /// Without the text, because building the search structure needs the
+    /// coordinates and not the content, and the content is most of the bytes.
+    pub fn index_vectors(&self) -> Result<Vec<(i64, Vec<u8>)>> {
+        let conn = self.conn();
+        let mut stmt = conn
+            .prepare("SELECT id, vector FROM index_chunks WHERE vector IS NOT NULL ORDER BY id")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<std::result::Result<_, _>>()
+            .map_err(Into::into)
+    }
+
+    /// Every embedded chunk's identifier and path.
+    ///
+    /// For a path filter, which has to be known before a search starts rather
+    /// than applied to what it returned.
+    pub fn index_id_paths(&self) -> Result<Vec<(i64, String)>> {
+        let conn = self.conn();
+        let mut stmt =
+            conn.prepare("SELECT id, path FROM index_chunks WHERE vector IS NOT NULL ORDER BY id")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<std::result::Result<_, _>>()
+            .map_err(Into::into)
+    }
+
+    /// The chunks with these identifiers.
+    ///
+    /// The text is read here, for the handful of rows a query actually
+    /// returns, rather than for every row it scored.
+    pub fn index_rows(&self, ids: &[i64]) -> Result<Vec<ChunkRow>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let places = std::iter::repeat_n("?", ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
             "SELECT id, path, first_line, last_line, start_byte, end_byte, text, vector
-             FROM index_chunks WHERE vector IS NOT NULL ORDER BY id",
-            rusqlite::params![],
-        )
+             FROM index_chunks WHERE id IN ({places})"
+        );
+        self.rows(&sql, rusqlite::params_from_iter(ids))
+    }
+
+    /// What the index looked like when it was last searched.
+    ///
+    /// The count and the highest identifier. Identifiers are never reused, so
+    /// re-chunking a file raises the highest one and deleting a file lowers
+    /// the count: between them, any change to what is searchable shows up
+    /// here, which is what decides whether the search structure is stale.
+    pub fn index_signature(&self) -> Result<(i64, i64)> {
+        Ok(self.conn().query_row(
+            "SELECT count(*), coalesce(max(id), 0) FROM index_chunks WHERE vector IS NOT NULL",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?)
     }
 
     fn rows(&self, sql: &str, params: impl rusqlite::Params) -> Result<Vec<ChunkRow>> {
