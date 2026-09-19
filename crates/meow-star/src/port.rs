@@ -9,7 +9,9 @@
 //! handler without a terminal, which is most of what makes the run phase
 //! testable at all.
 
+use meow_core::EventKind;
 use meow_core::view::{LiveKind, Output, ViewEvent};
+use meow_llm::Message;
 use serde_json::Value;
 
 /// Where everything a run produces goes.
@@ -101,6 +103,25 @@ pub trait Session: Send + Sync + std::fmt::Debug {
 
     /// Store something for the rest of this run.
     fn set(&self, key: &str, value: Value);
+
+    /// Write one event into the log.
+    ///
+    /// The engine reports what happened and this decides whether it is worth
+    /// keeping. A failure here is not reported: the place it would be reported
+    /// to is the transcript, and a log that cannot be written is exactly the
+    /// case where saying so loudly loses the run as well as the record.
+    fn record(&self, kind: EventKind) {
+        let _ = kind;
+    }
+
+    /// The conversation so far, for a run that is continuing one.
+    ///
+    /// `[R-SESSION-051]`: rebuilt the way the original saw it, superseded
+    /// ranges and all, because a resumed run that saw more than the original
+    /// did would answer a different question.
+    fn history(&self) -> Vec<Message> {
+        Vec::new()
+    }
 }
 
 /// Ports that do nothing, for a run with no terminal.
