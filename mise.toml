@@ -1,2 +1,84 @@
+# Development tooling for meowg1k. Run `mise install` once, then `mise run all`.
+#
+# This branch carries two trees. The Rust tree under `crates/` is v0.3.0 and is
+# what the tasks below drive. The Go tree is frozen at v0.2.1 and stays only
+# until the Rust tree replaces it, which is why golangci-lint is still here.
+
 [tools]
+# The compiler, the formatter, the linter, and the language server all come
+# from one pinned toolchain, so your editor analyses the code with the same
+# rustc that CI compiles it with. `rust-toolchain.toml` pins the same channel
+# for anyone who reaches for rustup directly.
+rust = { version = "stable", components = "clippy,rustfmt,rust-analyzer,rust-src" }
+
+# Everything `mise tasks` invokes. Prefer a backend that ships a prebuilt
+# binary: building nextest from source pulls in `aws-lc-sys`, which needs a C
+# toolchain and cmake, and a first `mise install` that compiles a test runner
+# for ten minutes is a bad first impression of the repository.
+"github:nextest-rs/nextest" = "latest"   # test runner
+cargo-deny = "latest"                    # advisories, licences, bans, sources
+cargo-insta = "latest"                   # snapshot review
+markdownlint-cli2 = "latest"
+gh = "latest"
+
+# No prebuilt release exists for these two, so they compile. Both are small
+# and neither is on the CI critical path.
+"cargo:cargo-machete" = "latest"         # unused dependencies
+"cargo:cargo-watch" = "latest"           # re-run clippy on change
+
+# Frozen Go tree, v0.2.1 and earlier. It stays until the Rust tree replaces it.
 golangci-lint = "2"
+
+[tasks.build]
+run = "cargo build --workspace"
+description = "Build every crate in debug"
+
+[tasks.build-release]
+run = "cargo build --workspace --release"
+description = "Build every crate in release"
+
+[tasks.check]
+run = "cargo clippy --workspace --all-targets -- -D warnings"
+description = "Run clippy with warnings denied"
+
+[tasks.test]
+run = "cargo nextest run --workspace --no-tests=pass"
+description = "Run all tests with nextest"
+
+[tasks.fmt]
+run = "cargo fmt --all"
+description = "Format all Rust code"
+
+[tasks.fmt-check]
+run = "cargo fmt --all -- --check"
+description = "Check formatting without changing files"
+
+[tasks.doc]
+run = "cargo doc --workspace --no-deps"
+description = "Build the API documentation"
+
+[tasks.deny]
+run = "cargo deny check"
+description = "Check advisories, licences, bans, and sources"
+
+[tasks.unused-deps]
+run = "cargo machete"
+description = "Find dependencies nothing uses"
+
+[tasks.lint-md]
+run = "markdownlint-cli2 '**/*.md' '#target' '#node_modules' '#.claude' '#CLAUDE.md'"
+description = "Lint all Markdown prose (prompt files are excluded: their XML tags are deliberate)"
+
+[tasks.watch]
+run = "cargo watch -x 'clippy --workspace --all-targets'"
+description = "Re-run clippy on every change"
+
+[tasks.snapshots]
+run = "cargo insta review"
+description = "Review pending snapshot changes"
+
+# What CI runs, in the order that fails fastest first. Run this before opening
+# a pull request.
+[tasks.all]
+depends = ["fmt-check", "check", "test", "doc", "deny", "lint-md"]
+description = "Everything CI checks"

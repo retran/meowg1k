@@ -1,0 +1,13 @@
+[package]
+name = "meow-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Domain types shared across the meowg1k workspace"
+
+[dependencies]
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
