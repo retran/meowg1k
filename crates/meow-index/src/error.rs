@@ -27,6 +27,32 @@ pub enum IndexError {
         message: String,
     },
 
+    /// There is nothing to search.
+    ///
+    /// `[R-INDEX-041]`: a query against an empty or absent index says so and
+    /// builds nothing. A query that quietly built an index would turn a typo
+    /// into several minutes and a bill.
+    #[error("the index is empty; run `meow index build` first")]
+    Empty,
+
+    /// The index was built by a different embedding model.
+    ///
+    /// `[R-INDEX-051]`: both names, because the fix is to rebuild or to change
+    /// the model back and neither is obvious from one of them.
+    #[error(
+        "the index was built by `{built_by}` and the query used `{asked_by}`; rebuild it or use the model it was built with"
+    )]
+    WrongModel {
+        /// What built the index.
+        built_by: String,
+        /// What is asking.
+        asked_by: String,
+    },
+
+    /// The store would not do something.
+    #[error("{0}")]
+    Store(String),
+
     /// One chunk is too large for the embedding model, on its own.
     ///
     /// `[R-INDEX-021]`: the file and the lines, not a generic size error. A

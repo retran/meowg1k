@@ -8,10 +8,13 @@ description = "Making a workspace searchable by meaning"
 publish = false
 
 [dependencies]
+globset = "0.4"
 ignore = "0.4"
+meow-store = { path = "../meow-store" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+meow-core = { path = "../meow-core" }
 tempfile = "3"
 
 [lints]

@@ -1754,7 +1754,10 @@ dependencies = [
 name = "meow-index"
 version = "0.3.0-alpha.0"
 dependencies = [
+ "globset",
  "ignore",
+ "meow-core",
+ "meow-store",
  "tempfile",
  "thiserror 2.0.20",
 ]
