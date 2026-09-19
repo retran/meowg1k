@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/meow-core", "crates/meow-llm", "crates/meow-session", "crates/meow-store"]
+members = ["crates/meow-agent", "crates/meow-core", "crates/meow-llm", "crates/meow-session", "crates/meow-store"]
 resolver = "3"
 
 [workspace.dependencies]

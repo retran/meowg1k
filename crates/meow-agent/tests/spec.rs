@@ -1,0 +1,759 @@
+// Copyright © 2025 The meowg1k Authors
+// SPDX-License-Identifier: Apache-2.0
+
+//! Every requirement in `docs/spec/agent.md` that M4 covers.
+//!
+//! Compaction, sub-agents, and concurrency are M6; policy is M5.
+
+// `allow-unwrap-in-tests` in clippy.toml covers `#[test]` functions, not the
+// helpers beside them.
+#![allow(clippy::unwrap_used)]
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
+
+use meow_agent::{
+    AgentEvent, AgentSpec, Axis, Budget, Checked, Collect, Discard, Engine, Ledger, Tool,
+    ToolError, ToolErrorPolicy, ToolSet, check,
+};
+use meow_core::{StopReason, Usage};
+use meow_llm::{Capabilities, LlmError, Provider, Request, Response, Structured, ToolCall};
+use serde_json::{Value, json};
+use tokio_util::sync::CancellationToken;
+
+/// A provider that answers from a script, so a test decides what the model
+/// does without a network or an account.
+struct Scripted {
+    replies: std::sync::Mutex<Vec<Response>>,
+    asked: AtomicU32,
+}
+
+impl Scripted {
+    fn new(replies: Vec<Response>) -> Arc<Self> {
+        Arc::new(Self {
+            replies: std::sync::Mutex::new(replies.into_iter().rev().collect()),
+            asked: AtomicU32::new(0),
+        })
+    }
+    fn asked(&self) -> u32 {
+        self.asked.load(Ordering::SeqCst)
+    }
+}
+
+#[async_trait::async_trait]
+impl Provider for Scripted {
+    fn name(&self) -> &str {
+        "scripted"
+    }
+    fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            streaming: false,
+            tools: true,
+            structured: Structured::Emulated,
+            embeddings: false,
+        }
+    }
+    async fn generate(
+        &self,
+        _: &Request,
+        cancel: &CancellationToken,
+    ) -> meow_llm::Result<Response> {
+        if cancel.is_cancelled() {
+            return Err(LlmError::Cancelled);
+        }
+        self.asked.fetch_add(1, Ordering::SeqCst);
+        self.replies
+            .lock()
+            .ok()
+            .and_then(|mut r| r.pop())
+            .ok_or(LlmError::Transport {
+                provider: "scripted".into(),
+                message: "the script ran out".into(),
+            })
+    }
+}
+
+fn says(text: &str) -> Response {
+    Response {
+        text: text.to_owned(),
+        thinking: None,
+        tool_calls: Vec::new(),
+        usage: Some(Usage {
+            prompt: 10,
+            completion: 5,
+            cached: None,
+            cost_micros: Some(100),
+        }),
+        value: None,
+    }
+}
+
+fn calls(name: &str, args: &str) -> Response {
+    Response {
+        text: String::new(),
+        thinking: None,
+        tool_calls: vec![ToolCall {
+            id: format!("c-{name}"),
+            name: name.to_owned(),
+            arguments: args.to_owned(),
+        }],
+        usage: Some(Usage {
+            prompt: 10,
+            completion: 5,
+            cached: None,
+            cost_micros: Some(100),
+        }),
+        value: None,
+    }
+}
+
+/// A tool a test can make succeed, fail, or count.
+struct Probe {
+    name: &'static str,
+    schema: Value,
+    fail: bool,
+    ran: Arc<AtomicU32>,
+}
+
+impl Probe {
+    fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            schema: json!({"type": "object", "properties": {}, "required": []}),
+            fail: false,
+            ran: Arc::new(AtomicU32::new(0)),
+        }
+    }
+    fn requiring(mut self, field: &str, kind: &str) -> Self {
+        self.schema = json!({
+            "type": "object",
+            "properties": { field: {"type": kind} },
+            "required": [field]
+        });
+        self
+    }
+    fn failing(mut self) -> Self {
+        self.fail = true;
+        self
+    }
+}
+
+#[async_trait::async_trait]
+impl Tool for Probe {
+    fn name(&self) -> &str {
+        self.name
+    }
+    fn description(&self) -> &str {
+        "a probe"
+    }
+    fn schema(&self) -> Value {
+        self.schema.clone()
+    }
+    async fn call(&self, args: &Value, _: &CancellationToken) -> Result<String, ToolError> {
+        self.ran.fetch_add(1, Ordering::SeqCst);
+        if self.fail {
+            return Err(ToolError("the probe was told to fail".into()));
+        }
+        Ok(args.to_string())
+    }
+}
+
+async fn run(spec: &AgentSpec, provider: Arc<dyn Provider>) -> meow_agent::Outcome {
+    let ledger = Ledger::new(spec.budget);
+    Engine::new(provider)
+        .run(
+            spec,
+            "a task",
+            &ledger,
+            &mut Discard,
+            &CancellationToken::new(),
+        )
+        .await
+}
+
+/// [R-AGENT-001] every run returns an outcome, never an error
+/// [R-AGENT-003] the text survives whatever the stop reason
+#[tokio::test]
+async fn a_budget_stop_keeps_the_text_instead_of_discarding_it() {
+    let provider = Scripted::new(vec![
+        calls("probe", "{}"),
+        calls("probe", "{}"),
+        says("the answer so far"),
+    ]);
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe")))
+        .with_budget(Budget {
+            steps: Some(2),
+            ..Budget::unbounded()
+        });
+
+    let outcome = run(&spec, provider).await;
+    assert_eq!(outcome.stop, StopReason::Budget);
+    assert_eq!(outcome.detail.as_deref(), Some("steps"));
+    assert_eq!(outcome.steps.len(), 2, "the transcript survives the stop");
+}
+
+/// [R-AGENT-002] the six stop reasons
+#[test]
+fn there_are_exactly_six_stop_reasons() {
+    let all = [
+        StopReason::Finished,
+        StopReason::Budget,
+        StopReason::Cancelled,
+        StopReason::Denied,
+        StopReason::ToolAborted,
+        StopReason::Failed,
+    ];
+    let names: std::collections::BTreeSet<&str> = all.iter().map(|s| s.as_str()).collect();
+    assert_eq!(names.len(), 6);
+    for s in all {
+        assert_eq!(
+            StopReason::parse(s.as_str()),
+            Some(s),
+            "{s} must round-trip"
+        );
+    }
+}
+
+/// [R-AGENT-004] the outcome names what bound the run
+#[tokio::test]
+async fn the_outcome_says_which_axis_bound_it() {
+    for (budget, want) in [
+        (
+            Budget {
+                steps: Some(1),
+                ..Budget::unbounded()
+            },
+            "steps",
+        ),
+        (
+            Budget {
+                tokens: Some(1),
+                ..Budget::unbounded()
+            },
+            "tokens",
+        ),
+        (
+            Budget {
+                cost_micros: Some(1),
+                ..Budget::unbounded()
+            },
+            "cost",
+        ),
+    ] {
+        let provider = Scripted::new(vec![calls("probe", "{}"), calls("probe", "{}")]);
+        let spec = AgentSpec::new("a", "m")
+            .with_tools(ToolSet::new().with(Probe::new("probe")))
+            .with_budget(budget);
+        let outcome = run(&spec, provider).await;
+        assert_eq!(outcome.stop, StopReason::Budget);
+        assert_eq!(outcome.detail.as_deref(), Some(want));
+    }
+}
+
+/// [R-AGENT-005] a response with no tool calls finishes, even with empty text
+#[tokio::test]
+async fn an_empty_answer_finishes_and_says_it_was_empty() {
+    let outcome = run(&AgentSpec::new("a", "m"), Scripted::new(vec![says("")])).await;
+    assert_eq!(
+        outcome.stop,
+        StopReason::Finished,
+        "empty text is not a failure"
+    );
+    assert_eq!(
+        outcome.detail.as_deref(),
+        Some("the model returned no text"),
+        "but a caller must not be handed a silent success"
+    );
+}
+
+/// [R-AGENT-010] four axes
+/// [R-AGENT-012] an unset axis is unbounded, and no budget takes the default
+#[test]
+fn an_unset_axis_is_unbounded_and_the_default_is_bounded() {
+    let none = Budget::unbounded();
+    assert!(none.tokens.is_none() && none.steps.is_none());
+    assert!(Ledger::new(none).exceeded().is_none());
+
+    let d = Budget::default();
+    assert!(d.tokens.is_some() && d.steps.is_some() && d.duration.is_some());
+    assert_eq!(
+        AgentSpec::new("a", "m").budget,
+        d,
+        "a spec with no budget takes the default"
+    );
+}
+
+/// [R-AGENT-011] the run stops as soon as an axis is reached
+#[test]
+fn a_reached_axis_refuses_the_next_step() {
+    let l = Ledger::new(Budget {
+        steps: Some(2),
+        ..Budget::unbounded()
+    });
+    assert!(l.reserve_step().is_ok());
+    assert!(l.reserve_step().is_ok());
+    assert_eq!(l.reserve_step(), Err(Axis::Steps));
+}
+
+/// [R-AGENT-013] a child's spend reaches its caller
+/// [R-AGENT-014] a child cannot be given more than its caller has left
+#[test]
+fn a_child_spends_its_callers_budget_and_cannot_exceed_it() {
+    let parent = Ledger::new(Budget {
+        tokens: Some(100),
+        steps: Some(10),
+        ..Budget::unbounded()
+    });
+    parent.reserve_step().unwrap();
+    parent.charge(&Usage {
+        prompt: 30,
+        completion: 0,
+        cached: None,
+        cost_micros: None,
+    });
+
+    // Asking for more than the caller has left is narrowed to what is left.
+    let child = parent.child(Budget {
+        tokens: Some(1_000),
+        steps: Some(50),
+        ..Budget::unbounded()
+    });
+    child.reserve_step().unwrap();
+    child.charge(&Usage {
+        prompt: 50,
+        completion: 0,
+        cached: None,
+        cost_micros: None,
+    });
+
+    // The parent sees what the child spent, which is what makes the cap real.
+    assert_eq!(parent.exceeded(), None);
+    child.charge(&Usage {
+        prompt: 30,
+        completion: 0,
+        cached: None,
+        cost_micros: None,
+    });
+    assert_eq!(
+        parent.exceeded(),
+        Some(Axis::Tokens),
+        "the child's spend must reach the parent"
+    );
+}
+
+/// [R-AGENT-015] the budget is checked before a call, not only after
+#[tokio::test]
+async fn the_budget_is_checked_before_the_call_not_after_it() {
+    let provider = Scripted::new(vec![says("never asked")]);
+    let spec = AgentSpec::new("a", "m").with_budget(Budget {
+        steps: Some(0),
+        ..Budget::unbounded()
+    });
+    let asked = Arc::clone(&provider) as Arc<dyn Provider>;
+    let counted = Arc::clone(&provider);
+
+    let outcome = run(&spec, asked).await;
+    assert_eq!(outcome.stop, StopReason::Budget);
+    assert_eq!(
+        counted.asked(),
+        0,
+        "a spent budget must not spend one more call to find out"
+    );
+}
+
+/// [R-AGENT-016] the default budget
+#[test]
+fn the_default_budget_is_the_one_the_specification_names() {
+    let d = Budget::default();
+    assert_eq!(d.tokens, Some(200_000));
+    assert_eq!(d.steps, Some(40));
+    assert_eq!(d.duration, Some(Duration::from_secs(1800)));
+    assert_eq!(
+        d.cost_micros, None,
+        "cost needs a price before the call, which nothing has"
+    );
+}
+
+/// [R-AGENT-017] budget is reserved, so concurrent runs cannot overspend it
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_runs_cannot_each_spend_the_same_remaining_budget() {
+    let ledger = Ledger::new(Budget {
+        steps: Some(5),
+        ..Budget::unbounded()
+    });
+    let mut tasks = Vec::new();
+    for _ in 0..8 {
+        let l = ledger.clone();
+        tasks.push(tokio::spawn(async move { l.reserve_step().is_ok() }));
+    }
+    let mut granted = 0;
+    for t in tasks {
+        if t.await.unwrap() {
+            granted += 1;
+        }
+    }
+    assert_eq!(granted, 5, "exactly the budget, whatever the interleaving");
+}
+
+/// [R-AGENT-020] arguments are checked against the schema first
+/// [R-AGENT-021] a missing required argument is a correction, never a zero
+#[test]
+fn a_missing_required_argument_is_corrected_rather_than_invented() {
+    let schema = json!({
+        "type": "object",
+        "properties": { "path": {"type": "string"}, "count": {"type": "integer"} },
+        "required": ["path", "count"]
+    });
+    match check(&json!({"path": "a.rs"}), &schema) {
+        Checked::Correction(m) => {
+            assert!(m.contains("count"), "the argument must be named: {m}");
+            assert!(m.contains("integer"), "and its type: {m}");
+        }
+        other => panic!("expected a correction, got {other:?}"),
+    }
+    // v0.2.x filled this with 0 and ran the tool anyway.
+    assert!(matches!(
+        check(&json!({"path": "a", "count": 3}), &schema),
+        Checked::Ready(_)
+    ));
+}
+
+/// [R-AGENT-021] a correction never aborts, whatever the error policy
+#[tokio::test]
+async fn an_argument_correction_does_not_abort_an_aborting_agent() {
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("fixed it")]);
+    let spec = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe").requiring("path", "string")))
+        .on_tool_error(ToolErrorPolicy::Abort);
+
+    let outcome = run(&spec, provider).await;
+    assert_eq!(
+        outcome.stop,
+        StopReason::Finished,
+        "a typo must not kill the run"
+    );
+    assert_eq!(outcome.text, "fixed it");
+}
+
+/// [R-AGENT-022] an absent optional argument stays absent, or takes its default
+#[test]
+fn an_absent_optional_argument_is_absent_rather_than_zero() {
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "limit": {"type": "integer", "default": 20},
+            "strict": {"type": "boolean"}
+        },
+        "required": []
+    });
+    let Checked::Ready(args) = check(&json!({}), &schema) else {
+        panic!("nothing was required")
+    };
+    assert_eq!(args["limit"], 20, "a declared default is taken");
+    assert!(
+        args.get("strict").is_none(),
+        "one with no default stays absent; false would be a different fact"
+    );
+}
+
+/// [R-AGENT-023] a tool the agent was not given stays unreachable
+#[tokio::test]
+async fn a_tool_the_agent_was_not_given_is_not_found_anywhere() {
+    let ran = Arc::new(AtomicU32::new(0));
+    let probe = Probe::new("granted");
+    let counter = Arc::clone(&probe.ran);
+    let provider = Scripted::new(vec![calls("forbidden", "{}"), says("gave up")]);
+    let spec = AgentSpec::new("a", "m").with_tools(ToolSet::new().with(probe));
+
+    let outcome = run(&spec, provider).await;
+    assert_eq!(outcome.stop, StopReason::Finished);
+    assert_eq!(counter.load(Ordering::SeqCst), 0);
+    assert_eq!(ran.load(Ordering::SeqCst), 0);
+}
+
+/// [R-AGENT-024] report continues, abort stops
+#[tokio::test]
+async fn a_failing_tool_reports_or_aborts_as_declared() {
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("recovered")]);
+    let reporting = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe").failing()))
+        .on_tool_error(ToolErrorPolicy::Report);
+    let outcome = run(&reporting, provider).await;
+    assert_eq!(outcome.stop, StopReason::Finished);
+    assert_eq!(
+        outcome.text, "recovered",
+        "the model saw the error and carried on"
+    );
+
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("never reached")]);
+    let aborting = AgentSpec::new("a", "m")
+        .with_tools(ToolSet::new().with(Probe::new("probe").failing()))
+        .on_tool_error(ToolErrorPolicy::Abort);
+    let outcome = run(&aborting, provider).await;
+    assert_eq!(outcome.stop, StopReason::ToolAborted);
+    assert_eq!(outcome.detail.as_deref(), Some("probe"));
+}
+
+/// [R-AGENT-025] tool calls run in the order the model returned them
+#[tokio::test]
+async fn tool_calls_run_in_the_order_they_arrived() {
+    let mut reply = calls("first", "{}");
+    reply.tool_calls.push(ToolCall {
+        id: "c2".into(),
+        name: "second".into(),
+        arguments: "{}".into(),
+    });
+    let provider = Scripted::new(vec![reply, says("done")]);
+    let spec = AgentSpec::new("a", "m").with_tools(
+        ToolSet::new()
+            .with(Probe::new("first"))
+            .with(Probe::new("second")),
+    );
+
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Collect::with_deltas();
+    Engine::new(provider)
+        .run(&spec, "t", &ledger, &mut sink, &CancellationToken::new())
+        .await;
+
+    let order: Vec<&str> = sink
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            AgentEvent::ToolStart { name, .. } => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(order, vec!["first", "second"]);
+}
+
+/// [R-AGENT-030] cancellation is checked before a call
+/// [R-AGENT-031] a cancelled run stops, says so, and keeps its transcript
+#[tokio::test]
+async fn a_cancelled_run_stops_and_keeps_what_it_had() {
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("never reached")]);
+    let spec = AgentSpec::new("a", "m").with_tools(ToolSet::new().with(Probe::new("probe")));
+    let ledger = Ledger::new(spec.budget);
+    let cancel = CancellationToken::new();
+    let counted = Arc::clone(&provider);
+
+    // Cancelled before the second step, after one has been recorded.
+    let engine = Engine::new(provider as Arc<dyn Provider>);
+    let token = cancel.clone();
+    let mut sink = CancelAfter {
+        token,
+        seen: 0,
+        events: Vec::new(),
+    };
+    let outcome = engine.run(&spec, "t", &ledger, &mut sink, &cancel).await;
+
+    assert_eq!(outcome.stop, StopReason::Cancelled);
+    assert_eq!(counted.asked(), 1, "no call after the cancellation");
+    assert_eq!(outcome.steps.len(), 1, "the transcript survives");
+}
+
+struct CancelAfter {
+    token: CancellationToken,
+    seen: u32,
+    events: Vec<AgentEvent>,
+}
+
+impl meow_agent::Sink for CancelAfter {
+    fn event(&mut self, event: AgentEvent) -> Result<(), String> {
+        if matches!(event, AgentEvent::StepEnd { .. }) {
+            self.seen += 1;
+            if self.seen == 1 {
+                self.token.cancel();
+            }
+        }
+        self.events.push(event);
+        Ok(())
+    }
+    fn wants_deltas(&self) -> bool {
+        false
+    }
+}
+
+/// [R-AGENT-032] cancelling a parent cancels what is running inside it
+#[test]
+fn cancelling_a_parent_cancels_its_children() {
+    let parent = CancellationToken::new();
+    let child = parent.child_token();
+    assert!(!child.is_cancelled());
+    parent.cancel();
+    assert!(
+        child.is_cancelled(),
+        "a sub-agent must not outlive its caller's cancellation"
+    );
+}
+
+/// [R-AGENT-070] every transition reaches the sink
+#[tokio::test]
+async fn the_sink_sees_every_transition() {
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("done")]);
+    let spec = AgentSpec::new("a", "m").with_tools(ToolSet::new().with(Probe::new("probe")));
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Collect::with_deltas();
+    Engine::new(provider)
+        .run(&spec, "t", &ledger, &mut sink, &CancellationToken::new())
+        .await;
+
+    let names: Vec<&str> = sink
+        .events
+        .iter()
+        .map(|e| match e {
+            AgentEvent::RunStart { .. } => "run start",
+            AgentEvent::StepStart { .. } => "step start",
+            AgentEvent::ToolStart { .. } => "tool start",
+            AgentEvent::ToolEnd { .. } => "tool end",
+            AgentEvent::Usage(_) => "usage",
+            AgentEvent::StepEnd { .. } => "step end",
+            AgentEvent::RunEnd { .. } => "run end",
+            _ => "other",
+        })
+        .collect();
+    for want in [
+        "run start",
+        "step start",
+        "tool start",
+        "tool end",
+        "usage",
+        "step end",
+        "run end",
+    ] {
+        assert!(
+            names.contains(&want),
+            "{want} never reached the sink: {names:?}"
+        );
+    }
+}
+
+/// [R-AGENT-071] a broken sink stops receiving, and the run carries on
+#[tokio::test]
+async fn a_broken_sink_does_not_destroy_the_run() {
+    struct Breaks(u32);
+    impl meow_agent::Sink for Breaks {
+        fn event(&mut self, _e: AgentEvent) -> Result<(), String> {
+            self.0 += 1;
+            Err("the renderer fell over".into())
+        }
+        fn wants_deltas(&self) -> bool {
+            false
+        }
+    }
+
+    let provider = Scripted::new(vec![calls("probe", "{}"), says("finished anyway")]);
+    let spec = AgentSpec::new("a", "m").with_tools(ToolSet::new().with(Probe::new("probe")));
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Breaks(0);
+    let outcome = Engine::new(provider)
+        .run(&spec, "t", &ledger, &mut sink, &CancellationToken::new())
+        .await;
+
+    assert_eq!(
+        outcome.stop,
+        StopReason::Finished,
+        "rendering is not the work"
+    );
+    assert_eq!(outcome.text, "finished anyway");
+    assert_eq!(sink.0, 1, "and a sink that failed stops being called");
+}
+
+/// [R-AGENT-072] the engine works with nothing attached
+#[tokio::test]
+async fn the_engine_runs_with_no_sink() {
+    let outcome = run(
+        &AgentSpec::new("a", "m"),
+        Scripted::new(vec![says("alone")]),
+    )
+    .await;
+    assert_eq!(outcome.text, "alone");
+}
+
+/// [R-AGENT-073] a sink may decline deltas and get the step's text once
+#[tokio::test]
+async fn a_sink_that_declines_deltas_gets_the_text_once_per_step() {
+    let provider = Scripted::new(vec![says("a whole answer")]);
+    let spec = AgentSpec::new("a", "m");
+    let ledger = Ledger::new(spec.budget);
+    let mut sink = Collect::without_deltas();
+    Engine::new(provider)
+        .run(&spec, "t", &ledger, &mut sink, &CancellationToken::new())
+        .await;
+
+    assert!(
+        !sink.events.iter().any(|e| matches!(e, AgentEvent::Text(_))),
+        "a sink that declined must not be paid a call per token"
+    );
+    assert!(
+        sink.events
+            .iter()
+            .any(|e| matches!(e, AgentEvent::StepText { text, .. } if text == "a whole answer"))
+    );
+}
+
+/// [R-AGENT-080] a parsed value is present when the run finished, absent otherwise
+#[tokio::test]
+async fn a_parsed_value_arrives_only_with_a_finished_run() {
+    let schema =
+        json!({"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]});
+
+    let mut reply = says("{\"n\":1}");
+    reply.value = Some(json!({"n": 1}));
+    let spec = AgentSpec::new("a", "m").with_output(schema.clone());
+    let outcome = run(&spec, Scripted::new(vec![reply])).await;
+    assert_eq!(outcome.stop, StopReason::Finished);
+    assert_eq!(outcome.value, Some(json!({"n": 1})));
+
+    // A run that stopped early has no complete answer to hand over.
+    let mut partial = calls("probe", "{}");
+    partial.value = Some(json!({"n": 1}));
+    let spec = AgentSpec::new("a", "m")
+        .with_output(schema)
+        .with_tools(ToolSet::new().with(Probe::new("probe")))
+        .with_budget(Budget {
+            steps: Some(1),
+            ..Budget::unbounded()
+        });
+    let outcome = run(&spec, Scripted::new(vec![partial])).await;
+    assert_eq!(outcome.stop, StopReason::Budget);
+    assert_eq!(
+        outcome.value, None,
+        "a partial answer must not wear the shape of a complete one"
+    );
+}
+
+/// [R-AGENT-081] a response the provider could not make fit fails the run
+#[tokio::test]
+async fn a_schema_the_provider_gave_up_on_fails_the_run() {
+    struct AlwaysWrong;
+    #[async_trait::async_trait]
+    impl Provider for AlwaysWrong {
+        fn name(&self) -> &str {
+            "wrong"
+        }
+        fn capabilities(&self) -> Capabilities {
+            Capabilities {
+                streaming: false,
+                tools: false,
+                structured: Structured::Emulated,
+                embeddings: false,
+            }
+        }
+        async fn generate(&self, _: &Request, _: &CancellationToken) -> meow_llm::Result<Response> {
+            // The provider has already retried per R-LLM-051 and given up.
+            Err(LlmError::Schema {
+                attempts: 3,
+                message: "missing `n`".into(),
+            })
+        }
+    }
+
+    let spec = AgentSpec::new("a", "m").with_output(json!({"type": "object"}));
+    let outcome = run(&spec, Arc::new(AlwaysWrong)).await;
+    assert_eq!(outcome.stop, StopReason::Failed);
+    assert!(outcome.detail.unwrap_or_default().contains("schema"));
+    assert_eq!(outcome.value, None);
+}

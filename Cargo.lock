@@ -204,6 +204,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "meow-agent"
+version = "0.3.0-alpha.0"
+dependencies = [
+ "async-trait",
+ "meow-core",
+ "meow-llm",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "meow-core"
 version = "0.3.0-alpha.0"
 dependencies = [
