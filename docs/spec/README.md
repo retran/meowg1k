@@ -84,23 +84,30 @@ that silently changes behaviour is how a migration goes wrong.
 ## Open questions
 
 Anything undecided, with the options and a recommendation.
+
+## Decisions
+
+Each question once it is settled: what was decided, and why the alternative
+lost. Keep the reason. In six months the decision is obvious and the reason is
+the only thing that stops it being reopened.
 ```
 
 ## Status
 
-All eight component specifications are drafted, with 236 requirements
-between them. None is approved yet, and no implementation exists.
+All eight component specifications are drafted, with 262 requirements
+between them, and every open question is closed. None is approved yet, and no
+implementation exists.
 
 | Area | File | Requirements |
 | --- | --- | --- |
-| `AGENT` | `agent.md` | 36 |
-| `STAR` | `starlark.md` | 37 |
-| `POLICY` | `policy.md` | 22 |
-| `SESSION` | `session.md` | 35 |
-| `LLM` | `llm.md` | 26 |
-| `STORE` | `store.md` | 22 |
-| `INDEX` | `index.md` | 21 |
-| `TUI` | `tui.md` | 37 |
+| `AGENT` | `agent.md` | 42 |
+| `STAR` | `starlark.md` | 38 |
+| `POLICY` | `policy.md` | 29 |
+| `SESSION` | `session.md` | 37 |
+| `LLM` | `llm.md` | 29 |
+| `STORE` | `store.md` | 25 |
+| `INDEX` | `index.md` | 24 |
+| `TUI` | `tui.md` | 38 |
 
 Drafting them together rather than one at a time was a deliberate trade. It
 caught four contradictions between the design documents that a sequential pass
