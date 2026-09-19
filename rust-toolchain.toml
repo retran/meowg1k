@@ -1,0 +1,5 @@
+# Pinned so that CI, every contributor, and rust-analyzer agree on one
+# compiler. `mise.toml` installs the same channel.
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]
