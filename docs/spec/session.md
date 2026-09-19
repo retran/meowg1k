@@ -73,11 +73,18 @@ so an unpriced model does not read as a free one.
 
 ### Identity
 
-**[R-SESSION-030]** Every session MUST have a full identifier that sorts by
-creation time, and a short identifier that is a fixed eight-character prefix of
-it. The length is fixed rather than "shortest unique" so that an identifier
-written into a commit message or an issue keeps resolving as sessions
-accumulate.
+**[R-SESSION-030]** _Withdrawn - superseded by [R-SESSION-034]. It required a
+full identifier that sorts by creation time and a short identifier that is an
+eight-character prefix of it. A time-sortable identifier begins with its
+timestamp, so an eight-character prefix is almost entirely timestamp and two
+sessions created in the same period share it. The two halves of the
+requirement cannot both hold._
+
+**[R-SESSION-034]** Every session MUST have a full identifier that sorts by
+creation time, and a short identifier that is its last eight characters. The
+tail is the random part, so it distinguishes sessions the timestamp cannot.
+The length is fixed rather than "shortest unique" so that an identifier
+written into a commit message keeps resolving as sessions accumulate.
 
 **[R-SESSION-031]** Resolving a short identifier that matches more than one
 session MUST fail with an error listing the candidates, and MUST NOT pick one.
@@ -200,7 +207,7 @@ a full rerun.
 ## Decisions
 
 **Sessions are workspace-local.** A run against a monorepo subdirectory writes
-to that subdirectory's `.meow/`, which [R-SESSION-030] and [R-STAR-001] already
+to that subdirectory's `.meow/`, which [R-SESSION-034] and [R-STAR-001] already
 require between them. A global store would need a global identifier scheme and
 a way to decide which workspace a session belongs to, and nobody has asked for
 either.
