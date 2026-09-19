@@ -1,0 +1,130 @@
+# Policy
+
+Status: draft
+Elaborates: docs/design/0.3.0-architecture.md section 5.3;
+docs/design/0.3.0-starlark-api.md section 9; docs/design/0.3.0-tui.md section 7
+
+## Scope
+
+`meow-policy` decides whether a tool call runs. It matches a call against
+declared rules, yields allow, ask, or deny, and records why.
+
+It does not execute tools, prompt the user, or write to the session. It
+answers one question and explains the answer; the engine acts on it and the
+renderer asks the human.
+
+## Scope of trust
+
+This is the one part of the system a script must not be able to weaken, which
+is why it lives in the runtime and not in a Starlark library. A library cannot
+be trusted by the thing it constrains.
+
+## Boundary
+
+The `Policy` type built from a declaration, the `evaluate` call that returns a
+decision, and the text `meow policy explain` prints.
+
+## Requirements
+
+### Rules
+
+**[R-POLICY-001]** A rule MUST match on a tool name pattern, and MAY narrow
+further with a selector belonging to that tool: `paths` for file tools,
+`commands` for shell tools.
+
+**[R-POLICY-002]** A tool name pattern MUST support a trailing wildcard
+(`fs.*`) and an exact name (`fs.read`), and MUST NOT support a leading
+wildcard.
+
+**[R-POLICY-003]** A `paths` selector MUST match against the path the tool
+would touch, resolved to an absolute path with symlinks followed, using glob
+semantics where `**` crosses directory boundaries.
+
+**[R-POLICY-004]** A `commands` selector MUST match against the full command
+line as a single string, using glob semantics.
+
+**[R-POLICY-005]** A selector naming a tool that has no such selector MUST
+fail when the policy is built, not when a call is evaluated.
+
+### Decisions
+
+**[R-POLICY-010]** Evaluation MUST check deny rules first, then ask rules,
+then allow rules, and MUST return the first match.
+
+**[R-POLICY-011]** A call that matches no rule MUST be denied.
+
+**[R-POLICY-012]** A decision MUST name the rule that produced it, or record
+that no rule matched.
+
+**[R-POLICY-013]** Evaluation MUST be free of input and output, and MUST
+return the same decision for the same call and the same policy every time.
+
+### Ask
+
+**[R-POLICY-020]** An `ask` decision MUST resolve to `deny` when standard
+input is not a terminal, or when the invocation set `--yes`.
+
+**[R-POLICY-021]** An approval prompt MUST show the tool name and the exact
+arguments the call would use, verbatim, and MUST NOT show a summary or a
+paraphrase.
+
+**[R-POLICY-022]** An approval prompt MUST name the rule that caused it.
+
+**[R-POLICY-023]** An approval granted as "always" MUST apply for the current
+process only. The policy layer MUST NOT write a grant back to any file.
+
+**[R-POLICY-024]** A prompt that receives no answer within a configured
+timeout MUST resolve to `deny`.
+
+### Narrowing
+
+**[R-POLICY-030]** An agent MAY declare a policy of its own. The effective
+policy for that agent MUST be the intersection of its policy with the
+workspace policy.
+
+**[R-POLICY-031]** An agent policy MUST NOT allow a call the workspace policy
+denies, and MUST NOT turn an `ask` into an `allow`.
+
+**[R-POLICY-032]** A sub-agent MUST inherit its caller's effective policy and
+MAY narrow it further, by the same rule.
+
+### Enforcement
+
+**[R-POLICY-040]** The engine MUST evaluate the policy before the tool
+executes, and MUST NOT execute a tool whose decision is `deny`.
+
+**[R-POLICY-041]** A denied call MUST return a message to the model naming the
+tool and stating that policy denied it, so the model can choose another
+approach.
+
+**[R-POLICY-042]** Every evaluation MUST produce a `Policy` session event,
+whatever the decision.
+
+### Explanation
+
+**[R-POLICY-050]** `meow policy explain <tool> <argument>` MUST return the
+same decision that a real call with those arguments would receive.
+
+**[R-POLICY-051]** The explanation MUST name the matching rule and the file
+and line it was declared on, and MUST report how many higher-precedence rules
+were checked without matching.
+
+## Changes from v0.2.x
+
+There is no policy layer in v0.2.x. `shell_exec` is an ordinary tool, so an
+agent that is talked into running a command runs it. This whole specification
+is new, and it is the largest single addition of the rewrite.
+
+## Open questions
+
+- **Path selectors and tools that take many paths.** A glob tool touches
+  paths it discovers at run time. Recommendation: evaluate per resolved path
+  and deny the call if any one path is denied, because a partial result that
+  silently skips denied files is harder to reason about than a refusal.
+- **Network selectors.** `http.*` has no selector in this draft, so a policy
+  can allow HTTP or not, with no host granularity. Recommendation: add a
+  `hosts` selector, but only once a real agent needs network access; guessing
+  the shape now risks a selector nobody can use.
+- **Where the timeout for [R-POLICY-024] is configured** and what its default
+  is. Recommendation: no timeout by default in an interactive session, because
+  a prompt that expires while the user reads it is worse than one that waits.
