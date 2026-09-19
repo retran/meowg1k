@@ -157,6 +157,7 @@ fn declarations(builder: &mut GlobalsBuilder) {
         #[starlark(require = named)] name: String,
         #[starlark(require = named)] kind: String,
         #[starlark(require = named, default = NoneOr::None)] api_key: NoneOr<String>,
+        #[starlark(require = named, default = NoneOr::None)] base_url: NoneOr<String>,
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<NoneType> {
         let state = declaring(eval, "meow.provider")?;
@@ -167,6 +168,7 @@ fn declarations(builder: &mut GlobalsBuilder) {
                 name,
                 kind,
                 api_key: api_key.into_option(),
+                base_url: base_url.into_option(),
                 origin,
             })
             .map_err(fail)?;

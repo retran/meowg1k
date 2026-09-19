@@ -49,6 +49,12 @@ pub struct Provider {
     pub kind: String,
     /// The key, when one was given inline rather than resolved from the store.
     pub api_key: Option<String>,
+    /// Where to reach it, when it is not where its kind usually lives.
+    ///
+    /// A proxy, a gateway, or a server somebody is running themselves. The
+    /// kind decides the shape of the API and this decides the address, which
+    /// is what lets one implementation serve every vendor that copied it.
+    pub base_url: Option<String>,
     /// Where it was declared.
     pub origin: Origin,
 }
