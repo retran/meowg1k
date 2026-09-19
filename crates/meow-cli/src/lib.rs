@@ -10,6 +10,7 @@
 
 pub mod ask;
 pub mod exit;
+pub mod index;
 pub mod render;
 pub mod session;
 pub mod surface;

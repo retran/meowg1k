@@ -24,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::args::Args;
 use crate::error::{Result, StarError, closest};
-use crate::port::{Ask, Events, Session, Stdin};
+use crate::port::{Ask, Events, Search, Session, Stdin};
 use crate::registry::Registry;
 use crate::state::{Phase, Running};
 use crate::workspace::Workspace;
@@ -83,6 +83,7 @@ pub struct Runtime {
     ask: Arc<dyn Ask>,
     stdin: Arc<dyn Stdin>,
     session: Arc<dyn Session>,
+    search: Arc<dyn Search>,
     cancel: CancellationToken,
 }
 
@@ -113,6 +114,8 @@ pub struct Ports {
     pub stdin: Arc<dyn Stdin>,
     /// This invocation's session.
     pub session: Arc<dyn Session>,
+    /// Searching the workspace by meaning.
+    pub search: Arc<dyn Search>,
 }
 
 impl Runtime {
@@ -138,6 +141,7 @@ impl Runtime {
             ask: ports.ask,
             stdin: ports.stdin,
             session: ports.session,
+            search: ports.search,
             cancel,
         }
     }
@@ -170,6 +174,11 @@ impl Runtime {
     /// This invocation's session.
     pub fn session(&self) -> &dyn Session {
         self.session.as_ref()
+    }
+
+    /// Searching the workspace by meaning.
+    pub fn search(&self) -> &dyn Search {
+        self.search.as_ref()
     }
 
     /// Whether the user has interrupted.

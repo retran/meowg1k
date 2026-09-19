@@ -124,6 +124,36 @@ pub trait Session: Send + Sync + std::fmt::Debug {
     }
 }
 
+/// One answer from the index.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Found {
+    /// Which file, relative to the workspace root.
+    pub path: String,
+    /// Its first line, from one.
+    pub first_line: usize,
+    /// Its last line, from one.
+    pub last_line: usize,
+    /// The text that matched.
+    pub text: String,
+    /// How alike it is, from -1 to 1.
+    pub score: f32,
+}
+
+/// Searching the workspace by meaning.
+///
+/// A port for the same reason the terminal is one: the index lives in a crate
+/// beside this, and a script reaches it through `load("@std//search", ...)`
+/// rather than through a member of the handler context, per `[R-STAR-021]`.
+pub trait Search: Send + Sync + std::fmt::Debug {
+    /// Rank the workspace against a question.
+    ///
+    /// # Errors
+    ///
+    /// What to tell the script: no index, the wrong model, or a failure
+    /// reaching the provider.
+    fn code(&self, query: &str, limit: usize, paths: &[String]) -> Result<Vec<Found>, String>;
+}
+
 /// Ports that do nothing, for a run with no terminal.
 pub mod quiet {
     use super::{Ask, AskError, Events, Session, Stdin};
@@ -168,6 +198,21 @@ pub mod quiet {
         }
         fn read(&self) -> std::io::Result<String> {
             Ok(String::new())
+        }
+    }
+
+    /// Answers every search with the same refusal.
+    #[derive(Debug, Default)]
+    pub struct NoIndex;
+
+    impl super::Search for NoIndex {
+        fn code(
+            &self,
+            _query: &str,
+            _limit: usize,
+            _paths: &[String],
+        ) -> Result<Vec<super::Found>, String> {
+            Err("this run has no index; run `meow index build` first".to_owned())
         }
     }
 

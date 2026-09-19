@@ -65,6 +65,26 @@ pub enum StarError {
         closest: Option<String>,
     },
 
+    /// A model is the wrong kind for what named it.
+    ///
+    /// `[R-STAR-034]`: both the model and the kind it is, because the fix is
+    /// either to declare another model or to change this one's kind and
+    /// neither is obvious from the name alone.
+    #[error(
+        "{used_by} needs {} model and `{name}` is {} model",
+        article(.wanted), article(.is)
+    )]
+    WrongKind {
+        /// Which model.
+        name: String,
+        /// What was needed.
+        wanted: &'static str,
+        /// What it is.
+        is: &'static str,
+        /// What named it.
+        used_by: String,
+    },
+
     /// A command would shadow a built-in.
     ///
     /// `[R-STAR-033]`: refused rather than shadowed in either direction, so
@@ -107,6 +127,13 @@ pub enum StarError {
         #[source]
         source: std::io::Error,
     },
+}
+
+/// `a` or `an`, so a message about a kind reads like a sentence.
+fn article(word: &str) -> String {
+    let first = word.chars().next().unwrap_or('x');
+    let vowel = matches!(first, 'a' | 'e' | 'i' | 'o' | 'u');
+    format!("{} {word}", if vowel { "an" } else { "a" })
 }
 
 /// The "did you mean" half of `[R-STAR-091]`.
