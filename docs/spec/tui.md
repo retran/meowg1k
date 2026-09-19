@@ -45,14 +45,19 @@ and MUST NOT be redrawn afterwards.
 **[R-TUI-012]** Only the live region MUST be redrawn, and it MUST show the
 current tool, the elapsed time, the step count, and the budget consumed.
 
-**[R-TUI-013]** On any exit, including an interrupt, the transcript already in
-scrollback MUST remain valid and the live region MUST be replaced by a final
-line naming the stop reason.
+**[R-TUI-013]** On any exit the process can observe, including an interrupt,
+the live region MUST be replaced by a final line naming the stop reason. The
+transcript already in scrollback MUST remain valid even on an exit the process
+cannot observe, which is what committing finalized lines immediately buys.
 
 **[R-TUI-014]** A terminal resize MUST reflow only the live region.
 
 **[R-TUI-015]** Diagnostics from the logging layer MUST be inserted into
 scrollback in order, and MUST NOT be drawn over the live region.
+
+**[R-TUI-016]** The live region MUST be three rows high while a run is in
+flight. While an approval prompt is open it MUST take a larger fixed height,
+and it MUST return to three rows when the prompt closes.
 
 ### Plain rendering
 
@@ -122,8 +127,10 @@ of the command line, without a prefix.
 `doctor`, `trust`, `completions`, and `version`.
 
 **[R-TUI-072]** `--dry-run` MUST evaluate policy and plan tool calls without
-executing any, and the transcript MUST record what would have run and how
-policy would have decided.
+executing any, feeding the model a placeholder result for each. The transcript
+MUST record what would have run and how policy would have decided, and MUST
+state that the run diverges from a real one after the first tool call, because
+the model's next move depends on a result it never received.
 
 **[R-TUI-073]** `--yes` MUST make every `ask` decision resolve to `deny`, per
 [R-POLICY-020], and MUST NOT make any decision more permissive.
@@ -146,11 +153,13 @@ the handler's return value:
 | 4 | `cancelled` |
 | 5 | `denied` |
 | 6 | Provider or credential failure |
+| 9 | `failed` for any other reason, such as a storage error |
 | 7 | Configuration error: `.meow/` failed to load |
 | 8 | `tool_aborted` |
 
 **[R-TUI-081]** An exit code MUST NOT be reused for a different stop reason,
-so that a shell can branch on it.
+so that a shell can branch on it. Every stop reason in [R-AGENT-002] MUST map
+to exactly one code.
 
 ### Theme and accessibility
 
@@ -183,12 +192,14 @@ exit code beyond success and failure, so an agent cannot act as a gate.
 Ten `log.Printf` calls in `module_llm.go` write straight through the live
 frame. [R-TUI-015] routes them into scrollback instead.
 
-## Open questions
+## Decisions
 
-- **The live region's height.** A fixed three lines is predictable; growing it
-  for an approval prompt costs a reflow. Recommendation: fixed at three, and
-  let the approval prompt take a larger fixed height while it is open.
-- **Whether `--format json` should stream or buffer.** Streaming lets a
-  consumer react mid-run; buffering lets the output be a single JSON document.
-  Recommendation: stream as JSONL, because the buffered form is one `jq -s`
-  away and the streaming form is not recoverable from a document.
+**The live region is a fixed three rows**, by [R-TUI-016]. A region that grows
+with content reflows the terminal while you are reading it. Two fixed heights,
+one for a run and one for a prompt, cost one reflow each at moments you are
+already looking at.
+
+**`--format json` streams as JSONL**, by [R-TUI-030]. A consumer can react
+mid-run, and anyone who wants one document is one `jq -s` away. The reverse is
+not true: a buffered document cannot be turned back into a stream that arrives
+while the run is happening.

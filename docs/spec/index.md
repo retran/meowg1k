@@ -22,8 +22,9 @@ The index API: build, update, query, stats, clear. The rows it writes through
 ### Walking
 
 **[R-INDEX-001]** Indexing MUST respect `.gitignore`, `.meowignore`, and the
-workspace's own `.meow/.data/` exclusion, and MUST NOT index a file any of
-them excludes.
+workspace's own `.meow/.data/` exclusion. `.meowignore` MUST support negation,
+so a path `.gitignore` excludes can be indexed deliberately; `.meow/.data/`
+MUST NOT be re-includable.
 
 **[R-INDEX-002]** Indexing MUST skip files it detects as binary, and MUST
 record how many it skipped.
@@ -34,6 +35,10 @@ MUST report each skip, so a missing result is explainable.
 **[R-INDEX-004]** Indexing MUST NOT follow a symlink that leaves the
 workspace.
 
+**[R-INDEX-005]** Indexing MUST NOT exclude a file for being prose rather
+than source. Markdown and plain text are indexed on the same terms as code,
+subject to the same exclusions.
+
 ### Chunking
 
 **[R-INDEX-010]** Chunking MUST be deterministic: the same file content MUST
@@ -42,10 +47,18 @@ produce the same chunks, with the same boundaries, on every run.
 **[R-INDEX-011]** A chunk MUST carry its source path, its byte range, and its
 line range, so a result can be cited precisely.
 
-**[R-INDEX-012]** Chunks MUST overlap by a configured number of tokens, so a
-definition split across a boundary is retrievable from either side.
+**[R-INDEX-012]** Chunks MUST overlap by a configured number of lines, so a
+definition split across a boundary is retrievable from either side. Overlap is
+counted in lines rather than tokens because boundaries are lines, and the two
+units cannot both be exact.
 
 **[R-INDEX-013]** A chunk MUST NOT exceed the embedding model's input limit.
+
+**[R-INDEX-014]** Chunk boundaries MUST fall on line boundaries. A chunk MUST
+NOT begin or end part-way through a line, except where a single line exceeds
+the embedding model's input limit, in which case that line MUST be split and
+the split MUST be reported, so a minified file cannot make the two rules
+unsatisfiable.
 
 ### Embedding
 
@@ -62,7 +75,9 @@ re-embed chunks whose vectors are already stored.
 ### Incremental update
 
 **[R-INDEX-030]** Update MUST re-embed a file only when its content hash
-differs from the stored one.
+differs from the stored one. The hash MUST cover the chunking parameters as
+well as the content, so changing chunk size or overlap does not leave stale
+chunks that look current.
 
 **[R-INDEX-031]** Update MUST remove the chunks of a file that no longer
 exists or that has become excluded.
@@ -83,6 +98,9 @@ MUST apply both.
 
 **[R-INDEX-043]** A query MUST be answerable without a network call when the
 embedding of the query itself is cached.
+
+**[R-INDEX-044]** A query MUST accept a path filter, expressed as globs, and
+MUST apply it before ranking.
 
 ### Storage
 
@@ -110,16 +128,22 @@ oversized chunk is generic; [R-INDEX-021] requires naming the file.
 Nothing in v0.2.x records which embedding model built the index, so changing
 the model silently produces nonsense scores.
 
-## Open questions
+## Decisions
 
-- **Chunking strategy.** v0.2.x has a plain-text strategy only. A syntax-aware
-  splitter using tree-sitter gives better boundaries at the cost of a grammar
-  per language. Recommendation: start with the plain-text splitter, measure
-  recall on a real repository, and only then decide, because the measurement
-  is cheap and the grammar dependency is not.
-- **Which vector index.** `hnsw_rs` and `usearch` both fit. Recommendation:
-  decide by measuring recall and build time against the existing v0.2.x index
-  on this repository, rather than by reputation.
-- **Whether to index Markdown prose alongside code.** It helps a question
-  about the design documents and dilutes code results. Recommendation: index
-  it, and let a query filter by path.
+**Chunking is line-oriented**, by [R-INDEX-014]. A syntax-aware splitter using
+tree-sitter would give better boundaries and costs a grammar per language, a
+build dependency, and a fallback for every language without one. The line
+splitter is the thing to measure against; replacing it is an amendment once
+there is a recall number that justifies the dependency.
+
+**The vector index is `hnsw_rs`.** It is pure Rust, so it keeps the single
+static binary and the `unsafe_code = "deny"` lint intact, which `usearch`
+would not. The reason to revisit is a measurement, not a preference: if recall
+or build time on this repository is unacceptable, the C++ implementation earns
+its cost then.
+
+**Prose is indexed alongside code**, by [R-INDEX-005], and a query narrows with
+a path filter, by [R-INDEX-044]. Excluding prose would make the design
+documents unsearchable by the agents most likely to need them, and dilution is
+the caller's problem to solve with a filter rather than the index's to solve by
+guessing.
