@@ -65,13 +65,12 @@ pub enum EngineError {
 This is how a Starlark mistake becomes a diagnostic that points at the line
 instead of a string that describes it.
 
-Never use `unwrap` or `expect` outside tests and `build.rs`. When an invariant
-truly cannot fail, write the reason:
-
-```rust
-// The registry inserted this id one line above, so the lookup cannot miss.
-let tool = registry.get(&id).expect("id was just inserted");
-```
+Never use `unwrap` or `expect` outside tests and `build.rs`; both are denied,
+and CI's `-D warnings` would turn a warn-level lint into an error regardless.
+When an invariant truly cannot fail, restructure so the compiler can see it -
+`Vec::remove` after a length check rather than `next().expect(...)`, a `match`
+on the shape rather than a check and then a take. If that is genuinely
+impossible, an `#[allow]` with the reason beside it is the honest escape.
 
 Never swallow an error. `v0.2.x` logs ten session write failures with
 `log.Printf` and continues, which produces a session log that is silently

@@ -17,6 +17,7 @@ mod cache;
 mod error;
 mod kv;
 mod migrations;
+mod rows;
 mod session;
 
 use std::path::{Path, PathBuf};
@@ -26,6 +27,7 @@ use rusqlite::Connection;
 pub use crate::blob::BlobHash;
 pub use crate::cache::CacheKind;
 pub use crate::error::{Result, StoreError};
+pub use crate::rows::{CompactionRow, EventRow, UsageTotals};
 pub use crate::session::SessionRow;
 
 /// How long a blocked write waits before giving up.
