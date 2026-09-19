@@ -106,14 +106,27 @@ impl Sessions {
         // wants them together.
         let mut decisions: std::collections::HashMap<String, String> =
             std::collections::HashMap::new();
+        let mut runs = 0_u32;
 
         for event in self.events(id)? {
             let Some(kind) = prepare(event.kind, redaction) else {
                 continue;
             };
             match kind {
+                // A session holds one or more runs, so `Started` appears once
+                // per run. The first is the task; a later one is somebody
+                // coming back to it. A tool takes arguments rather than a
+                // task, so an empty one is normal and says nothing.
                 EventKind::Started { task, .. } => {
-                    text.push_str(&format!("## Task\n\n{task}\n\n"));
+                    runs += 1;
+                    if task.trim().is_empty() {
+                        continue;
+                    }
+                    if runs == 1 {
+                        text.push_str(&format!("## Task\n\n{task}\n\n"));
+                    } else {
+                        text.push_str(&format!("## Continued\n\n{task}\n\n"));
+                    }
                 }
                 EventKind::UserMessage { content } => {
                     text.push_str(&format!("## Said\n\n{content}\n\n"));

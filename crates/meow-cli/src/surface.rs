@@ -59,6 +59,13 @@ pub fn build(registry: Option<&Registry>) -> Command {
                 .help("Never ask: every decision that needs a person is refused"),
         )
         .arg(
+            Arg::new("continue")
+                .long("continue")
+                .action(ArgAction::SetTrue)
+                .global(true)
+                .help("Add to the most recent session of this command"),
+        )
+        .arg(
             Arg::new("dry-run")
                 .long("dry-run")
                 .action(ArgAction::SetTrue)
@@ -116,6 +123,96 @@ fn builtins() -> Vec<Command> {
                 "powershell",
             ])),
         Command::new("version").about("Print the version"),
+        Command::new("session")
+            .about("Work with session logs")
+            .subcommand_required(true)
+            .subcommand(
+                Command::new("list")
+                    .about("List sessions, newest first")
+                    .arg(
+                        Arg::new("agent")
+                            .long("agent")
+                            .value_name("NAME")
+                            .help("Only this agent's sessions"),
+                    )
+                    .arg(
+                        Arg::new("limit")
+                            .long("limit")
+                            .value_name("N")
+                            .default_value("20")
+                            .value_parser(clap::value_parser!(i64).range(1..)),
+                    ),
+            )
+            .subcommand(
+                Command::new("show")
+                    .about("Print one session's transcript")
+                    .arg(
+                        Arg::new("id")
+                            .required(true)
+                            .help("An id, a name, or @last"),
+                    ),
+            )
+            .subcommand(
+                Command::new("fork")
+                    .about("Branch a session at one of its events")
+                    .arg(
+                        Arg::new("id")
+                            .required(true)
+                            .help("An id, a name, or @last"),
+                    )
+                    .arg(
+                        Arg::new("at")
+                            .long("at")
+                            .value_name("SEQ")
+                            .required(true)
+                            .value_parser(clap::value_parser!(u64).range(1..))
+                            .help("The last event to copy"),
+                    ),
+            )
+            .subcommand(
+                Command::new("export")
+                    .about("Write a session out")
+                    .arg(
+                        Arg::new("id")
+                            .required(true)
+                            .help("An id, a name, or @last"),
+                    )
+                    .arg(
+                        Arg::new("as")
+                            .long("as")
+                            .value_name("FORMAT")
+                            .value_parser(["md", "json"])
+                            .default_value("md"),
+                    )
+                    .arg(
+                        Arg::new("thinking")
+                            .long("thinking")
+                            .action(ArgAction::SetTrue)
+                            .help("Include the model's reasoning"),
+                    ),
+            )
+            .subcommand(
+                Command::new("gc")
+                    .about("Delete sessions the retention limits no longer keep")
+                    .arg(
+                        Arg::new("older-than-days")
+                            .long("older-than-days")
+                            .value_name("DAYS")
+                            .value_parser(clap::value_parser!(i64).range(0..)),
+                    )
+                    .arg(
+                        Arg::new("keep")
+                            .long("keep")
+                            .value_name("N")
+                            .value_parser(clap::value_parser!(usize)),
+                    )
+                    .arg(
+                        Arg::new("named")
+                            .long("named")
+                            .action(ArgAction::SetTrue)
+                            .help("Delete named sessions too"),
+                    ),
+            ),
         Command::new("policy")
             .about("Work with permission rules")
             .subcommand_required(true)

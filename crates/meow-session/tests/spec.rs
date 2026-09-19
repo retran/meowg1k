@@ -229,7 +229,15 @@ fn the_model_rebuild_skips_the_superseded_range() {
         .iter()
         .map(|e| e.seq)
         .collect();
-    assert_eq!(seqs, vec![1, 5, 6], "sequences 2 to 4 should be skipped");
+    // The summary stands where the range stood, so event 6 comes before event
+    // 5: it substitutes for sequences 2 to 4, which preceded 5. A rebuild that
+    // put it last would show a summary of the early conversation after the
+    // messages that followed it.
+    assert_eq!(
+        seqs,
+        vec![1, 6, 5],
+        "the summary must stand where the range did"
+    );
 
     let for_model = f.sessions.events_for_model(&id).unwrap();
     assert!(
