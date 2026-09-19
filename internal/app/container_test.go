@@ -245,7 +245,7 @@ flows:
 
 	container, err := NewAppContainer(cmd)
 	if err != nil {
-		t.Errorf("NewAppContainer returned error: %v", err)
+		t.Fatalf("NewAppContainer returned error: %v", err)
 	}
 
 	if container == nil {
