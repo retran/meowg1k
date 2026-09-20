@@ -931,3 +931,212 @@ async fn fs_and_shell_refuse_to_run_during_declaration() {
         );
     }
 }
+
+/// Turn a harness's workspace into a git repository with one commit.
+///
+/// A real repository rather than a fake one: `@std//git` shells out to the
+/// user's own `git`, and a test against a stub would check the stub's idea of
+/// what `--porcelain` prints.
+fn make_repo(dir: &std::path::Path) {
+    let run = |args: &[&str]| {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@example.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@example.com")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    };
+
+    run(&["init", "--initial-branch=main"]);
+    run(&["config", "user.name", "Test"]);
+    run(&["config", "user.email", "test@example.com"]);
+    std::fs::write(dir.join("README.md"), "# a project\n").unwrap();
+    // The workspace's own configuration is under version control and its
+    // store is not, which is what a real one looks like. Leaving `.meow/`
+    // untracked would put it in every `status` these tests read.
+    std::fs::write(dir.join(".gitignore"), ".meow/.data/\n").unwrap();
+    run(&["add", "README.md", ".gitignore", ".meow"]);
+    run(&["commit", "-m", "first"]);
+}
+
+const GIT_WORKSPACE: &str = r#"
+load("@std//git", "diff", "status", "log", "show", "branch", "stage", "commit")
+load("@std//fs", "write")
+
+meow.provider(name = "p", kind = "anthropic")
+meow.model(name = "fast", provider = "p", id = "m", context = 100000, max_output = 4096)
+"#;
+
+/// `@std//git` reads a repository through the program that owns it.
+#[tokio::test(flavor = "multi_thread")]
+async fn git_reads_the_repository() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{GIT_WORKSPACE}
+def handler(ctx):
+    ctx.out.write(branch())
+    ctx.out.note(log(limit = 1).strip().split(" ", 1)[1])
+
+    write("new.txt", "hello\n")
+    ctx.out.step(status().strip())
+
+    stage(["new.txt"])
+    ctx.out.markdown("staged" if "new.txt" in diff() else "missing")
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "read git", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+    make_repo(h.runtime.workspace().root());
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: main",
+            "note: first",
+            "step: ?? new.txt",
+            "markdown: staged",
+        ]
+    );
+}
+
+/// `git.commit` takes only what is staged, and hands back the commit.
+#[tokio::test(flavor = "multi_thread")]
+async fn git_commits_only_what_is_staged() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{GIT_WORKSPACE}
+def handler(ctx):
+    write("staged.txt", "in\n")
+    write("loose.txt", "out\n")
+    stage(["staged.txt"])
+
+    sha = commit("add staged.txt")
+    ctx.out.write(str(len(sha) > 0))
+    ctx.out.note(show(sha).strip().split("\n")[0][:6])
+    # The loose file is still untracked, which is the point.
+    ctx.out.step(status().strip())
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "commit", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+    make_repo(h.runtime.workspace().root());
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    let lines = h.out.lines();
+    assert_eq!(lines[0], "write: True");
+    assert_eq!(lines[1], "note: commit");
+    assert_eq!(lines[2], "step: ?? loose.txt");
+}
+
+/// A value that would be read as an option is refused rather than passed on.
+#[tokio::test(flavor = "multi_thread")]
+async fn git_refuses_a_value_that_looks_like_an_option() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{GIT_WORKSPACE}
+def handler(ctx):
+    return show("--upload-pack=touch owned")
+
+meow.command(meow.tool(name = "probe", about = "smuggle a flag", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+    make_repo(h.runtime.workspace().root());
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("may not begin with `-`"), "{error}");
+    assert!(error.contains("would read"), "{error}");
+}
+
+/// A `git` that fails says what it said, with the command that failed.
+#[tokio::test(flavor = "multi_thread")]
+async fn git_reports_what_the_program_said() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{GIT_WORKSPACE}
+def handler(ctx):
+    return show("nonesuch-revision")
+
+meow.command(meow.tool(name = "probe", about = "bad revision", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+    make_repo(h.runtime.workspace().root());
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        error.contains("git --no-pager show nonesuch-revision"),
+        "{error}"
+    );
+    assert!(error.contains("exited"), "{error}");
+}
+
+/// An empty commit message is refused before `git` is reached.
+#[tokio::test(flavor = "multi_thread")]
+async fn git_refuses_an_empty_commit_message() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{GIT_WORKSPACE}
+def handler(ctx):
+    return commit("   ")
+
+meow.command(meow.tool(name = "probe", about = "empty message", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+    make_repo(h.runtime.workspace().root());
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("needs a message"), "{error}");
+}
