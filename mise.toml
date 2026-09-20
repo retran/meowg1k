@@ -1,8 +1,7 @@
 # Development tooling for meowg1k. Run `mise install` once, then `mise run all`.
 #
 # This branch carries two trees. The Rust tree under `crates/` is v0.3.0 and is
-# what the tasks below drive. The Go tree is frozen at v0.2.1 and stays only
-# until the Rust tree replaces it, which is why golangci-lint is still here.
+# what the tasks below drive.
 
 [tools]
 # The compiler, the formatter, the linter, and the language server all come
@@ -27,12 +26,6 @@ gh = "latest"
 "cargo:cargo-watch" = "latest"           # re-run clippy on change
 
 # Frozen Go tree, v0.2.1 and earlier. It stays until the Rust tree replaces it.
-# The Go version is pinned here and in go.mod, which is what CI reads through
-# setup-go's go-version-file. They have to agree: staticcheck's nil analysis
-# differs between patch releases, so a mismatch shows up as findings that
-# appear in one place and not the other.
-go = "1.25.14"
-golangci-lint = "2"
 
 # rustup's shim in ~/.cargo/bin usually wins on PATH, and it dispatches on
 # RUSTUP_TOOLCHAIN, which mise sets to the concrete toolchain it resolved.
