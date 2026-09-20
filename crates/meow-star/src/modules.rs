@@ -25,7 +25,7 @@ use starlark::environment::{FrozenModule, Globals, GlobalsBuilder, Module};
 use starlark::eval::Evaluator;
 use starlark::starlark_module;
 use starlark::values::Value as StarValue;
-use starlark::values::none::NoneOr;
+use starlark::values::none::{NoneOr, NoneType};
 
 use crate::error::{Result, StarError};
 use crate::run::running;
@@ -58,6 +58,7 @@ impl Modules {
         table.insert("re".to_owned(), freeze(re_module)?);
         table.insert("search".to_owned(), freeze(search_module)?);
         table.insert("shell".to_owned(), freeze(crate::capability::shell_module)?);
+        table.insert("store".to_owned(), freeze(store_module)?);
         table.insert("text".to_owned(), freeze(text_module)?);
         table.insert("time".to_owned(), freeze(time_module)?);
         table.insert("toml".to_owned(), freeze(toml_module)?);
@@ -949,6 +950,66 @@ fn time_module(builder: &mut GlobalsBuilder) {
     ) -> starlark::Result<i64> {
         running(eval, "time.since")?;
         Ok(jiff::Timestamp::now().as_second().saturating_sub(seconds))
+    }
+}
+
+/// `@std//store`: what a handler keeps between runs.
+///
+/// `[R-STAR-026]`. The table belongs to the workspace rather than to a
+/// session, so `meow session gc` leaves it alone. That is the difference from
+/// `ctx.session`, which is the right place for what one run decided and the
+/// wrong place for what every run should remember.
+#[starlark_module]
+fn store_module(builder: &mut GlobalsBuilder) {
+    /// Read a key, or the default when it has never been written.
+    fn get<'v>(
+        #[starlark(require = pos)] key: String,
+        #[starlark(require = named, default = NoneOr::None)] default: NoneOr<StarValue<'v>>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "store.get")?;
+        match state.runtime.keep().get(&key).map_err(oops)? {
+            Some(value) => Ok(eval.heap().alloc(value)),
+            // `[R-STAR-027]`: an absent key gives what the caller asked for,
+            // and `None` when it asked for nothing.
+            None => Ok(default.into_option().unwrap_or_else(StarValue::new_none)),
+        }
+    }
+
+    /// Write a key, replacing whatever was there.
+    fn put<'v>(
+        #[starlark(require = pos)] key: String,
+        #[starlark(require = pos)] value: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<NoneType> {
+        let state = running(eval, "store.put")?;
+        let value = value.to_json_value().map_err(oops)?;
+        state.runtime.keep().put(&key, &value).map_err(oops)?;
+        Ok(NoneType)
+    }
+
+    /// Remove a key, and say whether it was there.
+    ///
+    /// `[R-STAR-028]`: removing a key that was never written is not an error,
+    /// because a handler cleaning up should not have to check first.
+    fn delete<'v>(
+        #[starlark(require = pos)] key: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<bool> {
+        let state = running(eval, "store.delete")?;
+        state.runtime.keep().delete(&key).map_err(oops)
+    }
+
+    /// Every key with this prefix, sorted.
+    fn keys<'v>(
+        #[starlark(require = named, default = String::new())] prefix: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "store.keys")?;
+        let found = state.runtime.keep().keys(&prefix).map_err(oops)?;
+        let heap = eval.heap();
+        let keys: Vec<StarValue<'v>> = found.into_iter().map(|key| heap.alloc(key)).collect();
+        Ok(heap.alloc(keys))
     }
 }
 
