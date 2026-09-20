@@ -32,8 +32,8 @@ use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
 pub const NAMES: &[&str] = &[
-    "csv", "env", "fs", "git", "json", "path", "re", "search", "shell", "text", "time", "toml",
-    "xml", "yaml",
+    "csv", "env", "fs", "git", "index", "json", "path", "re", "search", "shell", "text", "time",
+    "toml", "xml", "yaml",
 ];
 
 /// Every `@std//` module, built once per load.
@@ -49,10 +49,11 @@ impl Modules {
     /// defect in this file rather than in anything a user wrote.
     pub fn build() -> Result<Self> {
         let mut table = BTreeMap::new();
+        table.insert("csv".to_owned(), freeze(csv_module)?);
         table.insert("env".to_owned(), freeze(env_module)?);
         table.insert("fs".to_owned(), freeze(crate::capability::fs_module)?);
         table.insert("git".to_owned(), freeze(crate::capability_git::git_module)?);
-        table.insert("csv".to_owned(), freeze(csv_module)?);
+        table.insert("index".to_owned(), freeze(index_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);
         table.insert("re".to_owned(), freeze(re_module)?);
@@ -789,6 +790,171 @@ fn search_module(builder: &mut GlobalsBuilder) {
 
         Ok(heap.alloc(results))
     }
+
+    /// Find text in the workspace, by what it says rather than what it means.
+    ///
+    /// `[R-STAR-019]`: no index is involved, so this works in a workspace
+    /// where `meow index build` has never run. The walk is the index's walk,
+    /// so one `.gitignore` decides what is searchable however a handler
+    /// searches.
+    fn text<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = named, default = false)] regex: bool,
+        #[starlark(require = named, default = 50)] limit: u32,
+        #[starlark(require = named, default = NoneOr::None)] paths: NoneOr<StarValue<'v>>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "search.text")?;
+        let paths = path_list(paths.into_option(), "paths")?;
+        let found = state
+            .runtime
+            .search()
+            .text(&pattern, regex, limit as usize, &paths)
+            .map_err(oops)?;
+        let heap = eval.heap();
+        Ok(heap.alloc(hits(&heap, found)))
+    }
+
+    /// Every file the walk reaches whose path matches a glob.
+    fn files<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = named, default = 500)] limit: u32,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "search.files")?;
+        let found = state
+            .runtime
+            .search()
+            .files(&pattern, limit as usize)
+            .map_err(oops)?;
+        let heap = eval.heap();
+        let paths: Vec<StarValue<'v>> = found.into_iter().map(|p| heap.alloc(p)).collect();
+        Ok(heap.alloc(paths))
+    }
+}
+
+/// `@std//index`: the index a workspace declares, from a handler.
+///
+/// `[R-STAR-024]`. `meow index build` and `index.build()` do the same work
+/// through the same port, so a handler that indexes before it searches does
+/// not have to shell out to the binary that is running it.
+#[starlark_module]
+fn index_module(builder: &mut GlobalsBuilder) {
+    /// Walk, record what changed, and embed what has no embedding yet.
+    fn build<'v>(eval: &mut Evaluator<'v, '_, '_>) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "index.build")?;
+        let done = state.runtime.search().build().map_err(oops)?;
+        let heap = eval.heap();
+        Ok(alloc_indexed(&heap, &done))
+    }
+
+    /// Walk and record what changed, without reaching a provider.
+    ///
+    /// The cheap half of `build`, for a handler that wants to know whether
+    /// anything moved before it spends on embeddings.
+    fn update<'v>(eval: &mut Evaluator<'v, '_, '_>) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "index.update")?;
+        let done = state.runtime.search().update().map_err(oops)?;
+        let heap = eval.heap();
+        Ok(alloc_indexed(&heap, &done))
+    }
+
+    /// How much is indexed, and by which model.
+    fn stats<'v>(eval: &mut Evaluator<'v, '_, '_>) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "index.stats")?;
+        let stats = state.runtime.search().stats().map_err(oops)?;
+        let heap = eval.heap();
+        Ok(heap.alloc(starlark::values::structs::AllocStruct([
+            ("chunks", heap.alloc(stats.chunks as u32)),
+            ("embedded", heap.alloc(stats.embedded as u32)),
+            (
+                "model",
+                match stats.model {
+                    Some(name) => heap.alloc(name),
+                    None => StarValue::new_none(),
+                },
+            ),
+        ])))
+    }
+
+    /// Rank the workspace against a question, with the knobs.
+    fn query<'v>(
+        #[starlark(require = pos)] question: String,
+        #[starlark(require = named, default = 10)] limit: u32,
+        // `UnpackFloat` rather than a float type, so `min_score = 0` and
+        // `min_score = 0.4` both work. A handler that wrote the integer and
+        // got a type error would be right to be annoyed.
+        #[starlark(require = named, default = NoneOr::None)] min_score: NoneOr<
+            starlark::values::float::UnpackFloat,
+        >,
+        #[starlark(require = named, default = NoneOr::None)] paths: NoneOr<StarValue<'v>>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        let state = running(eval, "index.query")?;
+        let paths = path_list(paths.into_option(), "paths")?;
+        let found = state
+            .runtime
+            .search()
+            .query(
+                &question,
+                limit as usize,
+                &paths,
+                min_score.into_option().map_or(0.0, |f| f.0 as f32),
+            )
+            .map_err(oops)?;
+        let heap = eval.heap();
+        Ok(heap.alloc(hits(&heap, found)))
+    }
+}
+
+/// A list of paths from an optional argument.
+fn path_list(value: Option<StarValue<'_>>, name: &str) -> starlark::Result<Vec<String>> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    if value.is_none() {
+        return Ok(Vec::new());
+    }
+    match value.to_json_value().map_err(oops)? {
+        serde_json::Value::Array(items) => Ok(items
+            .into_iter()
+            .filter_map(|item| item.as_str().map(str::to_owned))
+            .collect()),
+        other => Err(oops(format!("`{name}` must be a list, and is {other}"))),
+    }
+}
+
+/// Hits as structs, the one shape every search in this table returns.
+fn hits<'v>(
+    heap: &starlark::values::Heap<'v>,
+    found: Vec<crate::port::Found>,
+) -> Vec<StarValue<'v>> {
+    found
+        .into_iter()
+        .map(|hit| {
+            heap.alloc(starlark::values::structs::AllocStruct([
+                ("path", heap.alloc(hit.path)),
+                ("first_line", heap.alloc(hit.first_line as u32)),
+                ("last_line", heap.alloc(hit.last_line as u32)),
+                ("text", heap.alloc(hit.text)),
+                ("score", heap.alloc(f64::from(hit.score))),
+            ]))
+        })
+        .collect()
+}
+
+/// What a walk changed, as counts - `[R-STAR-024]`.
+fn alloc_indexed<'v>(
+    heap: &starlark::values::Heap<'v>,
+    done: &crate::port::Indexed,
+) -> StarValue<'v> {
+    heap.alloc(starlark::values::structs::AllocStruct([
+        ("files", heap.alloc(done.files as u32)),
+        ("added", heap.alloc(done.added as u32)),
+        ("changed", heap.alloc(done.changed as u32)),
+        ("removed", heap.alloc(done.removed as u32)),
+        ("embedded", heap.alloc(done.embedded as u32)),
+    ]))
 }
 
 /// `@std//re`: regular expressions.

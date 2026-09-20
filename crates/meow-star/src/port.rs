@@ -152,6 +152,99 @@ pub trait Search: Send + Sync + std::fmt::Debug {
     /// What to tell the script: no index, the wrong model, or a failure
     /// reaching the provider.
     fn code(&self, query: &str, limit: usize, paths: &[String]) -> Result<Vec<Found>, String>;
+
+    /// The same, with the floor below which a hit is not worth returning.
+    ///
+    /// `[R-STAR-024]`: `search.code` is the call a handler usually wants and
+    /// `index.query` is the one with the knobs, so the knobs live here and
+    /// `code` is this with a floor of zero.
+    ///
+    /// # Errors
+    ///
+    /// As [`Search::code`].
+    fn query(
+        &self,
+        query: &str,
+        limit: usize,
+        paths: &[String],
+        min_score: f32,
+    ) -> Result<Vec<Found>, String>;
+
+    /// Walk the workspace and record what changed, without embedding.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the workspace or writing the store said.
+    fn update(&self) -> Result<Indexed, String>;
+
+    /// Walk, record, and embed what has no embedding yet.
+    ///
+    /// # Errors
+    ///
+    /// As [`Search::update`], plus whatever reaching the provider said.
+    fn build(&self) -> Result<Indexed, String>;
+
+    /// How much is indexed, and by which model.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the store said.
+    fn stats(&self) -> Result<Stats, String>;
+
+    /// Find text in the workspace, with no index involved.
+    ///
+    /// `[R-STAR-019]`: matching literal text is a walk and a comparison, so
+    /// this needs no embedding model and no built graph. It is a port anyway
+    /// rather than a capability, because it must obey the same walk the index
+    /// obeys and that walk lives beside the index.
+    ///
+    /// # Errors
+    ///
+    /// A pattern that will not compile, or whatever reading a file said.
+    fn text(
+        &self,
+        pattern: &str,
+        regex: bool,
+        limit: usize,
+        paths: &[String],
+    ) -> Result<Vec<Found>, String>;
+
+    /// Every file the walk reaches whose path matches a glob.
+    ///
+    /// # Errors
+    ///
+    /// A glob that will not compile, or whatever walking said.
+    fn files(&self, pattern: &str, limit: usize) -> Result<Vec<String>, String>;
+}
+
+/// What a walk changed.
+///
+/// `[R-STAR-024]` asks for counts rather than text, because a handler that
+/// reports progress and a handler that decides whether to keep going need a
+/// number, and parsing one back out of a sentence is how a report goes stale.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Indexed {
+    /// Files seen on this walk.
+    pub files: usize,
+    /// Chunks added.
+    pub added: usize,
+    /// Chunks that changed and were replaced.
+    pub changed: usize,
+    /// Chunks dropped because their file is gone.
+    pub removed: usize,
+    /// Chunks embedded on this call, which `update` leaves at zero.
+    pub embedded: usize,
+}
+
+/// How much of the workspace is indexed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Stats {
+    /// Chunks the index holds.
+    pub chunks: usize,
+    /// How many of them have an embedding.
+    pub embedded: usize,
+    /// The model that built it, if it has ever been built.
+    pub model: Option<String>,
 }
 
 /// What a handler keeps between runs.
@@ -251,7 +344,47 @@ pub mod quiet {
             _limit: usize,
             _paths: &[String],
         ) -> Result<Vec<super::Found>, String> {
-            Err("this run has no index; run `meow index build` first".to_owned())
+            Err(NONE.to_owned())
+        }
+
+        fn query(
+            &self,
+            _query: &str,
+            _limit: usize,
+            _paths: &[String],
+            _min_score: f32,
+        ) -> Result<Vec<super::Found>, String> {
+            Err(NONE.to_owned())
+        }
+
+        fn update(&self) -> Result<super::Indexed, String> {
+            Err(NONE.to_owned())
+        }
+
+        fn build(&self) -> Result<super::Indexed, String> {
+            Err(NONE.to_owned())
+        }
+
+        fn stats(&self) -> Result<super::Stats, String> {
+            Err(NONE.to_owned())
+        }
+
+        // `text` and `files` need no index, and a run wired with `NoIndex`
+        // has no workspace walker either, so they are empty here rather than
+        // an error: a test that drives a handler with no ports is not a
+        // workspace with nothing in it.
+        fn text(
+            &self,
+            _pattern: &str,
+            _regex: bool,
+            _limit: usize,
+            _paths: &[String],
+        ) -> Result<Vec<super::Found>, String> {
+            Ok(Vec::new())
+        }
+
+        fn files(&self, _pattern: &str, _limit: usize) -> Result<Vec<String>, String> {
+            Ok(Vec::new())
         }
     }
 
@@ -319,6 +452,10 @@ pub mod quiet {
             Err(self.0.clone())
         }
     }
+
+    /// `[R-STAR-025]`: no index and no results are different answers, so every
+    /// call says which one this is rather than returning nothing.
+    const NONE: &str = "this run has no index; run `meow index build` first";
 
     /// Keeps what a run stored, and forgets it afterwards.
     #[derive(Debug, Default)]

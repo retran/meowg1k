@@ -91,7 +91,7 @@ def _find_code(ctx):
 
     lines = []
     for hit in hits:
-        lines.append("%s:%d-%d (%.2f)\n%s" % (
+        lines.append("%s:%d-%d (%s)\n%s" % (
             hit.path, hit.first_line, hit.last_line, hit.score, hit.text,
         ))
     return "\n\n".join(lines)
