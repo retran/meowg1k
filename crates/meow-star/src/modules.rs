@@ -31,7 +31,9 @@ use crate::error::{Result, StarError};
 use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
-pub const NAMES: &[&str] = &["env", "fs", "git", "json", "path", "search", "shell", "text"];
+pub const NAMES: &[&str] = &[
+    "env", "fs", "git", "json", "path", "search", "shell", "text",
+];
 
 /// Every `@std//` module, built once per load.
 #[derive(Debug)]

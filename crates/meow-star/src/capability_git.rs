@@ -12,11 +12,10 @@
 use starlark::environment::GlobalsBuilder;
 use starlark::eval::Evaluator;
 use starlark::starlark_module;
-use starlark::values::none::{NoneOr, NoneType};
 use starlark::values::Value as StarValue;
+use starlark::values::none::{NoneOr, NoneType};
 
 use crate::capability::run_words;
-use crate::run::running;
 
 fn oops(message: impl std::fmt::Display) -> starlark::Error {
     starlark::Error::new_other(anyhow::anyhow!("{message}"))
@@ -174,9 +173,10 @@ pub(crate) fn git_module(builder: &mut GlobalsBuilder) {
             return Err(oops("`git.commit` needs a message"));
         }
 
-        // The message goes through `--file` on standard input rather than
-        // `-m`, so a message beginning with a dash, or holding a newline, is
-        // a message rather than an argument.
+        // `--message` with the text as its own word, and `--` after it, so a
+        // message beginning with a dash is a message rather than one more
+        // option. The words never touch a shell, so a newline in it is a
+        // newline.
         git(
             eval,
             "git.commit",
@@ -203,14 +203,14 @@ pub(crate) fn git_module(builder: &mut GlobalsBuilder) {
 
 /// Read a list of strings from a Starlark value.
 fn strings(value: StarValue<'_>, what: &str) -> starlark::Result<Vec<String>> {
-    use starlark::values::ValueLike;
-
     match value.to_json_value().map_err(oops)? {
         serde_json::Value::Array(items) => items
             .into_iter()
             .map(|item| match item {
                 serde_json::Value::String(text) => plain(what, &text),
-                other => Err(oops(format!("`{what}` must hold strings, and carries {other}"))),
+                other => Err(oops(format!(
+                    "`{what}` must hold strings, and carries {other}"
+                ))),
             })
             .collect(),
         serde_json::Value::Null => Ok(Vec::new()),
