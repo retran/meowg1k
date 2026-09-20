@@ -11,6 +11,7 @@ publish = false
 allocative = "0.3"
 anyhow = { workspace = true }
 async-trait = "0.1"
+csv = "1"
 globset = "0.4"
 jiff = "0.2"
 meow-agent = { path = "../meow-agent" }
@@ -20,9 +21,11 @@ meow-policy = { path = "../meow-policy" }
 regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
+quick-xml = "0.41"
 serde_yaml_ng = { workspace = true }
 starlark = "0.14"
 thiserror = { workspace = true }
+toml = "0.9"
 tokio = { version = "1", features = ["rt", "sync", "time", "process", "macros"] }
 tokio-util = "0.7"
 
