@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["std", "help", "usage", "error-context", "suggestions", "wrap_help", "string"], default-features = false }
 clap_complete = "4"
+globset = "0.4"
 meow-agent = { path = "../meow-agent" }
 meow-core = { path = "../meow-core" }
 meow-index = { path = "../meow-index" }
@@ -28,6 +29,7 @@ meow-store = { path = "../meow-store" }
 meow-star = { path = "../meow-star" }
 meow-ui = { path = "../meow-ui" }
 ratatui = { version = "0.30", features = ["crossterm"] }
+regex = "1"
 serde_json = { workspace = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync"] }
 tokio-util = "0.7"

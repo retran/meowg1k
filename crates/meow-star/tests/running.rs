@@ -11,7 +11,7 @@ use meow_agent::Engine;
 use meow_core::Usage;
 use meow_core::view::{LiveKind, Output, ViewEvent};
 use meow_llm::{Capabilities, LlmError, Provider, Request, Response, Structured, ToolCall};
-use meow_star::port::{Ask, AskError, Events, Session, Stdin};
+use meow_star::port::{Ask, AskError, Events, Found, Indexed, Search, Session, Stats, Stdin};
 use meow_star::{Ports, Runtime, Workspace, load};
 use serde_json::{Map, Value, json};
 use tempfile::TempDir;
@@ -181,15 +181,114 @@ impl Provider for Scripted {
     }
 }
 
+/// An index that answers, so the `search` and `index` modules can be driven
+/// without a store, a provider, or a built graph.
+#[derive(Debug, Default)]
+struct FakeIndex {
+    /// Every call, in order, so a test can check what reached the port.
+    seen: Mutex<Vec<String>>,
+}
+
+impl FakeIndex {
+    fn note(&self, what: String) {
+        self.seen.lock().unwrap().push(what);
+    }
+    fn calls(&self) -> Vec<String> {
+        self.seen.lock().unwrap().clone()
+    }
+}
+
+impl Search for FakeIndex {
+    fn code(&self, query: &str, limit: usize, paths: &[String]) -> Result<Vec<Found>, String> {
+        self.query(query, limit, paths, 0.0)
+    }
+
+    fn query(
+        &self,
+        query: &str,
+        limit: usize,
+        paths: &[String],
+        min_score: f32,
+    ) -> Result<Vec<Found>, String> {
+        self.note(format!("query {query} {limit} {paths:?} {min_score}"));
+        Ok(vec![Found {
+            path: "src/lib.rs".to_owned(),
+            first_line: 10,
+            last_line: 12,
+            text: "fn main() {}".to_owned(),
+            score: 0.75,
+        }])
+    }
+
+    fn update(&self) -> Result<Indexed, String> {
+        self.note("update".to_owned());
+        Ok(Indexed {
+            files: 7,
+            added: 2,
+            changed: 1,
+            removed: 0,
+            embedded: 0,
+        })
+    }
+
+    fn build(&self) -> Result<Indexed, String> {
+        self.note("build".to_owned());
+        Ok(Indexed {
+            files: 7,
+            added: 2,
+            changed: 1,
+            removed: 0,
+            embedded: 3,
+        })
+    }
+
+    fn stats(&self) -> Result<Stats, String> {
+        self.note("stats".to_owned());
+        Ok(Stats {
+            chunks: 40,
+            embedded: 39,
+            model: Some("embed".to_owned()),
+        })
+    }
+
+    fn text(
+        &self,
+        pattern: &str,
+        regex: bool,
+        limit: usize,
+        paths: &[String],
+    ) -> Result<Vec<Found>, String> {
+        self.note(format!("text {pattern} regex={regex} {limit} {paths:?}"));
+        Ok(vec![Found {
+            path: "README.md".to_owned(),
+            first_line: 3,
+            last_line: 3,
+            text: "a line that matched".to_owned(),
+            score: 1.0,
+        }])
+    }
+
+    fn files(&self, pattern: &str, limit: usize) -> Result<Vec<String>, String> {
+        self.note(format!("files {pattern} {limit}"));
+        Ok(vec!["src/lib.rs".to_owned(), "src/main.rs".to_owned()])
+    }
+}
+
 /// A workspace, a runtime over it, and the recorder its output went to.
 struct Harness {
     _dir: TempDir,
     runtime: Arc<Runtime>,
     out: Arc<Recorder>,
     provider: Arc<Scripted>,
+    index: Arc<FakeIndex>,
 }
 
 fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
+    harness_with(files, turns, true)
+}
+
+/// The same, with an index that answers or one that is not there.
+fn harness_with(files: &[(&str, &str)], turns: Vec<Response>, indexed: bool) -> Harness {
     let dir = tempfile::tempdir().unwrap();
     for (name, body) in files {
         let path = dir.path().join(".meow").join(name);
@@ -202,6 +301,7 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
 
     let out = Arc::new(Recorder::default());
     let provider = Arc::new(Scripted::new(turns));
+    let index = Arc::new(FakeIndex::default());
 
     let runtime = Arc::new(Runtime::new(
         loaded,
@@ -220,7 +320,11 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
             session: Arc::new(meow_star::port::quiet::Memory::new("s-1")) as Arc<dyn Session>,
             approve: None,
             dry_run: false,
-            search: Arc::new(meow_star::port::quiet::NoIndex),
+            search: if indexed {
+                Arc::clone(&index) as Arc<dyn Search>
+            } else {
+                Arc::new(meow_star::port::quiet::NoIndex) as Arc<dyn Search>
+            },
             keep: Arc::new(meow_star::port::quiet::Ephemeral::default()),
         },
         CancellationToken::new(),
@@ -231,6 +335,7 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
         runtime,
         out,
         provider,
+        index,
     }
 }
 
@@ -2026,4 +2131,268 @@ get("anything")
         error.contains("store"),
         "reading the store during declaration must be refused by name: {error}"
     );
+}
+
+/// [R-STAR-019] `search.text` reports the path and the line of every hit
+#[tokio::test(flavor = "multi_thread")]
+async fn search_text_reports_where_each_hit_was() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//search", "text")
+
+def handler(ctx):
+    for hit in text("TODO"):
+        ctx.out.write("%s:%d %s" % (hit.path, hit.first_line, hit.text))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "text", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: README.md:3 a line that matched"],
+        "a hit must carry its path and its line number"
+    );
+    assert_eq!(
+        h.index.calls(),
+        ["text TODO regex=false 50 []"],
+        "the default must be a literal, not a regular expression"
+    );
+}
+
+/// [R-STAR-019] the same call takes a regular expression when asked
+#[tokio::test(flavor = "multi_thread")]
+async fn search_text_takes_a_regular_expression_when_asked() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//search", "text")
+
+def handler(ctx):
+    text(r"TODO\(\w+\)", regex = True, limit = 5, paths = ["src"])
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "regex", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.index.calls(),
+        [r#"text TODO\(\w+\) regex=true 5 ["src"]"#],
+        "every argument must reach the port as written"
+    );
+}
+
+/// [R-STAR-019] `search.files` answers with paths and nothing else
+#[tokio::test(flavor = "multi_thread")]
+async fn search_files_answers_with_paths() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//search", "files")
+
+def handler(ctx):
+    ctx.out.write(",".join(files("src/**/*.rs")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "files", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: src/lib.rs,src/main.rs"],
+        "`files` must return paths"
+    );
+    assert_eq!(h.index.calls(), ["files src/**/*.rs 500"]);
+}
+
+/// [R-STAR-024] `build` and `update` report what changed as counts
+#[tokio::test(flavor = "multi_thread")]
+async fn build_and_update_report_counts_rather_than_a_sentence() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//index", "build", "update")
+
+def handler(ctx):
+    a = update()
+    ctx.out.write("%d %d %d %d" % (a.files, a.added, a.changed, a.embedded))
+    b = build()
+    ctx.out.write("%d %d" % (b.added, b.embedded))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "index", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: 7 2 1 0", "write: 2 3"],
+        "the counts must arrive as numbers a handler can compare"
+    );
+    assert_eq!(
+        h.index.calls(),
+        ["update", "build"],
+        "`update` must not embed, and `build` must"
+    );
+}
+
+/// [R-STAR-024] `stats` says how much is indexed and by which model
+#[tokio::test(flavor = "multi_thread")]
+async fn stats_says_how_much_is_indexed_and_by_what() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//index", "stats")
+
+def handler(ctx):
+    s = stats()
+    ctx.out.write("%d/%d by %s" % (s.embedded, s.chunks, s.model))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "stats", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(h.out.lines(), ["write: 39/40 by embed"]);
+}
+
+/// [R-STAR-024] `query` carries the floor, and `search.code` is it at zero
+#[tokio::test(flavor = "multi_thread")]
+async fn query_carries_the_floor_and_code_is_the_same_call_without_one() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//index", "query")
+load("@std//search", "code")
+
+def handler(ctx):
+    hit = query("what does the loader do", limit = 3, min_score = 0.4)[0]
+    ctx.out.write("%s %s" % (hit.path, hit.score))
+    query("an integer floor is fine too", min_score = 0)
+    code("the same question", limit = 3)
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "query", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: src/lib.rs 0.75"],
+        "a hit must come back in the one shape every search returns"
+    );
+    assert_eq!(
+        h.index.calls(),
+        [
+            "query what does the loader do 3 [] 0.4",
+            "query an integer floor is fine too 10 [] 0",
+            "query the same question 3 [] 0",
+        ],
+        "`code` must be `query` with a floor of zero, and an integer floor must work"
+    );
+}
+
+/// [R-STAR-025] with no index, every call says so rather than answering
+#[tokio::test(flavor = "multi_thread")]
+async fn no_index_is_told_apart_from_no_results() {
+    for call in ["build()", "update()", "stats()", r#"query("anything")"#] {
+        let name = call.split('(').next().unwrap();
+        let h = harness_with(
+            &[(
+                "meow.star",
+                &format!(
+                    r#"{MODELS}
+load("@std//index", "{name}")
+
+def handler(ctx):
+    return str({call})
+
+meow.command(meow.tool(name = "probe", about = "no index", run = handler))
+"#
+                ),
+            )],
+            Vec::new(),
+            false,
+        );
+
+        let error = fails(&h.runtime, "probe").await;
+        assert!(
+            error.contains("meow index build"),
+            "`{name}` must say there is no index rather than answering: {error}"
+        );
+    }
+}
+
+/// [R-STAR-084] neither module may be called while `.meow/` is being evaluated
+#[tokio::test(flavor = "multi_thread")]
+async fn search_and_index_are_refused_during_declaration() {
+    for (module, name, call) in [
+        ("index", "stats", "stats()"),
+        ("search", "files", r#"files("*")"#),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".meow").join("meow.star");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            path,
+            format!(
+                r#"load("@std//{module}", "{name}")
+{call}
+"#
+            ),
+        )
+        .unwrap();
+
+        let error = load(&Workspace::at(dir.path())).unwrap_err().to_string();
+        assert!(
+            error.contains(module),
+            "calling `{module}` during declaration must be refused by name: {error}"
+        );
+    }
 }
