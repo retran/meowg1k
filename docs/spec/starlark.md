@@ -96,6 +96,22 @@ attribute values.
 **[R-STAR-021]** Runtime capabilities MUST NOT be members of the context. A
 handler reaches them by `load`.
 
+### The store
+
+**[R-STAR-026]** The table MUST contain `store`, exposing `get`, `put`,
+`delete`, and `keys`. A value MUST survive the run that wrote it, and MUST
+survive collecting every session in the workspace.
+
+**[R-STAR-027]** `store.get` MUST return the value that `store.put` was given,
+of the same type, for any value a handler can build. A key that was never
+written MUST give the caller's default, and `None` when it named none, so that
+"absent" and "stored `None`" are the same answer only when the caller asked
+for that.
+
+**[R-STAR-028]** `store.delete` MUST say whether the key was there, and MUST
+NOT fail for one that was not. `store.keys` MUST return them sorted, and MUST
+take a prefix.
+
 ### Declarations
 
 **[R-STAR-030]** `meow.provider`, `meow.model`, `meow.agent`, `meow.tool`,
@@ -276,6 +292,12 @@ alternative is to return rows and a separate header list and make every caller
 zip them, which is the same work done once per handler instead of once here. A
 file whose first record is data rather than names is the case `header = False`
 exists for.
+
+**The store holds values and not text**, by [R-STAR-027]. A store that took
+strings would make every handler encode on the way in and decode on the way
+out, and the two halves would be written in different places and drift. What a
+handler puts in is what it gets back, and the encoding is this module's
+problem.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format
