@@ -31,7 +31,7 @@ use crate::error::{Result, StarError};
 use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
-pub const NAMES: &[&str] = &["env", "json", "path", "search", "text"];
+pub const NAMES: &[&str] = &["env", "fs", "json", "path", "search", "shell", "text"];
 
 /// Every `@std//` module, built once per load.
 #[derive(Debug)]
@@ -47,9 +47,11 @@ impl Modules {
     pub fn build() -> Result<Self> {
         let mut table = BTreeMap::new();
         table.insert("env".to_owned(), freeze(env_module)?);
+        table.insert("fs".to_owned(), freeze(crate::capability::fs_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);
         table.insert("search".to_owned(), freeze(search_module)?);
+        table.insert("shell".to_owned(), freeze(crate::capability::shell_module)?);
         table.insert("text".to_owned(), freeze(text_module)?);
         Ok(Self(table))
     }
