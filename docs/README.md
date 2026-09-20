@@ -1,44 +1,53 @@
 # Documentation
 
-Two folders, two purposes:
+Three kinds of document, and they answer different questions.
 
-```text
-docs/
-├── api/          # Starlark API - what you can call
-└── guides/       # How to build meowg1k
-```
+## Specifications
 
-## Pick your path
+`spec/` is normative. Every behaviour the binary has traces to a requirement
+there, and a change that no requirement describes needs a requirement first.
+Eight files, one per area:
 
-**Want to use meowg1k?**
+| File | Area | What it fixes |
+| --- | --- | --- |
+| [agent.md](spec/agent.md) | `R-AGENT-*` | the loop, budgets, tools, compaction |
+| [index.md](spec/index.md) | `R-INDEX-*` | walking, chunking, embedding, retrieval |
+| [llm.md](spec/llm.md) | `R-LLM-*` | what a provider is and what it promises |
+| [policy.md](spec/policy.md) | `R-POLICY-*` | what an agent may do, and who decides |
+| [session.md](spec/session.md) | `R-SESSION-*` | the append-only log, forks, retention |
+| [starlark.md](spec/starlark.md) | `R-STAR-*` | the surface users write against |
+| [store.md](spec/store.md) | `R-STORE-*` | one database, content-addressed |
+| [tui.md](spec/tui.md) | `R-TUI-*` | three renderers, one event stream |
 
-- [API Reference](api/API_REFERENCE.md) - All Starlark functions with examples
-- [Starlark Guide](guides/starlark-system.md) - Write custom commands
+A requirement that was withdrawn leaves a tombstone naming what replaced it.
+An amended one records the date and the reason in place.
 
-**Want to contribute?**
+## Design
 
-- [Architecture](guides/architecture.md) - Why we built it this way
-- [Go Conventions](guides/go-conventions.md) - Code style rules
-- [Testing](guides/testing-standards.md) - How to test your changes
-- [UI Patterns](guides/ui-patterns.md) - Build terminal interfaces
+`design/` is where the decisions live, with the reasoning that produced them.
+It is not normative: where it and a specification disagree, the specification
+wins and the design document gets fixed.
 
-**Building autonomous agents?**
+- [0.3.0-architecture.md](design/0.3.0-architecture.md) - the crates, the
+  execution model, and what each dependency is for
+- [0.3.0-starlark-api.md](design/0.3.0-starlark-api.md) - the surface, with
+  worked examples and a migration table from v0.2.x
+- [0.3.0-sessions.md](design/0.3.0-sessions.md) - the log, forking, retention
+- [0.3.0-tui.md](design/0.3.0-tui.md) - the inline viewport and the command
+  surface
+- [0.3.0-plan.md](design/0.3.0-plan.md) - eleven milestones, every requirement
+  assigned to exactly one
 
-- [Agentic System](guides/agentic-system.md) - Multi-step workflows
+## The workspace this repository uses
 
-## First steps
+`.meow/` is meowg1k configured to work on itself: three markdown agents, two
+shared prompt fragments, and the commands in `.meow/meow.star`. It is the
+worked example that has to keep working, because it is what the maintainers
+run.
 
-1. Install meowg1k (see root README.md)
-2. Create `.meowg1k/init.star` ([Starlark Guide](guides/starlark-system.md) shows how)
-3. Browse the [API](api/API_REFERENCE.md) to see what you can do
-4. Copy examples from `.meowg1k/commands/`
+## What is no longer here
 
-## Updating docs
-
-Changed the code? Update the docs:
-
-- **Code changes** → update API_REFERENCE.md
-- **New patterns** → update relevant guide
-- **Complex features** → add examples
-
-Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you start.
+The v0.2.x guides described the Go implementation, which v0.3.0 replaced. They
+documented modules and commands that no longer exist, and keeping them would
+have meant maintaining a third account of the system beside the specifications
+and the code. The history has them if anybody needs one.
