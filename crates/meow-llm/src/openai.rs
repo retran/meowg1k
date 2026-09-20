@@ -29,10 +29,11 @@ use crate::usage_of;
 /// Talks to anything that speaks OpenAI's shape.
 pub struct OpenAi<T: Transport> {
     transport: T,
-    api_key: String,
+    bearer: std::sync::Arc<dyn crate::bearer::Bearer>,
     base_url: String,
     name: String,
     structured: Structured,
+    extra: Vec<(String, String)>,
 }
 
 impl<T: Transport> std::fmt::Debug for OpenAi<T> {
@@ -48,13 +49,33 @@ impl<T: Transport> std::fmt::Debug for OpenAi<T> {
 impl<T: Transport> OpenAi<T> {
     /// Build a provider for the official endpoint.
     pub fn new(transport: T, api_key: impl Into<String>) -> Self {
+        Self::with_bearer(transport, crate::bearer::fixed(api_key))
+    }
+
+    /// The same, for a credential that can change between requests.
+    ///
+    /// `[R-LLM-004]`: what is sent is asked for per request rather than fixed
+    /// when the provider is built, which is what lets a token that expires be
+    /// renewed without rebuilding anything.
+    pub fn with_bearer(transport: T, bearer: std::sync::Arc<dyn crate::bearer::Bearer>) -> Self {
         Self {
             transport,
-            api_key: api_key.into(),
+            bearer,
             base_url: "https://api.openai.com".to_owned(),
             name: "openai".to_owned(),
             structured: Structured::Native,
+            extra: Vec::new(),
         }
+    }
+
+    /// Headers every request carries, beyond the two every OpenAI-shaped API
+    /// needs.
+    ///
+    /// Copilot wants several identifying an editor, and refuses without them.
+    #[must_use]
+    pub fn with_headers(mut self, headers: Vec<(String, String)>) -> Self {
+        self.extra = headers;
+        self
     }
 
     /// Borrow the transport.
@@ -88,14 +109,14 @@ impl<T: Transport> OpenAi<T> {
         self
     }
 
-    fn headers(&self) -> Vec<(String, String)> {
-        vec![
-            (
-                "authorization".to_owned(),
-                format!("Bearer {}", self.api_key),
-            ),
+    async fn headers(&self, cancel: &CancellationToken) -> Result<Vec<(String, String)>> {
+        let token = self.bearer.token(cancel).await?;
+        let mut out = vec![
+            ("authorization".to_owned(), format!("Bearer {token}")),
             ("content-type".to_owned(), "application/json".to_owned()),
-        ]
+        ];
+        out.extend(self.extra.iter().cloned());
+        Ok(out)
     }
 
     /// Turn a request into the body this API wants.
@@ -322,7 +343,7 @@ impl<T: Transport> Provider for OpenAi<T> {
 
             let url = format!("{}/v1/chat/completions", self.base_url);
             let body = self.body(&request, false).to_string();
-            let headers = self.headers();
+            let headers = self.headers(cancel).await?;
             let http = tokio::select! {
                 () = cancel.cancelled() => return Err(LlmError::Cancelled),
                 r = self.transport.post(&url, &headers, body) => r?,
@@ -364,7 +385,7 @@ impl<T: Transport> Provider for OpenAi<T> {
 
         let url = format!("{}/v1/chat/completions", self.base_url);
         let body = self.body(request, true).to_string();
-        let headers = self.headers();
+        let headers = self.headers(cancel).await?;
         let mut lines = self.transport.post_lines(&url, &headers, body).await?;
 
         let mut agg = Aggregator::new();
@@ -428,7 +449,7 @@ impl<T: Transport> Provider for OpenAi<T> {
 
         let url = format!("{}/v1/embeddings", self.base_url);
         let body = json!({ "model": "text-embedding-3-small", "input": texts }).to_string();
-        let headers = self.headers();
+        let headers = self.headers(cancel).await?;
 
         let http = tokio::select! {
             () = cancel.cancelled() => return Err(LlmError::Cancelled),
