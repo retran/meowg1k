@@ -275,9 +275,24 @@ impl Walker {
         }
     }
 
+    /// The root the walk actually reports paths under.
+    ///
+    /// `Walk::run` canonicalises before it walks, so every path it returns is
+    /// under the canonical root, and `Workspace::at` does not canonicalise at
+    /// all. Stripping the given root therefore matches nothing whenever the
+    /// two spellings differ - which is every path on Windows, where the
+    /// canonical form carries a `\\?\` prefix, and any workspace reached
+    /// through a symbolic link anywhere else. Every file was then skipped and
+    /// the search came back empty.
+    fn walked_root(&self) -> std::path::PathBuf {
+        self.root
+            .canonicalize()
+            .unwrap_or_else(|_| self.root.clone())
+    }
+
     /// The path a hit reports, relative to the root and with forward slashes.
-    fn relative(&self, file: &std::path::Path) -> Option<String> {
-        let relative = file.strip_prefix(&self.root).ok()?;
+    fn relative(&self, root: &std::path::Path, file: &std::path::Path) -> Option<String> {
+        let relative = file.strip_prefix(root).ok()?;
         Some(relative.to_string_lossy().replace('\\', "/"))
     }
 
@@ -297,11 +312,12 @@ impl Walker {
             None
         };
 
+        let root = self.walked_root();
         let walked = self.walk.run(&self.root).map_err(|e| e.to_string())?;
         let mut out = Vec::new();
 
         for file in &walked.files {
-            let Some(relative) = self.relative(file) else {
+            let Some(relative) = self.relative(&root, file) else {
                 continue;
             };
             if !paths.is_empty() && !paths.iter().any(|p| relative.starts_with(p.as_str())) {
@@ -344,10 +360,11 @@ impl Walker {
             .map_err(|e| format!("`{pattern}` is not a valid glob: {e}"))?
             .compile_matcher();
 
+        let root = self.walked_root();
         let walked = self.walk.run(&self.root).map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for file in &walked.files {
-            let Some(relative) = self.relative(file) else {
+            let Some(relative) = self.relative(&root, file) else {
                 continue;
             };
             if matcher.is_match(&relative) {
