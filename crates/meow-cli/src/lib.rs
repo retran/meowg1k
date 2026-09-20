@@ -74,8 +74,17 @@ pub fn run() -> Ending {
     let loaded = match loaded {
         Some(Ok(loaded)) => loaded,
         Some(Err(e)) => {
-            eprintln!("{e}");
-            return Ending::Config;
+            // `meow pkg` is the command that makes a package available, so it
+            // reads the workspace again tolerating one that is not - see
+            // `load_for_packages`. Every other command sees the strict error.
+            if matches!(matches.subcommand_name(), Some("pkg"))
+                && let Ok(tolerant) = meow_star::load_for_packages(&workspace)
+            {
+                tolerant
+            } else {
+                eprintln!("{e}");
+                return Ending::Config;
+            }
         }
         // The workspace was found a few lines above, so it was also loaded.
         None => return Ending::Config,
