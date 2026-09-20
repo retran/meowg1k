@@ -20,6 +20,12 @@ pub enum Structured {
     Native,
     /// The provider asks for JSON and checks the answer here.
     Emulated,
+    /// It produces no text, so there is nothing for a schema to describe.
+    ///
+    /// An embedding-only provider. Saying `Emulated` instead would claim it
+    /// asks for JSON in a prompt it never sends, and `[R-LLM-002]` would then
+    /// accept a schema it cannot satisfy.
+    None,
 }
 
 /// What a provider can do.
@@ -110,6 +116,12 @@ pub fn check_supported(provider: &dyn Provider, request: &Request, streaming: bo
         return Err(LlmError::Unsupported {
             provider: provider.name().to_owned(),
             capability: "tool calling",
+        });
+    }
+    if request.output_schema.is_some() && caps.structured == Structured::None {
+        return Err(LlmError::Unsupported {
+            provider: provider.name().to_owned(),
+            capability: "structured output",
         });
     }
     Ok(())

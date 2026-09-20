@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use clap::ArgMatches;
 use meow_agent::Engine;
-use meow_llm::{Anthropic, Http, Provider};
+use meow_llm::{Anthropic, Gemini, Http, OpenAi, Provider, Voyage};
 use meow_star::{Loaded, Ports, Registry, Runtime, Workspace};
 use serde_json::{Map, Value};
 use tokio_util::sync::CancellationToken;
@@ -64,6 +64,26 @@ pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded
 /// command is the difference between a workspace that loads and one that does
 /// not, and the second never reaches this function.
 fn check(registry: &Registry) -> Ending {
+    // The one thing loading cannot catch: `meow-star` knows what a provider
+    // declaration says and this binary knows which kinds it can talk to, and
+    // only one of them can decide whether a kind exists.
+    let unknown: Vec<&meow_star::Provider> = registry
+        .providers()
+        .filter(|p| !KINDS.contains(&p.kind.as_str()))
+        .collect();
+
+    if !unknown.is_empty() {
+        for provider in &unknown {
+            eprintln!(
+                "`{}` names provider kind `{}`; the kinds are {}",
+                provider.name,
+                provider.kind,
+                KINDS.join(", ")
+            );
+        }
+        return Ending::Config;
+    }
+
     println!(
         "ok: {} providers, {} models, {} commands",
         registry.providers().count(),
@@ -100,6 +120,18 @@ fn doctor(workspace: &Workspace, registry: &Registry) -> Ending {
     println!("workspace\t{}", workspace.root().display());
     println!("config\t{}", workspace.config_dir().display());
 
+    let mut wrong = Vec::new();
+    for provider in registry.providers() {
+        if !KINDS.contains(&provider.kind.as_str()) {
+            wrong.push(format!("{} ({})", provider.name, provider.kind));
+        }
+    }
+    if wrong.is_empty() {
+        println!("kinds\tall known");
+    } else {
+        println!("kinds\tunknown for {}", wrong.join(", "));
+    }
+
     let mut missing = Vec::new();
     for provider in registry.providers() {
         if credential(provider).is_none() {
@@ -112,13 +144,19 @@ fn doctor(workspace: &Workspace, registry: &Registry) -> Ending {
             "credentials\tall {} providers have one",
             registry.providers().count()
         );
-        return Ending::Passed;
+    } else {
+        println!("credentials\tmissing for {}", missing.join(", "));
     }
 
-    println!("credentials\tmissing for {}", missing.join(", "));
-    // A missing credential is what `doctor` exists to find, so reporting it
-    // and exiting zero would make the command useless in a script.
-    Ending::Provider
+    // A wrong kind is a mistake in the declaration and a missing credential is
+    // a mistake in the environment, so they exit differently. Both are what
+    // `doctor` exists to find, and reporting either and exiting zero would
+    // make the command useless in a script.
+    match (wrong.is_empty(), missing.is_empty()) {
+        (true, true) => Ending::Passed,
+        (false, _) => Ending::Config,
+        (true, false) => Ending::Provider,
+    }
 }
 
 fn policy(matches: &ArgMatches, registry: &Registry) -> Ending {
@@ -769,16 +807,93 @@ fn built_providers(registry: &Registry) -> HashMap<String, Arc<dyn Provider>> {
         let Some(key) = credential(declared) else {
             continue;
         };
-        if declared.kind == "anthropic"
-            && let Ok(transport) = Http::new(declared.name.clone())
-        {
-            out.insert(
-                declared.name.clone(),
-                Arc::new(Anthropic::new(transport, key)) as Arc<dyn Provider>,
-            );
+        if let Ok(provider) = build_provider(declared, &key) {
+            out.insert(declared.name.clone(), provider);
         }
     }
     out
+}
+
+/// Every provider kind this binary knows how to talk to.
+///
+/// `openai` covers anything that speaks OpenAI's shape, which is most of
+/// them: OpenRouter, Together, `llama.cpp`'s server, LM Studio. What they
+/// differ in is the address and whether `response_format` is real, and both
+/// are declarations rather than code.
+pub const KINDS: &[&str] = &[
+    "anthropic",
+    "openai",
+    "openrouter",
+    "gemini",
+    "voyage",
+    "llama",
+];
+
+/// Build one provider from its declaration.
+///
+/// # Errors
+///
+/// A message naming the kind and what there is, per `[R-STAR-091]`'s spirit:
+/// a typo in a kind should say what the kinds are.
+fn build_provider(declared: &meow_star::Provider, key: &str) -> Result<Arc<dyn Provider>, String> {
+    let transport = Http::new(declared.name.clone()).map_err(|e| e.to_string())?;
+    let base = declared.base_url.clone();
+
+    let built: Arc<dyn Provider> = match declared.kind.as_str() {
+        "anthropic" => {
+            let mut provider = Anthropic::new(transport, key);
+            if let Some(url) = base {
+                provider = provider.with_base_url(url);
+            }
+            Arc::new(provider)
+        }
+        "openai" => {
+            let mut provider = OpenAi::new(transport, key).with_name(declared.name.clone());
+            if let Some(url) = base {
+                provider = provider.with_base_url(url);
+            }
+            Arc::new(provider)
+        }
+        "openrouter" => {
+            let provider = OpenAi::new(transport, key)
+                .with_name(declared.name.clone())
+                .with_base_url(base.unwrap_or_else(|| "https://openrouter.ai/api".to_owned()));
+            Arc::new(provider)
+        }
+        // A local server takes the body and ignores `response_format`, so a
+        // schema is asked for in the prompt and checked here instead. There is
+        // no address to default to: whoever runs one knows where it is.
+        "llama" => {
+            let provider = OpenAi::new(transport, key)
+                .with_name(declared.name.clone())
+                .with_base_url(base.unwrap_or_else(|| "http://localhost:8080".to_owned()))
+                .with_emulated_schema();
+            Arc::new(provider)
+        }
+        "gemini" => {
+            let mut provider = Gemini::new(transport, key);
+            if let Some(url) = base {
+                provider = provider.with_base_url(url);
+            }
+            Arc::new(provider)
+        }
+        "voyage" => {
+            let mut provider = Voyage::new(transport, key, "voyage-3");
+            if let Some(url) = base {
+                provider = provider.with_base_url(url);
+            }
+            Arc::new(provider)
+        }
+        other => {
+            return Err(format!(
+                "`{}` names provider kind `{other}`; the kinds are {}",
+                declared.name,
+                KINDS.join(", ")
+            ));
+        }
+    };
+
+    Ok(built)
 }
 
 /// Build one engine per declared provider.
@@ -793,19 +908,7 @@ fn engines(registry: &Registry) -> Result<HashMap<String, Arc<Engine>>, String> 
             continue;
         };
 
-        let built: Arc<dyn Provider> = match provider.kind.as_str() {
-            "anthropic" => Arc::new(Anthropic::new(
-                Http::new(provider.name.clone()).map_err(|e| e.to_string())?,
-                key,
-            )),
-            other => {
-                return Err(format!(
-                    "`{}` names provider kind `{other}`, and the only kind implemented is `anthropic`",
-                    provider.name
-                ));
-            }
-        };
-
+        let built = build_provider(provider, &key).map_err(|e| e.to_string())?;
         out.insert(provider.name.clone(), Arc::new(Engine::new(built)));
     }
 
