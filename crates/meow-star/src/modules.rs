@@ -32,7 +32,8 @@ use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
 pub const NAMES: &[&str] = &[
-    "env", "fs", "git", "json", "path", "re", "search", "shell", "text", "time",
+    "csv", "env", "fs", "git", "json", "path", "re", "search", "shell", "text", "time", "toml",
+    "xml", "yaml",
 ];
 
 /// Every `@std//` module, built once per load.
@@ -51,6 +52,7 @@ impl Modules {
         table.insert("env".to_owned(), freeze(env_module)?);
         table.insert("fs".to_owned(), freeze(crate::capability::fs_module)?);
         table.insert("git".to_owned(), freeze(crate::capability_git::git_module)?);
+        table.insert("csv".to_owned(), freeze(csv_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);
         table.insert("re".to_owned(), freeze(re_module)?);
@@ -58,6 +60,9 @@ impl Modules {
         table.insert("shell".to_owned(), freeze(crate::capability::shell_module)?);
         table.insert("text".to_owned(), freeze(text_module)?);
         table.insert("time".to_owned(), freeze(time_module)?);
+        table.insert("toml".to_owned(), freeze(toml_module)?);
+        table.insert("xml".to_owned(), freeze(xml_module)?);
+        table.insert("yaml".to_owned(), freeze(yaml_module)?);
         Ok(Self(table))
     }
 
@@ -138,6 +143,510 @@ fn json_module(builder: &mut GlobalsBuilder) {
             serde_json::to_string_pretty(&value).map_err(oops)
         } else {
             serde_json::to_string(&value).map_err(oops)
+        }
+    }
+}
+
+/// `@std//yaml`: parse and encode.
+///
+/// `[R-STAR-016]`: the value this produces is the value `json.parse` produces
+/// for the same data, so a handler can read one format and write another
+/// without knowing which it read.
+#[starlark_module]
+fn yaml_module(builder: &mut GlobalsBuilder) {
+    /// Parse YAML text into Starlark values.
+    fn parse<'v>(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "yaml.parse")?;
+        let value: serde_json::Value = serde_yaml_ng::from_str(&text)
+            .map_err(|error| oops(format!("this is not YAML: {error}")))?;
+        Ok(eval.heap().alloc(value))
+    }
+
+    /// Encode Starlark values as YAML text.
+    fn encode<'v>(
+        #[starlark(require = pos)] value: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "yaml.encode")?;
+        let value = value.to_json_value().map_err(oops)?;
+        serde_yaml_ng::to_string(&as_yaml(&value)?).map_err(oops)
+    }
+}
+
+/// `@std//toml`: parse and encode.
+#[starlark_module]
+fn toml_module(builder: &mut GlobalsBuilder) {
+    /// Parse TOML text into Starlark values.
+    fn parse<'v>(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "toml.parse")?;
+        let value: serde_json::Value =
+            toml::from_str(&text).map_err(|error| oops(format!("this is not TOML: {error}")))?;
+        Ok(eval.heap().alloc(value))
+    }
+
+    /// Encode Starlark values as TOML text.
+    ///
+    /// TOML has no top-level array and no top-level scalar, so a value that is
+    /// not a table is refused here rather than serialised into something the
+    /// format cannot express.
+    fn encode<'v>(
+        #[starlark(require = pos)] value: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "toml.encode")?;
+        let value = value.to_json_value().map_err(oops)?;
+        if !value.is_object() {
+            return Err(oops(
+                "TOML's top level is a table, so `encode` needs a dict here",
+            ));
+        }
+        toml::to_string_pretty(&as_toml(&value)?).map_err(oops)
+    }
+}
+
+/// Rebuild a JSON value as a YAML one.
+///
+/// `starlark` turns on `serde_json`'s `arbitrary_precision`, and features are
+/// additive, so every number in this workspace is stored as text behind a
+/// private marker. `serde_json`'s own serialiser understands the marker and
+/// every other serialiser writes it out verbatim, which is how a `3` becomes a
+/// table named `$serde_json::private::Number`. Converting explicitly is the
+/// only way across.
+fn as_yaml(value: &serde_json::Value) -> starlark::Result<serde_yaml_ng::Value> {
+    use serde_yaml_ng::Value as Y;
+    Ok(match value {
+        serde_json::Value::Null => Y::Null,
+        serde_json::Value::Bool(b) => Y::Bool(*b),
+        serde_json::Value::Number(n) => match number(n) {
+            Number::Int(i) => Y::Number(i.into()),
+            Number::Float(f) => Y::Number(f.into()),
+        },
+        serde_json::Value::String(text) => Y::String(text.clone()),
+        serde_json::Value::Array(items) => Y::Sequence(
+            items
+                .iter()
+                .map(as_yaml)
+                .collect::<std::result::Result<_, starlark::Error>>()?,
+        ),
+        serde_json::Value::Object(map) => {
+            let mut out = serde_yaml_ng::Mapping::new();
+            for (key, value) in map {
+                out.insert(Y::String(key.clone()), as_yaml(value)?);
+            }
+            Y::Mapping(out)
+        }
+    })
+}
+
+/// Rebuild a JSON value as a TOML one, for the reason `as_yaml` gives.
+fn as_toml(value: &serde_json::Value) -> starlark::Result<toml::Value> {
+    use toml::Value as T;
+    Ok(match value {
+        // TOML has no null. Dropping the key would silently lose it, so say
+        // so: a handler can encode `""` or omit the key itself.
+        serde_json::Value::Null => {
+            return Err(oops(
+                "TOML has no null, so a key with no value cannot be encoded",
+            ));
+        }
+        serde_json::Value::Bool(b) => T::Boolean(*b),
+        serde_json::Value::Number(n) => match number(n) {
+            Number::Int(i) => T::Integer(i),
+            Number::Float(f) => T::Float(f),
+        },
+        serde_json::Value::String(text) => T::String(text.clone()),
+        serde_json::Value::Array(items) => T::Array(
+            items
+                .iter()
+                .map(as_toml)
+                .collect::<std::result::Result<_, starlark::Error>>()?,
+        ),
+        serde_json::Value::Object(map) => {
+            let mut out = toml::map::Map::new();
+            for (key, value) in map {
+                out.insert(key.clone(), as_toml(value)?);
+            }
+            T::Table(out)
+        }
+    })
+}
+
+/// A number, once it is out from behind the marker.
+enum Number {
+    Int(i64),
+    Float(f64),
+}
+
+/// Read a number whatever representation it arrived in.
+fn number(n: &serde_json::Number) -> Number {
+    if let Some(i) = n.as_i64() {
+        return Number::Int(i);
+    }
+    // An unsigned value too large for `i64` and anything fractional both land
+    // here. Neither is exact as `f64`, and neither is expressible in TOML or
+    // YAML any other way.
+    Number::Float(n.as_f64().unwrap_or(f64::NAN))
+}
+
+/// `@std//csv`: records, with or without a header.
+#[starlark_module]
+fn csv_module(builder: &mut GlobalsBuilder) {
+    /// Parse CSV text.
+    ///
+    /// With a header, a list of dicts keyed by column name; without one, a
+    /// list of lists - `[R-STAR-017]`.
+    fn parse<'v>(
+        #[starlark(require = pos)] text: String,
+        #[starlark(require = named, default = true)] header: bool,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "csv.parse")?;
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(header)
+            .flexible(true)
+            .from_reader(text.as_bytes());
+
+        let columns: Vec<String> = if header {
+            reader
+                .headers()
+                .map_err(|error| oops(format!("this is not CSV: {error}")))?
+                .iter()
+                .map(str::to_owned)
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let heap = eval.heap();
+        let mut rows: Vec<StarValue<'v>> = Vec::new();
+        for (index, record) in reader.records().enumerate() {
+            let record = record.map_err(|error| oops(format!("this is not CSV: {error}")))?;
+            if header {
+                // `[R-STAR-017]`: a short or long record is a defect in the
+                // file, and saying which record it was is the difference
+                // between a fixable report and "this is not CSV".
+                if record.len() != columns.len() {
+                    return Err(oops(format!(
+                        "record {} has {} fields and the header names {}",
+                        index + 1,
+                        record.len(),
+                        columns.len()
+                    )));
+                }
+                let pairs: Vec<(&str, StarValue<'v>)> = columns
+                    .iter()
+                    .zip(record.iter())
+                    .map(|(name, field)| (name.as_str(), heap.alloc(field)))
+                    .collect();
+                rows.push(heap.alloc(starlark::values::dict::AllocDict(pairs)));
+            } else {
+                let fields: Vec<StarValue<'v>> =
+                    record.iter().map(|field| heap.alloc(field)).collect();
+                rows.push(heap.alloc(fields));
+            }
+        }
+
+        Ok(heap.alloc(rows))
+    }
+
+    /// Encode rows as CSV text.
+    ///
+    /// A list of dicts writes a header from the first row's keys; a list of
+    /// lists writes no header.
+    fn encode<'v>(
+        #[starlark(require = pos)] rows: StarValue<'v>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "csv.encode")?;
+
+        // Read the Starlark values rather than converting to JSON first. A
+        // Starlark dict keeps insertion order and `serde_json::Map` sorts, so
+        // the round trip would quietly rename column 1 to whichever name
+        // sorts first.
+        let rows = starlark::values::list::ListRef::from_value(rows)
+            .ok_or_else(|| oops("`encode` takes a list of rows"))?;
+
+        let mut writer = csv::Writer::from_writer(Vec::new());
+        let mut columns: Option<Vec<String>> = None;
+
+        for (index, row) in rows.iter().enumerate() {
+            if let Some(map) = starlark::values::dict::DictRef::from_value(row) {
+                let mut names = Vec::with_capacity(map.len());
+                let mut fields = Vec::with_capacity(map.len());
+                for (key, value) in map.iter() {
+                    names.push(key.to_str());
+                    fields.push(field(value));
+                }
+                match &columns {
+                    None => {
+                        writer.write_record(&names).map_err(oops)?;
+                        columns = Some(names.clone());
+                    }
+                    // The header is written once, so a later row with
+                    // different keys would silently land under the wrong
+                    // columns.
+                    Some(first) if *first == names => {}
+                    Some(first) => {
+                        return Err(oops(format!(
+                            "row {} has keys {:?} and the first row had {:?}",
+                            index + 1,
+                            names,
+                            first
+                        )));
+                    }
+                }
+                writer.write_record(&fields).map_err(oops)?;
+            } else if let Some(list) = starlark::values::list::ListRef::from_value(row) {
+                let fields: Vec<String> = list.iter().map(field).collect();
+                writer.write_record(&fields).map_err(oops)?;
+            } else {
+                return Err(oops(format!(
+                    "row {} is {row}, and a row is a dict or a list",
+                    index + 1
+                )));
+            }
+        }
+
+        let bytes = writer.into_inner().map_err(oops)?;
+        String::from_utf8(bytes).map_err(oops)
+    }
+}
+
+/// One CSV field: a string stays itself, and anything else is written the way
+/// it prints, because a CSV field has no types to lose.
+fn field(value: StarValue<'_>) -> String {
+    value
+        .unpack_str()
+        .map_or_else(|| value.to_string(), str::to_owned)
+}
+
+/// The same, for the JSON values `xml.encode` walks.
+fn scalar(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    }
+}
+
+/// `@std//xml`: a tree, because that is what XML is.
+///
+/// `[R-STAR-018]`. Every mapping of XML onto the shape JSON has must decide
+/// what to do with an element that carries both attributes and children, or
+/// with two children sharing a tag, and every such decision is wrong for some
+/// document. So this returns the four things an element has and lets a handler
+/// that knows its own document build whatever it wants from them.
+#[starlark_module]
+fn xml_module(builder: &mut GlobalsBuilder) {
+    /// Parse XML text into a tree of elements.
+    ///
+    /// Each element is a struct with `tag`, `attrs`, `children`, and `text`.
+    fn parse<'v>(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "xml.parse")?;
+        let root = read_xml(&text)?;
+        let heap = eval.heap();
+        Ok(alloc_element(&heap, &root))
+    }
+
+    /// Encode a tree of elements as XML text.
+    ///
+    /// Takes what `parse` returned, and equally a tree of dicts carrying the
+    /// same four keys. `parse` returns structs because `root.tag` reads better
+    /// than `root["tag"]`, and a handler building a document from nothing has
+    /// only dicts to build it from, so `encode` accepts both.
+    fn encode<'v>(
+        #[starlark(require = pos)] element: StarValue<'v>,
+        #[starlark(require = named, default = false)] declaration: bool,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "xml.encode")?;
+        let value = element.to_json_value().map_err(oops)?;
+        let mut out = String::new();
+        if declaration {
+            out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+        }
+        write_xml(&value, &mut out)?;
+        Ok(out)
+    }
+}
+
+/// An XML element, in the four parts `[R-STAR-018]` names.
+#[derive(Debug, Default)]
+struct Element {
+    tag: String,
+    attrs: Vec<(String, String)>,
+    children: Vec<Element>,
+    text: String,
+}
+
+/// Read one document, keeping child order and joining an element's own text.
+fn read_xml(text: &str) -> starlark::Result<Element> {
+    use quick_xml::events::Event;
+
+    let mut reader = quick_xml::Reader::from_str(text);
+    reader.config_mut().trim_text(true);
+
+    let mut stack: Vec<Element> = Vec::new();
+    let mut root: Option<Element> = None;
+
+    loop {
+        match reader
+            .read_event()
+            .map_err(|error| oops(format!("this is not XML: {error}")))?
+        {
+            Event::Eof => break,
+            Event::Start(start) => stack.push(open(&start)?),
+            Event::Empty(start) => {
+                let element = open(&start)?;
+                match stack.last_mut() {
+                    Some(parent) => parent.children.push(element),
+                    None => root = Some(element),
+                }
+            }
+            Event::End(_) => {
+                let Some(element) = stack.pop() else {
+                    return Err(oops("this is not XML: a closing tag with nothing open"));
+                };
+                match stack.last_mut() {
+                    Some(parent) => parent.children.push(element),
+                    None => root = Some(element),
+                }
+            }
+            Event::Text(body) => {
+                if let Some(element) = stack.last_mut() {
+                    let piece = body
+                        .decode()
+                        .map_err(|error| oops(format!("this is not XML: {error}")))?;
+                    element.text.push_str(&piece);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    if !stack.is_empty() {
+        return Err(oops("this is not XML: a tag was left open"));
+    }
+    root.ok_or_else(|| oops("this is not XML: the document has no element"))
+}
+
+/// The tag and attributes of a start tag.
+fn open(start: &quick_xml::events::BytesStart<'_>) -> starlark::Result<Element> {
+    let tag = String::from_utf8(start.name().as_ref().to_vec())
+        .map_err(|error| oops(format!("this is not XML: {error}")))?;
+    let mut attrs = Vec::new();
+    for attr in start.attributes() {
+        let attr = attr.map_err(|error| oops(format!("this is not XML: {error}")))?;
+        let key = String::from_utf8(attr.key.as_ref().to_vec())
+            .map_err(|error| oops(format!("this is not XML: {error}")))?;
+        // Attribute-value normalisation, as XML 1.0 defines it. `Implicit1_0`
+        // is what a document with no declaration is, and it is what almost
+        // every document a handler will meet is.
+        let value = attr
+            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+            .map_err(|error| oops(format!("this is not XML: {error}")))?
+            .into_owned();
+        attrs.push((key, value));
+    }
+    Ok(Element {
+        tag,
+        attrs,
+        ..Element::default()
+    })
+}
+
+/// One element as a Starlark struct, children first so the tree is complete
+/// before the parent that holds it.
+fn alloc_element<'v>(heap: &starlark::values::Heap<'v>, element: &Element) -> StarValue<'v> {
+    let children: Vec<StarValue<'v>> = element
+        .children
+        .iter()
+        .map(|child| alloc_element(heap, child))
+        .collect();
+    let attrs: Vec<(&str, StarValue<'v>)> = element
+        .attrs
+        .iter()
+        .map(|(key, value)| (key.as_str(), heap.alloc(value.as_str())))
+        .collect();
+    heap.alloc(starlark::values::structs::AllocStruct([
+        ("tag", heap.alloc(element.tag.as_str())),
+        (
+            "attrs",
+            heap.alloc(starlark::values::dict::AllocDict(attrs)),
+        ),
+        ("children", heap.alloc(children)),
+        ("text", heap.alloc(element.text.as_str())),
+    ]))
+}
+
+/// Write one element and everything under it.
+fn write_xml(value: &serde_json::Value, out: &mut String) -> starlark::Result<()> {
+    let serde_json::Value::Object(map) = value else {
+        return Err(oops(format!(
+            "an element is a struct with `tag`, and this is {value}"
+        )));
+    };
+    let Some(serde_json::Value::String(tag)) = map.get("tag") else {
+        return Err(oops("an element needs a `tag`, and a tag is a string"));
+    };
+
+    out.push('<');
+    out.push_str(tag);
+    if let Some(serde_json::Value::Object(attrs)) = map.get("attrs") {
+        for (key, value) in attrs {
+            out.push(' ');
+            out.push_str(key);
+            out.push_str("=\"");
+            escape(&scalar(value), out);
+            out.push('"');
+        }
+    }
+
+    let children = match map.get("children") {
+        Some(serde_json::Value::Array(children)) => children.as_slice(),
+        _ => &[],
+    };
+    let text = match map.get("text") {
+        Some(serde_json::Value::String(text)) => text.as_str(),
+        _ => "",
+    };
+
+    if children.is_empty() && text.is_empty() {
+        out.push_str("/>");
+        return Ok(());
+    }
+
+    out.push('>');
+    escape(text, out);
+    for child in children {
+        write_xml(child, out)?;
+    }
+    out.push_str("</");
+    out.push_str(tag);
+    out.push('>');
+    Ok(())
+}
+
+/// `[R-STAR-018]`: text and attribute values are escaped, so a document built
+/// from a model's output cannot close a tag the handler did not write.
+fn escape(text: &str, out: &mut String) {
+    for ch in text.chars() {
+        match ch {
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '&' => out.push_str("&amp;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            other => out.push(other),
         }
     }
 }
