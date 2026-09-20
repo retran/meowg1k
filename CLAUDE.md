@@ -14,7 +14,7 @@ runtime, the model gateways, the session store, the index, and the terminal.
 
 The tree is Rust. `v0.2.1` was the last Go implementation and is tagged; the
 Go code is gone from this branch and the history has it. `docs/spec/` fixes
-what the binary does, in eight areas of numbered requirements, and
+what the binary does, in ten areas of numbered requirements, and
 `docs/design/` records the decisions that produced them.
 </project>
 
