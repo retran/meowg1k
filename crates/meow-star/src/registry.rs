@@ -177,6 +177,12 @@ pub struct Registry {
     commands: BTreeMap<String, Origin>,
     policy: Option<(meow_policy::Policy, Origin)>,
     index: Option<IndexDecl>,
+    /// Agents a handler named before they were declared.
+    ///
+    /// A markdown agent is read after `meow.star` has been evaluated, so a
+    /// handler that wants one cannot hold its value. It holds a reference
+    /// instead, and the reference is checked here once everything is in.
+    referenced: Vec<(String, Origin)>,
 }
 
 impl Registry {
@@ -235,6 +241,11 @@ impl Registry {
         }
         self.agents.insert(a.name.clone(), a);
         Ok(())
+    }
+
+    /// Record that something named an agent that may not exist yet.
+    pub fn reference_agent(&mut self, name: &str, origin: Origin) {
+        self.referenced.push((name.to_owned(), origin));
     }
 
     /// Say how this workspace is indexed.
@@ -372,6 +383,20 @@ impl Registry {
                     wanted: ModelKind::Embedding.as_str(),
                     is: model.kind.as_str(),
                     used_by: "meow.index".to_owned(),
+                });
+            }
+        }
+
+        // [R-STAR-032]: a reference is checked at load time, after every file
+        // and every markdown agent has been read, so naming one declared
+        // below is fine and naming one that does not exist is not.
+        for (name, origin) in &self.referenced {
+            if !self.agents.contains_key(name) {
+                let _ = origin;
+                return Err(StarError::Unknown {
+                    kind: "agent",
+                    name: name.clone(),
+                    closest: closest(name, self.agents.keys().map(String::as_str)),
                 });
             }
         }

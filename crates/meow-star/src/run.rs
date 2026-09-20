@@ -443,12 +443,19 @@ impl Runtime {
                 message: format!("`{}` was not loaded", handler.module),
             })?;
 
-        let function = module.get(&handler.symbol).map_err(|_| StarError::Load {
-            message: format!(
-                "`{}` has no top-level function `{}`. A tool handler has to be one, because it must survive the file being frozen.",
-                handler.module, handler.symbol
-            ),
-        })?;
+        // `get_any_visibility` rather than `get`: a handler named `_review`
+        // is a private helper of the file that declared it, which is how
+        // anybody would write one, and it is not being exported to another
+        // file. Refusing it would make the convention a mistake.
+        let (function, _visibility) =
+            module
+                .get_any_visibility(&handler.symbol)
+                .map_err(|_| StarError::Load {
+                    message: format!(
+                        "`{}` has no top-level function `{}`. A tool handler has to be one, because it must survive the file being frozen.",
+                        handler.module, handler.symbol
+                    ),
+                })?;
 
         let state = Running {
             runtime: Arc::clone(self),

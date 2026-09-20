@@ -121,27 +121,34 @@ a known defect, not a precedent.
 
 <starlark_runtime>
 
-A user command is a Starlark file under `.meowg1k/commands/` that calls
-`meow.tool(...)` to declare typed parameters and a handler, then
-`meow.command(...)` to expose it on the CLI. Shared helpers live in
-`.meowg1k/lib/`. `.meowg1k/init.star` declares providers, models, and presets
-and loads every command.
+A user command is a Starlark file under `.meow/` that calls `meow.tool(...)` to
+declare typed arguments and a handler, then `meow.command(...)` to put it on the
+command line. `.meow/meow.star` is the entry point: it declares providers,
+models, the index, the policy, and the commands. An agent is a markdown file
+under `.meow/agents/` whose frontmatter carries its settings and whose body is
+its system prompt; shared prompt fragments live in `.meow/lib/*.md`.
 
-Modules are registered in `internal/core/starlark/module_*.go` and surfaced on
-the handler context. To add one:
+This repository uses its own workspace on itself, which is the acceptance test
+for the design. `meow review` reviews what is staged, `meow commit` writes a
+message for it, and `meow ask` answers a question about the code.
 
-1. Write `module_<name>.go` with a `New<Name>Module()` returning a
-   `starlarkstruct`.
-2. Add it to **both** context builders (see the `one_context_builder`
-   principle).
-3. Add `module_<name>_test.go` exercising each builtin, including argument
-   errors.
-4. Document it in `docs/api/API_REFERENCE.md`.
+Runtime modules are registered in `internal/core/starlark/module_*.go` for the
+Go tree and in `crates/meow-star/src/modules.rs` for the Rust one. In Rust there
+is one table and every consumer takes a module from it, which is what
+`[R-STAR-010]` asks for; the Go tree assembles a context by hand in two places
+and they have already drifted. To add a module to the Rust tree:
 
-The agentic loop is `ctx.llm.agent_turn()` in `module_llm.go`. It returns a bare
-string, which is why callers cannot distinguish "the model finished" from "we
-hit `max_iterations`" from "the model returned empty text". Treat its result
-type as the thing to fix, not to work around.
+1. Write the `#[starlark_module]` function, taking `eval` and calling
+   `running(eval, "<module>.<call>")` first so it is refused during
+   declaration, per `[R-STAR-084]`.
+2. Register it in `Modules::build` and add its name to `NAMES`.
+3. Test each builtin in `crates/meow-star/tests/running.rs`, including the
+   argument errors.
+4. Document it in `docs/design/0.3.0-starlark-api.md` section 10.
+
+The agentic loop is `meow-agent`'s `Engine`. It returns an `Outcome` carrying
+the stop reason, the usage, and the parsed value, so a caller can tell a
+finished answer from a budget stop; v0.2.x returned a bare string and could not.
 
 </starlark_runtime>
 
