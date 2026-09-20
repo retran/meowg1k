@@ -257,3 +257,55 @@ fn describing_a_workspace_needs_no_trust() {
         );
     }
 }
+
+/// [R-AUTH-030] a declared package is shown, because it is code somebody else
+/// wrote
+///
+/// This is the single most important line on the list. A workspace that
+/// declares a package will run code from elsewhere, and a prompt that did not
+/// say so would be asking a question it had not fully posed.
+#[test]
+fn a_declared_package_is_shown_in_the_question() {
+    let home = home();
+    let at = workspace(&format!(
+        r#"{DECLARING}
+meow.package(name = "acme", source = "https://example.invalid/acme.tar.gz", version = "1.2.3")
+"#
+    ));
+
+    let complained = stderr(&run(home.path(), at.path(), &["go"]));
+
+    assert!(
+        complained.contains("package acme 1.2.3"),
+        "a declared package must be shown: {complained}"
+    );
+    assert!(
+        complained.contains("example.invalid"),
+        "and where it comes from: {complained}"
+    );
+}
+
+/// [R-AUTH-034] adding a package withdraws the agreement
+#[test]
+fn adding_a_package_asks_again() {
+    let home = home();
+    let at = workspace(DECLARING);
+    run(home.path(), at.path(), &["trust"]);
+    assert!(run(home.path(), at.path(), &["go"]).status.success());
+
+    std::fs::write(
+        at.path().join(".meow").join("meow.star"),
+        format!(
+            r#"{DECLARING}
+meow.package(name = "acme", source = "https://example.invalid/acme.tar.gz", version = "1.2.3")
+"#
+        ),
+    )
+    .unwrap();
+
+    let out = run(home.path(), at.path(), &["go"]);
+    assert!(
+        !out.status.success(),
+        "a workspace that grew a package kept its trust"
+    );
+}

@@ -36,6 +36,16 @@ impl Declared {
         for agent in registry.agents() {
             lines.push(format!("agent {}", agent.name));
         }
+        // A workspace that declares a package will run code somebody else
+        // wrote. That is the single most important thing on this list, and
+        // leaving it off would make the question answer less than it appears
+        // to.
+        for package in registry.packages() {
+            lines.push(format!(
+                "package {} {} from {}",
+                package.name, package.version, package.source
+            ));
+        }
         for tool in registry.tools() {
             lines.push(format!("tool {}", tool.name));
         }

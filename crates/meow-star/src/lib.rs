@@ -31,7 +31,7 @@ pub mod workspace;
 pub use agent::{AgentDecl, Fields, Source};
 pub use args::{Arg, Args};
 pub use error::{Result, StarError};
-pub use loader::{Loaded, load};
+pub use loader::{Loaded, load, load_for_packages};
 pub use port::{Ask, Events, Found, Search, Session, Stdin};
 pub use registry::{Model, Origin, Provider, Registry, ToolDecl};
 pub use run::{Handler, Ports, Runtime};
