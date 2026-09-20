@@ -88,6 +88,12 @@ element into a dictionary. `xml.encode` MUST accept that tree, and equally a
 tree of dictionaries carrying the same four keys, and MUST escape text and
 attribute values.
 
+**[R-STAR-019]** `search.text` and `search.files` MUST search the workspace
+without an index and MUST obey the same walk the index obeys, so a file the
+index ignores is a file they do not report. `search.text` MUST take a literal
+by default and a regular expression when asked, and MUST report the path and
+the line number of every hit.
+
 ### The handler context
 
 **[R-STAR-020]** The handler context MUST expose exactly six members: `args`,
@@ -95,6 +101,19 @@ attribute values.
 
 **[R-STAR-021]** Runtime capabilities MUST NOT be members of the context. A
 handler reaches them by `load`.
+
+### The index
+
+**[R-STAR-024]** The table MUST contain `index`, exposing `build`, `update`,
+`stats`, and `query`. `build` and `update` MUST report what changed as counts
+rather than as text, and `query` MUST take the floor below which a hit is not
+worth returning.
+
+**[R-STAR-025]** An `index` call in a workspace that declares no index MUST
+fail saying so and MUST NOT choose a model on the workspace's behalf. A
+`query` against an index that was never built MUST fail saying to build it,
+and MUST NOT return an empty list, because no results and no index are
+different facts.
 
 ### The store
 
@@ -298,6 +317,18 @@ strings would make every handler encode on the way in and decode on the way
 out, and the two halves would be written in different places and drift. What a
 handler puts in is what it gets back, and the encoding is this module's
 problem.
+
+**No index and no results are different answers**, by [R-STAR-025]. A handler
+that searches and finds nothing takes a different path from one whose search
+could not run, and an empty list would collapse the two. The same reasoning
+made `search.code` fail rather than return nothing when `meow index build` has
+never been run.
+
+**`search.text` does not need an index**, by [R-STAR-019]. Matching literal
+text is a walk and a comparison; requiring an embedding model and a built graph
+for it would make the cheap search depend on the expensive one. What it does
+share is the walk, so that one `.gitignore` decides what is searchable however
+a handler searches.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format

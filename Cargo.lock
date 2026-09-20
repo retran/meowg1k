@@ -1992,6 +1992,7 @@ version = "0.3.0"
 dependencies = [
  "clap",
  "clap_complete",
+ "globset",
  "meow-agent",
  "meow-core",
  "meow-index",
@@ -2002,6 +2003,7 @@ dependencies = [
  "meow-store",
  "meow-ui",
  "ratatui",
+ "regex",
  "serde_json",
  "tempfile",
  "tokio",

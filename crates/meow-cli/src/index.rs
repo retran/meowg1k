@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use meow_index::{Chunking, Embed, Index, Query, Rejected, Walk};
 use meow_llm::Provider;
-use meow_star::port::{Found, Search};
+use meow_star::port::{Found, Indexed, Search, Stats};
 use meow_star::{Registry, Workspace};
 
 /// An embedder over a provider, on a runtime the caller owns.
@@ -110,13 +110,17 @@ pub fn open(
         .with_walk(walk))
 }
 
-/// `search.code`, over an index and an embedder.
+/// `@std//search` and `@std//index`, over an index and an embedder.
 pub struct Searcher {
     /// The lock is not for contention. `rusqlite::Connection` is not `Sync`,
     /// and the port is called from whichever thread a handler or a tool
     /// happens to be on.
     index: std::sync::Mutex<Index>,
     embedder: Embedder,
+    /// `[R-STAR-019]`: `search.text` and `search.files` need no index, but
+    /// they must reach the same files it reaches, so they share its walk.
+    walk: Walk,
+    root: std::path::PathBuf,
 }
 
 impl std::fmt::Debug for Searcher {
@@ -126,29 +130,60 @@ impl std::fmt::Debug for Searcher {
 }
 
 impl Searcher {
-    /// Search this index with this embedder.
-    pub fn new(index: Index, embedder: Embedder) -> Self {
+    /// Search this index with this embedder, walking from this root.
+    pub fn new(
+        index: Index,
+        embedder: Embedder,
+        walk: Walk,
+        root: impl Into<std::path::PathBuf>,
+    ) -> Self {
         Self {
             index: std::sync::Mutex::new(index),
             embedder,
+            walk,
+            root: root.into(),
         }
+    }
+
+    /// The index, or what to tell the script about why it is not usable.
+    fn held(&self) -> Result<std::sync::MutexGuard<'_, Index>, String> {
+        self.index
+            .lock()
+            .map_err(|_| "the index is not usable in this run".to_owned())
+    }
+}
+
+/// `[R-STAR-024]`: counts, not text.
+fn counted(built: &meow_index::Built, files: usize) -> Indexed {
+    Indexed {
+        files,
+        added: built.added,
+        changed: built.changed,
+        removed: built.removed,
+        embedded: built.embedded,
     }
 }
 
 impl Search for Searcher {
     fn code(&self, query: &str, limit: usize, paths: &[String]) -> Result<Vec<Found>, String> {
-        let index = self
-            .index
-            .lock()
-            .map_err(|_| "the index is not usable in this run".to_owned())?;
+        self.query(query, limit, paths, 0.0)
+    }
 
+    fn query(
+        &self,
+        query: &str,
+        limit: usize,
+        paths: &[String],
+        min_score: f32,
+    ) -> Result<Vec<Found>, String> {
+        let index = self.held()?;
         index
             .query(
                 &self.embedder,
                 query,
                 &Query {
                     limit,
-                    min_score: 0.0,
+                    min_score,
                     paths: paths.to_vec(),
                 },
             )
@@ -164,5 +199,117 @@ impl Search for Searcher {
                     .collect()
             })
             .map_err(|e| e.to_string())
+    }
+
+    fn update(&self) -> Result<Indexed, String> {
+        let mut index = self.held()?;
+        let built = index.update().map_err(|e| e.to_string())?;
+        let files = built.added + built.changed + built.unchanged;
+        Ok(counted(&built, files))
+    }
+
+    fn build(&self) -> Result<Indexed, String> {
+        let mut index = self.held()?;
+        let built = index.update().map_err(|e| e.to_string())?;
+        let files = built.added + built.changed + built.unchanged;
+        let embedded = index
+            .embed(&self.embedder, meow_index::embed::DEFAULT_BATCH)
+            .map_err(|e| e.to_string())?;
+        let mut done = counted(&built, files);
+        // `update` reports what it embedded, which is nothing; the count that
+        // matters to a handler is what this call embedded.
+        done.embedded = embedded;
+        Ok(done)
+    }
+
+    fn stats(&self) -> Result<Stats, String> {
+        let index = self.held()?;
+        let (chunks, embedded) = index.counts().map_err(|e| e.to_string())?;
+        Ok(Stats {
+            chunks,
+            embedded,
+            model: index.model().map_err(|e| e.to_string())?,
+        })
+    }
+
+    fn text(
+        &self,
+        pattern: &str,
+        regex: bool,
+        limit: usize,
+        paths: &[String],
+    ) -> Result<Vec<Found>, String> {
+        let matcher = if regex {
+            Some(
+                regex::Regex::new(pattern)
+                    .map_err(|e| format!("`{pattern}` is not a regular expression: {e}"))?,
+            )
+        } else {
+            None
+        };
+
+        let walked = self.walk.run(&self.root).map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+
+        for file in &walked.files {
+            let Ok(relative) = file.strip_prefix(&self.root) else {
+                continue;
+            };
+            let relative = relative.to_string_lossy().replace('\\', "/");
+            if !paths.is_empty() && !paths.iter().any(|p| relative.starts_with(p.as_str())) {
+                continue;
+            }
+            // The walk already refused what is binary or too large, so a read
+            // that fails here is a file that went away between the walk and
+            // now. Skipping it is right; failing the whole search is not.
+            let Ok(body) = std::fs::read_to_string(file) else {
+                continue;
+            };
+            for (number, line) in body.lines().enumerate() {
+                let hit = match &matcher {
+                    Some(re) => re.is_match(line),
+                    None => line.contains(pattern),
+                };
+                if !hit {
+                    continue;
+                }
+                out.push(Found {
+                    path: relative.clone(),
+                    first_line: number + 1,
+                    last_line: number + 1,
+                    text: line.to_owned(),
+                    // A literal either matched or it did not, and saying 1.0
+                    // keeps one shape for every search in the table.
+                    score: 1.0,
+                });
+                if out.len() >= limit {
+                    return Ok(out);
+                }
+            }
+        }
+
+        Ok(out)
+    }
+
+    fn files(&self, pattern: &str, limit: usize) -> Result<Vec<String>, String> {
+        let matcher = globset::Glob::new(pattern)
+            .map_err(|e| format!("`{pattern}` is not a valid glob: {e}"))?
+            .compile_matcher();
+
+        let walked = self.walk.run(&self.root).map_err(|e| e.to_string())?;
+        let mut out = Vec::new();
+        for file in &walked.files {
+            let Ok(relative) = file.strip_prefix(&self.root) else {
+                continue;
+            };
+            let relative = relative.to_string_lossy().replace('\\', "/");
+            if matcher.is_match(&relative) {
+                out.push(relative);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(out)
     }
 }

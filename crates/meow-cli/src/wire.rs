@@ -816,6 +816,8 @@ fn searcher(
     Arc::new(crate::index::Searcher::new(
         index,
         crate::index::Embedder::new(Arc::clone(provider), handle.clone(), model_id),
+        walk,
+        workspace.root(),
     ))
 }
 
