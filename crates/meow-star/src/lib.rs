@@ -10,6 +10,7 @@
 
 pub mod agent;
 pub mod args;
+mod capability;
 pub mod context;
 pub mod declare;
 pub mod error;

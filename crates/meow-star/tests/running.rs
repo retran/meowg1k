@@ -692,3 +692,242 @@ meow.command(meow.tool(name = "probe", about = "look at out", run = handler))
         "ctx.out is not the ten semantic calls"
     );
 }
+
+/// `@std//fs` reads and writes inside the workspace.
+#[tokio::test(flavor = "multi_thread")]
+async fn fs_reads_and_writes_inside_the_workspace() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"load("@std//fs", "read", "write", "append", "exists", "glob", "mkdir", "remove")
+{MODELS}
+
+def handler(ctx):
+    write("notes/a.txt", "first\n")
+    append("notes/a.txt", "second\n")
+    ctx.out.write(read("notes/a.txt").strip())
+    ctx.out.note(str(exists("notes/a.txt")))
+    mkdir("notes/deep")
+    write("notes/deep/b.txt", "x")
+    ctx.out.step(",".join(glob("notes/**/*.txt")))
+    remove("notes/a.txt")
+    ctx.out.warn(str(exists("notes/a.txt")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "use fs", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: first\nsecond",
+            "note: True",
+            "step: notes/a.txt,notes/deep/b.txt",
+            "warn: False",
+        ]
+    );
+}
+
+/// A path that leaves the workspace is refused, whichever way it is written.
+#[tokio::test(flavor = "multi_thread")]
+async fn fs_refuses_a_path_outside_the_workspace() {
+    for (call_text, expected) in [
+        (r#"read("../secret.txt")"#, "climbs out"),
+        (r#"write("../secret.txt", "x")"#, "climbs out"),
+        // Rooted with no drive letter: absolute on Unix, and on Windows
+        // neither absolute nor workspace-relative, which is the case a check
+        // written only against `is_absolute` lets through.
+        (r#"read("/etc/hosts")"#, "outside the workspace"),
+    ] {
+        let h = harness(
+            &[(
+                "meow.star",
+                &format!(
+                    r#"load("@std//fs", "read", "write")
+{MODELS}
+
+def handler(ctx):
+    return str({call_text})
+
+meow.command(meow.tool(name = "probe", about = "escape", run = handler))
+"#
+                ),
+            )],
+            Vec::new(),
+        );
+
+        let runtime = Arc::clone(&h.runtime);
+        let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+            .await
+            .unwrap()
+            .unwrap_err()
+            .to_string();
+
+        assert!(error.contains(expected), "`{call_text}` gave: {error}");
+    }
+}
+
+/// `fs.remove` will not delete the workspace or the store.
+#[tokio::test(flavor = "multi_thread")]
+async fn fs_remove_will_not_take_the_workspace_or_the_store() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"load("@std//fs", "remove")
+{MODELS}
+
+def handler(ctx):
+    remove(".meow/.data")
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "delete the store", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(
+        error.contains("not something `fs.remove` will delete"),
+        "{error}"
+    );
+}
+
+/// `@std//shell` runs a command and reports what it did.
+#[tokio::test(flavor = "multi_thread")]
+async fn shell_runs_a_command_and_reports_it() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"load("@std//shell", "run", "capture", "which")
+{MODELS}
+
+def handler(ctx):
+    ctx.out.write(run(["echo", "hello"]).strip())
+    r = capture(["sh", "-c", "exit 3"])
+    ctx.out.note("%d %s" % (r.code, r.ok))
+    ctx.out.step(str(which("nonesuch-program-xyz") == None))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "use shell", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: hello", "note: 3 False", "step: True"]
+    );
+}
+
+/// A command is a list of words, never a string for a shell to split.
+#[tokio::test(flavor = "multi_thread")]
+async fn shell_refuses_a_command_as_one_string() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"load("@std//shell", "run")
+{MODELS}
+
+def handler(ctx):
+    return run("echo hello && rm -rf /")
+
+meow.command(meow.tool(name = "probe", about = "one string", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("takes a list of words"), "{error}");
+    assert!(
+        error.contains("never saw the shape of"),
+        "the reason is missing: {error}"
+    );
+}
+
+/// A command that will not finish is killed rather than waited on.
+#[tokio::test(flavor = "multi_thread")]
+async fn shell_kills_a_command_that_overruns() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"load("@std//shell", "run")
+{MODELS}
+
+def handler(ctx):
+    return run(["sleep", "30"], timeout_secs = 1)
+
+meow.command(meow.tool(name = "probe", about = "hang", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let runtime = Arc::clone(&h.runtime);
+    let error = tokio::task::spawn_blocking(move || runtime.run_command("probe", &Map::new()))
+        .await
+        .unwrap()
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains("did not finish in 1 seconds"), "{error}");
+}
+
+/// [R-STAR-084] a capability module is loadable during declaration and
+/// refuses to be called there
+#[tokio::test(flavor = "multi_thread")]
+async fn fs_and_shell_refuse_to_run_during_declaration() {
+    for (module, symbol, call_text) in [
+        ("fs", "read", r#"read("a.txt")"#),
+        ("shell", "run", r#"run(["echo", "x"])"#),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join(".meow");
+        std::fs::create_dir_all(&config).unwrap();
+        std::fs::write(
+            config.join("meow.star"),
+            format!("load(\"@std//{module}\", \"{symbol}\")\n{call_text}\n"),
+        )
+        .unwrap();
+
+        let error = meow_star::load(&Workspace::at(dir.path()))
+            .unwrap_err()
+            .to_string();
+
+        assert!(
+            error.contains("not available while .meow/ is being loaded"),
+            "@std//{module} ran during declaration: {error}"
+        );
+    }
+}
