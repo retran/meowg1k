@@ -366,3 +366,67 @@ fn a_workspace_without_markdown_agents_loads() {
     assert!(load_at(&dir).is_ok());
     assert!(!Path::new(&dir.path().join(".meow").join("agents")).exists());
 }
+
+/// A handler can name a markdown agent, which is read after the file that
+/// names it.
+#[test]
+fn a_handler_can_name_a_markdown_agent() {
+    let dir = workspace(&[
+        (
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+reviewer = meow.agent_named("reviewer")
+
+def handler(ctx):
+    return reviewer.name
+
+meow.command(meow.tool(name = "probe", about = "name an agent", run = handler))
+"#
+            ),
+        ),
+        ("agents/reviewer.md", "---\nmodel: fast\n---\nReview.\n"),
+    ]);
+
+    let loaded = load_at(&dir).unwrap();
+    assert!(loaded.registry.agent("reviewer").is_some());
+}
+
+/// [R-STAR-032] a name that matches nothing fails at load time, after every
+/// markdown agent has been read
+#[test]
+fn naming_an_agent_that_does_not_exist_fails_at_load_time() {
+    let dir = workspace(&[
+        (
+            "meow.star",
+            &format!(r#"{MODELS}helper = meow.agent_named("reviewr")"#),
+        ),
+        ("agents/reviewer.md", "---\nmodel: fast\n---\nReview.\n"),
+    ]);
+
+    let error = load_at(&dir).unwrap_err().to_string();
+    assert!(error.contains("agent `reviewr` is not declared"), "{error}");
+    assert!(error.contains("Did you mean `reviewer`?"), "{error}");
+}
+
+/// A handler whose name is private is still a handler.
+#[test]
+fn a_private_handler_is_still_a_handler() {
+    let dir = workspace(&[(
+        "meow.star",
+        &format!(
+            r#"{MODELS}
+def _private(ctx):
+    return "ran"
+
+meow.command(meow.tool(name = "probe", about = "private handler", run = _private))
+"#
+        ),
+    )]);
+
+    let loaded = load_at(&dir).unwrap();
+    assert_eq!(
+        loaded.registry.tool("probe").unwrap().handler.symbol,
+        "_private"
+    );
+}

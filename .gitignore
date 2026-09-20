@@ -58,3 +58,6 @@ docker-compose.override.yml
 /target/
 **/*.rs.bk
 proptest-regressions/
+
+# The workspace's own store: sessions, the cache, and the index.
+.meow/.data/
