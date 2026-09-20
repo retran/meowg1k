@@ -32,18 +32,6 @@
       "groupName": "all minor and patch updates"
     },
     {
-      "description": "Go dependencies",
-      "matchManagers": [
-        "gomod"
-      ],
-      "groupName": "go dependencies",
-      "schedule": [
-        "before 6am on Monday"
-      ],
-      "semanticCommitType": "build",
-      "semanticCommitScope": "deps"
-    },
-    {
       "description": "Rust dependencies: minor and patch group and merge on their own",
       "matchManagers": [
         "cargo"
