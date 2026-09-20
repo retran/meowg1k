@@ -176,6 +176,13 @@ fn send<'v>(
     // `[R-STAR-081]`: the thread blocks. A handler has nothing useful to do
     // with a future, and the evaluator could not hold one anyway.
     let (status, got, text) = state.runtime.block_on(async move {
+        // Before the selects below. `select!` polls its branches in an
+        // unspecified order, so a fast answer can win against a token that
+        // was already cancelled, and then a cancelled run has made a request.
+        if cancel.is_cancelled() {
+            return Err(oops("the run was cancelled"));
+        }
+
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::limited(MAX_REDIRECTS))
             .user_agent(concat!("meowg1k/", env!("CARGO_PKG_VERSION")))

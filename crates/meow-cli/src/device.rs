@@ -132,6 +132,11 @@ pub async fn run(
     cancel: &CancellationToken,
     show: impl Fn(&str, &str),
 ) -> Result<Granted, DeviceError> {
+    // Before the select in the loop below, for the reason given there.
+    if cancel.is_cancelled() {
+        return Err(DeviceError::Cancelled);
+    }
+
     let client = reqwest::Client::builder()
         .user_agent(concat!("meowg1k/", env!("CARGO_PKG_VERSION")))
         .build()
