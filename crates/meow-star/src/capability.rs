@@ -43,7 +43,11 @@ fn oops(message: impl std::fmt::Display) -> starlark::Error {
 /// symbolic link decide where the boundary is.
 fn inside(root: &Path, given: &str) -> starlark::Result<PathBuf> {
     let path = Path::new(given);
-    if path.is_absolute() {
+    // `has_root` rather than `is_absolute`, because on Windows `/etc/hosts`
+    // is neither absolute nor workspace-relative: it has no drive letter, so
+    // `is_absolute` is false and joining it to the root would quietly produce
+    // a path inside the workspace that the caller never asked for.
+    if path.has_root() {
         let resolved = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
         if !resolved.starts_with(root) {
             return Err(oops(format!("`{given}` is outside the workspace")));

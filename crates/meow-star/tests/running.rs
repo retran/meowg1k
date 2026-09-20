@@ -741,6 +741,9 @@ async fn fs_refuses_a_path_outside_the_workspace() {
     for (call_text, expected) in [
         (r#"read("../secret.txt")"#, "climbs out"),
         (r#"write("../secret.txt", "x")"#, "climbs out"),
+        // Rooted with no drive letter: absolute on Unix, and on Windows
+        // neither absolute nor workspace-relative, which is the case a check
+        // written only against `is_absolute` lets through.
         (r#"read("/etc/hosts")"#, "outside the workspace"),
     ] {
         let h = harness(
