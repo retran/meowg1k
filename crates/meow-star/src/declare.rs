@@ -342,6 +342,31 @@ fn declarations(builder: &mut GlobalsBuilder) {
     /// `[R-INDEX-003]` and `[R-INDEX-012]` call configured. Choosing a model
     /// for somebody is how an index gets built by one model and queried by
     /// another.
+    /// Declare a package this workspace loads from.
+    ///
+    /// `[R-PKG-001]`: every `@<name>//` load needs one of these, so
+    /// `meow.lock` is the whole list of what a workspace runs that it did not
+    /// write.
+    fn package<'v>(
+        #[starlark(require = named)] name: String,
+        #[starlark(require = named)] source: String,
+        #[starlark(require = named)] version: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<NoneType> {
+        let state = declaring(eval, "meow.package")?;
+        let origin = state.origin();
+        state
+            .registry_mut()
+            .add_package(crate::package::Package {
+                name,
+                source,
+                version,
+                origin,
+            })
+            .map_err(|e| starlark::Error::new_other(anyhow::anyhow!("{e}")))?;
+        Ok(NoneType)
+    }
+
     fn index<'v>(
         #[starlark(require = named)] model: String,
         #[starlark(require = named, default = NoneOr::None)] chunk_lines: NoneOr<u32>,

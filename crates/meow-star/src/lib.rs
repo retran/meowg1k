@@ -19,6 +19,7 @@ pub mod error;
 pub mod loader;
 pub mod markdown;
 pub mod modules;
+pub mod package;
 pub mod port;
 pub mod registry;
 pub mod run;
