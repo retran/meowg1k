@@ -127,6 +127,14 @@ impl Exchanged {
 #[async_trait]
 impl Bearer for Exchanged {
     async fn token(&self, cancel: &CancellationToken) -> Result<String> {
+        // Before the select, not only inside it. `select!` polls its branches
+        // in an unspecified order, so a request that completes quickly can
+        // win against a token that was already cancelled - and then a
+        // cancelled run has made a request. Checking first is what makes
+        // "cancelled" mean it.
+        if cancel.is_cancelled() {
+            return Err(LlmError::Cancelled);
+        }
         if let Some(token) = self.usable() {
             return Ok(token);
         }
