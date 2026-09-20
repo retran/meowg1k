@@ -29,7 +29,104 @@ pub fn without_workspace(matches: &ArgMatches) -> Option<Ending> {
         }
         Some(("completions", sub)) => Some(completions(sub)),
         Some(("init", _)) => Some(init()),
+        // A credential belongs to the machine, so managing one needs no
+        // workspace - `[R-AUTH-010]`. Being able to log in from anywhere is
+        // also what lets somebody fix a missing credential without first
+        // having a workspace that loads.
+        Some(("auth", sub)) => Some(auth(sub)),
         _ => None,
+    }
+}
+
+/// `meow auth`: the credential store, from the command line.
+fn auth(matches: &ArgMatches) -> Ending {
+    let mut store = match crate::auth::Store::open() {
+        Ok(store) => store,
+        Err(error) => {
+            eprintln!("{error}");
+            return Ending::Config;
+        }
+    };
+
+    match matches.subcommand() {
+        Some(("list", _)) => {
+            if store.list().is_empty() {
+                println!("no credentials stored");
+                return Ending::Passed;
+            }
+            // `[R-AUTH-014]`: the name, the kind, and when. Never the secret.
+            for (name, credential) in store.list() {
+                println!(
+                    "{name}\t{}\tstored {}",
+                    credential.describe(),
+                    credential.stored()
+                );
+            }
+            Ending::Passed
+        }
+
+        Some(("logout", sub)) => {
+            let Some(provider) = sub.get_one::<String>("provider") else {
+                return Ending::Usage;
+            };
+            if !store.remove(provider) {
+                eprintln!("`{provider}` has no stored credential");
+                return Ending::Usage;
+            }
+            match store.save() {
+                Ok(()) => {
+                    println!("removed the credential for `{provider}`");
+                    Ending::Passed
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    Ending::Config
+                }
+            }
+        }
+
+        Some(("login", sub)) => {
+            let Some(provider) = sub.get_one::<String>("provider") else {
+                return Ending::Usage;
+            };
+
+            let key = match sub.get_one::<String>("key") {
+                Some(given) => given.clone(),
+                None => match crate::ask::secret(&format!("Key for `{provider}`")) {
+                    Ok(read) => read,
+                    Err(error) => {
+                        eprintln!("{error}");
+                        return Ending::Usage;
+                    }
+                },
+            };
+
+            if key.trim().is_empty() {
+                eprintln!("an empty key is not a credential");
+                return Ending::Usage;
+            }
+
+            store.put(
+                provider.clone(),
+                crate::auth::Credential::ApiKey {
+                    key: key.trim().to_owned(),
+                    stored: i64::try_from(now_millis() / 1000).unwrap_or(0),
+                },
+            );
+
+            match store.save() {
+                Ok(()) => {
+                    println!("stored a credential for `{provider}`");
+                    Ending::Passed
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    Ending::Config
+                }
+            }
+        }
+
+        _ => Ending::Usage,
     }
 }
 
@@ -355,7 +452,7 @@ fn index(matches: &ArgMatches, workspace: &Workspace, registry: &Registry) -> En
             report(&built);
 
             let Some((runtime, embedder)) = embedder(registry, &model_id) else {
-                eprintln!("no credential for the provider `{model_id}` is served by");
+                eprintln!("{}", served_by(registry, &model_id));
                 return Ending::Provider;
             };
             let _guard = runtime;
@@ -379,7 +476,7 @@ fn index(matches: &ArgMatches, workspace: &Workspace, registry: &Registry) -> En
                 .unwrap_or_default();
 
             let Some((runtime, embedder)) = embedder(registry, &model_id) else {
-                eprintln!("no credential for the provider `{model_id}` is served by");
+                eprintln!("{}", served_by(registry, &model_id));
                 return Ending::Provider;
             };
             let _guard = runtime;
@@ -955,11 +1052,66 @@ fn engines(registry: &Registry) -> Result<HashMap<String, Arc<Engine>>, String> 
 /// author decided the key should be. The conventional variable is the fallback
 /// so a workspace that says nothing still works.
 fn credential(provider: &meow_star::Provider) -> Option<String> {
+    // `[R-AUTH-001]`: one order, always. The declaration first, because a
+    // workspace that says where its key comes from has said it deliberately;
+    // then the store, which is where `meow auth` puts one; then the
+    // environment, which is the escape hatch.
     if let Some(key) = &provider.api_key
         && !key.is_empty()
     {
         return Some(key.clone());
     }
-    let variable = format!("{}_API_KEY", provider.kind.to_uppercase());
-    std::env::var(variable).ok().filter(|key| !key.is_empty())
+
+    // A store that will not open is reported by `meow auth` and by
+    // `meow doctor`, and must not stop a run that has a key elsewhere.
+    if let Ok(store) = crate::auth::Store::open()
+        && let Some(crate::auth::Credential::ApiKey { key, .. }) = store.get(&provider.name)
+        && !key.is_empty()
+    {
+        return Some(key.clone());
+    }
+
+    std::env::var(variable_for(&provider.kind))
+        .ok()
+        .filter(|key| !key.is_empty())
+}
+
+/// What to say when a provider has no credential anywhere.
+///
+/// `[R-AUTH-002]`: all three places, with the variable spelled out, so the
+/// reader can act without consulting a document. One function, because a
+/// message that lists the places differently from where the lookup looked is
+/// a message that sends people to the wrong one.
+pub fn no_credential(provider: &meow_star::Provider) -> String {
+    format!(
+        "`{name}` has no credential. Looked at `api_key` in the declaration, \
+         the store (`meow auth login {name}`), and `${variable}`.",
+        name = provider.name,
+        variable = variable_for(&provider.kind)
+    )
+}
+
+/// The same, found from the model whose provider could not be built.
+///
+/// The caller has a model id rather than a provider, because that is what
+/// configuring the index hands back.
+fn served_by(registry: &Registry, model_id: &str) -> String {
+    let provider = registry
+        .models()
+        .find(|model| model.id == model_id)
+        .and_then(|model| registry.providers().find(|p| p.name == model.provider));
+
+    provider.map_or_else(
+        || format!("no declared provider serves the model `{model_id}`"),
+        no_credential,
+    )
+}
+
+/// The environment variable a provider kind reads.
+///
+/// Named rather than inlined because `[R-AUTH-002]` asks the error to spell it
+/// out, and a message that computes the name differently from the lookup is a
+/// message that sends people to the wrong variable.
+pub fn variable_for(kind: &str) -> String {
+    format!("{}_API_KEY", kind.to_uppercase())
 }
