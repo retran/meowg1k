@@ -29,11 +29,12 @@ verbs compose the same way the built-in ones do.
 A run is a task with a beginning, an end, and a reason it stopped. It is not a
 chatbot.
 
-There is an agent loop now, and it does not contradict this. The loop runs
+The engine runs an agent loop now, and that does not contradict this. The loop
+runs
 against a task under a budget and returns an outcome carrying its stop reason;
 it does not wait for a person. Continuing is explicit and narrow: `--continue`
-resumes the most recent session _of the command being invoked_, and fails when
-there is none rather than starting a fresh run.
+resumes the most recent session _of the command being invoked_, and fails
+rather than starting a fresh run when that command has none.
 
 ## 3. Native performance, zero dependencies
 
@@ -60,14 +61,14 @@ its packages loads offline.
 
 ## 6. Configuration is code
 
-Not a data format that grew expressions - a program. `.meow/meow.star` is
-Starlark, version-controlled, reviewable, and shared with the repository it
-belongs to.
+`.meow/meow.star` is a program, not a data format that grew expressions. It is
+Starlark, so a workflow is version-controlled, reviewable, and shared with the
+repository it belongs to rather than living in somebody's shell history.
 
 **Loading is exclusive, not layered.** A project configuration means the global
 one is not read at all. The earlier statement of this principle described a
-hierarchy, and that was changed deliberately: a global setting bleeding into a
-project that did not restate it is a workspace that behaves differently on two
+hierarchy. That changed deliberately: a global setting bleeding into a project
+that did not restate it makes the workspace behave differently on two
 machines.
 
 ## 7. Predictable and auditable
@@ -103,9 +104,10 @@ What is met: releases carry a Sigstore attestation and an SPDX bill of
 materials, no runtime module can reach the credential store, and no command
 prints a credential.
 
-A second protection the principle did not anticipate: a `.meow/` directory in
-a repository you just cloned is code with tool access, so the first run shows
-what it declares and asks once, and asks again when those declarations change.
+The principle did not anticipate a second protection. A `.meow/` directory in
+a repository somebody just cloned is code with tool access, so the first run
+shows
+what it declares and asks once. It asks again when those declarations change.
 
 ## 10. Predictable cost
 
@@ -145,6 +147,9 @@ A principle is an intention until a requirement enforces it.
 | 9. Security | `R-AUTH-001` to `R-AUTH-014`, `R-AUTH-030` to `R-AUTH-034`, `R-STAR-084` |
 | 10. Predictable cost | `R-AGENT-010` to `R-AGENT-017` |
 
-Three rows above are partly unenforced, and those are #166, #167, and #168. A
-principle with no requirement behind it is a preference; a principle whose
-requirement the code fails is a bug.
+Three of those rows are partly unenforced, which is what #166, #167, and #168
+track.
+
+The distinction decides what a disagreement is. When no requirement backs a
+principle, arguing about it is a design discussion. When a requirement backs it
+and the code fails, that is a bug, and it gets an issue.

@@ -2,6 +2,11 @@
 
 Three kinds of document, and they answer different questions.
 
+## Start here
+
+[vision.md](vision.md) is what meowg1k is, who it is for, and what it
+deliberately is not. Read it first if you have not used the tool.
+
 ## Principles
 
 [philosophy.md](philosophy.md) is what the project is for: eleven principles,
