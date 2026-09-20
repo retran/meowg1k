@@ -314,3 +314,119 @@ async fn identical_contents_share_a_cache_entry() {
         .collect();
     assert_eq!(entries.len(), 1, "one hash must mean one directory");
 }
+
+/// A server that accepts a connection and then says nothing.
+///
+/// A download that never finishes is the case a deadline exists for, and it
+/// cannot be produced by a server that answers.
+struct Silent {
+    port: u16,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Silent {
+    fn new() -> Self {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let halt = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            let mut held = Vec::new();
+            for stream in listener.incoming() {
+                if halt.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                // Kept, never answered, and never closed - closing would give
+                // the client an end of stream to act on.
+                if let Ok(stream) = stream {
+                    held.push(stream);
+                }
+            }
+        });
+
+        Self { port, stop }
+    }
+
+    fn url(&self) -> String {
+        format!("http://127.0.0.1:{}/acme.tar.gz", self.port)
+    }
+}
+
+impl Drop for Silent {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
+
+/// [R-PKG-023] a fetch already cancelled makes no request
+#[tokio::test(flavor = "multi_thread")]
+async fn a_cancelled_fetch_does_not_start() {
+    let server = Silent::new();
+    let config = config();
+    let declared = vec![package("acme", &server.url(), "1.0.0")];
+
+    let cancel = CancellationToken::new();
+    cancel.cancel();
+
+    let began = std::time::Instant::now();
+    let error = meow_cli::fetch::update(config.path(), &declared, &cancel)
+        .await
+        .unwrap_err();
+
+    assert!(
+        error.to_string().contains("cancelled"),
+        "expected a cancellation, got {error}"
+    );
+    // The server never answers, so anything that reached it would wait for
+    // the deadline rather than returning at once.
+    assert!(
+        began.elapsed() < std::time::Duration::from_secs(5),
+        "the request was made before the cancellation was noticed"
+    );
+}
+
+/// [R-PKG-023] a fetch in flight stops when the run is cancelled
+#[tokio::test(flavor = "multi_thread")]
+async fn a_fetch_in_flight_is_interrupted() {
+    let server = Silent::new();
+    let config = config();
+    let declared = vec![package("acme", &server.url(), "1.0.0")];
+
+    let cancel = CancellationToken::new();
+    let stop = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        stop.cancel();
+    });
+
+    let began = std::time::Instant::now();
+    let error = meow_cli::fetch::update(config.path(), &declared, &cancel)
+        .await
+        .unwrap_err();
+    let took = began.elapsed();
+
+    assert!(
+        error.to_string().contains("cancelled"),
+        "expected a cancellation, got {error}"
+    );
+    assert!(
+        took < std::time::Duration::from_secs(10),
+        "the fetch waited out its deadline instead of stopping: {took:?}"
+    );
+    assert!(
+        took >= std::time::Duration::from_millis(250),
+        "it stopped before the cancellation was sent, so it was not interrupted"
+    );
+
+    // And nothing was left behind.
+    let left: Vec<_> = std::fs::read_dir(config.path().join(".data").join("pkg"))
+        .unwrap()
+        .flatten()
+        .collect();
+    assert!(
+        left.is_empty(),
+        "an interrupted fetch left something behind"
+    );
+}
