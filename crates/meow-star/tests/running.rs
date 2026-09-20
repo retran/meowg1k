@@ -1140,3 +1140,320 @@ meow.command(meow.tool(name = "probe", about = "empty message", run = handler))
 
     assert!(error.contains("needs a message"), "{error}");
 }
+
+/// [R-STAR-012] `re` and `time` are in the table and resolve like any module
+#[tokio::test(flavor = "multi_thread")]
+async fn re_and_time_resolve_from_the_table() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "match")
+load("@std//time", "now")
+
+def handler(ctx):
+    ctx.out.write("%s %s" % (type(match), type(now)))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "load both", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: function function"],
+        "`re` and `time` did not resolve to callables"
+    );
+}
+
+/// [R-STAR-013] a match is a list of groups, and a group that did not
+/// participate is `None`
+#[tokio::test(flavor = "multi_thread")]
+async fn match_returns_groups_and_none_for_the_ones_that_did_not_take_part() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "match")
+
+def handler(ctx):
+    ctx.out.write(str(match(r"(a)(b)?(c)", "ac")))
+    ctx.out.write(str(match(r"(a)(b)?(c)", "abc")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "match", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            r#"write: ["ac", "a", None, "c"]"#,
+            r#"write: ["abc", "a", "b", "c"]"#,
+        ],
+        "group 0 must be the whole match and an absent group must be None"
+    );
+}
+
+/// [R-STAR-013] no match is `None`, which is how it is told from matching empty
+#[tokio::test(flavor = "multi_thread")]
+async fn no_match_is_none_and_an_empty_match_is_a_list() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "match")
+
+def handler(ctx):
+    ctx.out.write(str(match(r"z+", "aaa")))
+    ctx.out.write(str(match(r"z*", "aaa")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "match", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: None", r#"write: [""]"#],
+        "a subject that did not match must be told from one that matched empty"
+    );
+}
+
+/// [R-STAR-013] `find_all`, `replace`, and `split` over the same pattern
+#[tokio::test(flavor = "multi_thread")]
+async fn find_all_replace_and_split_agree_about_what_matched() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "find_all", "replace", "split")
+
+def handler(ctx):
+    ctx.out.write(str([m[1] for m in find_all(r"(\w+)@example.com", "a@example.com b@example.com")]))
+    ctx.out.write(replace(r"(\w+)@example.com", "a@example.com b@example.com", "$1"))
+    ctx.out.write(replace(r"\s+", "a  b   c", "-", first_only = True))
+    ctx.out.write(str(split(r",\s*", "one, two,three")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "the rest", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            r#"write: ["a", "b"]"#,
+            "write: a b",
+            "write: a-b   c",
+            r#"write: ["one", "two", "three"]"#,
+        ],
+        "find_all, replace, and split did not agree about the same pattern"
+    );
+}
+
+/// [R-STAR-013] `limit` bounds `find_all`, which a pattern matching empty needs
+#[tokio::test(flavor = "multi_thread")]
+async fn find_all_stops_at_the_limit_it_was_given() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "find_all")
+
+def handler(ctx):
+    ctx.out.write(str(len(find_all(r"a", "aaaaa"))))
+    ctx.out.write(str(len(find_all(r"a", "aaaaa", limit = 2))))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "limit", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: 5", "write: 2"],
+        "limit did not bound the number of matches"
+    );
+}
+
+/// [R-STAR-013] a pattern that will not compile fails at the call, and says why
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pattern_that_does_not_compile_names_itself_and_the_reason() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//re", "match")
+
+def handler(ctx):
+    return str(match(r"(unclosed", "anything"))
+
+meow.command(meow.tool(name = "probe", about = "bad pattern", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+
+    assert!(
+        error.contains("(unclosed") && error.contains("not a regular expression"),
+        "the error must name the pattern and say what was wrong with it: {error}"
+    );
+}
+
+/// [R-STAR-014] `time` round-trips an instant through text without moving it
+#[tokio::test(flavor = "multi_thread")]
+async fn parse_and_format_round_trip_in_utc() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//time", "parse", "format")
+
+def handler(ctx):
+    at = parse("2026-09-20T09:02:46Z")
+    ctx.out.write(str(at))
+    ctx.out.write(format(at))
+    ctx.out.write(format(at, layout = "%Y-%m-%d"))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "time", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: 1789894966",
+            "write: 2026-09-20T09:02:46Z",
+            "write: 2026-09-20",
+        ],
+        "an instant must survive the trip through text unmoved, in UTC"
+    );
+}
+
+/// [R-STAR-014] `since` measures forwards and backwards from an instant
+#[tokio::test(flavor = "multi_thread")]
+async fn since_is_negative_for_an_instant_that_has_not_happened() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//time", "now", "since")
+
+def handler(ctx):
+    at = now()
+    ctx.out.write(str(since(at - 60) >= 60))
+    ctx.out.write(str(since(at + 3600) <= -3599))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "since", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: True", "write: True"],
+        "an instant in the future must give a negative duration, not an error"
+    );
+}
+
+/// [R-STAR-014] text that is not a timestamp fails at the call, and says why
+#[tokio::test(flavor = "multi_thread")]
+async fn text_that_is_not_a_timestamp_names_itself() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//time", "parse")
+
+def handler(ctx):
+    return str(parse("last tuesday"))
+
+meow.command(meow.tool(name = "probe", about = "bad time", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+
+    assert!(
+        error.contains("last tuesday") && error.contains("RFC 3339"),
+        "the error must name the text and the format it wanted: {error}"
+    );
+}
+
+/// [R-STAR-084] neither module may be called while `.meow/` is being evaluated
+#[tokio::test(flavor = "multi_thread")]
+async fn re_and_time_are_refused_during_declaration() {
+    for (module, call) in [("re", r#"match("a", "a")"#), ("time", "now()")] {
+        let name = if module == "re" { "match" } else { "now" };
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".meow").join("meow.star");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            path,
+            format!(
+                r#"load("@std//{module}", "{name}")
+{call}
+"#
+            ),
+        )
+        .unwrap();
+
+        let error = load(&Workspace::at(dir.path())).unwrap_err().to_string();
+        assert!(
+            error.contains(module),
+            "calling `{module}` during declaration must be refused by name: {error}"
+        );
+    }
+}

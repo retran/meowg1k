@@ -53,6 +53,21 @@ context or module set of its own.
 the same modules, with the same behaviour, as a handler invoked from the
 command line.
 
+**[R-STAR-012]** The table MUST contain `re` and `time`, and each MUST behave
+identically in a handler invoked from the command line and in one invoked
+inside an agent loop.
+
+**[R-STAR-013]** `re.match`, `re.find_all`, `re.replace`, and `re.split` MUST
+accept a pattern and a subject, and MUST fail at the call with the pattern and
+the reason when the pattern does not compile. A pattern that compiles but
+matches nothing MUST NOT be an error: `match` MUST return `None`, and
+`find_all` and `split` MUST return a list.
+
+**[R-STAR-014]** `time.now`, `time.parse`, `time.format`, and `time.since` MUST
+work in a single scale - a UTC instant counted in seconds - and MUST NOT accept
+or return a local time. A handler that reports a duration MUST get the same
+number whatever the machine's zone.
+
 ### The handler context
 
 **[R-STAR-020]** The handler context MUST expose exactly six members: `args`,
@@ -220,6 +235,14 @@ so loading `.meow/` cannot have consequences.
 useful and would make the tool set unknowable before a run, which breaks
 `meow policy explain` and with it the promise that a permission decision can be
 predicted without triggering it.
+
+**`re` and `time` return one scale each**, by [R-STAR-013] and [R-STAR-014].
+A regular expression module that sometimes returns a string and sometimes a
+list forces every caller to test the type first, and a time module that knows
+about zones turns every comparison into a question about where the machine is.
+So a match is a list of groups or `None`, and an instant is seconds in UTC.
+Formatting for a human is what `time.format` is for, and it is the only place a
+zone could ever enter.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format
