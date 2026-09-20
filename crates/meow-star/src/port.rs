@@ -369,10 +369,11 @@ pub mod quiet {
             Err(NONE.to_owned())
         }
 
-        // `text` and `files` need no index, and a run wired with `NoIndex`
-        // has no workspace walker either, so they are empty here rather than
-        // an error: a test that drives a handler with no ports is not a
-        // workspace with nothing in it.
+        // These two need no index, so returning an empty list would be a
+        // plausible answer - and that is exactly what made the defect this
+        // replaces invisible: the binary wired this port for a workspace with
+        // no index and every search said the workspace was empty. A port that
+        // cannot search says it cannot search.
         fn text(
             &self,
             _pattern: &str,
@@ -380,11 +381,11 @@ pub mod quiet {
             _limit: usize,
             _paths: &[String],
         ) -> Result<Vec<super::Found>, String> {
-            Ok(Vec::new())
+            Err(NONE.to_owned())
         }
 
         fn files(&self, _pattern: &str, _limit: usize) -> Result<Vec<String>, String> {
-            Ok(Vec::new())
+            Err(NONE.to_owned())
         }
     }
 
@@ -455,7 +456,11 @@ pub mod quiet {
 
     /// `[R-STAR-025]`: no index and no results are different answers, so every
     /// call says which one this is rather than returning nothing.
-    const NONE: &str = "this run has no index; run `meow index build` first";
+    ///
+    /// This is the double for a run wired with no search at all. A workspace
+    /// that merely has no index built is a different thing, and the binary
+    /// gives it a port that still walks - see `[R-STAR-019]`.
+    const NONE: &str = "this run has no search; run `meow index build` first";
 
     /// Keeps what a run stored, and forgets it afterwards.
     #[derive(Debug, Default)]
