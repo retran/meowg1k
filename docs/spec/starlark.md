@@ -68,6 +68,26 @@ work in a single scale - a UTC instant counted in seconds - and MUST NOT accept
 or return a local time. A handler that reports a duration MUST get the same
 number whatever the machine's zone.
 
+**[R-STAR-015]** The table MUST contain `yaml`, `toml`, `csv`, and `xml`, and
+each MUST expose `parse` and `encode`. Text that the format rejects MUST fail
+at the call with the reason, and MUST NOT be returned as a partial value.
+
+**[R-STAR-016]** `yaml.parse`, `toml.parse`, and `json.parse` MUST produce the
+same Starlark value for documents that describe the same data, and each
+`encode` MUST accept any value the other two produce. A handler MUST be able to
+read one format and write another without knowing which it read.
+
+**[R-STAR-017]** `csv.parse` MUST return a list of dictionaries when the first
+record names the columns and a list of lists when it does not, and MUST fail
+naming the record number when a record's length disagrees with the header.
+`csv.encode` MUST accept either shape.
+
+**[R-STAR-018]** `xml.parse` MUST return a tree in which every element carries
+its `tag`, its `attrs`, its `children`, and its `text`, and MUST NOT flatten an
+element into a dictionary. `xml.encode` MUST accept that tree, and equally a
+tree of dictionaries carrying the same four keys, and MUST escape text and
+attribute values.
+
 ### The handler context
 
 **[R-STAR-020]** The handler context MUST expose exactly six members: `args`,
@@ -243,6 +263,19 @@ about zones turns every comparison into a question about where the machine is.
 So a match is a list of groups or `None`, and an instant is seconds in UTC.
 Formatting for a human is what `time.format` is for, and it is the only place a
 zone could ever enter.
+
+**XML is a tree and not a dictionary**, by [R-STAR-018]. Every library that
+maps XML onto the shape JSON has must decide what to do when an element has
+both attributes and children, or two children with one tag, and every such
+decision is wrong for some document. So `xml.parse` returns what XML actually
+is - a tag, attributes, ordered children, text - and a handler that wants a
+dictionary writes the three lines that build one, knowing its own document.
+
+**A CSV with a header is a list of dictionaries**, by [R-STAR-017]. The
+alternative is to return rows and a separate header list and make every caller
+zip them, which is the same work done once per handler instead of once here. A
+file whose first record is data rather than names is the case `header = False`
+exists for.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format

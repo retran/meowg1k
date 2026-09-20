@@ -1457,3 +1457,397 @@ async fn re_and_time_are_refused_during_declaration() {
         );
     }
 }
+
+/// [R-STAR-015] the four encoders are in the table and resolve
+#[tokio::test(flavor = "multi_thread")]
+async fn the_encoders_resolve_from_the_table() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//yaml", yaml_parse = "parse")
+load("@std//toml", toml_parse = "parse")
+load("@std//csv", csv_parse = "parse")
+load("@std//xml", xml_parse = "parse")
+
+def handler(ctx):
+    names = [type(f) for f in [yaml_parse, toml_parse, csv_parse, xml_parse]]
+    ctx.out.write(" ".join(names))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "load them", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: function function function function"],
+        "the four encoders did not all resolve"
+    );
+}
+
+/// [R-STAR-016] the same data through three formats is the same value
+#[tokio::test(flavor = "multi_thread")]
+async fn yaml_toml_and_json_agree_about_the_same_data() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//yaml", yaml_parse = "parse")
+load("@std//toml", toml_parse = "parse")
+load("@std//json", json_parse = "parse", json_encode = "encode")
+
+def handler(ctx):
+    a = yaml_parse("name: meow\ncount: 3\ntags:\n  - one\n  - two\n")
+    b = toml_parse('name = "meow"\ncount = 3\ntags = ["one", "two"]\n')
+    c = json_parse('{{"name": "meow", "count": 3, "tags": ["one", "two"]}}')
+    ctx.out.write(str(a == b))
+    ctx.out.write(str(b == c))
+    ctx.out.write(json_encode(a))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "three formats", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: True",
+            "write: True",
+            r#"write: {"count":3,"name":"meow","tags":["one","two"]}"#,
+        ],
+        "three formats describing the same data must produce one value"
+    );
+}
+
+/// [R-STAR-016] a value read as one format encodes as another
+#[tokio::test(flavor = "multi_thread")]
+async fn a_document_read_as_yaml_writes_as_toml() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//yaml", yaml_parse = "parse")
+load("@std//toml", toml_encode = "encode")
+
+def handler(ctx):
+    ctx.out.write(toml_encode(yaml_parse("name: meow\ncount: 3\n")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "cross", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: count = 3\nname = \"meow\"\n"],
+        "a value read as YAML must be encodable as TOML"
+    );
+}
+
+/// [R-STAR-015] TOML's top level is a table, and anything else is refused
+#[tokio::test(flavor = "multi_thread")]
+async fn toml_refuses_a_top_level_that_is_not_a_table() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//toml", "encode")
+
+def handler(ctx):
+    return encode([1, 2, 3])
+
+meow.command(meow.tool(name = "probe", about = "bad toml", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+
+    assert!(
+        error.contains("table") && error.contains("dict"),
+        "the error must say TOML's top level is a table: {error}"
+    );
+}
+
+/// [R-STAR-015] text the format rejects fails at the call, with the reason
+#[tokio::test(flavor = "multi_thread")]
+async fn text_the_format_rejects_fails_rather_than_returning_a_partial_value() {
+    for (module, bad) in [
+        ("yaml", "a:\n  - b\n c: broken\n"),
+        ("toml", "this is not = = toml"),
+        ("xml", "<open>text"),
+    ] {
+        let h = harness(
+            &[(
+                "meow.star",
+                &format!(
+                    r#"{MODELS}
+load("@std//{module}", "parse")
+
+def handler(ctx):
+    return str(parse({bad:?}))
+
+meow.command(meow.tool(name = "probe", about = "bad input", run = handler))
+"#
+                ),
+            )],
+            Vec::new(),
+        );
+
+        let error = fails(&h.runtime, "probe").await;
+        assert!(
+            error.to_lowercase().contains(module),
+            "`{module}` must say what format it wanted: {error}"
+        );
+    }
+}
+
+/// [R-STAR-017] a header makes rows dicts, and no header makes them lists
+#[tokio::test(flavor = "multi_thread")]
+async fn csv_shape_follows_whether_the_first_record_names_the_columns() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//csv", "parse")
+
+def handler(ctx):
+    ctx.out.write(str(parse("name,count\nmeow,3\n")))
+    ctx.out.write(str(parse("meow,3\n", header = False)))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "csv", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            r#"write: [{"name": "meow", "count": "3"}]"#,
+            r#"write: [["meow", "3"]]"#,
+        ],
+        "the shape must follow the header"
+    );
+}
+
+/// [R-STAR-017] a record that disagrees with the header names its own number
+#[tokio::test(flavor = "multi_thread")]
+async fn a_short_csv_record_names_which_record_it_was() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//csv", "parse")
+
+def handler(ctx):
+    return str(parse("a,b,c\n1,2,3\n4,5\n"))
+
+meow.command(meow.tool(name = "probe", about = "ragged", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+
+    assert!(
+        error.contains("record 2") && error.contains('3'),
+        "the error must name the record and both widths: {error}"
+    );
+}
+
+/// [R-STAR-017] `encode` takes either shape back
+#[tokio::test(flavor = "multi_thread")]
+async fn csv_encode_round_trips_both_shapes() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//csv", "parse", "encode")
+
+def handler(ctx):
+    ctx.out.write(encode(parse("name,count\nmeow,3\n")))
+    ctx.out.write(encode([["meow", "3"]]))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "round trip", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: name,count\nmeow,3\n", "write: meow,3\n"],
+        "both shapes must survive the round trip"
+    );
+}
+
+/// [R-STAR-018] an element is a tag, attributes, ordered children, and text
+#[tokio::test(flavor = "multi_thread")]
+async fn xml_parse_keeps_what_a_dictionary_would_lose() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//xml", "parse")
+
+def handler(ctx):
+    root = parse('<feed kind="atom"><item>one</item><item>two</item></feed>')
+    ctx.out.write(root.tag)
+    ctx.out.write(str(root.attrs))
+    ctx.out.write(",".join([c.text for c in root.children]))
+    ctx.out.write(str(len(root.children)))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "xml", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: feed",
+            r#"write: {"kind": "atom"}"#,
+            "write: one,two",
+            "write: 2",
+        ],
+        "two children sharing a tag must both survive, in order"
+    );
+}
+
+/// [R-STAR-018] `encode` escapes, so text cannot close a tag nobody opened
+#[tokio::test(flavor = "multi_thread")]
+async fn xml_encode_escapes_text_and_attributes() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//xml", "encode")
+
+def handler(ctx):
+    el = {{
+        "tag": "note",
+        "attrs": {{"by": 'a "quoted" name'}},
+        "children": [],
+        "text": "</note><script>",
+    }}
+    ctx.out.write(encode(el))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "escape", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [concat!(
+            r#"write: <note by="a &quot;quoted&quot; name">"#,
+            "&lt;/note&gt;&lt;script&gt;</note>"
+        )],
+        "text and attribute values must be escaped"
+    );
+}
+
+/// [R-STAR-018] a tree survives the round trip
+#[tokio::test(flavor = "multi_thread")]
+async fn xml_round_trips_a_tree() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//xml", "parse", "encode")
+
+def handler(ctx):
+    doc = '<feed kind="atom"><item id="1">one</item><empty/></feed>'
+    ctx.out.write(encode(parse(doc)))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "round trip", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [r#"write: <feed kind="atom"><item id="1">one</item><empty/></feed>"#],
+        "a tree must come back as the document it was read from"
+    );
+}
+
+/// [R-STAR-084] no encoder may be called while `.meow/` is being evaluated
+#[tokio::test(flavor = "multi_thread")]
+async fn the_encoders_are_refused_during_declaration() {
+    for module in ["yaml", "toml", "csv", "xml"] {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(".meow").join("meow.star");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            path,
+            format!(
+                r#"load("@std//{module}", "parse")
+parse("")
+"#
+            ),
+        )
+        .unwrap();
+
+        let error = load(&Workspace::at(dir.path())).unwrap_err().to_string();
+        assert!(
+            error.contains(module),
+            "calling `{module}` during declaration must be refused by name: {error}"
+        );
+    }
+}
