@@ -1194,3 +1194,89 @@ async fn a_fan_out_cannot_spend_more_than_the_caller_has() {
         "and the rest are stopped, not silently dropped"
     );
 }
+
+/// [R-AGENT-014] [R-AGENT-062] a branch made after its siblings spent is
+/// bounded by what is left, not by what the counter already reads
+///
+/// The bug this catches: a child's budget is what its caller had left, which
+/// is a relative amount, and the counter it was checked against was
+/// cumulative. A branch created after two steps had run compared its allowance
+/// of one against a counter already reading two and refused itself, so a
+/// fan-out spent less than its caller allowed and how much less depended on
+/// how the tasks happened to interleave.
+#[test]
+fn a_branch_made_later_still_gets_what_is_left() {
+    let caller = Ledger::new(Budget {
+        steps: Some(3),
+        ..Budget::unbounded()
+    });
+
+    let generous = Budget {
+        steps: Some(100),
+        ..Budget::unbounded()
+    };
+
+    // Two branches made and spent before the third is made at all, which is
+    // what `tokio::spawn` produces when a task starts while the loop that
+    // spawns it is still going.
+    let first = caller.child(generous);
+    assert!(first.reserve_step().is_ok());
+    let second = caller.child(generous);
+    assert!(second.reserve_step().is_ok());
+
+    let third = caller.child(generous);
+    assert!(
+        third.reserve_step().is_ok(),
+        "the caller had a step left and the branch refused it"
+    );
+
+    // And the fourth does not, because now there is nothing left.
+    let fourth = caller.child(generous);
+    assert_eq!(fourth.reserve_step(), Err(Axis::Steps));
+    assert_eq!(caller.reserve_step(), Err(Axis::Steps));
+}
+
+/// [R-AGENT-013] a sub-agent numbers its own steps, not its caller's
+#[test]
+fn a_sub_agent_counts_its_own_steps() {
+    let caller = Ledger::new(Budget {
+        steps: Some(10),
+        ..Budget::unbounded()
+    });
+    assert!(caller.reserve_step().is_ok());
+    assert!(caller.reserve_step().is_ok());
+    assert_eq!(caller.steps_taken(), 2);
+
+    let child = caller.child(Budget {
+        steps: Some(5),
+        ..Budget::unbounded()
+    });
+    assert_eq!(child.steps_taken(), 0, "a first step is not step three");
+
+    assert!(child.reserve_step().is_ok());
+    assert_eq!(child.steps_taken(), 1);
+    // And the caller sees it, because the spend is shared.
+    assert_eq!(caller.steps_taken(), 3);
+}
+
+/// [R-AGENT-014] a child still cannot outspend its caller, however generous
+/// its own declaration
+#[test]
+fn a_child_cannot_outspend_its_caller() {
+    let caller = Ledger::new(Budget {
+        steps: Some(2),
+        ..Budget::unbounded()
+    });
+    let child = caller.child(Budget {
+        steps: Some(100),
+        ..Budget::unbounded()
+    });
+
+    assert!(child.reserve_step().is_ok());
+    assert!(child.reserve_step().is_ok());
+    assert_eq!(
+        child.reserve_step(),
+        Err(Axis::Steps),
+        "the child's hundred is capped by the caller's two"
+    );
+}
