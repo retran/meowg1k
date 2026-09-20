@@ -2691,3 +2691,91 @@ async fn search_and_index_are_refused_during_declaration() {
         );
     }
 }
+
+/// [R-STAR-029] `path` speaks one separator, and it is `/`
+///
+/// The native separator is the obvious choice and the wrong one:
+/// `search.files` and `fs.glob` report `/`, so a handler that built a path
+/// natively and compared it against a reported one matched here and failed on
+/// Windows, with nothing saying why.
+#[tokio::test(flavor = "multi_thread")]
+async fn paths_are_written_with_one_separator() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//path", "join", "dir", "base", "ext", "rel", "abs")
+
+def handler(ctx):
+    ctx.out.write(join("a", "b", "c.rs"))
+    ctx.out.write(dir("a/b/c.rs"))
+    ctx.out.write(base("a/b/c.rs"))
+    ctx.out.write(ext("a/b/c.rs"))
+    ctx.out.write(rel("a/b/c.rs", "a"))
+    ctx.out.write("abs %s" % ("/" in abs("a/b") and "\\" not in abs("a/b")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "paths", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: a/b/c.rs",
+            "write: a/b",
+            "write: c.rs",
+            "write: rs",
+            "write: b/c.rs",
+            "write: abs True",
+        ],
+        "a path must come back with forward slashes on every platform"
+    );
+}
+
+/// [R-STAR-029] a path given with the native separator is understood
+#[tokio::test(flavor = "multi_thread")]
+async fn a_path_given_with_a_backslash_is_understood() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//path", "dir", "base", "join")
+
+def handler(ctx):
+    # What a handler gets back from a program that speaks the platform.
+    ctx.out.write(base("a\\b\\c.rs"))
+    ctx.out.write(join("a\\b", "c.rs"))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "backslash", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    // On Unix a backslash is an ordinary character in a file name, so nothing
+    // is rewritten and a file really called `a\b\c.rs` keeps its name. On
+    // Windows it is a separator and the path is read as three components.
+    let expected: Vec<String> = if std::path::MAIN_SEPARATOR == '/' {
+        vec![r"write: a\b\c.rs".to_owned(), r"write: a\b/c.rs".to_owned()]
+    } else {
+        vec!["write: c.rs".to_owned(), "write: a/b/c.rs".to_owned()]
+    };
+
+    assert_eq!(
+        h.out.lines(),
+        expected,
+        "a native separator must be understood where it is one"
+    );
+}
