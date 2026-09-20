@@ -10,6 +10,7 @@
 
 pub mod ask;
 pub mod auth;
+pub mod device;
 pub mod exit;
 pub mod index;
 mod keep;

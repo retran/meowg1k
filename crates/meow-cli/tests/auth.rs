@@ -27,8 +27,10 @@ fn run(home: &Path, at: &Path, args: &[&str]) -> Output {
     bare(home, at, args)
 }
 
+/// Run `meow` without agreeing first, and with nothing on stdin.
 fn bare(home: &Path, at: &Path, args: &[&str]) -> Output {
     meow()
+        .stdin(std::process::Stdio::null())
         .current_dir(at)
         .env("MEOW_HOME", home)
         .env_remove("ANTHROPIC_API_KEY")
@@ -289,5 +291,29 @@ meow.index(model = "e")
             && complained.contains("meow auth login")
             && complained.contains("ANTHROPIC_API_KEY"),
         "the complaint must name the declaration, the store, and the variable: {complained}"
+    );
+}
+
+/// [R-AUTH-023] a device flow is refused when there is nobody to read the code
+#[test]
+fn an_oauth_login_needs_a_terminal() {
+    let home = home();
+    let at = workspace();
+
+    // Stdin is a pipe here, as it is in every CI job and every script.
+    let out = bare(home.path(), at.path(), &["auth", "login", "copilot"]);
+    let complained = stderr(&out);
+
+    assert!(
+        !out.status.success(),
+        "a device flow ran with nobody watching"
+    );
+    assert!(
+        complained.contains("needs a terminal"),
+        "the refusal must say why: {complained}"
+    );
+    assert!(
+        complained.contains("browser"),
+        "and what it would have asked for: {complained}"
     );
 }
