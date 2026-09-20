@@ -3,22 +3,19 @@
 <role>
 Root policy for Claude Code working in the meowg1k repository. This file is
 canonical. Anything under `.claude/` adds routing and workflow detail and must
-not override this policy. Files under `docs/guides/` are reference material, not
-policy - where they disagree with this file, this file wins and the guide gets
-fixed.
+not override this policy. `docs/spec/` is normative about what the binary does;
+this file is normative about how to work on it, and the two do not overlap.
 </role>
 
 <project>
-meowg1k is a script-friendly AI companion CLI. Users define their own commands in
-Starlark; the Go binary supplies the runtime, the LLM gateways, the session
-store, and the terminal UI.
+meowg1k is a script-friendly AI companion CLI. Users define their own commands
+in Starlark and their own agents in markdown; the Rust binary supplies the
+runtime, the model gateways, the session store, the index, and the terminal.
 
-The repository is mid-transition. `v0.2.1` is the final Go implementation and is
-tagged. `v0.3.0` will be a ground-up redesign in canonical Rust - not a
-transliteration of the Go code. The design is in `docs/design/`:
-`0.3.0-architecture.md`, `0.3.0-starlark-api.md`, `0.3.0-sessions.md`, and
-`0.3.0-tui.md`. Until the Rust tree exists, everything below describes the Go
-codebase.
+The tree is Rust. `v0.2.1` was the last Go implementation and is tagged; the
+Go code is gone from this branch and the history has it. `docs/spec/` fixes
+what the binary does, in 264 requirements across eight areas, and
+`docs/design/` records the decisions that produced them.
 </project>
 
 <principles>
@@ -41,35 +38,40 @@ afterwards. The `spec-driven` skill has the method.
 </principle>
 
 <principle name="starlark_api_is_the_product">
-The Starlark surface is what users actually touch; the Go code exists to serve
-it. A change that makes the Go internals tidier but leaves `ctx.llm.agent_turn`
-harder to write agents against is a regression. When the two conflict, the
-Starlark API wins.
+The Starlark surface is what users actually touch; the Rust code exists to
+serve it. A change that makes a crate tidier but leaves `agent.run` harder to
+write agents against is a regression. When the two conflict, the Starlark API
+wins.
+
+`.meow/` in this repository is the test of it. If a change makes the workspace
+meowg1k uses on itself worse to read, the change is wrong however good the
+internals look.
 </principle>
 
 <principle name="docs_must_match_code">
-`docs/` currently documents modules and commands that do not exist
-(`//lib/tools.star`, `//lib/formatting.star`, `review-agent.star`,
-`orchestrator-agent.star`, `meow sessions`, `meow show-session`). Do not extend
-that drift. If you touch a subsystem and find its guide describes something
-other than the code, fix the guide in the same change or delete the stale
-section - never leave a third variant behind.
+The v0.2.x guides described modules and commands that did not exist, and they
+are deleted rather than corrected. Do not start a third account of the system:
+`docs/spec/` says what the binary does, `docs/design/` says why, and the code
+says how. If you touch a subsystem and find a document describing something
+else, fix it in the same change or delete the stale section.
 </principle>
 
 <principle name="one_context_builder">
-The handler context (`ctx.fs`, `ctx.llm`, `ctx.git`, ...) is assembled in two
-places: `internal/core/starlark/ctx_run.go` for `ctx.run()` and
-`internal/core/starlark/module_llm.go` for tools invoked inside an agentic
-loop. They are near-identical literals and have already diverged on UI depth.
-Adding a module to one and not the other silently breaks agents. Any new context
-member goes through a single shared constructor, or into both, never one.
+v0.2.x assembled the handler context in two places, `ctx_run.go` and
+`module_llm.go`, and they had already diverged on UI nesting depth: a module
+added to one was silently missing from tools running inside an agent loop.
+
+`crates/meow-star/src/modules.rs` is the one table now, and
+`crates/meow-star/src/context.rs` builds the one context. A second place for
+either is the defect, whatever it buys.
 </principle>
 
 <principle name="no_stdout_behind_the_tui">
-`log.Printf` and `fmt.Print` write straight through the Bubble Tea frame and
-corrupt the display. Route diagnostics through the progress logger
-(`internal/adapters/progress`) or the trace log
-(`internal/adapters/tracelog`).
+`println!` and `eprintln!` write straight through the live frame and corrupt
+it, which is how v0.2.x lost its display to ten `log.Printf` calls in the agent
+loop. The workspace lint denies both outside `meow-cli`. Diagnostics go through
+the event stream, which every renderer handles and which puts them in
+scrollback in order.
 </principle>
 
 <principle name="reviewable_history">
@@ -100,22 +102,33 @@ git log -1 --format=%B |
 
 <architecture>
 
-Hexagonal, ports and adapters:
+Nine crates, and the dependency direction is one way:
 
-| Layer | Path | Holds |
+| Crate | Holds | Depends on |
 | --- | --- | --- |
-| Domain | `internal/domain/` | Types with no behaviour and no imports outward |
-| Ports | `internal/ports/` | Interfaces the core depends on |
-| Core | `internal/core/` | Business logic: starlark runtime, retrieval, chunking, sessions, presets |
-| Adapters | `internal/adapters/` | LLM gateways, SQLite, git, HTTP, terminal output |
-| App | `internal/app/container.go` | Dependency wiring |
-| UI | `internal/ui/` | Bubble Tea widgets and rendering |
-| CMD | `cmd/` | Cobra entry points; Starlark commands are registered dynamically |
+| `meow-core` | Types, no behaviour, no input or output | nothing |
+| `meow-store` | One SQLite database: blobs, sessions, cache, index rows | `meow-core` |
+| `meow-session` | The append-only log, forks, retention, export | `meow-store` |
+| `meow-llm` | What a provider is, and five that are | `meow-core` |
+| `meow-policy` | What an agent may do, and who decides | `meow-core` |
+| `meow-agent` | The loop: budgets, tools, compaction, sub-agents | `meow-llm`, `meow-policy` |
+| `meow-index` | Walking, chunking, embedding, retrieval | `meow-store` |
+| `meow-star` | The Starlark surface and the thread a handler runs on | `meow-agent` |
+| `meow-ui` | Three renderers over one event stream | `meow-core` |
+| `meow-cli` | The binary: the command line, the wiring, the process | everything |
 
-The direction of dependency is inward only. Core imports ports, never adapters.
-`internal/core/starlark/module_llm.go` currently breaks this by importing
-`internal/adapters/gateway` directly for the embeddings factory - treat that as
-a known defect, not a precedent.
+Three boundaries carry the design, and crossing one is a defect however small
+it looks:
+
+- `meow-core` depends on no workspace crate and performs no input or output.
+- `meow-agent` does not know Starlark exists. `meow-star` depends on it, never
+  the reverse, which is what lets the engine be tested without a script.
+- `meow-ui` knows about the event types and nothing else. It does not know the
+  engine exists, which is what lets a renderer be driven from a recorded log.
+
+What `meow-star` needs from crates that depend on it - the terminal, the
+session log, the index - arrives as a trait. That is also what lets a test
+drive a handler with no terminal and no account.
 
 </architecture>
 
@@ -132,11 +145,9 @@ This repository uses its own workspace on itself, which is the acceptance test
 for the design. `meow review` reviews what is staged, `meow commit` writes a
 message for it, and `meow ask` answers a question about the code.
 
-Runtime modules are registered in `internal/core/starlark/module_*.go` for the
-Go tree and in `crates/meow-star/src/modules.rs` for the Rust one. In Rust there
-is one table and every consumer takes a module from it, which is what
-`[R-STAR-010]` asks for; the Go tree assembles a context by hand in two places
-and they have already drifted. To add a module to the Rust tree:
+Runtime modules are registered in `crates/meow-star/src/modules.rs`. There is
+one table and every consumer takes a module from it, which is what
+`[R-STAR-010]` asks for. To add one:
 
 1. Write the `#[starlark_module]` function, taking `eval` and calling
    `running(eval, "<module>.<call>")` first so it is refused during
@@ -154,41 +165,57 @@ finished answer from a budget stop; v0.2.x returned a bare string and could not.
 
 <build>
 
-The Go tree builds with Task; the toolchain comes from mise.
+mise owns the toolchain and the tasks; there is no Taskfile.
 
 ```bash
-mise install            # golangci-lint; Go itself is already on the machine
-task check:all          # lint, test, security - these run in parallel
-task check:test         # go test with -race and the 65% coverage gate
-task check:lint         # golangci-lint run
-task fix:fmt            # golangci-lint fmt (goimports)
-task build              # -> bin/meow
+mise install            # the toolchain and every tool a task invokes
+mise run all            # everything CI runs, in parallel
+mise run check          # clippy, with -D warnings
+mise run test           # nextest across the workspace
+mise run fmt            # rustfmt
+mise run deny           # advisories, licences, bans, sources
+mise run build          # -> target/debug/meow
 ```
 
-Two things the docs get wrong and you should not repeat: `gofumpt` is named
-throughout `CONTRIBUTING.md` and `docs/guides/go-conventions.md` but is not in
-the `formatters` block of `.golangci.yaml`, so nothing enforces it; and
-`task check:security` calls `gosec` and `govulncheck` as bare binaries, which
-only exist after `task tools:install`.
+`mise run all` is the gate. It runs the same seven things CI does, so a green
+run here means a green run there; if they ever disagree, that is a defect in
+one of them and not something to route around.
 
-`v0.3.0` replaces Task with mise tasks outright - do not invest in the Taskfile.
+Two tool choices worth knowing. `cargo-nextest` comes from the prebuilt
+`github:nextest-rs/nextest` backend rather than `cargo:`, because building it
+from source compiles `aws-lc-sys` and needs a C toolchain and cmake. And
+`cargo-deny` needs `allow-wildcard-paths` together with `publish = false` on
+every library crate, or it reads an intra-workspace path dependency as an
+unpinned one.
+
+`deny.toml` carries five ignored advisories, each with its reason. All are
+"unmaintained" rather than vulnerable, all arrive through a pinned dependency
+with no safe upgrade, and they are listed one by one so a new advisory against
+a direct dependency still fails the check.
 
 </build>
 
 <conventions>
 
-- Apache 2.0 header on every Go file; `LICENSE_HEADER.txt` is the template.
-- Wrap errors with `fmt.Errorf("...: %w", err)` and enough context to locate the
-  call site without a stack trace.
-- Table-driven tests with testify. `require` for preconditions, `assert` for
-  the assertions under test.
-- Coverage gate is 65%. `internal/domain/`, `internal/ports/`, and
-  `internal/templates/` have no tests at all; new domain logic needs them.
-- `golangci-lint` passes on the Go tree. `goconst` is set to six occurrences
-  and skips tests, because at the default of three a map key used in three
-  places counted as a magic string; `internal/core/starlark/` is excluded from
-  it entirely, since the repetition there is builtin names rather than
-  literals.
+- Apache 2.0 header on every Rust file; `LICENSE_HEADER.txt` is the template.
+- One `thiserror` enum per crate. Variants named for what went wrong rather
+  than for where, and each carries enough to act on.
+- Never `unwrap` or `expect` outside tests. When an invariant truly cannot
+  fail, restructure so the compiler sees it; where that is impossible, the
+  message says which invariant and why.
+- `clippy.toml` exempts `#[test]` functions from the `unwrap` denial and not
+  the helpers beside them, so an integration test file with helpers needs a
+  file-level `#![allow(clippy::unwrap_used)]`.
+- Every test that checks a requirement names it in a doc comment:
+  `/// [R-SESSION-014] compaction supersedes without deleting`.
+- Test the failure paths as carefully as the success path. Missing arguments,
+  cancellation mid-call, exhausted budgets, malformed model output, and storage
+  failures are where the defects are.
+- Do not test private internals. A test that reaches past a public API makes
+  the crate hard to change and proves nothing a user could observe.
+- An `#[allow]` needs a comment saying why. A derive that emits an `unsafe
+  impl` needs the allow at module scope, because an attribute on the struct
+  does not cover a sibling item.
 
 </conventions>
 
@@ -218,16 +245,18 @@ The skills in `.claude/skills/`:
 
 <maintenance>
 
-Keep this file and `docs/` synchronized with the code. When you change:
+Keep this file, `docs/spec/`, and `docs/design/` synchronized with the code.
+When you change:
 
-- **the Starlark API** - update `docs/api/API_REFERENCE.md` and
-  `docs/guides/starlark-system.md`
-- **the agentic loop or session model** - update
-  `docs/guides/agentic-system.md`
-- **architecture or wiring** - update `docs/guides/architecture.md` and the
-  table above
+- **behaviour** - find the requirement in `docs/spec/` first. If there is none,
+  write one; if the code would contradict one, amend it in place with the date
+  and the reason, and say so in the pull request.
+- **the Starlark API** - update `docs/design/0.3.0-starlark-api.md`, and check
+  whether `.meow/` in this repository still reads well against it.
+- **architecture or wiring** - update `docs/design/0.3.0-architecture.md` and
+  the table above.
 - **build or lint configuration** - update the `<build>` section above and
-  `CONTRIBUTING.md`
+  `CONTRIBUTING.md`.
 
 This file is the only instruction file in the repository. If a tool wants its
 own, point it here instead of adding a second source of truth.
