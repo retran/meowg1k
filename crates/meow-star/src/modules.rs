@@ -659,6 +659,12 @@ fn escape(text: &str, out: &mut String) {
 }
 
 /// `@std//path`: paths as text, with no disk behind them.
+///
+/// One separator, `/`, on every platform - `[R-STAR-029]`. The native
+/// separator is the obvious choice and the wrong one: `search.files` and
+/// `fs.glob` report `/`, so a handler that built a path natively and compared
+/// it against a reported one matched on Unix and failed on Windows. Windows
+/// accepts `/` in a path, so emitting it costs nothing.
 #[starlark_module]
 fn path_module(builder: &mut GlobalsBuilder) {
     /// Join segments.
@@ -669,9 +675,9 @@ fn path_module(builder: &mut GlobalsBuilder) {
         running(eval, "path.join")?;
         let mut out = PathBuf::new();
         for part in parts.items {
-            out.push(part);
+            out.push(native(&part));
         }
-        Ok(out.to_string_lossy().into_owned())
+        Ok(slashed(&out))
     }
 
     /// Everything before the last separator.
@@ -680,10 +686,8 @@ fn path_module(builder: &mut GlobalsBuilder) {
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<String> {
         running(eval, "path.dir")?;
-        Ok(Path::new(&path)
-            .parent()
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_default())
+        let path = native(&path);
+        Ok(Path::new(&path).parent().map(slashed).unwrap_or_default())
     }
 
     /// Everything after the last separator.
@@ -692,6 +696,7 @@ fn path_module(builder: &mut GlobalsBuilder) {
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<String> {
         running(eval, "path.base")?;
+        let path = native(&path);
         Ok(Path::new(&path)
             .file_name()
             .map(|p| p.to_string_lossy().into_owned())
@@ -704,6 +709,7 @@ fn path_module(builder: &mut GlobalsBuilder) {
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<String> {
         running(eval, "path.ext")?;
+        let path = native(&path);
         Ok(Path::new(&path)
             .extension()
             .map(|p| p.to_string_lossy().into_owned())
@@ -721,10 +727,14 @@ fn path_module(builder: &mut GlobalsBuilder) {
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<String> {
         running(eval, "path.rel")?;
-        Ok(Path::new(&path)
-            .strip_prefix(Path::new(&base))
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or(path))
+        let given = native(&path);
+        Ok(Path::new(&given)
+            .strip_prefix(Path::new(&native(&base)))
+            .map(slashed)
+            // A path that is not under the base comes back as it was given,
+            // which is the one case where the caller's spelling is the right
+            // answer rather than this module's.
+            .unwrap_or_else(|_| slashed(Path::new(&given))))
     }
 
     /// A path against the workspace root.
@@ -733,14 +743,36 @@ fn path_module(builder: &mut GlobalsBuilder) {
         eval: &mut Evaluator<'v, '_, '_>,
     ) -> starlark::Result<String> {
         let state = running(eval, "path.abs")?;
+        let path = native(&path);
         let given = Path::new(&path);
         let out = if given.is_absolute() {
             given.to_path_buf()
         } else {
             state.runtime.workspace().root().join(given)
         };
-        Ok(out.to_string_lossy().into_owned())
+        Ok(slashed(&out))
     }
+}
+
+/// A path written the way `[R-STAR-029]` asks: one separator, and it is `/`.
+fn slashed(path: impl AsRef<Path>) -> String {
+    let text = path.as_ref().to_string_lossy().into_owned();
+    if std::path::MAIN_SEPARATOR == '/' {
+        return text;
+    }
+    text.replace(std::path::MAIN_SEPARATOR, "/")
+}
+
+/// The same path in whatever `Path` wants to parse here.
+///
+/// `[R-STAR-029]` says this module accepts `\` in what it is given. On Unix a
+/// backslash is an ordinary character in a file name, so nothing is rewritten
+/// there and a file really called `a\b` keeps its name.
+fn native(path: &str) -> String {
+    if std::path::MAIN_SEPARATOR == '/' {
+        return path.to_owned();
+    }
+    path.replace('/', std::path::MAIN_SEPARATOR_STR)
 }
 
 /// `@std//search`: asking the index a question.
