@@ -33,9 +33,15 @@ and a name with no module MUST fail listing the available modules.
 **[R-STAR-004]** `load("//<path>", ...)` MUST resolve relative to `.meow/`,
 and MUST fail for a path that escapes it.
 
-**[R-STAR-005]** `load("@<pkg>//<path>", ...)` MUST fail with an error stating
-that packages are not implemented, and MUST NOT be interpreted as a local
-path.
+**[R-STAR-005]** `load("@<pkg>//<path>", ...)` MUST resolve to a declared
+package, per `docs/spec/packages.md`, and MUST NOT be interpreted as a local
+path. A name no declaration gives MUST fail saying so.
+
+> Amended 2026-09-20. This required the scheme to fail as unimplemented, which
+> was right while it was. Packages are being built, and the requirement now
+> points at the specification that describes them rather than forbidding them.
+> The second half is unchanged and is the part that mattered: a package name
+> is not a path, and must never be read as one.
 
 **[R-STAR-006]** Loading MUST detect an import cycle and fail with the cycle
 listed in order.
