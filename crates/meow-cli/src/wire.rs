@@ -394,6 +394,7 @@ pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded
         "models" => models(&loaded.registry),
         "providers" => providers(&loaded.registry),
         "doctor" => doctor(&workspace, &loaded.registry),
+        "pkg" => pkg(sub, &workspace, &loaded.registry),
         "policy" => policy(sub, &loaded.registry),
         "session" => session(sub, &workspace),
         "trust" => trust_command(sub, &workspace, &loaded),
@@ -523,6 +524,94 @@ fn policy(matches: &ArgMatches, registry: &Registry) -> Ending {
             }
             Ending::Passed
         }
+        _ => Ending::Usage,
+    }
+}
+
+/// `meow pkg ...`: what this workspace runs that it did not write.
+fn pkg(matches: &ArgMatches, workspace: &Workspace, registry: &Registry) -> Ending {
+    let config = workspace.config_dir();
+    let declared: Vec<meow_star::package::Package> = registry.packages().cloned().collect();
+
+    let lock = match meow_star::package::Lock::read(&config) {
+        Ok(lock) => lock,
+        Err(error) => {
+            eprintln!("{error}");
+            return Ending::Config;
+        }
+    };
+
+    if let Some(("list", _)) = matches.subcommand() {
+        if declared.is_empty() {
+            println!("no packages are declared");
+            return Ending::Passed;
+        }
+        for package in &declared {
+            let pinned = lock
+                .packages
+                .get(&package.name)
+                .map_or_else(|| "not pinned".to_owned(), |p| p.hash[..12].to_owned());
+            println!(
+                "{}\t{}\t{}\t{pinned}",
+                package.name, package.version, package.source
+            );
+        }
+        return Ending::Passed;
+    }
+
+    if declared.is_empty() {
+        println!("no packages are declared");
+        return Ending::Passed;
+    }
+
+    let Ok(runtime) = tokio::runtime::Runtime::new() else {
+        eprintln!("could not start a runtime");
+        return Ending::Failed;
+    };
+    let cancel = CancellationToken::new();
+    let stop = cancel.clone();
+    runtime.spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            stop.cancel();
+        }
+    });
+
+    match matches.subcommand() {
+        Some(("update", _)) => {
+            let written = runtime.block_on(crate::fetch::update(&config, &declared, &cancel));
+            match written {
+                Ok(lock) => match lock.write(&config) {
+                    Ok(()) => {
+                        for (name, pin) in &lock.packages {
+                            println!("{name}\t{}\t{}", pin.version, &pin.hash[..12]);
+                        }
+                        Ending::Passed
+                    }
+                    Err(error) => {
+                        eprintln!("{error}");
+                        Ending::Config
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error}");
+                    Ending::Provider
+                }
+            }
+        }
+
+        Some(("fetch", _)) => {
+            match runtime.block_on(crate::fetch::ensure(&config, &declared, &lock, &cancel)) {
+                Ok(got) => {
+                    println!("fetched\t{got}");
+                    Ending::Passed
+                }
+                Err(error) => {
+                    eprintln!("{error}");
+                    Ending::Provider
+                }
+            }
+        }
+
         _ => Ending::Usage,
     }
 }
