@@ -162,23 +162,32 @@ impl Ledger {
     /// spend is the same allocation, which is what makes `[R-AGENT-013]`
     /// transitive rather than one level deep.
     pub fn child(&self, asked: Budget) -> Self {
-        Self {
-            budget: asked.narrowed_to(self.remaining_as_budget()),
-            spend: Arc::clone(&self.spend),
-            base: self.reading(),
-        }
-    }
-
-    /// What the shared counter says right now.
-    fn reading(&self) -> Base {
+        // One lock, not two. The child's allowance and the point it measures
+        // from must describe the same instant: taken separately, a step
+        // charged in between makes the allowance larger than the base admits
+        // and the child may take one step more than the caller had. That is
+        // how six branches against a caller with three steps finished four.
         let Ok(s) = self.spend.lock() else {
-            return Base::default();
+            return Self {
+                budget: asked,
+                spend: Arc::clone(&self.spend),
+                base: Base::default(),
+            };
         };
-        Base {
+
+        let base = Base {
             tokens: s.tokens,
             steps: s.steps,
             cost_micros: s.cost_micros,
             elapsed: s.started.elapsed(),
+        };
+        let left = self.left_from(&base);
+        drop(s);
+
+        Self {
+            budget: asked.narrowed_to(left),
+            spend: Arc::clone(&self.spend),
+            base,
         }
     }
 
@@ -264,27 +273,29 @@ impl Ledger {
     }
 
     /// What is left, as a budget a child can be narrowed against.
-    fn remaining_as_budget(&self) -> Budget {
-        let Ok(s) = self.spend.lock() else {
-            return Budget::unbounded();
-        };
+    /// What is left of this ledger's budget, given a reading of the counter.
+    ///
+    /// Takes the reading rather than taking the lock, so that a caller
+    /// needing both this and the reading itself can get them from one lock
+    /// and have them agree.
+    fn left_from(&self, now: &Base) -> Budget {
         Budget {
             tokens: self
                 .budget
                 .tokens
-                .map(|l| l.saturating_sub(s.tokens.saturating_sub(self.base.tokens))),
+                .map(|l| l.saturating_sub(now.tokens.saturating_sub(self.base.tokens))),
             steps: self
                 .budget
                 .steps
-                .map(|l| l.saturating_sub(s.steps.saturating_sub(self.base.steps))),
+                .map(|l| l.saturating_sub(now.steps.saturating_sub(self.base.steps))),
             duration: self
                 .budget
                 .duration
-                .map(|l| l.saturating_sub(s.started.elapsed().saturating_sub(self.base.elapsed))),
+                .map(|l| l.saturating_sub(now.elapsed.saturating_sub(self.base.elapsed))),
             cost_micros: self
                 .budget
                 .cost_micros
-                .map(|l| l.saturating_sub(s.cost_micros.saturating_sub(self.base.cost_micros))),
+                .map(|l| l.saturating_sub(now.cost_micros.saturating_sub(self.base.cost_micros))),
         }
     }
 }
