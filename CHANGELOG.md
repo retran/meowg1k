@@ -6,7 +6,7 @@ and the version numbers follow [semantic versioning](https://semver.org/).
 ## [0.3.0] - 2026-09-20
 
 `0.3.0` is a rewrite. The Go implementation is gone, and what replaces it is
-Rust written against eight specifications rather than a transliteration of the
+Rust written against ten specifications rather than a transliteration of the
 old code. Read this section as a description of a new program, not as a list of
 changes to the old one: nothing in `0.2.x` survives except the idea that you
 write your commands in Starlark and the binary supplies the runtime.
@@ -35,6 +35,27 @@ write your commands in Starlark and the binary supplies the runtime.
 - An inline terminal UI that scrolls with the shell instead of taking the
   screen, and emits the same event vocabulary live that an export writes to a
   file.
+- Seventeen `@std//` modules, which is the whole surface
+  `docs/design/0.3.0-starlark-api.md` promises: `csv`, `env`, `fs`, `git`,
+  `http`, `index`, `json`, `path`, `re`, `search`, `shell`, `store`, `text`,
+  `time`, `toml`, `xml`, and `yaml`.
+- A credential store at `~/.meow/auth.json`, outside every workspace, so a
+  repository cannot carry a key and a contributor cannot commit one. Resolution
+  takes the declaration, then the store, then the provider's environment
+  variable, and a provider with none names all three. `meow auth login`,
+  `logout`, and `list`; no command prints a credential.
+- Trust. A `.meow/` directory in a repository you just cloned is code with tool
+  access, so the first run shows what it declares - agents, tools, commands,
+  packages, and the policy it asks for - and asks once. A workspace that grows
+  a tool or widens a rule asks again; editing a handler's body does not.
+  `meow trust`, with `--withdraw` and `--list`.
+- GitHub Copilot as a provider, reached by a device-code flow rather than an
+  API key. What a person approves is a long-lived grant; the provider exchanges
+  it for a short-lived token and renews that without asking again.
+- Packages. `meow.package` declares one, `.meow/meow.lock` pins it by version
+  and SHA-256, and `@pkg//` loads a file from it. A load never fetches, the
+  contents are verified before anything is evaluated, and the cache is keyed by
+  hash rather than by version. `meow pkg update`, `fetch`, and `list`.
 - `meow init`, `meow check`, `meow run`, and the commands your own scripts
   declare.
 
