@@ -91,3 +91,12 @@ description = "Review pending snapshot changes"
 [tasks.all]
 depends = ["fmt-check", "check", "test", "doc", "deny", "unused-deps", "lint-md"]
 description = "Everything CI checks"
+
+# What a tag will do, without tagging anything: every check CI runs, plus the
+# release build it gates. Run this before you tag, because the release
+# workflow builds four targets and finding a release-profile failure there
+# costs twenty minutes and a deleted tag.
+[tasks.release-check]
+description = "Everything a tag would run, on this machine"
+depends = ["all"]
+run = "cargo build --release --locked -p meow-cli"
