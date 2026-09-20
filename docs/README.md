@@ -35,8 +35,8 @@ wins and the design document gets fixed.
 - [0.3.0-sessions.md](design/0.3.0-sessions.md) - the log, forking, retention
 - [0.3.0-tui.md](design/0.3.0-tui.md) - the inline viewport and the command
   surface
-- [0.3.0-plan.md](design/0.3.0-plan.md) - eleven milestones, every requirement
-  assigned to exactly one
+- [0.3.0-plan.md](design/0.3.0-plan.md) - twelve milestones, M0 to M11, and
+  how the requirements were assigned across them; executed
 
 ## The workspace this repository uses
 
