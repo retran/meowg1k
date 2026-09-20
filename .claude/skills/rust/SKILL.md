@@ -22,8 +22,8 @@ defect however small it looks:
 - `meow-ui` depends on `meow-core` for event types and on nothing else in the
   workspace. It does not know the engine exists.
 
-`v0.2.x` broke the equivalent boundary: `internal/core/starlark` imports
-`internal/adapters/gateway` directly. Do not reproduce it.
+`v0.2.x` broke the equivalent boundary: its Starlark package imported the
+model gateway directly for an embeddings factory. Do not reproduce it.
 
 Keep the layering checkable. `cargo deny` and a workspace lint enforce it, so a
 violation fails CI instead of being found in review.
