@@ -29,7 +29,7 @@ pub const TOP_LEVEL: &[&str] = &[
 ];
 
 /// The groups every other built-in lives under.
-pub const GROUPS: &[&str] = &["session", "auth", "index", "policy"];
+pub const GROUPS: &[&str] = &["session", "auth", "index", "pkg", "policy"];
 
 /// Build the command line for a workspace.
 ///
@@ -289,6 +289,14 @@ fn builtins() -> Vec<Command> {
                     ),
             )
             .subcommand(Command::new("clear").about("Forget the index, keeping everything else")),
+        Command::new("pkg")
+            .about("Packages this workspace loads from")
+            .subcommand_required(true)
+            .subcommand(
+                Command::new("update").about("Re-resolve every package and rewrite meow.lock"),
+            )
+            .subcommand(Command::new("fetch").about("Download what meow.lock already pins"))
+            .subcommand(Command::new("list").about("Say what is declared and pinned")),
         Command::new("policy")
             .about("Work with permission rules")
             .subcommand_required(true)
