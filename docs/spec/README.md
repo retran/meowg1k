@@ -94,10 +94,13 @@ the only thing that stops it being reopened.
 
 ## Status
 
-All eight component specifications are drafted, with 262 requirements
-between them, and every open question is closed. They were approved on
-2026-09-19 and are the acceptance criteria for the work in
-`docs/design/0.3.0-plan.md`.
+All eight component specifications are drafted and every open question is
+closed. They were approved on 2026-09-19 and are the acceptance criteria for
+the work in `docs/design/0.3.0-plan.md`. Requirements have been added since -
+the Starlark module surface grew to fill what the design document promised -
+so the count is whatever the files say rather than a number recorded here,
+which is a number that goes stale the first time anybody writes a
+requirement.
 
 | Area | File | Requirements |
 | --- | --- | --- |
