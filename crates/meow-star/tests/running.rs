@@ -2272,13 +2272,11 @@ meow.command(meow.tool(name = "probe", about = "404", run = handler))
 /// [R-STAR-023] a request that never reached a response does fail
 #[tokio::test(flavor = "multi_thread")]
 async fn a_connection_that_is_refused_fails() {
-    // Bound and dropped, so nothing is listening and the port is not in use
-    // by something else that would answer.
-    let port = {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.local_addr().unwrap().port()
-    };
-
+    // A host that cannot resolve, rather than a port nothing is listening on.
+    // Binding a port and dropping it says only that it was free a moment ago;
+    // another test binding port 0 at the same time can be handed the one just
+    // released, and then this test reaches that test's server. `.invalid` is
+    // reserved by RFC 2606 and never resolves.
     let h = harness(
         &[(
             "meow.star",
@@ -2287,7 +2285,7 @@ async fn a_connection_that_is_refused_fails() {
 load("@std//http", "get")
 
 def handler(ctx):
-    return get("http://127.0.0.1:{port}/").body
+    return get("http://meowg1k.invalid/").body
 
 meow.command(meow.tool(name = "probe", about = "refused", run = handler))
 "#
