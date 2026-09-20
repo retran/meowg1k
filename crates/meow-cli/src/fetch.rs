@@ -87,6 +87,13 @@ pub async fn fetch(
     package: &Package,
     cancel: &CancellationToken,
 ) -> Result<String, FetchError> {
+    // Before any select below: `select!` polls in an unspecified order, so a
+    // fast answer can win against a token that was already cancelled, and a
+    // cancelled run would have made a request.
+    if cancel.is_cancelled() {
+        return Err(FetchError::Cancelled);
+    }
+
     let url = url_for(package);
     let client = reqwest::Client::builder()
         .timeout(TIMEOUT)

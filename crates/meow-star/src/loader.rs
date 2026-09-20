@@ -65,6 +65,18 @@ struct Loader<'a> {
     /// `[R-PKG-012]`: read once, so a load consults it rather than the
     /// network.
     lock: crate::package::Lock,
+    /// Whether a package that is not yet available may stand in.
+    ///
+    /// `meow pkg update` has to read a workspace's declarations to know what
+    /// to fetch, and a workspace cannot be read while a `load` it contains
+    /// refuses - so the command whose job is to make a package available
+    /// would require it to be available already. When this is set, an
+    /// unresolvable package becomes a module defining exactly the names the
+    /// `load` statement asked for, bound to `None`.
+    ///
+    /// The names come from parsing the file, not from guessing: a stub that
+    /// defined everything would let a typo load.
+    stub_missing_packages: bool,
 }
 
 impl FileLoader for Loader<'_> {
@@ -114,13 +126,22 @@ impl Loader<'_> {
     /// files a package loads must be named relative to it and are.
     fn package(&self, name: &str, path: &str) -> Result<FrozenModule> {
         let declared = self.state.registry().package(name).cloned();
-        let file = crate::package::resolve(
+        let file = match crate::package::resolve(
             &self.workspace.config_dir(),
             declared.as_ref(),
             &self.lock,
             name,
             path,
-        )?;
+        ) {
+            Ok(file) => file,
+            // Only a package this workspace actually declares stands in. An
+            // undeclared one is a mistake in what was written, and `meow pkg
+            // update` cannot fix it by fetching.
+            Err(error) if self.stub_missing_packages && declared.is_some() => {
+                return self.stub(name, path).map_err(|_| error);
+            }
+            Err(error) => return Err(error),
+        };
 
         let key = format!("@{name}//{path}");
         if let Some(module) = self.done.borrow().get(&key) {
@@ -139,6 +160,53 @@ impl Loader<'_> {
         let module = result?;
         self.done.borrow_mut().insert(key, module.clone());
         Ok(module)
+    }
+
+    /// A module defining the names a `load` of an unavailable package asked
+    /// for, and nothing else.
+    ///
+    /// Used only while reading a workspace for `meow pkg`. The names are
+    /// parsed out of the file that does the loading rather than invented, so
+    /// a `load` naming a symbol the package does not have still fails once
+    /// the package is there.
+    fn stub(&self, name: &str, path: &str) -> Result<FrozenModule> {
+        let wanted = format!("@{name}//{path}");
+        let mut symbols: Vec<String> = Vec::new();
+
+        for file in self.stack.borrow().iter() {
+            let source = match self.source_of(file) {
+                Some(source) => source,
+                None => continue,
+            };
+            let Ok(ast) = AstModule::parse(file, source, &Dialect::Extended) else {
+                continue;
+            };
+            for load in ast.loads() {
+                if load.module_id == wanted {
+                    symbols.extend(load.symbols.iter().map(|(_, their)| (*their).to_owned()));
+                }
+            }
+        }
+
+        Module::with_temp_heap(|module| {
+            for symbol in &symbols {
+                module.set(symbol, starlark::values::Value::new_none());
+            }
+            module
+                .freeze()
+                .map_err(|e| StarError::Starlark(format!("{e:?}")))
+        })
+    }
+
+    /// The text of a file currently being evaluated, by its load key.
+    fn source_of(&self, key: &str) -> Option<String> {
+        let file = if key == "meow.star" {
+            self.workspace.config_dir().join("meow.star")
+        } else {
+            let local = key.strip_prefix("//")?;
+            self.workspace.resolve_local(local).ok()?
+        };
+        std::fs::read_to_string(file).ok()
     }
 
     fn std_module(&self, name: &str) -> Result<FrozenModule> {
@@ -298,6 +366,25 @@ impl Loader<'_> {
 /// evaluator produced, which is what carries the file, line, and column
 /// `[R-STAR-090]` asks for.
 pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
+    load_inner(workspace, false)
+}
+
+/// The same, tolerating a declared package that is not yet available.
+///
+/// `meow pkg update` reads a workspace to learn what to fetch, and a workspace
+/// whose `load` refuses cannot be read - so without this the command whose job
+/// is to make a package available would require it to be available already.
+/// Nothing else uses it: a run, a check, or an agent all take the strict path.
+///
+/// # Errors
+///
+/// As [`load`], except that a declared package which is unlocked, uncached, or
+/// mismatched stands in rather than failing.
+pub fn load_for_packages(workspace: &crate::Workspace) -> Result<Loaded> {
+    load_inner(workspace, true)
+}
+
+fn load_inner(workspace: &crate::Workspace, stub: bool) -> Result<Loaded> {
     let state = Declaring::new();
     let globals = globals();
 
@@ -317,6 +404,7 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
         stack: RefCell::new(Vec::new()),
         order: RefCell::new(Vec::new()),
         lock,
+        stub_missing_packages: stub,
     };
 
     loader.local("meow.star")?;
