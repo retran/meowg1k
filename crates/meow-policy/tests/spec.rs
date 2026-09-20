@@ -321,7 +321,11 @@ fn an_ask_with_nobody_to_answer_becomes_deny_not_allow() {
     );
 }
 
-/// [R-POLICY-023] a session grant applies to this process only
+/// [R-POLICY-023] [R-TUI-062] a session grant applies to this process only
+///
+/// Both requirements say it, and this is the one place it can be checked:
+/// `[R-TUI-062]` is about what choosing "always" at the prompt means, and what
+/// it means is a grant that nothing writes back to a file.
 #[test]
 fn a_session_grant_lives_and_dies_with_the_process() {
     let policy = Policy::new().with(Decision::Ask, rule("shell"));

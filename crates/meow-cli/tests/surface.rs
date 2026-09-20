@@ -230,7 +230,8 @@ fn help_and_version_exit_zero() {
     );
 }
 
-/// [R-TUI-002] --format json selects the JSON renderer even from a terminal
+/// [R-TUI-002] [R-TUI-033] --format json selects the JSON renderer even from a
+/// terminal, and every line of stdout is an event
 #[test]
 fn format_json_produces_one_object_per_line() {
     let dir = workspace(WORKSPACE);
@@ -810,4 +811,31 @@ meow.command(meow.tool(name = "rank", about = "rank with no index", run = rank))
         "the failure must say the workspace has no index: {}",
         stderr(&out)
     );
+}
+
+/// [R-TUI-033] a diagnostic goes to stderr, not into the stream
+#[test]
+fn json_keeps_diagnostics_off_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    let config = dir.path().join(".meow");
+    std::fs::create_dir_all(&config).unwrap();
+    // A workspace that will not load, so the binary has something to complain
+    // about while `--format json` is in force.
+    std::fs::write(config.join("meow.star"), "load(\"@std//nope\", \"x\")\n").unwrap();
+
+    let out = run(dir.path(), &["--format", "json", "check"]);
+
+    let said = stdout(&out);
+    let complained = stderr(&out);
+
+    assert!(
+        complained.contains("nope"),
+        "the complaint did not reach stderr: {complained}"
+    );
+    for line in said.lines().filter(|l| !l.trim().is_empty()) {
+        assert!(
+            serde_json::from_str::<serde_json::Value>(line).is_ok(),
+            "a diagnostic reached the event stream: {line}"
+        );
+    }
 }
