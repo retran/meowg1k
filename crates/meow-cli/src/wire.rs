@@ -1212,6 +1212,7 @@ pub const KINDS: &[&str] = &[
     "gemini",
     "voyage",
     "llama",
+    "copilot",
 ];
 
 /// Build one provider from its declaration.
@@ -1239,6 +1240,11 @@ fn build_provider(declared: &meow_star::Provider, key: &str) -> Result<Arc<dyn P
             }
             Arc::new(provider)
         }
+        // The grant a person approved, exchanged for a short-lived token by
+        // the provider itself - `[R-LLM-004]`. There is no base to override:
+        // Copilot is one address, and pointing it elsewhere would be pointing
+        // it at something that is not Copilot.
+        "copilot" => Arc::new(meow_llm::copilot::build(transport, key).map_err(|e| e.to_string())?),
         "openrouter" => {
             let provider = OpenAi::new(transport, key)
                 .with_name(declared.name.clone())
@@ -1318,11 +1324,19 @@ fn credential(provider: &meow_star::Provider) -> Option<String> {
 
     // A store that will not open is reported by `meow auth` and by
     // `meow doctor`, and must not stop a run that has a key elsewhere.
-    if let Ok(store) = crate::auth::Store::open()
-        && let Some(crate::auth::Credential::ApiKey { key, .. }) = store.get(&provider.name)
-        && !key.is_empty()
-    {
-        return Some(key.clone());
+    if let Ok(store) = crate::auth::Store::open() {
+        match store.get(&provider.name) {
+            Some(crate::auth::Credential::ApiKey { key, .. }) if !key.is_empty() => {
+                return Some(key.clone());
+            }
+            // What is stored for an OAuth provider is the grant. The provider
+            // exchanges it for what it actually sends, so this hands over the
+            // grant and nothing here knows about the exchange.
+            Some(crate::auth::Credential::OAuth { access, .. }) if !access.is_empty() => {
+                return Some(access.clone());
+            }
+            _ => {}
+        }
     }
 
     std::env::var(variable_for(&provider.kind))
