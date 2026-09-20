@@ -5,7 +5,7 @@ name: Dependency Review
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
 
 permissions:
   contents: read

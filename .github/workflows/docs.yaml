@@ -9,7 +9,7 @@ name: Docs
 
 on:
   push:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - "**/*.md"
       - "**/*.yaml"
@@ -18,7 +18,7 @@ on:
       - ".yamllint.yaml"
       - ".github/workflows/docs.yaml"
   pull_request:
-    branches: [dev, main]
+    branches: [dev]
     paths:
       - "**/*.md"
       - "**/*.yaml"

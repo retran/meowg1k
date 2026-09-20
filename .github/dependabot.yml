@@ -1,0 +1,49 @@
+# Copyright © 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Dependabot and Renovate both run here, and they do different jobs.
+#
+# Renovate raises version updates: it groups a workspace's crates into one
+# pull request, holds a major behind approval, and pins action digests. Two
+# bots doing that would open two pull requests for every crate.
+#
+# What Renovate cannot do is GitHub's security advisory database. Dependabot
+# reads it and raises a pull request the day an advisory lands, which is worth
+# having even for a dependency nobody has asked to update. So `open-pull-
+# requests-limit: 0` turns off version updates here and leaves security
+# updates, which that setting does not affect.
+version: 2
+updates:
+  # Every crate in the workspace, which Cargo resolves from the root manifest.
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    # Version updates off; security updates are not governed by this.
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "build"
+      prefix-development: "build"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "security"
+    reviewers:
+      - "retran"
+
+  # A workflow that fetches a compromised action runs it with the repository's
+  # token, so an advisory against one matters as much as an advisory against a
+  # crate.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "security"
+    reviewers:
+      - "retran"

@@ -57,7 +57,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
   test:
     name: Test (${{ matrix.os }})
@@ -83,7 +83,7 @@ jobs:
           tool: cargo-nextest
 
       - name: Run tests
-        run: cargo nextest run --workspace --no-tests=pass
+        run: cargo nextest run --locked --workspace --no-tests=pass
 
   docs:
     name: Docs
@@ -100,7 +100,7 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Build documentation
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --locked --workspace --no-deps
         env:
           RUSTDOCFLAGS: "-D warnings"
 
@@ -135,3 +135,42 @@ jobs:
 
       - name: Find unused dependencies
         run: cargo machete
+
+  # `CLAUDE.md` says `mise run all` runs the same checks CI does, so a green
+  # run locally means a green run here. Nothing held that true: the two lists
+  # are maintained in different files, and a task added to one would silently
+  # not run in the other. This is the cheapest thing that makes the claim
+  # checkable - it compares the two lists and fails naming the difference.
+  gates-agree:
+    name: Local gate matches CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Compare the two lists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # What `mise run all` depends on, in sorted order.
+          local_gates=$(
+            grep -A1 '^\[tasks\.all\]' mise.toml \
+              | grep '^depends' \
+              | grep -oE '"[a-z-]+"' \
+              | tr -d '"' | sort | tr '\n' ' '
+          )
+
+          # What CI runs, stated here because a workflow cannot ask itself.
+          # `lint-md` lives in docs.yaml; the rest are jobs in this file.
+          ci_gates=$(printf '%s\n' \
+            fmt-check check test doc deny unused-deps lint-md | sort | tr '\n' ' ')
+
+          if [ "$local_gates" != "$ci_gates" ]; then
+            echo "::error::`mise run all` and CI no longer run the same checks."
+            echo "  mise run all: $local_gates"
+            echo "  CI:           $ci_gates"
+            echo "Update whichever is behind, and this list with it."
+            exit 1
+          fi
+          echo "both run: $local_gates"
