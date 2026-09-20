@@ -129,9 +129,16 @@ fn workspace() -> TempDir {
     dir
 }
 
+/// Run `meow`, having first agreed to the workspace - `[R-AUTH-030]`.
 fn run(dir: &Path, args: &[&str]) -> std::process::Output {
+    let _ = bare(dir, &["trust"]);
+    bare(dir, args)
+}
+
+fn bare(dir: &Path, args: &[&str]) -> std::process::Output {
     meow()
         .current_dir(dir)
+        .env("MEOW_HOME", dir.join(".meow").join(".data").join("home"))
         .env_remove("NO_COLOR")
         .args(args)
         .output()

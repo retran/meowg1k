@@ -55,9 +55,30 @@ fn workspace(source: &str) -> TempDir {
     dir
 }
 
+/// A home directory inside the workspace, so a test never reads or writes the
+/// one the developer is logged into.
+fn home_of(dir: &Path) -> std::path::PathBuf {
+    // Under `.meow/.data/`, which the walk excludes last and which nothing can
+    // negate, so the trust file a test writes is not a file the index finds.
+    dir.join(".meow").join(".data").join("home")
+}
+
+/// Run `meow`, having first agreed to the workspace.
+///
+/// `[R-AUTH-030]` stops a command in a workspace this machine has not agreed
+/// to, and a temporary directory is always one. Every test here is about
+/// something else, so each agrees first; `trust.rs` is where the gate itself
+/// is tested.
 fn run(dir: &Path, args: &[&str]) -> Output {
+    let _ = bare(dir, &["trust"]);
+    bare(dir, args)
+}
+
+/// Run `meow` without agreeing first.
+fn bare(dir: &Path, args: &[&str]) -> Output {
     meow()
         .current_dir(dir)
+        .env("MEOW_HOME", home_of(dir))
         // The key comes from the declaration in these tests, and a variable
         // left over from the developer's shell would hide a missing one.
         .env_remove("ANTHROPIC_API_KEY")
