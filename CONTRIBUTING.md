@@ -133,11 +133,36 @@ failures are where the defects live. Do not test private internals: a test
 that reaches past a public API makes the crate hard to change and proves
 nothing a user could observe.
 
+## Releases
+
+A release is a tag, and the tag does everything. Push `v0.3.1` and
+`.github/workflows/release.yaml` builds four targets, archives each one,
+writes `SHA256SUMS` and an SPDX bill of materials, attests all of it through
+Sigstore, and opens the GitHub release. There is nothing to run by hand and
+nothing to upload afterwards.
+
+Three things have to be true before the tag exists:
+
+1. `CHANGELOG.md` has a section for the version, with the date.
+2. `version` in the workspace `Cargo.toml` matches the tag without its `v`.
+   The workflow checks this and refuses the release if they disagree.
+3. The tagged commit is on `dev`. The workflow checks this too, because a tag
+   can point at any object in the repository and a release built from an
+   unreviewed commit is the one failure nothing else catches.
+
+Run `mise run release-check` first. It is `mise run all` plus the release
+build, which is where a profile-specific failure shows up - finding one in the
+workflow instead costs twenty minutes and a deleted tag.
+
+Tags are annotated and say in two or three sentences what the release is. The
+changelog is in `CHANGELOG.md`; do not paste it into the annotation.
+
 ## Where to look
 
 - `docs/spec/` - what the binary does, normatively
 - `docs/design/` - why, with the reasoning that produced each decision
 - `.meow/` - meowg1k configured to work on itself, which is the worked example
+- `CHANGELOG.md` - what changed between releases
 - `CLAUDE.md` - the working policy for this repository, in more detail than
   this document
 
