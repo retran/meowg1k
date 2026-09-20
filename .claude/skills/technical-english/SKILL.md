@@ -219,7 +219,9 @@ Formatting exists so a reader can find the part they need without reading the re
 
 <rule id="F5">ASCII only outside quoted code. A hyphen for dashes, "about" for "~", three dots for an ellipsis. Quoted strings and payloads inside backticks keep their original characters.</rule>
 
-<rule id="F6">Serial comma, American spelling, ISO dates (2026-09-18).</rule>
+<rule id="F6">Serial comma, British spelling, ISO dates (2026-09-18). British because that is what this repository already writes - `behaviour`, `recognise`, `licence` - and one document spelled differently from thirty is worse than either choice made consistently.
+
+A name keeps its own spelling, by rule D1: `rust-analyzer` is a tool, `authorization` is an HTTP header, `normalized_value` is a method on `quick-xml`, and `serde` spells `Serialize` with a z. Change prose, never an identifier or a protocol token.</rule>
 </section>
 
 <section id="H" name="Write plain English for readers who learned it as a second language">
