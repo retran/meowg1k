@@ -154,7 +154,21 @@ pub fn gate_on_trust(
 ) -> Option<Ending> {
     let describing = matches!(
         matches.subcommand_name(),
-        Some("check" | "doctor" | "policy" | "models" | "providers" | "trust" | "version")
+        Some(
+            "check"
+                | "doctor"
+                | "policy"
+                | "models"
+                | "providers"
+                | "trust"
+                | "version"
+                // `pkg` prepares rather than runs: it downloads an archive and
+                // writes a lockfile, and evaluating the workspace to learn
+                // what to download reaches nothing, by `[R-STAR-084]`. It is
+                // also how a person sees what a workspace would pull in
+                // before deciding whether to trust it.
+                | "pkg"
+        )
     );
     if describing {
         return None;
