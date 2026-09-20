@@ -135,8 +135,15 @@ stop.
 of the command line, without a prefix.
 
 **[R-TUI-071]** Built-in commands MUST be grouped under `session`, `auth`,
-`index`, and `policy`, except `init`, `run`, `check`, `models`, `providers`,
-`doctor`, `trust`, `completions`, and `version`.
+`index`, `pkg`, and `policy`, except `init`, `run`, `check`, `models`,
+`providers`, `doctor`, `trust`, `completions`, and `version`.
+
+> Amended 2026-09-20. `pkg` is added to the groups. The requirement listed the
+> groups that existed when it was written, and packages were outside the scope
+> then; `meow pkg update` and `meow pkg fetch` are two commands about one
+> thing, which is what the other four groups have in common. Nothing else
+> changes: the top-level list is untouched, and the rule that a built-in is
+> either grouped or named here still decides every case.
 
 **[R-TUI-072]** `--dry-run` MUST evaluate policy and plan tool calls without
 executing any, feeding the model a placeholder result for each. The transcript
