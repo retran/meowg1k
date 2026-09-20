@@ -2,6 +2,13 @@
 
 Three kinds of document, and they answer different questions.
 
+## Principles
+
+[philosophy.md](philosophy.md) is what the project is for: eleven principles,
+what each means for the implementation, and - where the code does not meet one -
+the issue tracking the gap. It is the document to read before arguing about a
+design decision, and the one to correct when a principle stops being true.
+
 ## Specifications
 
 `spec/` is normative. Every behaviour the binary has traces to a requirement

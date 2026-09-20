@@ -82,6 +82,9 @@ stream and the export say the same thing.
 
 ## Documentation
 
+[`docs/philosophy.md`](docs/philosophy.md) is what meowg1k is for, in eleven
+principles, and says plainly where the code does not yet meet one.
+
 [`docs/`](docs/README.md) has three kinds of document: the specifications in
 `docs/spec/` are normative and every behaviour traces to one, `docs/design/`
 records the decisions and the reasoning, and `.meow/` in this repository is
