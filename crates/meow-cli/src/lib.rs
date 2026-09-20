@@ -16,6 +16,7 @@ mod keep;
 pub mod render;
 pub mod session;
 pub mod surface;
+pub mod trust;
 pub mod wire;
 
 use meow_star::{StarError, Workspace};
@@ -77,6 +78,14 @@ pub fn run() -> Ending {
         // The workspace was found a few lines above, so it was also loaded.
         None => return Ending::Config,
     };
+
+    // `[R-AUTH-030]`: between loading and running, which is the only place it
+    // can go. Earlier and there is nothing to describe; later and the scripts
+    // have already run. Loading reached nothing, by `[R-STAR-084]`, so asking
+    // here costs only the question.
+    if let Some(ending) = wire::gate_on_trust(&matches, &workspace, &loaded) {
+        return ending;
+    }
 
     wire::with_workspace(&matches, workspace, loaded)
 }
