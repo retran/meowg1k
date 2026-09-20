@@ -118,6 +118,25 @@ struct Spend {
 pub struct Ledger {
     budget: Budget,
     spend: Arc<Mutex<Spend>>,
+    /// What had been spent when this ledger was made.
+    ///
+    /// A child's budget is what its caller had left, which is a relative
+    /// amount, and the counter it is checked against is cumulative and shared.
+    /// Subtracting this is what puts the two in the same units. Without it a
+    /// branch created after two steps had run compared its allowance of one
+    /// against a counter already reading two and refused itself, so a fan-out
+    /// spent less than its caller allowed and how much less depended on how
+    /// the tasks happened to interleave.
+    base: Base,
+}
+
+/// The counter's reading when a ledger was made.
+#[derive(Debug, Clone, Copy, Default)]
+struct Base {
+    tokens: u32,
+    steps: u32,
+    cost_micros: u64,
+    elapsed: std::time::Duration,
 }
 
 impl Ledger {
@@ -131,6 +150,7 @@ impl Ledger {
                 cost_micros: 0,
                 started: Instant::now(),
             })),
+            base: Base::default(),
         }
     }
 
@@ -145,6 +165,20 @@ impl Ledger {
         Self {
             budget: asked.narrowed_to(self.remaining_as_budget()),
             spend: Arc::clone(&self.spend),
+            base: self.reading(),
+        }
+    }
+
+    /// What the shared counter says right now.
+    fn reading(&self) -> Base {
+        let Ok(s) = self.spend.lock() else {
+            return Base::default();
+        };
+        Base {
+            tokens: s.tokens,
+            steps: s.steps,
+            cost_micros: s.cost_micros,
+            elapsed: s.started.elapsed(),
         }
     }
 
@@ -156,29 +190,29 @@ impl Ledger {
         let Ok(mut s) = self.spend.lock() else {
             return Err(Axis::Steps);
         };
+        // Each axis is measured from what the counter read when this ledger
+        // was made, because that is the moment its budget was worked out.
         if let Some(limit) = self.budget.duration
-            && s.started.elapsed() >= limit
+            && s.started.elapsed().saturating_sub(self.base.elapsed) >= limit
         {
             return Err(Axis::Duration);
         }
         if let Some(limit) = self.budget.tokens
-            && s.tokens >= limit
+            && s.tokens.saturating_sub(self.base.tokens) >= limit
         {
             return Err(Axis::Tokens);
         }
         if let Some(limit) = self.budget.cost_micros
-            && s.cost_micros >= limit
+            && s.cost_micros.saturating_sub(self.base.cost_micros) >= limit
         {
             return Err(Axis::Cost);
         }
-        if let Some(limit) = self.budget.steps {
-            if s.steps >= limit {
-                return Err(Axis::Steps);
-            }
-            s.steps += 1;
-        } else {
-            s.steps += 1;
+        if let Some(limit) = self.budget.steps
+            && s.steps.saturating_sub(self.base.steps) >= limit
+        {
+            return Err(Axis::Steps);
         }
+        s.steps += 1;
         Ok(())
     }
 
@@ -193,32 +227,40 @@ impl Ledger {
     /// Whether any axis is now spent, and which.
     pub fn exceeded(&self) -> Option<Axis> {
         let s = self.spend.lock().ok()?;
+        // Measured from this ledger's own starting point, for the same reason
+        // `reserve_step` is: the budget is relative and the counter is not.
         if let Some(limit) = self.budget.duration
-            && s.started.elapsed() >= limit
+            && s.started.elapsed().saturating_sub(self.base.elapsed) >= limit
         {
             return Some(Axis::Duration);
         }
         if let Some(limit) = self.budget.tokens
-            && s.tokens >= limit
+            && s.tokens.saturating_sub(self.base.tokens) >= limit
         {
             return Some(Axis::Tokens);
         }
         if let Some(limit) = self.budget.steps
-            && s.steps >= limit
+            && s.steps.saturating_sub(self.base.steps) >= limit
         {
             return Some(Axis::Steps);
         }
         if let Some(limit) = self.budget.cost_micros
-            && s.cost_micros >= limit
+            && s.cost_micros.saturating_sub(self.base.cost_micros) >= limit
         {
             return Some(Axis::Cost);
         }
         None
     }
 
-    /// How many steps have been taken.
+    /// How many steps this ledger has taken.
+    ///
+    /// Its own, not the shared total: a sub-agent numbering its steps from its
+    /// caller's count would report a first step as step four.
     pub fn steps_taken(&self) -> u32 {
-        self.spend.lock().map(|s| s.steps).unwrap_or(0)
+        self.spend
+            .lock()
+            .map(|s| s.steps.saturating_sub(self.base.steps))
+            .unwrap_or(0)
     }
 
     /// What is left, as a budget a child can be narrowed against.
@@ -227,16 +269,22 @@ impl Ledger {
             return Budget::unbounded();
         };
         Budget {
-            tokens: self.budget.tokens.map(|l| l.saturating_sub(s.tokens)),
-            steps: self.budget.steps.map(|l| l.saturating_sub(s.steps)),
+            tokens: self
+                .budget
+                .tokens
+                .map(|l| l.saturating_sub(s.tokens.saturating_sub(self.base.tokens))),
+            steps: self
+                .budget
+                .steps
+                .map(|l| l.saturating_sub(s.steps.saturating_sub(self.base.steps))),
             duration: self
                 .budget
                 .duration
-                .map(|l| l.saturating_sub(s.started.elapsed())),
+                .map(|l| l.saturating_sub(s.started.elapsed().saturating_sub(self.base.elapsed))),
             cost_micros: self
                 .budget
                 .cost_micros
-                .map(|l| l.saturating_sub(s.cost_micros)),
+                .map(|l| l.saturating_sub(s.cost_micros.saturating_sub(self.base.cost_micros))),
         }
     }
 }
