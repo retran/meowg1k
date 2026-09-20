@@ -221,6 +221,7 @@ fn harness(files: &[(&str, &str)], turns: Vec<Response>) -> Harness {
             approve: None,
             dry_run: false,
             search: Arc::new(meow_star::port::quiet::NoIndex),
+            keep: Arc::new(meow_star::port::quiet::Ephemeral::default()),
         },
         CancellationToken::new(),
     ));
@@ -1850,4 +1851,179 @@ parse("")
             "calling `{module}` during declaration must be refused by name: {error}"
         );
     }
+}
+
+/// [R-STAR-027] what a handler put in is what it gets back, of the same type
+#[tokio::test(flavor = "multi_thread")]
+async fn a_value_survives_the_store_unchanged() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//store", "get", "put")
+
+def handler(ctx):
+    for key, value in [
+        ("n", 42),
+        ("s", "meow"),
+        ("b", True),
+        ("l", [1, "two", None]),
+        ("d", {{"nested": {{"deep": [1, 2]}}}}),
+        ("none", None),
+    ]:
+        put(key, value)
+        back = get(key)
+        ctx.out.write("%s %s %s" % (key, back == value, type(back)))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "store", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: n True int",
+            "write: s True string",
+            "write: b True bool",
+            "write: l True list",
+            "write: d True dict",
+            "write: none True NoneType",
+        ],
+        "every value a handler can build must survive the round trip as itself"
+    );
+}
+
+/// [R-STAR-027] an absent key gives the caller's default, and `None` for none
+#[tokio::test(flavor = "multi_thread")]
+async fn an_absent_key_gives_the_default_the_caller_named() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//store", "get", "put")
+
+def handler(ctx):
+    ctx.out.write(str(get("never-written")))
+    ctx.out.write(str(get("never-written", default = [])))
+    put("written-as-none", None)
+    # Stored `None` and absent are the same answer only when the caller asked
+    # for `None`; with a default they are different.
+    ctx.out.write(str(get("written-as-none", default = "fallback")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "defaults", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: None", "write: []", "write: None"],
+        "a default must be returned for an absent key and not for a stored None"
+    );
+}
+
+/// [R-STAR-028] `delete` says whether the key was there, and never fails
+#[tokio::test(flavor = "multi_thread")]
+async fn delete_says_whether_the_key_was_there() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//store", "put", "delete", "get")
+
+def handler(ctx):
+    put("here", 1)
+    ctx.out.write(str(delete("here")))
+    ctx.out.write(str(delete("here")))
+    ctx.out.write(str(delete("never-was")))
+    ctx.out.write(str(get("here")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "delete", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: True", "write: False", "write: False", "write: None"],
+        "deleting a key that was never written must be false rather than an error"
+    );
+}
+
+/// [R-STAR-028] `keys` is sorted, and takes a prefix
+#[tokio::test(flavor = "multi_thread")]
+async fn keys_are_sorted_and_a_prefix_narrows_them() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//store", "put", "keys")
+
+def handler(ctx):
+    for key in ["review:b", "review:a", "plan:1"]:
+        put(key, True)
+    ctx.out.write(",".join(keys()))
+    ctx.out.write(",".join(keys(prefix = "review:")))
+    ctx.out.write(str(keys(prefix = "nothing:")))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "keys", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [
+            "write: plan:1,review:a,review:b",
+            "write: review:a,review:b",
+            "write: []",
+        ],
+        "keys must be sorted, and a prefix must narrow them"
+    );
+}
+
+/// [R-STAR-084] the store may not be reached while `.meow/` is being evaluated
+#[tokio::test(flavor = "multi_thread")]
+async fn the_store_is_refused_during_declaration() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".meow").join("meow.star");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        path,
+        r#"load("@std//store", "get")
+get("anything")
+"#,
+    )
+    .unwrap();
+
+    let error = load(&Workspace::at(dir.path())).unwrap_err().to_string();
+    assert!(
+        error.contains("store"),
+        "reading the store during declaration must be refused by name: {error}"
+    );
 }

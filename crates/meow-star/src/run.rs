@@ -84,6 +84,7 @@ pub struct Runtime {
     stdin: Arc<dyn Stdin>,
     session: Arc<dyn Session>,
     search: Arc<dyn Search>,
+    keep: Arc<dyn crate::port::Keep>,
     cancel: CancellationToken,
 }
 
@@ -116,6 +117,8 @@ pub struct Ports {
     pub session: Arc<dyn Session>,
     /// Searching the workspace by meaning.
     pub search: Arc<dyn Search>,
+    /// What a handler keeps between runs.
+    pub keep: Arc<dyn crate::port::Keep>,
 }
 
 impl Runtime {
@@ -142,6 +145,7 @@ impl Runtime {
             stdin: ports.stdin,
             session: ports.session,
             search: ports.search,
+            keep: ports.keep,
             cancel,
         }
     }
@@ -179,6 +183,11 @@ impl Runtime {
     /// Searching the workspace by meaning.
     pub fn search(&self) -> &dyn Search {
         self.search.as_ref()
+    }
+
+    /// What a handler keeps between runs.
+    pub fn keep(&self) -> &dyn crate::port::Keep {
+        self.keep.as_ref()
     }
 
     /// Whether the user has interrupted.
