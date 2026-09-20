@@ -317,3 +317,45 @@ fn an_oauth_login_needs_a_terminal() {
         "and what it would have asked for: {complained}"
     );
 }
+
+/// [R-AUTH-003] the store is read when a provider is built, not when it is
+/// declared
+///
+/// Loading `.meow/` must not read a credential, because loading happens for
+/// `meow check`, for `meow doctor`, and for the trust prompt - all of which
+/// run against a workspace nobody has agreed to yet. A store readable by
+/// others is refused, so a run that reads it while declaring would fail at a
+/// point where no credential was wanted.
+#[cfg(unix)]
+#[test]
+fn declaring_does_not_read_the_credential_store() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let home = home();
+    let at = workspace();
+
+    // Put something in the store, then make it unreadable by this process.
+    run(
+        home.path(),
+        at.path(),
+        &["auth", "login", "anthropic", "--key", "k"],
+    );
+    let path = home.path().join(".meow").join("auth.json");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    // `check` loads the workspace and builds no provider, so it must not
+    // touch the store at all.
+    let checked = run(home.path(), at.path(), &["check"]);
+    let complained = stderr(&checked);
+
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    assert!(
+        checked.status.success(),
+        "loading read the credential store: {complained}"
+    );
+    assert!(
+        !complained.contains("auth.json"),
+        "the store was reached while declaring: {complained}"
+    );
+}
