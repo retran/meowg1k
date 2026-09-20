@@ -177,6 +177,7 @@ pub struct Registry {
     commands: BTreeMap<String, Origin>,
     policy: Option<(meow_policy::Policy, Origin)>,
     index: Option<IndexDecl>,
+    packages: BTreeMap<String, crate::package::Package>,
     /// Agents a handler named before they were declared.
     ///
     /// A markdown agent is read after `meow.star` has been evaluated, so a
@@ -202,6 +203,38 @@ impl Registry {
         }
         self.providers.insert(p.name.clone(), p);
         Ok(())
+    }
+
+    /// Declare a package.
+    ///
+    /// # Errors
+    ///
+    /// [`StarError::Duplicate`] naming both declaration sites, by
+    /// `[R-PKG-002]`; or [`StarError::Load`] when the name is `std`, by
+    /// `[R-PKG-003]` - the scheme that reaches the runtime modules cannot be
+    /// shadowed by something fetched.
+    pub fn add_package(&mut self, p: crate::package::Package) -> Result<()> {
+        if p.name == "std" {
+            return Err(StarError::Load {
+                message: "a package may not be called `std`: `@std//` is the runtime modules"
+                    .to_owned(),
+            });
+        }
+        if let Some(first) = self.packages.get(&p.name) {
+            return Err(duplicate("package", &p.name, &first.origin, &p.origin));
+        }
+        self.packages.insert(p.name.clone(), p);
+        Ok(())
+    }
+
+    /// One declared package, by name.
+    pub fn package(&self, name: &str) -> Option<&crate::package::Package> {
+        self.packages.get(name)
+    }
+
+    /// Every declared package.
+    pub fn packages(&self) -> impl Iterator<Item = &crate::package::Package> {
+        self.packages.values()
     }
 
     /// Declare a model.
