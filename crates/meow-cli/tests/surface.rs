@@ -748,3 +748,66 @@ meow.command(meow.tool(name = "recall", about = "read it back", run = recall))
         stdout(&out)
     );
 }
+
+/// [R-STAR-019] a workspace with no index still searches its own files
+///
+/// The defect this pins was found by driving the binary, not by a unit test:
+/// every path in `searcher` that could not build an index handed back a port
+/// whose `text` and `files` answered with an empty list. A handler searching a
+/// workspace that had never run `meow index build` was told there was nothing
+/// in it, which is the wrong answer rather than an error.
+#[test]
+fn search_text_and_files_work_without_an_index() {
+    let dir = workspace(
+        r#"
+load("@std//search", "text", "files")
+
+def look(ctx):
+    ctx.out.write("files %s" % ",".join(files("**/*.txt")))
+    for hit in text("needle"):
+        ctx.out.write("text %s:%d" % (hit.path, hit.first_line))
+    return "true"
+
+meow.command(meow.tool(name = "look", about = "search with no index", run = look))
+"#,
+    );
+    std::fs::write(dir.path().join("hay.txt"), "one\ntwo needle three\n").unwrap();
+
+    let out = run(dir.path(), &["look"]);
+    let said = stdout(&out);
+
+    assert!(
+        said.contains("files hay.txt"),
+        "`search.files` found nothing in a workspace with a matching file: {said}"
+    );
+    assert!(
+        said.contains("text hay.txt:2"),
+        "`search.text` found nothing, or reported the wrong line: {said}"
+    );
+}
+
+/// [R-STAR-025] the searches that need an index still say they have none
+#[test]
+fn ranking_without_an_index_says_so_rather_than_answering() {
+    let dir = workspace(
+        r#"
+load("@std//search", "code")
+
+def rank(ctx):
+    return str(code("what does this do"))
+
+meow.command(meow.tool(name = "rank", about = "rank with no index", run = rank))
+"#,
+    );
+
+    let out = run(dir.path(), &["rank"]);
+    assert!(
+        !out.status.success(),
+        "ranking with no index must fail rather than return nothing"
+    );
+    assert!(
+        stderr(&out).contains("index"),
+        "the failure must say the workspace has no index: {}",
+        stderr(&out)
+    );
+}
