@@ -154,9 +154,48 @@ pub trait Search: Send + Sync + std::fmt::Debug {
     fn code(&self, query: &str, limit: usize, paths: &[String]) -> Result<Vec<Found>, String>;
 }
 
+/// What a handler keeps between runs.
+///
+/// `[R-STAR-026]`. The table is the workspace's, not a session's, so
+/// collecting every session leaves it alone - which is the whole reason a
+/// handler would use it rather than `ctx.session`.
+///
+/// Values rather than text, by `[R-STAR-027]`: a store that took strings would
+/// put an encode on one side of every handler and a decode on the other, and
+/// the two would be written in different places and drift.
+pub trait Keep: Send + Sync + std::fmt::Debug {
+    /// Read a key, or `None` when it has never been written.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the store said.
+    fn get(&self, key: &str) -> Result<Option<Value>, String>;
+
+    /// Write a key, replacing whatever was there.
+    ///
+    /// # Errors
+    ///
+    /// Whatever writing the store said.
+    fn put(&self, key: &str, value: &Value) -> Result<(), String>;
+
+    /// Remove a key, and say whether it was there.
+    ///
+    /// # Errors
+    ///
+    /// Whatever writing the store said.
+    fn delete(&self, key: &str) -> Result<bool, String>;
+
+    /// Every key with this prefix, sorted.
+    ///
+    /// # Errors
+    ///
+    /// Whatever reading the store said.
+    fn keys(&self, prefix: &str) -> Result<Vec<String>, String>;
+}
+
 /// Ports that do nothing, for a run with no terminal.
 pub mod quiet {
-    use super::{Ask, AskError, Events, Session, Stdin};
+    use super::{Ask, AskError, Events, Keep, Session, Stdin};
 
     /// Discards everything sent to it.
     #[derive(Debug, Default)]
@@ -213,6 +252,71 @@ pub mod quiet {
             _paths: &[String],
         ) -> Result<Vec<super::Found>, String> {
             Err("this run has no index; run `meow index build` first".to_owned())
+        }
+    }
+
+    /// Keeps what a handler stored, and forgets it when the run ends.
+    ///
+    /// Durable is the point of the real one, so this is for tests and for a
+    /// run with no workspace database - not a fallback the binary should ever
+    /// choose quietly.
+    #[derive(Debug, Default)]
+    pub struct Ephemeral(std::sync::Mutex<std::collections::BTreeMap<String, serde_json::Value>>);
+
+    impl Keep for Ephemeral {
+        fn get(&self, key: &str) -> Result<Option<serde_json::Value>, String> {
+            Ok(self.0.lock().map_err(poisoned)?.get(key).cloned())
+        }
+
+        fn put(&self, key: &str, value: &serde_json::Value) -> Result<(), String> {
+            self.0
+                .lock()
+                .map_err(poisoned)?
+                .insert(key.to_owned(), value.clone());
+            Ok(())
+        }
+
+        fn delete(&self, key: &str) -> Result<bool, String> {
+            Ok(self.0.lock().map_err(poisoned)?.remove(key).is_some())
+        }
+
+        fn keys(&self, prefix: &str) -> Result<Vec<String>, String> {
+            Ok(self
+                .0
+                .lock()
+                .map_err(poisoned)?
+                .keys()
+                .filter(|key| key.starts_with(prefix))
+                .cloned()
+                .collect())
+        }
+    }
+
+    fn poisoned<T>(_: T) -> String {
+        "the store is not usable in this run".to_owned()
+    }
+
+    /// A store that could not be opened, and says why at every call.
+    ///
+    /// The alternative was to fall back to [`Ephemeral`] when the database
+    /// will not open, and that is the shape of defect this codebase exists to
+    /// avoid: a handler would put a value in, get it back within the run, and
+    /// find it gone next time, with nothing anywhere saying why.
+    #[derive(Debug)]
+    pub struct Unopened(pub String);
+
+    impl Keep for Unopened {
+        fn get(&self, _key: &str) -> Result<Option<serde_json::Value>, String> {
+            Err(self.0.clone())
+        }
+        fn put(&self, _key: &str, _value: &serde_json::Value) -> Result<(), String> {
+            Err(self.0.clone())
+        }
+        fn delete(&self, _key: &str) -> Result<bool, String> {
+            Err(self.0.clone())
+        }
+        fn keys(&self, _prefix: &str) -> Result<Vec<String>, String> {
+            Err(self.0.clone())
         }
     }
 

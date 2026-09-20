@@ -667,6 +667,18 @@ fn invoke(
     // fails, and it says why.
     let search = searcher(&workspace, &loaded.registry, &built, runtime.handle());
 
+    // `[R-STAR-026]`: the store is the workspace's database, which every
+    // command already opens. When it will not open, every `store` call says
+    // so - an in-memory fallback would let a handler write a value, read it
+    // back inside the run, and find it gone next time with nothing explaining
+    // why.
+    let keep: Arc<dyn meow_star::port::Keep> = match crate::keep::Durable::open(&workspace) {
+        Ok(durable) => Arc::new(durable),
+        Err(error) => Arc::new(meow_star::port::quiet::Unopened(format!(
+            "the workspace store will not open: {error}"
+        ))),
+    };
+
     let star = Arc::new(Runtime::new(
         loaded,
         workspace,
@@ -680,6 +692,7 @@ fn invoke(
             stdin: Arc::new(crate::ask::Stdin),
             session: Arc::clone(&session) as Arc<dyn meow_star::port::Session>,
             search,
+            keep,
         },
         cancel.clone(),
     ));

@@ -674,3 +674,77 @@ fn a_declared_base_url_is_kept() {
     // vendor endpoint to fall back to.
     assert_eq!(code(&checked), 0, "{}", stderr(&checked));
 }
+
+/// [R-STAR-026] a stored value survives the process that wrote it
+#[test]
+fn the_store_outlives_the_run_that_wrote_it() {
+    let dir = workspace(
+        r#"
+load("@std//store", "get", "put")
+
+def remember(ctx):
+    put("seen", get("seen", default = 0) + 1)
+    return "true"
+
+def recall(ctx):
+    ctx.out.write("seen %d" % get("seen", default = 0))
+    return "true"
+
+meow.command(meow.tool(name = "remember", about = "count a run", run = remember))
+meow.command(meow.tool(name = "recall", about = "say the count", run = recall))
+"#,
+    );
+
+    // Three separate processes. Nothing is shared but the workspace database,
+    // which is the whole claim R-STAR-026 makes.
+    for _ in 0..3 {
+        assert!(run(dir.path(), &["remember"]).status.success());
+    }
+
+    let out = run(dir.path(), &["recall"]);
+    assert!(
+        stdout(&out).contains("seen 3"),
+        "the count did not survive three processes: {}",
+        stdout(&out)
+    );
+}
+
+/// [R-STAR-026] collecting every session leaves the store alone
+#[test]
+fn session_gc_does_not_take_the_store_with_it() {
+    let dir = workspace(
+        r#"
+load("@std//store", "get", "put")
+
+def keep(ctx):
+    put("kept", "still here")
+    return "true"
+
+def recall(ctx):
+    ctx.out.write(get("kept", default = "gone"))
+    return "true"
+
+meow.command(meow.tool(name = "keep", about = "store something", run = keep))
+meow.command(meow.tool(name = "recall", about = "read it back", run = recall))
+"#,
+    );
+
+    assert!(run(dir.path(), &["keep"]).status.success());
+
+    // `--keep 0 --named` is gc at its most thorough: nothing is retained by
+    // count and even named sessions go. If anything could take the store with
+    // it, this is the call that would.
+    let collected = run(dir.path(), &["session", "gc", "--keep", "0", "--named"]);
+    assert!(
+        collected.status.success(),
+        "session gc did not run: {}",
+        stderr(&collected)
+    );
+
+    let out = run(dir.path(), &["recall"]);
+    assert!(
+        stdout(&out).contains("still here"),
+        "collecting sessions took the store with it: {}",
+        stdout(&out)
+    );
+}
