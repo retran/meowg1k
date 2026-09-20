@@ -164,6 +164,18 @@ waiting for an agent that needs one. An all-or-nothing network rule forces the
 choice between no network and unrestricted egress, and egress is exactly where
 a prompt-injected agent does the most damage.
 
+**Policy governs what a model decided, not what a script did.** [R-POLICY-040]
+is written about the engine executing a tool, and that is exact rather than
+loose: a handler calling `fs.write` through `load("@std//fs", ...)` is code the
+workspace's own author wrote, and asking them to approve their own script is a
+prompt nobody reads. The same function offered to a model in a `tools` list is
+a tool call, goes through the engine, and is judged.
+
+The consequence worth having is that the boundary has one enforcement point.
+Two - one in the engine and one inside each capability module - would be two
+places for a decision to differ, which is the defect this layer exists to
+prevent.
+
 **An approval prompt waits**, by [R-POLICY-024]. A prompt that expires while
 you are reading the command it is asking about turns a security decision into
 a reflex. A timeout stays configurable for an unattended terminal that is
