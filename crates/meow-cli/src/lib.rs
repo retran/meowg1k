@@ -12,6 +12,7 @@ pub mod ask;
 pub mod auth;
 pub mod device;
 pub mod exit;
+pub mod fetch;
 pub mod index;
 mod keep;
 pub mod render;
