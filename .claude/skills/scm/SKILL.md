@@ -53,10 +53,9 @@ directly, including for a one-line fix, because a change that skipped review
 is invisible to everyone who reads the pull request log to learn what
 happened.
 
-Which checks run depends on what you touched. `ci.yaml` covers the Go tree and
-`rust.yaml` covers the Rust one, each filtered by path, so a change to
-`crates/` does not compile Go and a change to `internal/` does not compile
-Rust.
+`ci.yaml` runs on every change. There was a path filter here while the Go
+implementation still existed and the two trees paid for each other's runs;
+there is one tree now, so every change runs everything.
 
 Name the branch `<type>/<short-slug>`, using the same types as commit subjects:
 
