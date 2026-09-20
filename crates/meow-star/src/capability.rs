@@ -289,6 +289,28 @@ pub(crate) fn shell_module(builder: &mut GlobalsBuilder) {
     }
 }
 
+/// Run a command given as words already split.
+///
+/// The one `@std//git` uses: it builds its own argument list and has no
+/// Starlark value to unpack.
+pub(crate) fn run_words(
+    eval: &mut Evaluator<'_, '_, '_>,
+    what: &str,
+    words: &[String],
+    timeout_secs: Option<u32>,
+) -> starlark::Result<(i32, String, String)> {
+    let state = running(eval, what)?;
+    let Some((program, arguments)) = words.split_first() else {
+        return Err(oops(format!("`{what}` was given no command")));
+    };
+    spawn(
+        state,
+        program.clone(),
+        arguments.to_vec(),
+        timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS),
+    )
+}
+
 /// Run a command in the workspace and collect what it produced.
 ///
 /// The command is a list of words, never a string for a shell to split.
@@ -323,16 +345,28 @@ fn capture_inner(
         return Err(oops(format!("`{what}` was given no command")));
     };
 
-    let timeout = std::time::Duration::from_secs(u64::from(
+    spawn(
+        state,
+        program.clone(),
+        arguments.to_vec(),
         timeout_secs.into_option().unwrap_or(DEFAULT_TIMEOUT_SECS),
-    ));
+    )
+}
+
+/// Start a program in the workspace and wait for it.
+///
+/// `[R-STAR-081]`: the thread blocks. A command is the clearest case for it:
+/// there is nothing useful a handler could do with a future here.
+fn spawn(
+    state: &crate::state::Running,
+    program: String,
+    arguments: Vec<String>,
+    timeout_secs: u32,
+) -> starlark::Result<(i32, String, String)> {
+    let timeout = std::time::Duration::from_secs(u64::from(timeout_secs));
     let root = state.runtime.workspace().root().to_path_buf();
     let cancel = state.runtime.cancel_token().clone();
-    let program = program.clone();
-    let arguments = arguments.to_vec();
 
-    // `[R-STAR-081]`: the thread blocks. A command is the clearest case for
-    // it: there is nothing useful a handler could do with a future here.
     state.runtime.block_on(async move {
         let child = tokio::process::Command::new(&program)
             .args(&arguments)
