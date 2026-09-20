@@ -62,6 +62,9 @@ struct Loader<'a> {
     /// `[R-STAR-006]`: what is being evaluated right now, innermost last.
     stack: RefCell<Vec<String>>,
     order: RefCell<Vec<PathBuf>>,
+    /// `[R-PKG-012]`: read once, so a load consults it rather than the
+    /// network.
+    lock: crate::package::Lock,
 }
 
 impl FileLoader for Loader<'_> {
@@ -80,12 +83,17 @@ impl Loader<'_> {
         // read as a path relative to `.meow/`. Silently treating it as local
         // would find the wrong file on one machine and no file on another.
         if let Some(rest) = path.strip_prefix('@') {
-            let pkg = rest.split("//").next().unwrap_or(rest);
-            return Err(StarError::Load {
-                message: format!(
-                    "`{path}` names package `{pkg}`, and packages are not implemented. Use `//<path>` for a file in .meow/."
-                ),
-            });
+            let (name, inner) = match rest.split_once("//") {
+                Some(split) => split,
+                None => {
+                    return Err(StarError::Load {
+                        message: format!(
+                            "`{path}` names a package and no file in it. Write `@{rest}//<path>`."
+                        ),
+                    });
+                }
+            };
+            return self.package(name, inner);
         }
         if let Some(local) = path.strip_prefix("//") {
             return self.local(local);
@@ -95,6 +103,42 @@ impl Loader<'_> {
                 "`{path}` is not a load path. Use `@std//<module>` for a runtime module or `//<path>` for a file in .meow/."
             ),
         })
+    }
+
+    /// `@<pkg>//<path>`, from the cache the lockfile pins.
+    ///
+    /// `[R-PKG-012]`: nothing here fetches. `[R-PKG-030]` and `[R-PKG-031]`:
+    /// a package's file goes through the same evaluation as a local one, so
+    /// it gets `@std//` and the cycle check and the evaluate-once cache, and
+    /// its own `//` loads resolve against the workspace - which is why the
+    /// files a package loads must be named relative to it and are.
+    fn package(&self, name: &str, path: &str) -> Result<FrozenModule> {
+        let declared = self.state.registry().package(name).cloned();
+        let file = crate::package::resolve(
+            &self.workspace.config_dir(),
+            declared.as_ref(),
+            &self.lock,
+            name,
+            path,
+        )?;
+
+        let key = format!("@{name}//{path}");
+        if let Some(module) = self.done.borrow().get(&key) {
+            return Ok(module.clone());
+        }
+        if let Some(at) = self.stack.borrow().iter().position(|p| p == &key) {
+            let mut cycle: Vec<String> = self.stack.borrow()[at..].to_vec();
+            cycle.push(key);
+            return Err(StarError::Cycle { cycle });
+        }
+
+        self.stack.borrow_mut().push(key.clone());
+        let result = self.evaluate(&file, &key);
+        self.stack.borrow_mut().pop();
+
+        let module = result?;
+        self.done.borrow_mut().insert(key, module.clone());
+        Ok(module)
     }
 
     fn std_module(&self, name: &str) -> Result<FrozenModule> {
@@ -259,6 +303,11 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
 
     let std = Arc::new(Modules::build()?);
 
+    // Read once, before anything is evaluated: [R-PKG-012] says a load
+    // consults the lockfile, and re-reading it per load would let a file
+    // rewritten mid-load change what a later load resolves to.
+    let lock = crate::package::Lock::read(&workspace.config_dir())?;
+
     let loader = Loader {
         workspace,
         state: &state,
@@ -267,6 +316,7 @@ pub fn load(workspace: &crate::Workspace) -> Result<Loaded> {
         done: RefCell::new(HashMap::new()),
         stack: RefCell::new(Vec::new()),
         order: RefCell::new(Vec::new()),
+        lock,
     };
 
     loader.local("meow.star")?;
