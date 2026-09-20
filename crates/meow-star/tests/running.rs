@@ -2133,6 +2133,301 @@ get("anything")
     );
 }
 
+/// A server on a loopback port, scripted with what to answer.
+///
+/// A real socket rather than a mocked client: `[R-STAR-023]` is a claim about
+/// what comes back from a server, and a fake that returns a struct would be
+/// asserting that this test builds the struct correctly.
+struct Server {
+    port: u16,
+    seen: Arc<Mutex<Vec<String>>>,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Server {
+    /// Answer every request with this status and body, recording each one.
+    fn answering(status: u16, body: &'static str) -> Self {
+        Self::scripted(move |_| (status, body.to_owned()))
+    }
+
+    /// Answer with whatever the request deserves.
+    fn scripted(reply: impl Fn(&str) -> (u16, String) + Send + Sync + 'static) -> Self {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let kept = Arc::clone(&seen);
+        let halt = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            for stream in listener.incoming() {
+                if halt.load(std::sync::atomic::Ordering::Relaxed) {
+                    return;
+                }
+                let Ok(mut stream) = stream else { continue };
+                let mut buffer = [0_u8; 8192];
+                let read = stream.read(&mut buffer).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..read]).into_owned();
+                kept.lock().unwrap().push(request.clone());
+
+                let (status, body) = reply(&request);
+                let response = format!(
+                    "HTTP/1.1 {status} X\r\nContent-Length: {}\r\nX-Answered-By: \
+                     test\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+
+        Self { port, seen, stop }
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("http://127.0.0.1:{}{path}", self.port)
+    }
+
+    fn requests(&self) -> Vec<String> {
+        self.seen.lock().unwrap().clone()
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        // Unblock the accept loop so the thread can see the flag and leave.
+        let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+    }
+}
+
+/// [R-STAR-022] a response carries the status, the headers, and the body
+#[tokio::test(flavor = "multi_thread")]
+async fn a_response_carries_what_the_server_sent() {
+    let server = Server::answering(200, r#"{"ok": true}"#);
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "get")
+
+def handler(ctx):
+    r = get("{}")
+    ctx.out.write("%d %s %s" % (r.status, r.ok, r.body))
+    ctx.out.write(r.headers["x-answered-by"])
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "get", run = handler))
+"#,
+                server.url("/thing")
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        [r#"write: 200 True {"ok": true}"#, "write: test"],
+        "the status, the flag, the body, and the headers must all arrive"
+    );
+}
+
+/// [R-STAR-023] a status the server chose is an answer, not a failure
+#[tokio::test(flavor = "multi_thread")]
+async fn a_404_is_a_response_rather_than_an_error() {
+    let server = Server::answering(404, "nothing here");
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "get")
+
+def handler(ctx):
+    r = get("{}")
+    ctx.out.write("%d %s %s" % (r.status, r.ok, r.body))
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "404", run = handler))
+"#,
+                server.url("/missing")
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: 404 False nothing here"],
+        "a 404 must be a response a handler can branch on"
+    );
+}
+
+/// [R-STAR-023] a request that never reached a response does fail
+#[tokio::test(flavor = "multi_thread")]
+async fn a_connection_that_is_refused_fails() {
+    // Bound and dropped, so nothing is listening and the port is not in use
+    // by something else that would answer.
+    let port = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "get")
+
+def handler(ctx):
+    return get("http://127.0.0.1:{port}/").body
+
+meow.command(meow.tool(name = "probe", about = "refused", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+    assert!(
+        error.contains("could not reach"),
+        "a refused connection must fail saying it could not reach the server: {error}"
+    );
+}
+
+/// [R-STAR-022] a dict body goes as JSON, and a string goes as it is
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dict_body_is_json_and_a_string_body_is_itself() {
+    let server = Server::answering(201, "made");
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "post", "put")
+
+def handler(ctx):
+    post("{url}", {{"name": "meow"}})
+    put("{url}", "plain text", headers = {{"content-type": "text/plain"}})
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "bodies", run = handler))
+"#,
+                url = server.url("/thing")
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    let seen = server.requests();
+    assert!(
+        seen[0].contains("POST /thing")
+            && seen[0]
+                .to_lowercase()
+                .contains("content-type: application/json")
+            && seen[0].contains(r#"{"name":"meow"}"#),
+        "a dict must be sent as JSON with a content type: {}",
+        seen[0]
+    );
+    assert!(
+        seen[1].contains("PUT /thing")
+            && seen[1].to_lowercase().contains("content-type: text/plain")
+            && seen[1].ends_with("plain text"),
+        "a string must be sent as it is, and the caller's content type kept: {}",
+        seen[1]
+    );
+}
+
+/// [R-STAR-022] `max_bytes` cuts the body rather than failing
+#[tokio::test(flavor = "multi_thread")]
+async fn max_bytes_cuts_a_body_that_is_too_long() {
+    let server = Server::answering(200, "0123456789");
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "get")
+
+def handler(ctx):
+    ctx.out.write(get("{}", max_bytes = 4).body)
+    return ""
+
+meow.command(meow.tool(name = "probe", about = "cap", run = handler))
+"#,
+                server.url("/long")
+            ),
+        )],
+        Vec::new(),
+    );
+
+    call(&h.runtime, "probe", args(&[])).await;
+
+    assert_eq!(
+        h.out.lines(),
+        ["write: 0123"],
+        "a handler that asked for four bytes must get four bytes"
+    );
+}
+
+/// [R-STAR-022] a scheme this module cannot speak is refused before the call
+#[tokio::test(flavor = "multi_thread")]
+async fn a_scheme_that_is_not_http_is_refused() {
+    let h = harness(
+        &[(
+            "meow.star",
+            &format!(
+                r#"{MODELS}
+load("@std//http", "get")
+
+def handler(ctx):
+    return get("file:///etc/hosts").body
+
+meow.command(meow.tool(name = "probe", about = "scheme", run = handler))
+"#
+            ),
+        )],
+        Vec::new(),
+    );
+
+    let error = fails(&h.runtime, "probe").await;
+    assert!(
+        error.contains("file:///etc/hosts") && error.contains("no other scheme"),
+        "a `file://` URL must be refused by name: {error}"
+    );
+}
+
+/// [R-STAR-084] the network may not be reached while `.meow/` is evaluated
+#[tokio::test(flavor = "multi_thread")]
+async fn http_is_refused_during_declaration() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".meow").join("meow.star");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        path,
+        r#"load("@std//http", "get")
+get("http://example.com/")
+"#,
+    )
+    .unwrap();
+
+    let error = load(&Workspace::at(dir.path())).unwrap_err().to_string();
+    assert!(
+        error.contains("http"),
+        "reaching the network during declaration must be refused by name: {error}"
+    );
+}
+
 /// [R-STAR-019] `search.text` reports the path and the line of every hit
 #[tokio::test(flavor = "multi_thread")]
 async fn search_text_reports_where_each_hit_was() {
