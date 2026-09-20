@@ -21,7 +21,13 @@ fn home() -> TempDir {
     tempfile::tempdir().unwrap()
 }
 
+/// Run `meow`, having first agreed to the workspace - `[R-AUTH-030]`.
 fn run(home: &Path, at: &Path, args: &[&str]) -> Output {
+    let _ = bare(home, at, &["trust"]);
+    bare(home, at, args)
+}
+
+fn bare(home: &Path, at: &Path, args: &[&str]) -> Output {
     meow()
         .current_dir(at)
         .env("MEOW_HOME", home)

@@ -130,6 +130,174 @@ fn auth(matches: &ArgMatches) -> Ending {
     }
 }
 
+/// Stop a command that a workspace has not been trusted to run.
+///
+/// `[R-AUTH-030]`. Returns `Some` when the run must not continue, and `None`
+/// when it may.
+///
+/// The commands that only describe a workspace are exempt. `meow check`,
+/// `meow doctor`, `meow policy show`, and `meow trust` are how a person
+/// decides whether to trust one, and requiring trust before they run makes
+/// the decision impossible to inform.
+pub fn gate_on_trust(
+    matches: &ArgMatches,
+    workspace: &Workspace,
+    loaded: &Loaded,
+) -> Option<Ending> {
+    let describing = matches!(
+        matches.subcommand_name(),
+        Some("check" | "doctor" | "policy" | "models" | "providers" | "trust" | "version")
+    );
+    if describing {
+        return None;
+    }
+
+    let declared = crate::trust::Declared::of(&loaded.registry);
+    let trust = match crate::trust::Trust::open() {
+        Ok(trust) => trust,
+        Err(error) => {
+            eprintln!("{error}");
+            return Some(Ending::Config);
+        }
+    };
+
+    match trust.standing(workspace.root(), &declared) {
+        crate::trust::Standing::Trusted => None,
+        standing => Some(ask_to_trust(workspace, &declared, standing)),
+    }
+}
+
+/// Show what a workspace declares and ask once.
+fn ask_to_trust(
+    workspace: &Workspace,
+    declared: &crate::trust::Declared,
+    standing: crate::trust::Standing,
+) -> Ending {
+    let root = workspace.root().display();
+    match standing {
+        crate::trust::Standing::Changed => {
+            eprintln!("`{root}` declares something different from what you agreed to.");
+        }
+        _ => eprintln!("`{root}` has not been run on this machine before."),
+    }
+    eprintln!("A .meow/ directory is code with tool access. It declares:");
+    for line in declared.lines() {
+        eprintln!("  {line}");
+    }
+
+    // `[R-AUTH-031]`: no terminal means no answer, and proceeding or blocking
+    // are both worse than stopping. Naming the command is the whole of what
+    // an unattended run needs from this message.
+    if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        eprintln!("Run `meow trust` here to agree, then run this again.");
+        return Ending::Config;
+    }
+
+    // A plain read rather than `ask::Terminal`: this question is asked before
+    // anything runs, so there is no live region to put it in and no renderer
+    // to own. Dragging one in here would be machinery for one line.
+    if !confirmed("Run scripts from this workspace? [y/N] ") {
+        eprintln!("Not agreed, so nothing ran.");
+        return Ending::Config;
+    }
+
+    match record_trust(workspace, declared) {
+        Ok(()) => {
+            eprintln!("Agreed. `meow trust --withdraw` undoes it.");
+            // Not continuing with the command: the person answered a
+            // question about trust, not about whether to run this. Saying
+            // so and stopping is less surprising than starting an agent.
+            Ending::Passed
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            Ending::Config
+        }
+    }
+}
+
+/// Read one yes or no from the terminal, defaulting to no.
+fn confirmed(prompt: &str) -> bool {
+    use std::io::{BufRead, Write};
+
+    eprint!("{prompt}");
+    let _ = std::io::stderr().flush();
+
+    let mut line = String::new();
+    if std::io::stdin().lock().read_line(&mut line).is_err() {
+        return false;
+    }
+    matches!(line.trim(), "y" | "Y" | "yes" | "Yes")
+}
+
+/// Write the agreement down.
+fn record_trust(
+    workspace: &Workspace,
+    declared: &crate::trust::Declared,
+) -> Result<(), crate::auth::AuthError> {
+    let mut trust = crate::trust::Trust::open()?;
+    trust.agree(
+        workspace.root(),
+        declared,
+        i64::try_from(now_millis() / 1000).unwrap_or(0),
+    );
+    trust.save()
+}
+
+/// `meow trust`: agree to a workspace, withdraw, or list.
+fn trust_command(matches: &ArgMatches, workspace: &Workspace, loaded: &Loaded) -> Ending {
+    let mut trust = match crate::trust::Trust::open() {
+        Ok(trust) => trust,
+        Err(error) => {
+            eprintln!("{error}");
+            return Ending::Config;
+        }
+    };
+
+    if matches.get_flag("list") {
+        if trust.list().is_empty() {
+            println!("no workspaces are trusted");
+            return Ending::Passed;
+        }
+        for (path, when) in trust.list() {
+            println!("{path}\tagreed {when}");
+        }
+        return Ending::Passed;
+    }
+
+    if matches.get_flag("withdraw") {
+        if !trust.withdraw(workspace.root()) {
+            eprintln!("`{}` was not trusted", workspace.root().display());
+            return Ending::Usage;
+        }
+        return match trust.save() {
+            Ok(()) => {
+                println!("withdrew trust in `{}`", workspace.root().display());
+                Ending::Passed
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                Ending::Config
+            }
+        };
+    }
+
+    let declared = crate::trust::Declared::of(&loaded.registry);
+    for line in declared.lines() {
+        println!("{line}");
+    }
+    match record_trust(workspace, &declared) {
+        Ok(()) => {
+            println!("trusted `{}`", workspace.root().display());
+            Ending::Passed
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            Ending::Config
+        }
+    }
+}
+
 /// Run a command against a loaded workspace.
 pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded) -> Ending {
     let Some((name, sub)) = matches.subcommand() else {
@@ -143,6 +311,7 @@ pub fn with_workspace(matches: &ArgMatches, workspace: Workspace, loaded: Loaded
         "doctor" => doctor(&workspace, &loaded.registry),
         "policy" => policy(sub, &loaded.registry),
         "session" => session(sub, &workspace),
+        "trust" => trust_command(sub, &workspace, &loaded),
         "index" => index(sub, &workspace, &loaded.registry),
         "run" => match sub.get_one::<String>("name") {
             Some(name) => invoke(matches, name, &Map::new(), workspace, loaded),
