@@ -130,11 +130,18 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # `Cargo.lock` rather than the default of scanning the whole tree: by
+      # this point `dist/` holds the archives, and syft would unpack them and
+      # list the same crates a second time from the binaries. The lockfile is
+      # the exact set of dependencies these binaries were built from.
       - name: Bill of materials
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.2
         with:
+          file: Cargo.lock
           format: spdx-json
           output-file: dist/meow-${{ github.ref_name }}.spdx.json
+          # The release step below attaches every file in `dist/`, so letting
+          # the action upload as well would attach the SBOM twice.
           upload-artifact: false
           upload-release-assets: false
 
