@@ -144,6 +144,13 @@ for that.
 NOT fail for one that was not. `store.keys` MUST return them sorted, and MUST
 take a prefix.
 
+### Paths
+
+**[R-STAR-029]** `path` MUST speak one separator, `/`, whatever the platform.
+It MUST accept `\` in what it is given and MUST NOT return it, so that a path
+`path.join` built and a path `search.files` reported can be compared, and a
+`.meow/` written once behaves the same everywhere.
+
 ### Declarations
 
 **[R-STAR-030]** `meow.provider`, `meow.model`, `meow.agent`, `meow.tool`,
@@ -356,6 +363,13 @@ the author's own program. What a model decided still passes through policy:
 the model calls a tool, and the tool call is what a rule matches. A workspace
 that gives a model a tool taking a URL from the model has handed it the
 network, and that is a decision the rule for that tool should reflect.
+
+**Paths are written with `/` on every platform**, by [R-STAR-029]. The native
+separator is the obvious choice and the wrong one: `search.files` and `fs.glob`
+report `/`, so a handler that built a path with the native separator and
+compared it against a reported one matched on Unix and failed on Windows, with
+nothing anywhere saying why. One separator on the surface removes the class,
+and Windows accepts `/` in a path, so nothing is given up by not emitting `\`.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format
