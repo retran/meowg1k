@@ -9,6 +9,7 @@
 //! itself.
 
 pub mod ask;
+pub mod auth;
 pub mod exit;
 pub mod index;
 mod keep;
