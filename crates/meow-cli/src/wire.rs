@@ -549,10 +549,16 @@ fn arguments(registry: &Registry, name: &str, matches: &ArgMatches) -> Map<Strin
 
     if let Some(tool) = registry.tool(name) {
         for arg in tool.args.iter() {
-            let Some(text) = matches.get_one::<String>(&arg.name) else {
+            // A boolean is the only kind clap stores as a flag, and asking it
+            // for one of any other kind is a panic rather than a `false`.
+            if arg.node.get("type").and_then(Value::as_str) == Some("boolean") {
                 if matches.get_flag(&arg.name) {
                     out.insert(arg.name.clone(), Value::Bool(true));
                 }
+                continue;
+            }
+
+            let Some(text) = matches.get_one::<String>(&arg.name) else {
                 continue;
             };
             // A flag arrives as text and the declaration says what it means,
