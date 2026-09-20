@@ -798,19 +798,32 @@ fn searcher(
     providers: &HashMap<String, Arc<dyn Provider>>,
     handle: &tokio::runtime::Handle,
 ) -> Arc<dyn meow_star::port::Search> {
-    let refused = || Arc::new(meow_star::port::quiet::NoIndex) as Arc<dyn meow_star::port::Search>;
+    // `[R-STAR-019]`: `search.text` and `search.files` need no index, so a
+    // workspace without one still searches. Only the calls that rank need a
+    // model and a built graph, and those are the ones that say why they
+    // cannot run. Handing back a port that answered everything with an empty
+    // list would tell a handler the workspace was empty.
+    let refused = |why: &str| {
+        Arc::new(crate::index::Unindexed::new(workspace.root(), why))
+            as Arc<dyn meow_star::port::Search>
+    };
 
-    let Ok((model_id, chunking, walk)) = crate::index::configure(registry) else {
-        return refused();
+    let (model_id, chunking, walk) = match crate::index::configure(registry) {
+        Ok(configured) => configured,
+        Err(why) => return refused(&why),
     };
     let Some(declared) = registry.index().and_then(|i| registry.model(&i.model)) else {
-        return refused();
+        return refused("this workspace declares no index model");
     };
     let Some(provider) = providers.get(&declared.provider) else {
-        return refused();
+        return refused(&format!(
+            "no provider named `{}` is available to the index",
+            declared.provider
+        ));
     };
-    let Ok(index) = crate::index::open(workspace, chunking, walk) else {
-        return refused();
+    let index = match crate::index::open(workspace, chunking, walk) {
+        Ok(index) => index,
+        Err(e) => return refused(&format!("the index will not open: {e}")),
     };
 
     Arc::new(crate::index::Searcher::new(
