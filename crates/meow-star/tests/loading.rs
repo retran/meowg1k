@@ -153,18 +153,36 @@ fn a_local_load_stays_inside_the_config_directory() {
     assert!(error.contains("leaves .meow/"), "{error}");
 }
 
-/// [R-STAR-005] a package path fails saying so, and is never read as a local
-/// path
+/// [R-STAR-005] [R-PKG-001] a package path is never read as a local path
+///
+/// The workspace here has a file at exactly the path the load names. Reading
+/// `@acme//lib/models.star` as `//lib/models.star` would work on this machine
+/// and find nothing on any other, which is the failure this pins.
 #[test]
-fn a_package_load_fails_rather_than_becoming_a_local_path() {
+fn a_package_load_is_never_read_as_a_local_path() {
     let dir = workspace(&[
         ("meow.star", r#"load("@acme//lib/models.star", "setup")"#),
         ("lib/models.star", "def setup():\n    pass"),
     ]);
 
     let error = load_at(&dir).unwrap_err().to_string();
-    assert!(error.contains("packages are not implemented"), "{error}");
-    assert!(error.contains("acme"), "{error}");
+    assert!(
+        error.contains("does not declare") && error.contains("acme"),
+        "an undeclared package must be refused by name: {error}"
+    );
+    // The proof that it was not read as a local path is that it failed at
+    // all: `//lib/models.star` is there and would have loaded.
+    assert!(
+        load_at(&workspace(&[
+            ("meow.star", r#"load("//lib/models.star", "setup")"#),
+            (
+                "lib/models.star",
+                &format!("def setup():\n    pass\n{PRELUDE}")
+            ),
+        ]))
+        .is_ok(),
+        "the same file loads through `//`, so the failure above is about the scheme"
+    );
 }
 
 /// [R-STAR-006] an import cycle is reported with the ring in order
