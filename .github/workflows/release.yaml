@@ -1,0 +1,171 @@
+# Copyright © 2025 The meowg1k Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# What a tag produces: one archive per platform, a checksum file, a bill of
+# materials, and a Sigstore attestation covering all of them.
+#
+# Written by hand rather than generated. `cargo-dist` produces installers and a
+# Homebrew tap and about six hundred lines of workflow to do it; what a v0.3.0
+# needs is an archive somebody can download and verify, and this is the whole
+# of it in something a reviewer can read.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# The tag decides everything. A workflow that could be run by hand against an
+# arbitrary ref is a workflow that can publish something nobody tagged.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # CI already ran everything on this commit, if the commit came through a
+  # pull request. What CI cannot check is whether it did: a tag can point at
+  # any object in the repository, and finding that out after publishing is
+  # finding it out too late. So this job checks the two things a tag can get
+  # wrong that nothing else catches.
+  guard:
+    name: Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          fetch-depth: 0
+
+      - name: The tag is on dev
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin dev
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/dev; then
+            echo "::error::${GITHUB_REF_NAME} points at a commit that is not on dev"
+            exit 1
+          fi
+
+      - name: The tag matches the version
+        run: |
+          set -euo pipefail
+          declared=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          if [ "v${declared}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Cargo.toml says ${declared}, the tag says ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: guard
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} -p meow-cli
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="meow-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          mkdir -p "dist/${name}"
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/meow.exe" "dist/${name}/"
+          else
+            cp "target/${{ matrix.target }}/release/meow" "dist/${name}/"
+          fi
+          cp LICENSE README.md CHANGELOG.md "dist/${name}/"
+
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "${name}.zip" "${name}" > /dev/null
+          else
+            tar czf "${name}.tar.gz" "${name}"
+          fi
+          rm -rf "${name}"
+
+      - name: Upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Collect the archives
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      # `Cargo.lock` rather than the default of scanning the whole tree: by
+      # this point `dist/` holds the archives, and syft would unpack them and
+      # list the same crates a second time from the binaries. The lockfile is
+      # the exact set of dependencies these binaries were built from.
+      - name: Bill of materials
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.2
+        with:
+          file: Cargo.lock
+          format: spdx-json
+          output-file: dist/meow-${{ github.ref_name }}.spdx.json
+          # The release step below attaches every file in `dist/`, so letting
+          # the action upload as well would attach the SBOM twice.
+          upload-artifact: false
+          upload-release-assets: false
+
+      # Last, so every other file in `dist` is already there and the one hash
+      # file covers all of them.
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+
+      # Sigstore, keyless: the workflow's own token is the identity, so there
+      # is no private key to store and nothing to leak. It covers the
+      # checksums as well as the archives, so verifying the file is enough to
+      # trust every hash in it.
+      - name: Attest what built these
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v2.4.0
+        with:
+          subject-path: "dist/*.tar.gz, dist/*.zip, dist/SHA256SUMS"
+
+      - name: Release
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          # A pre-release tag publishes as one. `v0.3.0-alpha.1` should not
+          # become what `latest` points at.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
