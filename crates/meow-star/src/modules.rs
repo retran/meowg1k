@@ -32,7 +32,7 @@ use crate::run::running;
 
 /// The modules that exist, in the order `meow doctor` should list them.
 pub const NAMES: &[&str] = &[
-    "env", "fs", "git", "json", "path", "search", "shell", "text",
+    "env", "fs", "git", "json", "path", "re", "search", "shell", "text", "time",
 ];
 
 /// Every `@std//` module, built once per load.
@@ -53,9 +53,11 @@ impl Modules {
         table.insert("git".to_owned(), freeze(crate::capability_git::git_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);
+        table.insert("re".to_owned(), freeze(re_module)?);
         table.insert("search".to_owned(), freeze(search_module)?);
         table.insert("shell".to_owned(), freeze(crate::capability::shell_module)?);
         table.insert("text".to_owned(), freeze(text_module)?);
+        table.insert("time".to_owned(), freeze(time_module)?);
         Ok(Self(table))
     }
 
@@ -276,6 +278,168 @@ fn search_module(builder: &mut GlobalsBuilder) {
             .collect();
 
         Ok(heap.alloc(results))
+    }
+}
+
+/// `@std//re`: regular expressions.
+///
+/// Every call compiles its pattern, which costs microseconds and buys the
+/// property that a bad pattern is reported at the call that wrote it rather
+/// than at a load that mentioned it.
+#[starlark_module]
+fn re_module(builder: &mut GlobalsBuilder) {
+    /// The first match, as a list of groups, or `None`.
+    ///
+    /// Group 0 is the whole match and the rest follow in the order the pattern
+    /// opens them. A group that took part in no match is `None`, which is the
+    /// only way to tell "matched empty" from "did not match" - `[R-STAR-013]`.
+    fn r#match<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = pos)] subject: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "re.match")?;
+        let re = compile(&pattern)?;
+        let heap = eval.heap();
+        match re.captures(&subject) {
+            None => Ok(StarValue::new_none()),
+            Some(caps) => Ok(heap.alloc(groups(&heap, &caps))),
+        }
+    }
+
+    /// Every match, each as its own list of groups.
+    fn find_all<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = pos)] subject: String,
+        #[starlark(require = named, default = 0)] limit: u32,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "re.find_all")?;
+        let re = compile(&pattern)?;
+        let heap = eval.heap();
+        // A pattern that can match empty makes `captures_iter` unbounded in
+        // the number of matches it reports for a long subject, so `limit`
+        // exists to put a ceiling on it. Zero means no ceiling, which is what
+        // a caller who has not thought about it wants.
+        let cap = if limit == 0 {
+            usize::MAX
+        } else {
+            limit as usize
+        };
+        let found: Vec<StarValue<'v>> = re
+            .captures_iter(&subject)
+            .take(cap)
+            .map(|caps| heap.alloc(groups(&heap, &caps)))
+            .collect();
+        Ok(heap.alloc(found))
+    }
+
+    /// Replace every match.
+    ///
+    /// `$1` and `${name}` in the replacement refer to groups, per the `regex`
+    /// crate's syntax. A `$` that means itself is written `$$`.
+    fn replace<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = pos)] subject: String,
+        #[starlark(require = pos)] replacement: String,
+        #[starlark(require = named, default = false)] first_only: bool,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "re.replace")?;
+        let re = compile(&pattern)?;
+        Ok(if first_only {
+            re.replace(&subject, replacement.as_str()).into_owned()
+        } else {
+            re.replace_all(&subject, replacement.as_str()).into_owned()
+        })
+    }
+
+    /// Split on every match.
+    fn split<'v>(
+        #[starlark(require = pos)] pattern: String,
+        #[starlark(require = pos)] subject: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<StarValue<'v>> {
+        running(eval, "re.split")?;
+        let re = compile(&pattern)?;
+        let heap = eval.heap();
+        let parts: Vec<StarValue<'v>> = re.split(&subject).map(|part| heap.alloc(part)).collect();
+        Ok(heap.alloc(parts))
+    }
+}
+
+/// Compile a pattern, saying what was wrong with it rather than that something
+/// was.
+fn compile(pattern: &str) -> starlark::Result<regex::Regex> {
+    regex::Regex::new(pattern)
+        .map_err(|error| oops(format!("`{pattern}` is not a regular expression: {error}")))
+}
+
+/// One match's groups, with a group that did not participate as `None`.
+fn groups<'v>(heap: &starlark::values::Heap<'v>, caps: &regex::Captures<'_>) -> Vec<StarValue<'v>> {
+    caps.iter()
+        .map(|group| match group {
+            Some(m) => heap.alloc(m.as_str()),
+            None => StarValue::new_none(),
+        })
+        .collect()
+}
+
+/// `@std//time`: one scale, and it is seconds in UTC.
+///
+/// `[R-STAR-014]`. A handler that measures a duration gets the same number on
+/// every machine, and a zone enters only at `format`, where a human is about
+/// to read the result.
+#[starlark_module]
+fn time_module(builder: &mut GlobalsBuilder) {
+    /// Now, in seconds since the Unix epoch.
+    fn now<'v>(eval: &mut Evaluator<'v, '_, '_>) -> starlark::Result<i64> {
+        running(eval, "time.now")?;
+        Ok(jiff::Timestamp::now().as_second())
+    }
+
+    /// Read an RFC 3339 timestamp, in seconds since the epoch.
+    fn parse<'v>(
+        #[starlark(require = pos)] text: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<i64> {
+        running(eval, "time.parse")?;
+        let stamp: jiff::Timestamp = text
+            .parse()
+            .map_err(|error| oops(format!("`{text}` is not an RFC 3339 timestamp: {error}")))?;
+        Ok(stamp.as_second())
+    }
+
+    /// Write seconds since the epoch as text.
+    ///
+    /// The default is RFC 3339 in UTC, which is what another program should
+    /// be given. `layout` takes `strftime` fields for the case where a person
+    /// is going to read it.
+    fn format<'v>(
+        #[starlark(require = pos)] seconds: i64,
+        #[starlark(require = named, default = NoneOr::None)] layout: NoneOr<String>,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<String> {
+        running(eval, "time.format")?;
+        let stamp = jiff::Timestamp::from_second(seconds)
+            .map_err(|error| oops(format!("{seconds} is not a timestamp: {error}")))?;
+        match layout.into_option() {
+            None => Ok(stamp.to_string()),
+            Some(layout) => jiff::fmt::strtime::format(&layout, stamp)
+                .map_err(|error| oops(format!("`{layout}` is not a layout: {error}"))),
+        }
+    }
+
+    /// How many seconds have passed since an instant.
+    ///
+    /// Negative if the instant is in the future, which is a fact about the
+    /// argument rather than an error.
+    fn since<'v>(
+        #[starlark(require = pos)] seconds: i64,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<i64> {
+        running(eval, "time.since")?;
+        Ok(jiff::Timestamp::now().as_second().saturating_sub(seconds))
     }
 }
 

@@ -12,10 +12,12 @@ allocative = "0.3"
 anyhow = { workspace = true }
 async-trait = "0.1"
 globset = "0.4"
+jiff = "0.2"
 meow-agent = { path = "../meow-agent" }
 meow-core = { path = "../meow-core" }
 meow-llm = { path = "../meow-llm" }
 meow-policy = { path = "../meow-policy" }
+regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
