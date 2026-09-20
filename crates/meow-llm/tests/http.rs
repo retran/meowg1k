@@ -141,16 +141,20 @@ async fn a_failed_stream_fails_instead_of_hanging() {
 /// refused" is unactionable when a workspace declares three.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_refused_connection_names_the_provider() {
-    // Bound and dropped, so the port is almost certainly free and nothing is
-    // listening on it.
-    let port = {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        listener.local_addr().unwrap().port()
-    };
-
+    // A host that cannot resolve, rather than a port nothing is listening on.
+    // Binding a port and dropping it says only that the port was free a moment
+    // ago: another test in this binary binds port 0 at the same time, the
+    // kernel hands it the one just released, and this test connects to that
+    // test's server. That is not a hypothesis - CI failed here with a 200
+    // carrying the streaming test's body.
+    //
+    // `.invalid` is reserved by RFC 2606 and guaranteed never to resolve, so
+    // the transport fails for a reason nothing else in this binary can
+    // change. What the test is about - a transport failure naming its
+    // provider - is unaffected by which transport failure it is.
     let http = Http::new("anthropic").unwrap();
     let error = http
-        .post(&url(port), &[], "{}".to_owned())
+        .post("http://meowg1k.invalid/v1/messages", &[], "{}".to_owned())
         .await
         .unwrap_err();
 
