@@ -12,6 +12,7 @@ pub mod agent;
 pub mod args;
 mod capability;
 mod capability_git;
+mod capability_http;
 pub mod context;
 pub mod declare;
 pub mod error;

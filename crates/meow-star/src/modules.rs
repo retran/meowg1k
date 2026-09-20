@@ -30,10 +30,11 @@ use starlark::values::none::{NoneOr, NoneType};
 use crate::error::{Result, StarError};
 use crate::run::running;
 
-/// The modules that exist, in the order `meow doctor` should list them.
+/// The modules that exist, sorted, which is the order `[R-STAR-003]` lists
+/// them in when a `load` names one that does not.
 pub const NAMES: &[&str] = &[
-    "csv", "env", "fs", "git", "index", "json", "path", "re", "search", "shell", "text", "time",
-    "toml", "xml", "yaml",
+    "csv", "env", "fs", "git", "http", "index", "json", "path", "re", "search", "shell", "store",
+    "text", "time", "toml", "xml", "yaml",
 ];
 
 /// Every `@std//` module, built once per load.
@@ -53,6 +54,10 @@ impl Modules {
         table.insert("env".to_owned(), freeze(env_module)?);
         table.insert("fs".to_owned(), freeze(crate::capability::fs_module)?);
         table.insert("git".to_owned(), freeze(crate::capability_git::git_module)?);
+        table.insert(
+            "http".to_owned(),
+            freeze(crate::capability_http::http_module)?,
+        );
         table.insert("index".to_owned(), freeze(index_module)?);
         table.insert("json".to_owned(), freeze(json_module)?);
         table.insert("path".to_owned(), freeze(path_module)?);

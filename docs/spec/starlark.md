@@ -102,6 +102,19 @@ the line number of every hit.
 **[R-STAR-021]** Runtime capabilities MUST NOT be members of the context. A
 handler reaches them by `load`.
 
+### The network
+
+**[R-STAR-022]** The table MUST contain `http`, exposing `get`, `post`, `put`,
+and `delete`. Every call MUST carry a deadline and MUST fail when it passes,
+MUST cap how much of a response it will read, and MUST NOT leave a request in
+flight when the run is cancelled.
+
+**[R-STAR-023]** A response the server sent MUST be returned rather than
+raised, whatever its status: a call MUST give the status, the headers, and the
+body, and MUST NOT turn a 404 into a failure. A call that never reached a
+response - a name that does not resolve, a refused connection, a deadline -
+MUST fail with what went wrong.
+
 ### The index
 
 **[R-STAR-024]** The table MUST contain `index`, exposing `build`, `update`,
@@ -329,6 +342,20 @@ text is a walk and a comparison; requiring an embedding model and a built graph
 for it would make the cheap search depend on the expensive one. What it does
 share is the walk, so that one `.gitignore` decides what is searchable however
 a handler searches.
+
+**A status is an answer, not a failure**, by [R-STAR-023]. A handler that
+polls until something returns 200, or that treats 404 as "not yet", is the
+normal case rather than the exotic one, and a module that raised on 404 would
+make both of them write the error handling twice. What failed is reaching the
+server at all, and that is what fails.
+
+**`http` is not behind the policy layer**, by the decision above that policy
+governs what a model decided rather than what a script did. A handler is code
+the workspace's own author wrote, and gating it would put a prompt in front of
+the author's own program. What a model decided still passes through policy:
+the model calls a tool, and the tool call is what a rule matches. A workspace
+that gives a model a tool taking a URL from the model has handed it the
+network, and that is a decision the rule for that tool should reflect.
 
 **Markdown agents compose by inclusion only**, by [R-STAR-054]. A shared prompt
 is the real need; substitution and conditionals are how a configuration format
