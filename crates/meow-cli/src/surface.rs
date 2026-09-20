@@ -123,6 +123,31 @@ fn builtins() -> Vec<Command> {
                 "powershell",
             ])),
         Command::new("version").about("Print the version"),
+        // `[R-TUI-071]`: a group, beside `session`, `index`, and `policy`.
+        Command::new("auth")
+            .about("Credentials for the providers this machine talks to")
+            .subcommand_required(true)
+            .subcommand(
+                Command::new("login")
+                    .about("Store a credential for a provider")
+                    .arg(
+                        Arg::new("provider")
+                            .required(true)
+                            .help("The declared provider it belongs to"),
+                    )
+                    .arg(
+                        Arg::new("key")
+                            .long("key")
+                            .value_name("KEY")
+                            .help("The key, read from the terminal when absent"),
+                    ),
+            )
+            .subcommand(
+                Command::new("logout")
+                    .about("Remove a stored credential")
+                    .arg(Arg::new("provider").required(true).help("Which provider")),
+            )
+            .subcommand(Command::new("list").about("Say which providers have a credential")),
         Command::new("session")
             .about("Work with session logs")
             .subcommand_required(true)

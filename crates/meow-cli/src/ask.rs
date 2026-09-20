@@ -242,6 +242,42 @@ impl meow_star::port::Stdin for Stdin {
     }
 }
 
+/// Read a secret from the terminal.
+///
+/// `[R-AUTH-013]`: `meow auth login` takes a key from a person, and the
+/// alternative - a `--key` flag - puts it in shell history and in the process
+/// list. The flag exists for scripts that already have the key somewhere
+/// safer; this is the path a person should take.
+///
+/// There is no echo suppression here. Doing it portably means a terminal
+/// crate and raw mode, and a half-done version that echoes on one platform is
+/// worse than not promising it at all, so the prompt says what will happen.
+///
+/// # Errors
+///
+/// [`AskError::NotATerminal`] when there is nobody to type it, because a
+/// pipeline silently reading a blank key would store one.
+pub fn secret(prompt: &str) -> Result<String, AskError> {
+    use std::io::Write;
+
+    if !std::io::stdin().is_terminal() {
+        return Err(AskError::NotATerminal {
+            what: "meow auth login",
+        });
+    }
+
+    eprint!("{prompt} (it will be visible as you type): ");
+    let _ = std::io::stderr().flush();
+
+    let mut line = String::new();
+    std::io::stdin()
+        .lock()
+        .read_line(&mut line)
+        .map_err(|_| AskError::Declined)?;
+
+    Ok(line.trim_end_matches(['\r', '\n']).to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Interaction, describe};
