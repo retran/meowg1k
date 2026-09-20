@@ -1280,3 +1280,53 @@ fn a_child_cannot_outspend_its_caller() {
         "the child's hundred is capped by the caller's two"
     );
 }
+
+/// [R-AGENT-014] a child never gets more than the caller had, however the
+/// creation of children interleaves with the spending of steps
+///
+/// The failure this pins is not theoretical: it turned up on a macOS runner as
+/// six branches against a caller with three steps finishing four. `child()`
+/// took the lock twice - once for the caller's remaining allowance and once
+/// for the point to measure from - and a step charged in between made the two
+/// describe different instants. The child's limit was then larger than its
+/// base admitted, by exactly the number of steps that slipped through.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn making_a_child_while_steps_are_spent_cannot_widen_its_budget() {
+    // `Budget` and `Ledger` are already in scope from this file's imports.
+
+    // Many rounds, because the window is one step wide and whether anything
+    // lands in it is up to the scheduler.
+    for round in 0..200 {
+        let caller = Ledger::new(Budget {
+            steps: Some(3),
+            ..Budget::unbounded()
+        });
+
+        let mut threads = Vec::new();
+        for _ in 0..6 {
+            let caller = caller.clone();
+            threads.push(std::thread::spawn(move || {
+                // The child asks for far more than the caller has, so the only
+                // thing bounding it is what `child()` worked out.
+                let child = caller.child(Budget {
+                    steps: Some(100),
+                    ..Budget::unbounded()
+                });
+                let mut taken = 0;
+                while child.reserve_step().is_ok() {
+                    taken += 1;
+                    if taken > 100 {
+                        break;
+                    }
+                }
+                taken
+            }));
+        }
+
+        let total: u32 = threads.into_iter().map(|t| t.join().unwrap()).sum();
+        assert_eq!(
+            total, 3,
+            "round {round}: six branches took {total} of the caller's three steps"
+        );
+    }
+}
