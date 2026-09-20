@@ -208,36 +208,54 @@ impl Store {
     /// [`AuthError::Io`] when the directory cannot be made or the file cannot
     /// be written or renamed.
     pub fn save(&self) -> Result<(), AuthError> {
-        let directory = self.path.parent().ok_or_else(|| AuthError::Io {
-            doing: "find the directory of",
-            path: self.path.clone(),
-            source: std::io::Error::other("no parent"),
-        })?;
-        std::fs::create_dir_all(directory).map_err(|source| AuthError::Io {
-            doing: "create",
-            path: directory.to_path_buf(),
-            source,
-        })?;
-
-        let stored = Stored {
-            providers: self.entries.clone(),
-        };
-        let text = serde_json::to_string_pretty(&stored).map_err(|error| AuthError::Io {
-            doing: "encode",
-            path: self.path.clone(),
-            source: std::io::Error::other(error),
-        })?;
-
-        // Beside the target rather than in a temporary directory, because a
-        // rename across filesystems is not atomic and `/tmp` is often one.
-        let temporary = self.path.with_extension("json.new");
-        write_private(&temporary, &text)?;
-        std::fs::rename(&temporary, &self.path).map_err(|source| AuthError::Io {
-            doing: "replace",
-            path: self.path.clone(),
-            source,
-        })
+        write_json(
+            &self.path,
+            &Stored {
+                providers: self.entries.clone(),
+            },
+        )
     }
+}
+
+/// Write a JSON file under `~/.meow/`, privately and atomically.
+///
+/// `[R-AUTH-012]`: through a temporary beside the target and a rename, so a
+/// process that dies mid-write leaves the old file rather than half of the new
+/// one. A truncated credential store locks the user out of every provider at
+/// once, and a truncated trust record asks every question again.
+///
+/// Beside the target rather than in a temporary directory, because a rename
+/// across filesystems is not atomic and `/tmp` is often one.
+///
+/// # Errors
+///
+/// [`AuthError::Io`] when the directory cannot be made or the file cannot be
+/// written or renamed.
+pub fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), AuthError> {
+    let directory = path.parent().ok_or_else(|| AuthError::Io {
+        doing: "find the directory of",
+        path: path.to_path_buf(),
+        source: std::io::Error::other("no parent"),
+    })?;
+    std::fs::create_dir_all(directory).map_err(|source| AuthError::Io {
+        doing: "create",
+        path: directory.to_path_buf(),
+        source,
+    })?;
+
+    let text = serde_json::to_string_pretty(value).map_err(|error| AuthError::Io {
+        doing: "encode",
+        path: path.to_path_buf(),
+        source: std::io::Error::other(error),
+    })?;
+
+    let temporary = path.with_extension("json.new");
+    write_private(&temporary, &text)?;
+    std::fs::rename(&temporary, path).map_err(|source| AuthError::Io {
+        doing: "replace",
+        path: path.to_path_buf(),
+        source,
+    })
 }
 
 /// The home directory, without a dependency for it.

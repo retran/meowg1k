@@ -148,6 +148,22 @@ fn builtins() -> Vec<Command> {
                     .arg(Arg::new("provider").required(true).help("Which provider")),
             )
             .subcommand(Command::new("list").about("Say which providers have a credential")),
+        // `[R-TUI-071]`: top level, beside `init` and `doctor`, because it is
+        // answered once per workspace rather than being a group of things.
+        Command::new("trust")
+            .about("Agree to run the scripts this workspace declares")
+            .arg(
+                Arg::new("withdraw")
+                    .long("withdraw")
+                    .action(ArgAction::SetTrue)
+                    .help("Take back the agreement for this workspace"),
+            )
+            .arg(
+                Arg::new("list")
+                    .long("list")
+                    .action(ArgAction::SetTrue)
+                    .help("Say which workspaces this machine has agreed to"),
+            ),
         Command::new("session")
             .about("Work with session logs")
             .subcommand_required(true)
