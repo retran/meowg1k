@@ -47,6 +47,20 @@ pub enum LlmError {
         message: String,
     },
 
+    /// A credential could not be obtained or renewed.
+    ///
+    /// `[R-LLM-004]`. Its own variant rather than a `Transport`, because it
+    /// is the one failure here a person can fix and the message says how.
+    /// Retrying it is pointless: a grant that will not renew does not renew
+    /// on the second attempt either.
+    #[error("{provider}: {message}")]
+    Auth {
+        /// Which provider.
+        provider: String,
+        /// What went wrong, and what to run.
+        message: String,
+    },
+
     /// The provider does not do this.
     ///
     /// `[R-LLM-002]`: raised before a request is sent, so a caller is not
@@ -123,7 +137,11 @@ impl LlmError {
                 }
             }
             Self::Transport { .. } => Class::Transient,
-            Self::Unsupported { .. }
+            // Fatal, deliberately: a grant that will not renew does not renew
+            // on the second attempt, and retrying spends the backoff to reach
+            // the same message a person has to read anyway.
+            Self::Auth { .. }
+            | Self::Unsupported { .. }
             | Self::Schema { .. }
             | Self::Malformed { .. }
             | Self::Cancelled
