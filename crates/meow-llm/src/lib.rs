@@ -13,6 +13,8 @@
 //! `docs/spec/llm.md` is normative.
 
 mod anthropic;
+mod bearer;
+pub mod copilot;
 mod error;
 mod gemini;
 mod http;
@@ -26,6 +28,7 @@ mod transport;
 mod voyage;
 
 pub use crate::anthropic::Anthropic;
+pub use crate::bearer::{Bearer, Exchanged, Fixed};
 pub use crate::error::{Class, LlmError, Result};
 pub use crate::gemini::Gemini;
 pub use crate::http::Http;

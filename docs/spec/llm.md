@@ -33,6 +33,13 @@ sent.
 **[R-LLM-003]** A trait method signature MUST NOT name a type from a vendor
 SDK or wire format.
 
+**[R-LLM-004]** What a provider sends to authenticate MUST be obtained per
+request rather than fixed when the provider is built, so that a credential
+which expires can be renewed without rebuilding anything. Renewing MUST happen
+at most once for a credential's lifetime, and a renewal that fails MUST fail
+the request naming the provider and the command that re-authenticates, per
+[R-AUTH-022].
+
 ### Messages and tools
 
 **[R-LLM-010]** A message MUST carry exactly one role: system, user,
@@ -160,6 +167,14 @@ Cached prompt tokens are not reported anywhere in v0.2.x, which makes the main
 cost lever of a well-built agent invisible.
 
 ## Decisions
+
+**A credential is asked for, not held**, by [R-LLM-004]. Every provider here
+but one uses a key that does not change, and building the token into the
+provider was right for them. It is wrong for one that exchanges a long-lived
+grant for a short-lived token: the provider would have to be rebuilt on a
+schedule nobody owns. Asking per request costs a lock and a comparison for the
+providers that do not need it, and removes a whole category of "it worked this
+morning" from the one that does.
 
 **Cache control is an optional hint**, by [R-LLM-015]. Anthropic needs explicit
 breakpoints and OpenAI caches on its own, so the trait carries the weaker of
