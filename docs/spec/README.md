@@ -94,7 +94,7 @@ the only thing that stops it being reopened.
 
 ## Status
 
-All eight component specifications are drafted and every open question is
+All ten component specifications are drafted and every open question is
 closed. They were approved on 2026-09-19 and are the acceptance criteria for
 the work in `docs/design/0.3.0-plan.md`. Requirements have been added since -
 the Starlark module surface grew to fill what the design document promised -

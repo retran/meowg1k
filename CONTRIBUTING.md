@@ -32,7 +32,7 @@ export ANTHROPIC_API_KEY=...   # and VOYAGE_API_KEY for the index
 
 No behaviour ships that a specification does not describe.
 
-`docs/spec/` holds eight areas of requirements, each with an identifier like
+`docs/spec/` holds ten areas of requirements, each with an identifier like
 `R-AGENT-013`. Before writing code whose behaviour no
 requirement covers, write the requirement. When an implementation would
 contradict one, amend the requirement in place, with the date and the reason,

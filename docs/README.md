@@ -6,13 +6,15 @@ Three kinds of document, and they answer different questions.
 
 `spec/` is normative. Every behaviour the binary has traces to a requirement
 there, and a change that no requirement describes needs a requirement first.
-Eight files, one per area:
+Ten files, one per area:
 
 | File | Area | What it fixes |
 | --- | --- | --- |
 | [agent.md](spec/agent.md) | `R-AGENT-*` | the loop, budgets, tools, compaction |
+| [auth.md](spec/auth.md) | `R-AUTH-*` | where a credential comes from, and trusting a workspace |
 | [index.md](spec/index.md) | `R-INDEX-*` | walking, chunking, embedding, retrieval |
 | [llm.md](spec/llm.md) | `R-LLM-*` | what a provider is and what it promises |
+| [packages.md](spec/packages.md) | `R-PKG-*` | fetching, pinning, and verifying Starlark from elsewhere |
 | [policy.md](spec/policy.md) | `R-POLICY-*` | what an agent may do, and who decides |
 | [session.md](spec/session.md) | `R-SESSION-*` | the append-only log, forks, retention |
 | [starlark.md](spec/starlark.md) | `R-STAR-*` | the surface users write against |
