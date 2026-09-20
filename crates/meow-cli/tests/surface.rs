@@ -593,3 +593,84 @@ fn search_code_is_loaded_and_reports_an_empty_index() {
         stderr(&output)
     );
 }
+
+/// A workspace naming several provider kinds.
+const KINDS: &str = r#"
+meow.provider(name = "anthropic", kind = "anthropic", api_key = "k")
+meow.provider(name = "openai", kind = "openai", api_key = "k")
+meow.provider(name = "router", kind = "openrouter", api_key = "k")
+meow.provider(name = "gemini", kind = "gemini", api_key = "k")
+meow.provider(name = "voyage", kind = "voyage", api_key = "k")
+meow.provider(name = "local", kind = "llama", base_url = "http://127.0.0.1:1234", api_key = "k")
+
+meow.model(name = "fast", provider = "anthropic", id = "m", context = 1, max_output = 1)
+meow.model(name = "gpt", provider = "openai", id = "g", context = 1, max_output = 1)
+meow.model(name = "flash", provider = "gemini", id = "f", context = 1, max_output = 1)
+"#;
+
+/// Every kind this binary knows is accepted, and its models resolve.
+#[test]
+fn every_provider_kind_loads() {
+    let dir = workspace(KINDS);
+
+    let checked = run(dir.path(), &["check"]);
+    assert_eq!(code(&checked), 0, "{}", stderr(&checked));
+    assert!(
+        stdout(&checked).contains("6 providers"),
+        "{}",
+        stdout(&checked)
+    );
+
+    let doctor = run(dir.path(), &["doctor"]);
+    assert_eq!(code(&doctor), 0, "{}", stderr(&doctor));
+    assert!(
+        stdout(&doctor).contains("kinds\tall known"),
+        "{}",
+        stdout(&doctor)
+    );
+}
+
+/// A kind nothing implements is reported by name, with what there is.
+#[test]
+fn an_unknown_provider_kind_says_what_the_kinds_are() {
+    let dir = workspace(
+        r#"
+meow.provider(name = "oops", kind = "nonesuch", api_key = "k")
+"#,
+    );
+
+    let checked = run(dir.path(), &["check"]);
+    assert_eq!(code(&checked), 7, "{}", stdout(&checked));
+    assert!(stderr(&checked).contains("`oops`"), "{}", stderr(&checked));
+    assert!(
+        stderr(&checked).contains("nonesuch"),
+        "{}",
+        stderr(&checked)
+    );
+    assert!(
+        stderr(&checked).contains("anthropic") && stderr(&checked).contains("gemini"),
+        "the kinds that exist are not listed: {}",
+        stderr(&checked)
+    );
+
+    // `doctor` finds the same thing and says so with the rest of the report.
+    let doctor = run(dir.path(), &["doctor"]);
+    assert_eq!(code(&doctor), 7, "{}", stdout(&doctor));
+    assert!(
+        stdout(&doctor).contains("kinds\tunknown for oops (nonesuch)"),
+        "{}",
+        stdout(&doctor)
+    );
+}
+
+/// A declared address reaches the provider rather than its default.
+#[test]
+fn a_declared_base_url_is_kept() {
+    let dir = workspace(KINDS);
+    let checked = run(dir.path(), &["check"]);
+
+    // Nothing here reaches the network; what matters is that a provider with
+    // an address and no default still loads, which `llama` is: it has no
+    // vendor endpoint to fall back to.
+    assert_eq!(code(&checked), 0, "{}", stderr(&checked));
+}
