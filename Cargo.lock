@@ -2004,6 +2004,7 @@ dependencies = [
  "meow-ui",
  "ratatui",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2",

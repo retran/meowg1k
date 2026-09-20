@@ -90,6 +90,14 @@ fn auth(matches: &ArgMatches) -> Ending {
                 return Ending::Usage;
             };
 
+            // `[R-AUTH-020]`: a kind that authenticates by OAuth takes a
+            // different path. Which kind a name is comes from the workspace
+            // when there is one, and from the name itself when there is not -
+            // logging in should not require a workspace that loads.
+            if oauth_kind(provider) {
+                return login_by_device(provider, &mut store);
+            }
+
             let key = match sub.get_one::<String>("key") {
                 Some(given) => given.clone(),
                 None => match crate::ask::secret(&format!("Key for `{provider}`")) {
@@ -289,6 +297,83 @@ fn trust_command(matches: &ArgMatches, workspace: &Workspace, loaded: &Loaded) -
     match record_trust(workspace, &declared) {
         Ok(()) => {
             println!("trusted `{}`", workspace.root().display());
+            Ending::Passed
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            Ending::Config
+        }
+    }
+}
+
+/// Whether a provider authenticates by a device flow rather than a key.
+///
+/// By name, because `meow auth login` needs no workspace and a name is all it
+/// has. The kinds that use OAuth are few and fixed, so a table is honest;
+/// what it costs is that a provider *named* `copilot` with some other kind
+/// would take this path, and naming a provider after a kind it is not is a
+/// mistake this would make visible rather than cause.
+fn oauth_kind(provider: &str) -> bool {
+    provider.eq_ignore_ascii_case("copilot")
+}
+
+/// `meow auth login <oauth provider>`: show a code, wait, store the result.
+fn login_by_device(provider: &str, store: &mut crate::auth::Store) -> Ending {
+    // `[R-AUTH-023]`: nobody to read the code means nobody to type it into a
+    // browser either, so this is refused rather than left waiting.
+    if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        eprintln!(
+            "`meow auth login {provider}` needs a terminal: it shows a code to type in a browser"
+        );
+        return Ending::Usage;
+    }
+
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("could not start a runtime: {error}");
+            return Ending::Failed;
+        }
+    };
+
+    let cancel = CancellationToken::new();
+    let stop = cancel.clone();
+    runtime.spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            stop.cancel();
+        }
+    });
+
+    let granted = runtime.block_on(crate::device::run(
+        &crate::device::Endpoints::github(),
+        &cancel,
+        |code, uri| {
+            eprintln!("Open {uri} and enter the code {code}");
+            eprintln!("Waiting for you to approve it. Ctrl-C stops.");
+        },
+    ));
+
+    let granted = match granted {
+        Ok(granted) => granted,
+        Err(error) => {
+            eprintln!("{error}");
+            return Ending::Provider;
+        }
+    };
+
+    store.put(
+        provider.to_owned(),
+        crate::auth::Credential::OAuth {
+            access: granted.access,
+            refresh: granted.refresh,
+            expires: granted.expires,
+            stored: i64::try_from(now_millis() / 1000).unwrap_or(0),
+        },
+    );
+
+    match store.save() {
+        Ok(()) => {
+            println!("stored a credential for `{provider}`");
             Ending::Passed
         }
         Err(error) => {
