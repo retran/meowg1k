@@ -146,6 +146,11 @@ impl Searcher {
     }
 
     /// The index, or what to tell the script about why it is not usable.
+    /// The index-free half of this port.
+    fn walker(&self) -> Walker {
+        Walker::new(self.walk, self.root.clone())
+    }
+
     fn held(&self) -> Result<std::sync::MutexGuard<'_, Index>, String> {
         self.index
             .lock()
@@ -239,6 +244,50 @@ impl Search for Searcher {
         limit: usize,
         paths: &[String],
     ) -> Result<Vec<Found>, String> {
+        self.walker().text(pattern, regex, limit, paths)
+    }
+
+    fn files(&self, pattern: &str, limit: usize) -> Result<Vec<String>, String> {
+        self.walker().files(pattern, limit)
+    }
+}
+
+/// `search.text` and `search.files`, with no index behind them.
+///
+/// `[R-STAR-019]` asks both to work in a workspace where `meow index build`
+/// has never run, and to reach exactly the files the index reaches. So this
+/// needs the walk and the root and nothing else, and it is what a workspace
+/// that declares no index gets - the alternative, which this replaces, was a
+/// port that answered every search with an empty list, so a handler searching
+/// a workspace without an index was told there was nothing in it.
+#[derive(Debug)]
+pub struct Walker {
+    walk: Walk,
+    root: std::path::PathBuf,
+}
+
+impl Walker {
+    /// Search from this root, with this walk.
+    pub fn new(walk: Walk, root: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            walk,
+            root: root.into(),
+        }
+    }
+
+    /// The path a hit reports, relative to the root and with forward slashes.
+    fn relative(&self, file: &std::path::Path) -> Option<String> {
+        let relative = file.strip_prefix(&self.root).ok()?;
+        Some(relative.to_string_lossy().replace('\\', "/"))
+    }
+
+    fn text(
+        &self,
+        pattern: &str,
+        regex: bool,
+        limit: usize,
+        paths: &[String],
+    ) -> Result<Vec<Found>, String> {
         let matcher = if regex {
             Some(
                 regex::Regex::new(pattern)
@@ -252,10 +301,9 @@ impl Search for Searcher {
         let mut out = Vec::new();
 
         for file in &walked.files {
-            let Ok(relative) = file.strip_prefix(&self.root) else {
+            let Some(relative) = self.relative(file) else {
                 continue;
             };
-            let relative = relative.to_string_lossy().replace('\\', "/");
             if !paths.is_empty() && !paths.iter().any(|p| relative.starts_with(p.as_str())) {
                 continue;
             }
@@ -299,10 +347,9 @@ impl Search for Searcher {
         let walked = self.walk.run(&self.root).map_err(|e| e.to_string())?;
         let mut out = Vec::new();
         for file in &walked.files {
-            let Ok(relative) = file.strip_prefix(&self.root) else {
+            let Some(relative) = self.relative(file) else {
                 continue;
             };
-            let relative = relative.to_string_lossy().replace('\\', "/");
             if matcher.is_match(&relative) {
                 out.push(relative);
                 if out.len() >= limit {
@@ -311,5 +358,68 @@ impl Search for Searcher {
             }
         }
         Ok(out)
+    }
+}
+
+/// A workspace with no index: the two searches that need none still work, and
+/// everything that needs one says so.
+///
+/// `[R-STAR-025]`: no index and no results are different answers.
+#[derive(Debug)]
+pub struct Unindexed {
+    walker: Walker,
+    /// Why there is no index, in the words the caller should see.
+    why: String,
+}
+
+impl Unindexed {
+    /// A workspace that will walk but not rank, for this reason.
+    pub fn new(root: impl Into<std::path::PathBuf>, why: impl Into<String>) -> Self {
+        Self {
+            walker: Walker::new(Walk::default(), root),
+            why: why.into(),
+        }
+    }
+}
+
+impl Search for Unindexed {
+    fn code(&self, _query: &str, _limit: usize, _paths: &[String]) -> Result<Vec<Found>, String> {
+        Err(self.why.clone())
+    }
+
+    fn query(
+        &self,
+        _query: &str,
+        _limit: usize,
+        _paths: &[String],
+        _min_score: f32,
+    ) -> Result<Vec<Found>, String> {
+        Err(self.why.clone())
+    }
+
+    fn update(&self) -> Result<Indexed, String> {
+        Err(self.why.clone())
+    }
+
+    fn build(&self) -> Result<Indexed, String> {
+        Err(self.why.clone())
+    }
+
+    fn stats(&self) -> Result<Stats, String> {
+        Err(self.why.clone())
+    }
+
+    fn text(
+        &self,
+        pattern: &str,
+        regex: bool,
+        limit: usize,
+        paths: &[String],
+    ) -> Result<Vec<Found>, String> {
+        self.walker.text(pattern, regex, limit, paths)
+    }
+
+    fn files(&self, pattern: &str, limit: usize) -> Result<Vec<String>, String> {
+        self.walker.files(pattern, limit)
     }
 }
