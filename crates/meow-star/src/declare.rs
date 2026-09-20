@@ -299,6 +299,23 @@ fn declarations(builder: &mut GlobalsBuilder) {
         Ok(crate::value::agent(&name))
     }
 
+    /// Name an agent that may be declared elsewhere.
+    ///
+    /// A markdown agent under `.meow/agents/` is read after `meow.star` has
+    /// been evaluated, so a handler cannot hold its value the way it holds a
+    /// `meow.agent` one. This gives it the same value by name, and
+    /// `[R-STAR-032]` still holds: the name is checked once everything has
+    /// been read, not when the handler runs.
+    fn agent_named<'v>(
+        #[starlark(require = pos)] name: String,
+        eval: &mut Evaluator<'v, '_, '_>,
+    ) -> starlark::Result<crate::value::Agent> {
+        let state = declaring(eval, "meow.agent_named")?;
+        let origin = state.origin();
+        state.registry_mut().reference_agent(&name, origin);
+        Ok(crate::value::agent(&name))
+    }
+
     /// Put a declared tool or agent on the command line.
     fn command<'v>(
         #[starlark(require = pos)] what: StarValue<'v>,
