@@ -12,11 +12,11 @@ description = "The SQLite database a meowg1k workspace keeps"
 
 [dependencies]
 blake3 = "1"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 tempfile = "3"
 
 [lints]
